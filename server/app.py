@@ -13,10 +13,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 
 from .db import init_db, session_scope
 from .settings import get_settings
+from .spa_static import install_frontend_spa
 
 logger = logging.getLogger("mme.server")
 
@@ -139,7 +139,7 @@ def create_app() -> FastAPI:
     # 生产：托管前端构建产物（frontend/dist）。开发时不存在则跳过。
     dist = settings.project_root / "frontend" / "dist"
     if dist.is_dir():
-        app.mount("/", StaticFiles(directory=str(dist), html=True), name="frontend")
+        install_frontend_spa(app, dist)
 
     return app
 

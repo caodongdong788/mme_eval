@@ -488,48 +488,45 @@ openssl rand -hex 32
 
 **1）DNS**：添加 A 记录 `eval.example.com` → 云主机公网 IP。
 
-**2）Nginx 反代 + Let's Encrypt**（在云主机执行）：
+**2）Nginx（SPA `try_files` + API 反代）**
+
+仓库提供模板 `deploy/nginx/mme.conf`（`location /` 使用 `try_files $uri $uri/ /index.html;`，与容器内 `server/spa_static.py` **双保险**）。完整步骤见 [`deploy/nginx/README.md`](deploy/nginx/README.md)。
 
 ```bash
 sudo apt install -y nginx certbot python3-certbot-nginx
 
-sudo tee /etc/nginx/sites-available/mme <<'EOF'
-server {
-    listen 80;
-    server_name eval.example.com;
+# 先启动 Docker app（:8000）
+docker compose up -d --build
 
-    client_max_body_size 20m;
+# 把容器内 frontend/dist 同步到 Nginx 可读目录
+sudo scripts/sync_nginx_static.sh /var/www/mme/frontend/dist
 
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 300s;
-    }
-}
-EOF
+# 安装站点（记得改 server_name）
+sudo cp deploy/nginx/mme.conf /etc/nginx/sites-available/mme
+sudo nano /etc/nginx/sites-available/mme   # eval.example.com → 你的域名
 
 sudo ln -sf /etc/nginx/sites-available/mme /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
+
 sudo certbot --nginx -d eval.example.com
 ```
 
+每次 `docker compose up -d --build` **更新前端**后，重新执行 `sync_nginx_static.sh`，否则 Nginx 仍服务旧静态资源。
+
 **3）飞书开发者后台**：重定向 URL = `.env` 中 `FEISHU_REDIRECT_URI`（完全一致）。
 
-浏览器访问：**https://eval.example.com**
+浏览器访问：**https://eval.example.com**（`/runs` 可直接打开或刷新）。
 
 ### 8.6 架构示意
 
 ```text
 用户浏览器
     ↓ HTTPS :443
-Nginx（TLS 证书 + 反代）
-    ↓ HTTP 127.0.0.1:8000（不暴露公网）
+Nginx（TLS + try_files SPA + /api 反代）
+    ├─ /、/runs、/assets → 宿主机 /var/www/mme/frontend/dist（sync_nginx_static.sh）
+    └─ /api/* → HTTP 127.0.0.1:8000（不暴露公网）
 docker compose
-    ├── app   FastAPI + 前端静态（frontend/dist）
+    ├── app   FastAPI（API + SPA 回退双保险）
     └── db    Postgres 16
          volumes: mme-data（outputs/uploads）、pgdata（DB）
 ```
@@ -555,7 +552,8 @@ docker compose exec db pg_dump -U medeval medeval > backup-$(date +%F).sql
 | Git 无 `.env` / 明文 API Key / `outputs/` | `git status` + `grep api_key config.yaml` |
 | `SESSION_SECRET` 已换强随机值 | `MEDEVAL_ENV=production` 下必过启动校验 |
 | `FRONTEND_URL`、飞书回调为 **https + 真实域名** | 与飞书后台一致 |
-| Nginx + 证书已生效 | 浏览器地址栏有锁 |
+| Nginx + 证书已生效 | 浏览器地址栏有锁；配置见 `deploy/nginx/mme.conf` |
+| Nginx 已同步 `frontend/dist` | `sudo scripts/sync_nginx_static.sh`（前端更新后重做） |
 | `config.yaml` 中被测 bot 从云主机可达 | 评测任务能调通 adapter |
 | 安全组仅 22/80/443 | 8000 只监听本机，不经公网直连 |
 | `app` 仅 1 副本 | 进程内 JobRunner 不支持多实例抢任务 |

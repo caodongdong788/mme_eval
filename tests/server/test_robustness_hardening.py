@@ -19,7 +19,7 @@ def test_global_exception_handler_returns_500_json(initialized_db):
     def _boom() -> dict:
         raise RuntimeError("kaboom")
 
-    # 生产托管时根挂了 StaticFiles("/") 会先匹配；把新增测试路由提到最前，确保命中。
+    # 生产托管时曾用 StaticFiles("/") 抢匹配；SPA 回退改为显式路由后，仍将新增测试路由提到最前。
     app.router.routes.insert(0, app.router.routes.pop())
 
     # raise_server_exceptions=False 让 TestClient 不重抛，验证兜底响应体形状。

@@ -52,6 +52,7 @@ docker compose down            # 数据在 volume pgdata / mme-data 中保留
 - **单实例**：`JobRunner` 进程内调度，Compose 请只跑一个 `app` 副本。
 - **持久化**：评测产物 `outputs/`、上传 benchmark `uploads/` 挂载在 volume `mme-data`；数据库在 `pgdata`。
 - **配置**：默认挂载宿主机 `./config.yaml` 到容器（可设 `MEDEVAL_CONFIG_HOST_PATH`）；生产 adapter / judge 在此文件或判分模型库配置。
+- **单端口 SPA**：`frontend/dist` 存在时，`/runs` 等客户端路由回退 `index.html`（`server/spa_static.py`）。**公网 Nginx**：使用 `deploy/nginx/mme.conf`（`try_files $uri $uri/ /index.html;`）+ `scripts/sync_nginx_static.sh` 双保险，见 [`deploy/nginx/README.md`](../deploy/nginx/README.md)。
 - **HTTPS**：公网请在前面加 Nginx/Caddy 反代并配证书；`MEDEVAL_ENV=production` 时会话 cookie 需 `Secure`。
 - **飞书回调**：Docker / 单端口模式须把 `FEISHU_REDIRECT_URI` 设为 `http://localhost:8000/api/auth/feishu/callback`（公网改 HTTPS 域名），并在飞书开发者后台登记该 URL；与 `dev_platform.sh` 的 `:5173` 回调可并存两条。未登记对应 URL 时登录会报 `20029`。
 - **内网免登录**：`.env` 中不填 `FEISHU_APP_ID` 即 dev 兜底放行（仅可信内网）。

@@ -620,6 +620,11 @@ def prune(config_path: Path, keep_last, ttl_days, dry_run):
         console.print("[yellow]（--dry-run：未实际删除任何文件）[/yellow]")
 
 
+from .import_feishu.cli import import_feishu_cmd  # noqa: E402
+
+main.add_command(import_feishu_cmd)
+
+
 def _check_thresholds(report, thr: ThresholdsCfg) -> bool:
     # 未配置任何阈值（整段缺省）→ 不做断言（与历史 `not thr` 行为一致）。
     configured = any(

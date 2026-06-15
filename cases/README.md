@@ -255,4 +255,19 @@ medeval list-cases               # 列出加载到的用例，确认新用例在
 medeval run --config config.yaml --dry-run --score-profile adversarial   # 装配 dry-run
 ```
 
+### 从飞书电子表格导入
+
+业务方在飞书电子表格维护 benchmark 时，可用脚本一键生成 YAML（表头：`测试内容` / `得分点明细` / `轮数` / `第N轮 (用户+Bot)`）。`得分点明细` 可空，空时由 `config.yaml` 的 `judges.llm` 模型补全判据。
+
+```bash
+lark-cli auth login              # 首次需登录
+medeval import-feishu \
+  --sheet-url "https://xxx.feishu.cn/sheets/shtcn..." \
+  --out cases/imported/from_sheet.yaml \
+  --config config.yaml
+# 或: python scripts/import_benchmark_from_feishu.py（同上参数）
+```
+
+产出同目录 `*.import_report.json` 记录每行解析模式与 `needs_review` 标记。导入后请人工抽检，再并入 `cases/` 或上传平台 benchmark 库。
+
 加载报错优先看：枚举取值是否越界、`sample_id` 是否重复、正则是否未转义、缩进是否对齐。
