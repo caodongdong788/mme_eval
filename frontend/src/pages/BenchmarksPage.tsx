@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import {
   Button,
   Card,
@@ -11,7 +10,6 @@ import {
   Table,
   Tag,
   Upload,
-  message,
 } from "antd";
 import {
   DownloadOutlined,
@@ -19,110 +17,11 @@ import {
   InboxOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
-import type { UploadFile } from "antd";
-import { api, Benchmark, CaseBrief } from "../api";
-import { formatApiError } from "../utils/apiError";
+import { api } from "../api/index";
+import { useBenchmarksPage } from "../hooks/useBenchmarksPage";
 
 export default function BenchmarksPage() {
-  const [list, setList] = useState<Benchmark[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-  // null = 新建上传；数字 = 覆盖该 benchmark
-  const [replaceId, setReplaceId] = useState<number | null>(null);
-  const [fileList, setFileList] = useState<UploadFile[]>([]);
-  const [form] = Form.useForm();
-  const [casesOpen, setCasesOpen] = useState(false);
-  const [cases, setCases] = useState<CaseBrief[]>([]);
-  const [casesTitle, setCasesTitle] = useState("");
-  const [editForm] = Form.useForm();
-  const [editOpen, setEditOpen] = useState(false);
-  const [editId, setEditId] = useState<number | null>(null);
-
-  const builtin = list.find((b) => b.source === "builtin");
-  const uploaded = list.filter((b) => b.source !== "builtin");
-
-  const reload = async () => {
-    setLoading(true);
-    try {
-      setList(await api.listBenchmarks());
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    reload();
-  }, []);
-
-  const openCreate = () => {
-    setReplaceId(null);
-    setFileList([]);
-    form.resetFields();
-    setModalOpen(true);
-  };
-
-  const openReplace = (b: Benchmark) => {
-    setReplaceId(b.id);
-    setFileList([]);
-    form.resetFields();
-    setModalOpen(true);
-  };
-
-  const submit = async () => {
-    const file = fileList[0]?.originFileObj;
-    if (!file) {
-      message.error("请选择一个 YAML 用例文件");
-      return;
-    }
-    const fd = new FormData();
-    fd.append("file", file);
-    try {
-      if (replaceId != null) {
-        await api.replaceBenchmark(replaceId, fd);
-        message.success("覆盖成功");
-      } else {
-        const values = await form.validateFields();
-        fd.append("name", values.name);
-        fd.append("description", values.description || "");
-        await api.uploadBenchmark(fd);
-        message.success("上传成功");
-      }
-      setModalOpen(false);
-      setFileList([]);
-      form.resetFields();
-      reload();
-    } catch (e: any) {
-      message.error(formatApiError(e, "操作失败"));
-    }
-  };
-
-  const viewCases = async (b: Benchmark) => {
-    setCasesTitle(`${b.name}（${b.case_count} 条用例）`);
-    setCasesOpen(true);
-    setCases(await api.getBenchmarkCases(b.id));
-  };
-
-  const openEdit = (b: Benchmark) => {
-    setEditId(b.id);
-    editForm.setFieldsValue({ name: b.name, description: b.description });
-    setEditOpen(true);
-  };
-
-  const submitEdit = async () => {
-    try {
-      const v = await editForm.validateFields();
-      await api.updateBenchmark(editId!, {
-        name: v.name,
-        description: v.description || "",
-      });
-      message.success("已保存");
-      setEditOpen(false);
-      reload();
-    } catch (e: any) {
-      if (e?.errorFields) return; // 表单校验失败
-      message.error(formatApiError(e, "保存失败"));
-    }
-  };
+  const bm = useBenchmarksPage();
 
   const columns = [
     { title: "ID", dataIndex: "id", width: 60 },
@@ -139,7 +38,7 @@ export default function BenchmarksPage() {
       title: "上传人",
       dataIndex: "created_by",
       width: 110,
-      render: (v: string | null, b: Benchmark) =>
+      render: (v: string | null, b: { source: string }) =>
         b.source === "builtin" ? (
           <Tag>内置</Tag>
         ) : (
@@ -159,22 +58,15 @@ export default function BenchmarksPage() {
     {
       title: "操作",
       width: 280,
-      render: (_: any, b: Benchmark) => (
+      render: (_: unknown, b: (typeof bm.uploaded)[0]) => (
         <Space>
-          <a onClick={() => viewCases(b)}>查看用例</a>
-          <a onClick={() => openEdit(b)}>编辑</a>
+          <a onClick={() => bm.viewCases(b)}>查看用例</a>
+          <a onClick={() => bm.openEdit(b)}>编辑</a>
           <a href={api.downloadBenchmarkUrl(b.id)} download>
             <DownloadOutlined /> 下载
           </a>
-          <a onClick={() => openReplace(b)}>覆盖</a>
-          <Popconfirm
-            title="确认删除该 benchmark?"
-            onConfirm={async () => {
-              await api.deleteBenchmark(b.id);
-              message.success("已删除");
-              reload();
-            }}
-          >
+          <a onClick={() => bm.openReplace(b)}>覆盖</a>
+          <Popconfirm title="确认删除该 benchmark?" onConfirm={() => bm.deleteBenchmark(b.id)}>
             <a style={{ color: "var(--fail)" }}>删除</a>
           </Popconfirm>
         </Space>
@@ -196,31 +88,35 @@ export default function BenchmarksPage() {
         <Space>
           <Button
             icon={<FileTextOutlined />}
-            href={builtin ? api.downloadBenchmarkUrl(builtin.id) : undefined}
+            href={bm.builtin ? api.downloadBenchmarkUrl(bm.builtin.id) : undefined}
             download
-            disabled={!builtin}
+            disabled={!bm.builtin}
             title="下载内置乳腺癌专科用例模板（YAML，可改后作为新 benchmark 上传）"
           >
-            用例模板{builtin ? `（${builtin.case_count}）` : ""} <DownloadOutlined />
+            用例模板{bm.builtin ? `（${bm.builtin.case_count}）` : ""} <DownloadOutlined />
           </Button>
-          <Button type="primary" icon={<UploadOutlined />} onClick={openCreate}>
+          <Button type="primary" icon={<UploadOutlined />} onClick={bm.openCreate}>
             上传 benchmark
           </Button>
         </Space>
       }
     >
-      <Table rowKey="id" loading={loading} columns={columns} dataSource={uploaded} />
+      <Table rowKey="id" loading={bm.loading} columns={columns} dataSource={bm.uploaded} />
 
       <Modal
-        title={replaceId != null ? `覆盖 benchmark #${replaceId}` : "上传 benchmark（YAML 用例集，格式同 cases/）"}
-        open={modalOpen}
-        onOk={submit}
-        onCancel={() => setModalOpen(false)}
-        okText={replaceId != null ? "覆盖" : "上传"}
+        title={
+          bm.replaceId != null
+            ? `覆盖 benchmark #${bm.replaceId}`
+            : "上传 benchmark（YAML 用例集，格式同 cases/）"
+        }
+        open={bm.modalOpen}
+        onOk={bm.submit}
+        onCancel={() => bm.setModalOpen(false)}
+        okText={bm.replaceId != null ? "覆盖" : "上传"}
         cancelText="取消"
       >
-        <Form form={form} layout="vertical">
-          {replaceId == null && (
+        <Form form={bm.form} layout="vertical">
+          {bm.replaceId == null && (
             <>
               <Form.Item name="name" label="名称" rules={[{ required: true, message: "请输入名称" }]}>
                 <Input placeholder="如：乳腺癌补充集" />
@@ -234,9 +130,9 @@ export default function BenchmarksPage() {
             <Upload.Dragger
               accept=".yaml,.yml"
               maxCount={1}
-              fileList={fileList}
+              fileList={bm.fileList}
               beforeUpload={() => false}
-              onChange={({ fileList }) => setFileList(fileList)}
+              onChange={({ fileList }) => bm.setFileList(fileList)}
             >
               <p className="ant-upload-drag-icon">
                 <InboxOutlined />
@@ -249,13 +145,13 @@ export default function BenchmarksPage() {
 
       <Modal
         title="编辑 benchmark"
-        open={editOpen}
-        onOk={submitEdit}
-        onCancel={() => setEditOpen(false)}
+        open={bm.editOpen}
+        onOk={bm.submitEdit}
+        onCancel={() => bm.setEditOpen(false)}
         okText="保存"
         cancelText="取消"
       >
-        <Form form={editForm} layout="vertical">
+        <Form form={bm.editForm} layout="vertical">
           <Form.Item name="name" label="名称" rules={[{ required: true, message: "请输入名称" }]}>
             <Input />
           </Form.Item>
@@ -265,12 +161,12 @@ export default function BenchmarksPage() {
         </Form>
       </Modal>
 
-      <Drawer title={casesTitle} width={720} open={casesOpen} onClose={() => setCasesOpen(false)}>
+      <Drawer title={bm.casesTitle} width={720} open={bm.casesOpen} onClose={() => bm.setCasesOpen(false)}>
         <Table
           rowKey="sample_id"
           size="small"
           columns={caseColumns}
-          dataSource={cases}
+          dataSource={bm.cases}
           pagination={{ pageSize: 20 }}
         />
       </Drawer>

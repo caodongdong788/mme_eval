@@ -1,0 +1,223 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`PairwiseConversationCol > matches snapshot for empty messages 1`] = `
+<div
+  class="ant-card ant-card-bordered ant-card-small css-dev-only-do-not-override-mncuj7"
+>
+  <div
+    class="ant-card-head"
+  >
+    <div
+      class="ant-card-head-wrapper"
+    >
+      <div
+        class="ant-card-head-title"
+      >
+        <span>
+          <span
+            class="ant-tag ant-tag-default css-dev-only-do-not-override-mncuj7"
+            style="margin-inline-end: 6px;"
+          >
+            A
+          </span>
+          baseline-run
+        </span>
+      </div>
+      <div
+        class="ant-card-extra"
+      >
+        <a
+          href="/runs/1/cases/bc_001"
+        >
+          用例明细 
+          <span
+            aria-label="arrow-right"
+            class="anticon anticon-arrow-right"
+            role="img"
+          >
+            <svg
+              aria-hidden="true"
+              data-icon="arrow-right"
+              fill="currentColor"
+              focusable="false"
+              height="1em"
+              viewBox="64 64 896 896"
+              width="1em"
+            >
+              <path
+                d="M869 487.8L491.2 159.9c-2.9-2.5-6.6-3.9-10.5-3.9h-88.5c-7.4 0-10.8 9.2-5.2 14l350.2 304H152c-4.4 0-8 3.6-8 8v60c0 4.4 3.6 8 8 8h585.1L386.9 854c-5.6 4.9-2.2 14 5.2 14h91.5c1.9 0 3.8-.7 5.2-2L869 536.2a32.07 32.07 0 000-48.4z"
+              />
+            </svg>
+          </span>
+        </a>
+      </div>
+    </div>
+  </div>
+  <div
+    class="ant-card-body"
+    style="max-height: 420px; overflow-y: auto;"
+  >
+    <div
+      class="ant-space css-dev-only-do-not-override-mncuj7 ant-space-vertical"
+      style="column-gap: 8px; row-gap: 8px; display: flex;"
+    >
+      <div
+        class="ant-space-item"
+      >
+        <div
+          class="css-dev-only-do-not-override-mncuj7 ant-empty ant-empty-normal"
+        >
+          <div
+            class="ant-empty-image"
+          >
+            <svg
+              height="41"
+              viewBox="0 0 64 41"
+              width="64"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <title>
+                暂无数据
+              </title>
+              <g
+                fill="none"
+                fill-rule="evenodd"
+                transform="translate(0 1)"
+              >
+                <ellipse
+                  cx="32"
+                  cy="33"
+                  fill="#f5f5f5"
+                  rx="32"
+                  ry="7"
+                />
+                <g
+                  fill-rule="nonzero"
+                  stroke="#d9d9d9"
+                >
+                  <path
+                    d="M55 12.76L44.854 1.258C44.367.474 43.656 0 42.907 0H21.093c-.749 0-1.46.474-1.947 1.257L9 12.761V22h46v-9.24z"
+                  />
+                  <path
+                    d="M41.613 15.931c0-1.605.994-2.93 2.227-2.931H55v18.137C55 33.26 53.68 35 52.05 35h-40.1C10.32 35 9 33.259 9 31.137V13h11.16c1.233 0 2.227 1.323 2.227 2.928v.022c0 1.605 1.005 2.901 2.237 2.901h14.752c1.232 0 2.237-1.308 2.237-2.913v-.007z"
+                    fill="#fafafa"
+                  />
+                </g>
+              </g>
+            </svg>
+          </div>
+          <div
+            class="ant-empty-description"
+          >
+            暂无数据
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`PairwiseConversationCol > matches snapshot for user and assistant messages 1`] = `
+<div
+  class="ant-card ant-card-bordered ant-card-small css-dev-only-do-not-override-mncuj7"
+>
+  <div
+    class="ant-card-head"
+  >
+    <div
+      class="ant-card-head-wrapper"
+    >
+      <div
+        class="ant-card-head-title"
+      >
+        <span>
+          <span
+            class="ant-tag ant-tag-default css-dev-only-do-not-override-mncuj7"
+            style="margin-inline-end: 6px;"
+          >
+            A
+          </span>
+          baseline-run
+        </span>
+      </div>
+      <div
+        class="ant-card-extra"
+      >
+        <a
+          href="/runs/1/cases/bc_001"
+        >
+          用例明细 
+          <span
+            aria-label="arrow-right"
+            class="anticon anticon-arrow-right"
+            role="img"
+          >
+            <svg
+              aria-hidden="true"
+              data-icon="arrow-right"
+              fill="currentColor"
+              focusable="false"
+              height="1em"
+              viewBox="64 64 896 896"
+              width="1em"
+            >
+              <path
+                d="M869 487.8L491.2 159.9c-2.9-2.5-6.6-3.9-10.5-3.9h-88.5c-7.4 0-10.8 9.2-5.2 14l350.2 304H152c-4.4 0-8 3.6-8 8v60c0 4.4 3.6 8 8 8h585.1L386.9 854c-5.6 4.9-2.2 14 5.2 14h91.5c1.9 0 3.8-.7 5.2-2L869 536.2a32.07 32.07 0 000-48.4z"
+              />
+            </svg>
+          </span>
+        </a>
+      </div>
+    </div>
+  </div>
+  <div
+    class="ant-card-body"
+    style="max-height: 420px; overflow-y: auto;"
+  >
+    <div
+      class="ant-space css-dev-only-do-not-override-mncuj7 ant-space-vertical"
+      style="column-gap: 8px; row-gap: 8px; display: flex;"
+    >
+      <div
+        class="ant-space-item"
+      >
+        <div
+          style="align-self: flex-start;"
+        >
+          <span
+            class="ant-typography ant-typography-secondary css-dev-only-do-not-override-mncuj7"
+            style="font-size: 11px;"
+          >
+            用户
+          </span>
+          <div
+            style="white-space: pre-wrap; background: var(--surface-chip); border: medium; border-radius: 8px; padding: 6px 10px; font-size: 13px;"
+          >
+            我胸口闷
+          </div>
+        </div>
+      </div>
+      <div
+        class="ant-space-item"
+      >
+        <div
+          style="align-self: stretch;"
+        >
+          <span
+            class="ant-typography ant-typography-secondary css-dev-only-do-not-override-mncuj7"
+            style="font-size: 11px;"
+          >
+            AI 回复
+          </span>
+          <div
+            style="white-space: pre-wrap; background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 13px;"
+          >
+            建议尽快就医评估。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;

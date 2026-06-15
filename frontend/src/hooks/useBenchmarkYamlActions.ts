@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Modal, message } from "antd";
-import { api, type Benchmark } from "../api";
+import { api, type Benchmark } from "../api/index";
 import { formatApiError } from "../utils/apiError";
 
 interface SaveAsArgs {

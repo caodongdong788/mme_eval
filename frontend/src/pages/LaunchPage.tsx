@@ -1,79 +1,33 @@
-import { useEffect, useMemo, useState } from "react";
-import {
-  Button,
-  Card,
-  Col,
-  Form,
-  Input,
-  InputNumber,
-  Row,
-  Select,
-  Space,
-  Switch,
-  Typography,
-  message,
-} from "antd";
+import { Button, Card, Col, Form, Input, InputNumber, Row, Select, Space, Switch, Typography } from "antd";
 import { RocketOutlined } from "@ant-design/icons";
-import { Link, useNavigate } from "react-router-dom";
-import { api, Benchmark, JudgeModel, RunCreatePayload, selectableBenchmarks } from "../api";
-import { formatApiError } from "../utils/apiError";
+import { Link } from "react-router-dom";
+import { useLaunchPage } from "../hooks/useLaunchPage";
+
+function judgeModelExtra(lp: ReturnType<typeof useLaunchPage>) {
+  const defaultHint = lp.judgeDefaultModel ? `默认使用 ${lp.judgeDefaultModel}。` : "";
+  if (lp.judgeModels.length === 0) {
+    return (
+      <Typography.Text type="secondary">
+        还没有配置判分模型，去 <Link to="/judge-models">资源 · 判分模型</Link> 新增。
+        {defaultHint}
+      </Typography.Text>
+    );
+  }
+  return (
+    <Typography.Text type="secondary">
+      可选；不选则{defaultHint || "沿用服务器 config.yaml 默认打分模型。"}
+    </Typography.Text>
+  );
+}
 
 export default function LaunchPage() {
-  const [benchmarks, setBenchmarks] = useState<Benchmark[]>([]);
-  const [judgeModels, setJudgeModels] = useState<JudgeModel[]>([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [form] = Form.useForm();
-  const navigate = useNavigate();
-
-  const [levelOptions, setLevelOptions] = useState<{ value: string; label: string }[]>([]);
-  const benchmarkId = Form.useWatch("benchmark_id", form);
-
-  useEffect(() => {
-    api.listBenchmarks().then((all) => setBenchmarks(selectableBenchmarks(all)));
-    api.listJudgeModels().then(setJudgeModels);
-  }, []);
-
-  const selectedBenchmark = useMemo(
-    () => benchmarks.find((b) => b.id === benchmarkId),
-    [benchmarks, benchmarkId]
-  );
-
-  // 选定 benchmark 后，从其用例中提取实际包含的 level 作为下拉选项
-  const onBenchmarkChange = async (id: number) => {
-    form.setFieldValue("levels", []);
-    setLevelOptions([]);
-    const cases = await api.getBenchmarkCases(id);
-    const levels = Array.from(new Set(cases.map((c) => c.level).filter(Boolean))).sort();
-    setLevelOptions(levels.map((l) => ({ value: l, label: l })));
-  };
-
-  const onFinish = async (values: any) => {
-    const payload: RunCreatePayload = {
-      benchmark_id: values.benchmark_id,
-      run_name: values.run_name || undefined,
-      levels: values.levels || [],
-      limit: values.limit || 0,
-      repeat: values.repeat || undefined,
-      judge: { enabled: values.judge_enabled },
-      judge_model_id: values.judge_model_id || undefined,
-    };
-    setSubmitting(true);
-    try {
-      const run = await api.createRun(payload);
-      message.success(`评测已发起：#${run.id}`);
-      navigate(`/runs`);
-    } catch (e: any) {
-      message.error(formatApiError(e, "发起失败"));
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const lp = useLaunchPage();
 
   return (
     <Form
-      form={form}
+      form={lp.form}
       layout="vertical"
-      onFinish={onFinish}
+      onFinish={lp.onFinish}
       initialValues={{ judge_enabled: true, repeat: 1, limit: 0 }}
       style={{ maxWidth: 880 }}
     >
@@ -86,8 +40,8 @@ export default function LaunchPage() {
           >
             <Select
               placeholder="选择评测用例集"
-              onChange={onBenchmarkChange}
-              options={benchmarks.map((b) => ({
+              onChange={lp.onBenchmarkChange}
+              options={lp.benchmarks.map((b) => ({
                 value: b.id,
                 label: `${b.name}（${b.source === "builtin" ? "内置" : "上传"} · ${b.case_count} 条）`,
               }))}
@@ -116,9 +70,9 @@ export default function LaunchPage() {
             <Select
               mode="multiple"
               allowClear
-              placeholder={selectedBenchmark ? "不选 = 运行全部 level" : "请先选择 benchmark"}
-              disabled={!selectedBenchmark}
-              options={levelOptions}
+              placeholder={lp.selectedBenchmark ? "不选 = 运行全部 level" : "请先选择 benchmark"}
+              disabled={!lp.selectedBenchmark}
+              options={lp.levelOptions}
             />
           </Form.Item>
         </Card>
@@ -134,22 +88,14 @@ export default function LaunchPage() {
               <Form.Item
                 name="judge_model_id"
                 label="打分模型（从「判分模型」配置中选择）"
-                extra={
-                  judgeModels.length === 0 ? (
-                    <Typography.Text type="secondary">
-                      还没有配置判分模型，去 <Link to="/judge-models">资源 · 判分模型</Link> 新增；不选则用服务器默认配置。
-                    </Typography.Text>
-                  ) : (
-                    "不选则沿用服务器 config.yaml 默认打分模型"
-                  )
-                }
+                extra={judgeModelExtra(lp)}
               >
                 <Select
                   allowClear
                   showSearch
                   optionFilterProp="label"
                   placeholder="选择一个已配置的判分模型"
-                  options={judgeModels.map((m) => ({
+                  options={lp.judgeModels.map((m) => ({
                     value: m.id,
                     label: `${m.name} · ${m.model}${m.has_api_key ? "" : "（未配 Key）"}`,
                   }))}
@@ -159,7 +105,7 @@ export default function LaunchPage() {
           </Row>
 
           <Form.Item style={{ marginBottom: 0 }}>
-            <Button type="primary" htmlType="submit" loading={submitting} icon={<RocketOutlined />}>
+            <Button type="primary" htmlType="submit" loading={lp.submitting} icon={<RocketOutlined />}>
               发起评测
             </Button>
           </Form.Item>

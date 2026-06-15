@@ -4,6 +4,7 @@
   medeval run --config config.yaml
   medeval validate --config config.yaml      # 仅校验用例和配置
   medeval list-cases --config config.yaml    # 打印用例清单
+  medeval import-feishu --sheet-url <url>    # 从飞书电子表格导入 benchmark YAML（需 lark-cli）
 """
 
 from __future__ import annotations

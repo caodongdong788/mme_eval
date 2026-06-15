@@ -119,7 +119,6 @@ def create_app() -> FastAPI:
     from .routers import (
         auth,
         benchmarks,
-        cases,
         compare,
         config,
         dashboard,
@@ -131,7 +130,6 @@ def create_app() -> FastAPI:
     app.include_router(benchmarks.router)
     app.include_router(runs.router)
     app.include_router(dashboard.router)
-    app.include_router(cases.router)
     app.include_router(config.router)
     app.include_router(judge_models.router)
     app.include_router(compare.router)

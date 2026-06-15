@@ -46,6 +46,7 @@ alwaysApply: true
    - **澄清**：需求 / 范围**有歧义**时 MUST 先用 Superpowers `brainstorming` 澄清意图与设计；需求已明确可跳过，但 MUST 在开场自检里写明"需求已明确，跳过澄清"。
    - **计划**：S/M 改动可由 `proposal.md` + `tasks.md` 充当计划；**多文件 / 触及核心节点（`TestCase`/`BaseJudge`/`FailureTag`）/ 高风险** 改动 MUST 先用 Superpowers `writing-plans` 产出计划再编码。
    - 此条是"软 MUST"（无法被 hook 机器强制），靠开场自检显式交代落实——禁止把澄清/计划一笔带过。
+9. **OpenSpec 读取（省 token）**：**MUST NOT** 通读 `openspec/changes/archive/`。现行契约只读 `openspec/specs/<相关 capability>/`；历史决策只打开单个 archive 的 `proposal.md`；架构/依赖优先 `graphify query` 而非翻 spec。`.cursorignore` 已排除 archive 与 `graphify-out/` 索引。
 
 ## 4. 例外
 

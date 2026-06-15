@@ -1,5 +1,5 @@
 import { Alert, Checkbox, Form, Modal, Select, Typography, type FormInstance } from "antd";
-import { Benchmark, JudgeModel, selectableBenchmarks } from "../api";
+import { Benchmark, JudgeModel, selectableBenchmarks } from "../api/index";
 
 // 离线重判弹窗：可换判据 benchmark / judge 模型 / 仅重判上线失败用例。
 // 纯展示 + 表单收集；提交行为由父级 onOk 读取 form 值后注入。

@@ -1,4 +1,4 @@
-"""人工审核队列（HITL）：入队规则 / 裁定记录 / 手动加入 / 统计 / 幂等迁移 / 不回写判分。"""
+"""人工审核队列（HITL）：入队规则 / 裁定记录 / 统计 / 幂等迁移 / 不回写判分。"""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def _row(run_id, sample_id, *, level="L3", release_passed=True,
 
 
 def _seed_run(settings):
-    """A=needs_human_review / B=红旗且失败 / C=普通通过 / D=普通通过(待手动加入)。"""
+    """A=needs_human_review / B=红旗且失败 / C=普通通过。"""
     with session_scope() as s:
         run = EvalRun(run_slug="rq_2026-06-04_1", name="rq", status="success", n_runs=1)
         s.add(run)
@@ -28,7 +28,6 @@ def _seed_run(settings):
         s.add(_row(rid, "A", needs_human_review=True))
         s.add(_row(rid, "B", release_passed=False, red_flag="required_referral"))
         s.add(_row(rid, "C"))
-        s.add(_row(rid, "D"))
     return rid
 
 
@@ -40,7 +39,7 @@ def test_queue_includes_needs_review_and_redflag_fail_only(client, settings):
     resp = client.get(f"/api/runs/{rid}/review-queue")
     assert resp.status_code == 200, resp.text
     items = {it["sample_id"]: it for it in resp.json()}
-    assert set(items) == {"A", "B"}  # C/D 不入队
+    assert set(items) == {"A", "B"}  # C 不入队
     assert "needs_human_review" in items["A"]["reasons"]
     assert "red_flag_failed" in items["B"]["reasons"]
     assert items["A"]["reviewed"] is False
@@ -65,15 +64,6 @@ def test_failure_tag_labels_endpoint(client, settings):
     assert resp.status_code == 200
     labels = resp.json()
     assert labels and labels.get("missed_red_flag") == "漏报红旗"
-
-
-def test_request_review_adds_to_queue_idempotent(client, settings):
-    rid = _seed_run(settings)
-    r1 = client.post(f"/api/runs/{rid}/cases/D/request-review")
-    r2 = client.post(f"/api/runs/{rid}/cases/D/request-review")  # 幂等
-    assert r1.status_code == 200 and r2.status_code == 200
-    items = {it["sample_id"] for it in client.get(f"/api/runs/{rid}/review-queue").json()}
-    assert "D" in items
 
 
 # ---------------------------------------------------------------------------
@@ -147,18 +137,6 @@ def test_annotate_does_not_touch_scoring(client, settings):
 
 # ---------------------------------------------------------------------------
 # 5. 幂等迁移
-
-def test_ensure_additive_columns_adds_review_requested(tmp_path):
-    engine = create_engine(f"sqlite:///{tmp_path / 'legacy.db'}", future=True)
-    with engine.begin() as conn:
-        conn.execute(text(
-            "CREATE TABLE case_result (id INTEGER PRIMARY KEY, run_id INTEGER, sample_id TEXT)"
-        ))
-    _ensure_additive_columns(engine)
-    _ensure_additive_columns(engine)  # 幂等
-    cols = {c["name"] for c in inspect(engine).get_columns("case_result")}
-    assert "review_requested" in cols
-
 
 def test_ensure_additive_columns_auto_adds_drifted_columns(tmp_path):
     """历史漂移列（未手工登记）也应被 ORM 元数据驱动自动补齐。"""

@@ -6,7 +6,7 @@
  *
  * Path resolution (first match wins):
  *   1. cwd, if PRODUCT.md or DESIGN.md is there
- *   2. .agents/context/ then docs/
+ *   2. .cursor/context/ then docs/
  *   3. $IMPECCABLE_CONTEXT_DIR (absolute or cwd-relative) — power-user
  *      escape hatch, only consulted when defaults are empty
  *   4. cwd as a "nothing found" default
@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 
 const PRODUCT_NAMES = ['PRODUCT.md', 'Product.md', 'product.md'];
 const DESIGN_NAMES = ['DESIGN.md', 'Design.md', 'design.md'];
-const FALLBACK_DIRS = ['.agents/context', 'docs'];
+const FALLBACK_DIRS = ['.cursor/context', 'docs'];
 
 // ─── Update check ──────────────────────────────────────────────────────────
 // Piggyback a lightweight skill-version check on the once-per-session boot.

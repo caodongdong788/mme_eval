@@ -2,20 +2,29 @@
 
 在 `medeval` CLI 框架之上叠加的本地评测平台：网页发起评测 → 后端复用 `medeval.service.evaluate()` 执行 → 结果落库 → 看板与用例明细呈现。判分核心（`medeval/judges`、`models.py`、`reporter`）零改动。
 
-参见 OpenSpec change `add-eval-platform`。
+平台能力契约见 `openspec/specs/eval-platform-service/spec.md`；评分口径与架构见根目录 [`README.md`](../README.md)「核心设计」。
 
 ## 架构
 
 - 后端 `server/`（FastAPI + 同步 SQLAlchemy）
-  - `app.py` 应用入口（lifespan 建表 + 生产安全校验 + 回收孤儿任务，含回收孤儿 pairwise；shutdown 优雅取消在跑评测）；`settings.py` 环境变量；`deps.py` 公共依赖（`creator_name` 等）；`paths.py` 产物路径 `safe_join` 边界校验；`db.py` 引擎/会话/建表（ORM 驱动附加列 + 幂等补索引）；`models_db.py` ORM 表（`benchmark` / `eval_run` / `case_result` / `case_annotation` / `pairwise_comparison` / `pairwise_case_verdict` / `judge_model_config`）
-  - `ingest.py` `RunReport`→DB 落库；`jobs.py` `JobRunner`（进程内 asyncio，并发上限 + 状态机）+ `reconcile_orphaned_runs()`；`progress.py` 进度
-  - `benchmarks.py` benchmark 库（上传/校验/内置注册；改判据派生新集 `derive_benchmark_with_overrides` / `derive_benchmark_from_yaml`，就地覆盖原集 `overwrite_benchmark_from_yaml`）；`eval_job.py` 评测任务（合并打分模型覆盖 + 落会话留痕 + 双写 outputs + 收尾存储治理；含离线重判 / 断点续跑两个 job）
-  - `routers/` REST API：`benchmarks`（含 `derive` / `derive-yaml` / `PATCH` 改名）/ `runs`（含 `rejudge` / `resume` / `pin` / `cases-yaml` / `review-queue` / `annotate` / `review-stats`）/ `dashboard` / `cases` / `compare`（Pairwise：发起 / 查询 / `PATCH` 备注 / `DELETE` 删除 / 逐用例 `PATCH` 校准 + `DELETE` 恢复）/ `config`（含 `failure-tags`）/ `auth`；`pairwise_job.py` 异步逐题 PK（并发 + 汇总重算）
+  - `app.py` 应用入口（lifespan 建表 + 生产安全校验 + 回收孤儿任务，含回收孤儿 pairwise；shutdown 优雅取消在跑评测）；`spa_static.py` 生产态 SPA 静态回退（`/runs` 等客户端路由 → `index.html`）；`settings.py` 环境变量；`deps.py` 公共依赖；`paths.py` 产物路径 `safe_join`；`db.py` / `models_db.py` ORM 与建表
+  - `ingest.py` `RunReport`→DB 落库；`jobs.py` `JobRunner` + `reconcile_orphaned_runs()`；`progress.py` 进度；`pairwise_job.py` 异步 Pairwise 逐题 PK
+  - `benchmarks.py` benchmark 文件落盘与校验；`eval_job.py` 评测任务编排入口（薄封装，具体逻辑在 `services/eval_*.py`）
+  - **`services/`** 业务服务层（router 只做 HTTP 绑定，复杂查询/编排在此）：
+    - `runs.py` / `case_query.py` / `case_export.py` — run 目录、用例行 enrichment、导出
+    - `benchmark_catalog.py` — benchmark 库 CRUD / 上传 / 派生
+    - `judge_models.py` / `dashboard.py` / `platform_config.py` / `review.py` / `pairwise.py`
+    - `eval_launch.py` / `eval_rejudge.py` / `eval_resume.py` / `eval_source.py` / `eval_artifacts.py` / `eval_release_thresholds.py`
+    - `config_overrides.py` — 判分配置覆盖（`eval_job` re-export）
+  - `routers/` REST API（薄 handler）：`benchmarks` / `runs/`（子包 `crud` / `cases` / `rejudge` / `review`）/ `dashboard` / `compare`（Pairwise）/ `config` / `auth`
   - `import_history.py` 历史 `outputs/*/report.json` 导入
-- 前端 `frontend/`（Vite + React + TS + Ant Design + Recharts）
-  - Benchmark 库、发起评测、评测列表（实时进度）、单次看板、用例明细、跨 run 趋势
+- 前端 `frontend/src/`（Vite + React + TS + Ant Design + Recharts）
+  - `pages/` 路由编排；`hooks/` 取数与副作用；`components/` 可复用 UI；`api/` 请求层（`index.ts` 聚合 + 按域拆分）；`utils/` 纯函数
+  - 能力：Benchmark 库、发起评测、评测列表、看板、用例明细、Pairwise、跨 run 趋势、上线阈值配置
 
 ## 安装
+
+> 换机、Docker、graphify、飞书等完整环境重建见根目录 [`MIGRATION.md`](../MIGRATION.md)。
 
 ```bash
 pip install -e ".[server]"      # 后端依赖（已含于 .venv）
@@ -92,10 +101,10 @@ docker compose down            # 数据在 volume pgdata / mme-data 中保留
 - **断点续跑 `POST /api/runs/{id}/resume`**：复用源 run 成功留痕、仅对失败/缺失用例重调 bot，产出新 run；adapter 指纹不一致由内核续跑逻辑拒绝（不混入不同 bot 的旧留痕）。看板「续跑」按钮触发。可续跑判据为「存在可复用留痕」（`traces.jsonl.gz` 或 `traces.partial.jsonl`），故**被服务重启/崩溃中断、从未写出 `report.json` 的 run 也能续跑**：评测启动即落 `plan.json`（过滤后的实际用例 `sample_ids` + `n_runs`），续跑时无 `report.json` 则从源 run 的 benchmark 按 `plan.json` 重建用例集（缺 plan 回退全量），再以 partial 留痕续跑。二者皆无留痕→400；无 `report.json` 且未关联 benchmark→400。
 - **置顶保护 `POST /api/runs/{id}/pin?pinned=`**：切换 `eval_run.pinned` 并在产物目录落/删 `KEEP` 哨兵，使 CLI（`medeval prune`）与平台存储治理共用同一豁免信号。看板「置顶」按钮触发。
 - **存储治理收尾**：评测任务完成后按 `config.run.retention`（`keep_last` / `ttl_days` / `keep_tagged`）自动清理历史 run 的胖产物（traces/xlsx），永久保留 `report.json` 与数据库；治理失败不影响评测落库。
-- **人工审核队列（HITL）`/api/runs/{id}/review-queue|review-stats`、`/cases/{sid}/annotate|request-review|annotations`**：把"红旗规则失败置 `needs_human_review`"与"上线失败"等线索做成可操作旁路。入队规则 = `needs_human_review` ∪ `release_passed=false`（原因 `release_failed`，红旗失败再叠加 `red_flag_failed`）∪ 手动加入（`case_result.review_requested`）。专家在用例详情页记 `agree`/`override` + 建议/备注（`reviewer` 取飞书登录名），写入 `case_annotation` 表；裁定为**只读旁路、永不回写**任何判分字段（verdict/score/release/gate/hard_gate）。看板「用例结果」加「待审 N」徽标、「仅看待审」（排除已审）、「人审结果」筛选与「人审结果」列（同意/推翻，悬浮看建议备注），并有人审通过率/分歧率统计卡。`/cases` 每行附最新一条裁定摘要 `review`（verdict/reviewer/suggestion/comment/count）。
+- **人工审核队列（HITL）`/api/runs/{id}/review-queue|review-stats`、`/cases/{sid}/annotate|annotations`**：把"红旗规则失败置 `needs_human_review`"与"上线失败"等线索做成可操作旁路。入队规则 = `needs_human_review` ∪ `release_passed=false`（原因 `release_failed`，红旗失败再叠加 `red_flag_failed`）。专家在用例详情页记 `agree`/`override` + 建议/备注（`reviewer` 取飞书登录名），写入 `case_annotation` 表；裁定为**只读旁路、永不回写**任何判分字段（verdict/score/release/gate/hard_gate）。看板「用例结果」加「待审 N」徽标、「仅看待审」（排除已审）、「人审结果」筛选与「人审结果」列（同意/推翻，悬浮看建议备注），并有人审通过率/分歧率统计卡。`/cases` 每行附最新一条裁定摘要 `review`（verdict/reviewer/suggestion/comment/count）。
 - **Pairwise 对比 `/api/compare/pairwise`**：LLM Grader 的「相对偏好」分支，对**判分尺子一致**（同 `benchmark_id`、`sample_id` 集合一致、`judge_fingerprints` 与 `config_snapshot.scoring` 相等、双方均 `has_traces`）的两 run（A 基线 / B 本次）逐题 PK；被测参数（system_prompt / model）差异不拦截、以 `subject_diff` 随结果返回，不满足尺子一致则 422。`POST` 校验后异步发起（立即返回 `status=running`，可携 `note`），`pairwise_job.run_pairwise_comparison` 以判分模型的 `pairwise_concurrency`（默认 4，`Semaphore` 题间并发 + `swap_debias` 题内 `gather`，`asyncio.Lock` 护 `done_cases`/落库）逐题调 `PairwiseComparator`，收尾算 `summary` 置 `done`、异常置 `failed`；服务启动回收超时 `running`。`GET /{id}` 自落库读、不重判，返回总结（胜/平/负、低置信细分 `order`/`safety`、维度胜率、`subject_diff`、`overall_winner`）+ 逐用例（`winner`/`confidence_kind`/`dimension_winners`/`reason`/`order_runs`/`scenario`/`sub_scenario`）。`PATCH /{id}` 改 `note`、`DELETE /{id}` 删对比（级联清 `pairwise_case_verdict`）。**逐用例人工校准** `PATCH /{id}/cases/{sid}` 覆写结论/维度/理由（`confidence_kind=human`、保留机器原判于 `auto_*`）、`DELETE` 恢复机器判；校准/恢复后 `recompute_pairwise_summary` 按**有效值**（`verdict_effective_row`：human 优先否则机器）立即重算 `summary`。比较器细节（双盲匿名化消偏 / 医疗保守覆盖 / `fingerprint`）见根 `README.md` 与 `judging-pipeline` spec。
 - **启动回收孤儿任务**：评测由进程内 asyncio 调度，状态仅存内存。`init_db` 后 lifespan 调 `jobs.reconcile_orphaned_runs()`，把进程重启/热重载/崩溃残留的 `running`/`pending` run 统一置 `failed`（写中断说明、补 `finished_at`），使其可删、可重新发起（幂等、不动 success/failed）。
-- **附加列自动迁移（ORM 驱动）**：`init_db` 建表后由 `Base.metadata` 自动 diff 旧库缺失的「可空/带默认」列并 `ALTER TABLE ADD COLUMN`（含 `has_traces`/`pinned`/`parent_run_id`/`review_requested`/`token_summary`/`cost`/`total_tokens` 等），新增 ORM 列无需手工登记；JSON 列以空 `{}`/`[]` 追加并回填存量 NULL，避免响应模型校验 500。NOT NULL 且无默认的列跳过（留给完整迁移）。
+- **附加列自动迁移（ORM 驱动）**：`init_db` 建表后由 `Base.metadata` 自动 diff 旧库缺失的「可空/带默认」列并 `ALTER TABLE ADD COLUMN`（含 `has_traces`/`pinned`/`parent_run_id`/`token_summary`/`cost`/`total_tokens` 等），新增 ORM 列无需手工登记；JSON 列以空 `{}`/`[]` 追加并回填存量 NULL，避免响应模型校验 500。NOT NULL 且无默认的列跳过（留给完整迁移）。
 - **生产安全前置校验**：`MEDEVAL_ENV=production` 时，若 `SESSION_SECRET` 仍为内置默认值，lifespan 启动直接失败；生产态会话 cookie 自动 `Secure`（需 HTTPS）。开发/测试默认 `MEDEVAL_ENV=development` 不受影响。
 - **产物路径边界校验**：`outputs/`、`uploads/` 下所有路径拼接经 `server/paths.py::safe_join`（`resolve()` + `is_relative_to`），`run_slug` 经 `medeval/run_slug.py` 消毒，防目录穿越。
 - **飞书 SSO + 按用户导出**：飞书 OAuth2 登录（会话 cookie + 自动续期），导出对话流水以**当前登录用户**的飞书 token 上传为在线表格；环境变量 `FEISHU_APP_ID/SECRET/REDIRECT_URI/SCOPES`、`SESSION_SECRET`（见 `.env.example`）。`FEISHU_REDIRECT_URI` 须与访问入口一致（dev `:5173` vs Docker/serve `:8000`，见上文 Docker 要点）。配齐密钥才强制登录，否则 dev 放行。

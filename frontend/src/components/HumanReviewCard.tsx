@@ -1,5 +1,5 @@
 import { Alert, Button, Card, Input, List, Radio, Space, Typography } from "antd";
-import { Annotation } from "../api";
+import { Annotation } from "../api/index";
 
 const { Text } = Typography;
 

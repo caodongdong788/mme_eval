@@ -10,9 +10,9 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parent.parent
+_ROOT = Path(__file__).resolve().parent.parent
 _SPEC = importlib.util.spec_from_file_location(
-    "calibration_compute_agreement", ROOT / "calibration" / "compute_agreement.py"
+    "calibration_compute_agreement", _ROOT / "scripts" / "compute_agreement.py"
 )
 cal = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(cal)  # type: ignore[union-attr]

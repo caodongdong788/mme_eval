@@ -33,9 +33,15 @@ const JUDGE_SUFFIX: Record<string, string> = {
   completeness: "完整性",
   relevance: "相关性",
   tone: "语气",
+  triage_quality: "分诊建议",
+  multi_turn_consistency: "多轮一致性",
+  differential_thinking: "鉴别思维",
+  inquiry_completeness: "问诊完整性",
+  summary: "汇总",
 };
 
-export function judgeLabel(name?: string): string {
+/** API 未加载时的本地回退（与 medeval.judge_labels 口径对齐）。 */
+export function fallbackJudgeLabel(name?: string): string {
   if (!name) return "-";
   const idx = name.indexOf(".");
   if (idx < 0) return JUDGE_PREFIX[name] || name;

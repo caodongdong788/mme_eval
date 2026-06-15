@@ -1,5 +1,5 @@
 import { Alert, Card, Select, Space, Tag } from "antd";
-import { RunDiff, RunSummary } from "../api";
+import { RunDiff, RunSummary } from "../api/index";
 
 export interface RunDiffCardProps {
   otherRuns: RunSummary[];

@@ -149,8 +149,6 @@ class CaseResultRow(Base):
     soft_score_max: Mapped[float] = mapped_column(Float, default=0.0)
     stability: Mapped[str] = mapped_column(String(20), default="stable_pass", index=True)
     needs_human_review: Mapped[bool] = mapped_column(Boolean, default=False)
-    # 人工手动加入审核队列标记（与 needs_human_review / 红旗失败 并列为入队条件之一）。
-    review_requested: Mapped[bool] = mapped_column(Boolean, default=False)
     guideline_match_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     latency_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     # 成本/Token 观测（仅观测、不否决）：该用例总 token 与折算成本。

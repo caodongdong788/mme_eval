@@ -24,8 +24,11 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 from typing import Any, Iterator
+
+logger = logging.getLogger(__name__)
 
 # 全局 Langfuse client：None = 关闭（no-op）。仅由 configure_langfuse / 测试辅助改写。
 _client: Any = None
@@ -51,6 +54,7 @@ def configure_langfuse(
     try:
         from langfuse import Langfuse  # type: ignore
     except Exception:
+        logger.debug("langfuse 未安装或 import 失败，追踪退化为 no-op", exc_info=True)
         _client = None
         return False
     try:
@@ -66,6 +70,7 @@ def configure_langfuse(
         _client = Langfuse(**kwargs)
         return True
     except Exception:
+        logger.debug("Langfuse client 初始化失败，追踪退化为 no-op", exc_info=True)
         _client = None
         return False
 
@@ -95,6 +100,7 @@ def configure_from_env(cfg: Any) -> bool:
             debug=getattr(cfg, "debug", False),
         )
     except Exception:
+        logger.debug("从环境配置 Langfuse 失败，追踪退化为 no-op", exc_info=True)
         _client_off()
         return False
 

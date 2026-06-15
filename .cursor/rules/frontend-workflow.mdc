@@ -29,18 +29,20 @@ alwaysApply: false
 
 目录边界（`frontend/src/`）：
 
-- `pages/` —— 路由级页面，对应 `App.tsx` 的一条路由；只做编排（取数 + 组合组件），不沉淀可复用 UI。
-- `components/` —— **可复用 UI 组件**（≥2 处使用，或页面 > ~300 行需拆分时抽取）。如 `KpiTile`、`MetaChip`、`StatusTag`、`CaseToolbar`。
+- `pages/` —— 路由级页面，对应 `App.tsx` 的一条路由；**只做编排**（组合 hooks + 组件），不写裸 `useEffect` + `api.*` 取数。
+- `hooks/` —— 页面级业务逻辑与副作用（如 `useRunDashboard`、`usePairwisePage`、`useCaseDetail`）；列表取数优先复用 `useAsyncData`，编辑弹窗复用 `useEditModal`。
+- `components/` —— **可复用 UI 组件**（≥2 处使用，或单块 UI > ~100 行需拆分时抽取）。如 `KpiTile`、`FilterToolbar`、`RunOverviewKpiGrid`。
+- `api/` —— 后端访问层（`client.ts` + 按域拆分 `runs.ts` / `benchmarks.ts` 等 + `types.ts` + `index.ts` 聚合）；调用方 `from "../api/index"` 或 `from "../api/types"`。
+- `utils/` —— 纯函数（如 `formatApiError`、`caseJudging`），无副作用。
 - `auth/` —— 鉴权上下文与守卫。
-- `api.ts` —— 唯一后端访问层（axios 封装 + 类型）；页面不得散落裸 `fetch`/`axios`。
 - `theme.ts` —— AntD 主题 + `palette`（JS 侧 token 单一源）。
-- `failureTags.ts` 等 —— 领域常量/hooks。
+- `labels.ts`、`failureTags.ts`、`judgeVerdictLabels.ts` —— 领域标签与 hook。
 - `styles.css` —— 全局样式 + `:root` CSS 变量（CSS 侧 token 单一源）。
 
 组件复用规则：
 
 - **一处内联、二处抽取**：同一 UI 片段在 ≥2 个页面出现，必须抽到 `components/`。
-- **单文件体量**：页面文件超过 ~300 行应拆分子组件；当前 `RunDashboardPage`（900+ 行）属技术债，新增功能时顺手抽离，勿继续膨胀。
+- **单文件体量**：`pages/` 文件超过 ~300 行应拆到 `hooks/` + `components/`；新增功能禁止让页面重新膨胀为「胖页面」。
 - 组件 props 用 TS 显式类型；样式优先用 AntD props + className（引用全局类/变量），其次受控 `style` 且只引用 token。
 
 ## 3. 样式系统：单一信任源（Step 4 · 自审重点）
@@ -60,12 +62,12 @@ alwaysApply: false
 ## 4. 收尾自审清单（提交前逐条过）
 
 - [ ] **风格**：是否符合 `DESIGN.md`？有无踩 `PRODUCT.md` 的 4 条 anti-reference？
-- [ ] **技术栈**：是否只用了 AntD（无第二 UI/CSS 框架）？取数是否走 `api.ts`？
-- [ ] **目录/组件**：新可复用 UI 是否进了 `components/`？有无在页面里重复内联？页面是否过胖？
+- [ ] **技术栈**：是否只用了 AntD（无第二 UI/CSS 框架）？取数是否经 `hooks/` + `api/`（禁止页面内裸 `fetch`/`axios`）？
+- [ ] **目录/组件**：业务逻辑是否在 `hooks/`？可复用 UI 是否在 `components/`？页面是否仅编排？
 - [ ] **Token**：`rg '#[0-9A-Fa-f]{3,8}' frontend/src --glob '!styles.css' --glob '!theme.ts'` 应**无输出**；色值是否走 `var(--*)` / `palette.*`？CSS 层与 JS 层是否同步？
 - [ ] **字体**：指标数字是否用 mono？正文是否用 Manrope？
 - [ ] **i18n / 无障碍**：文案中文一致？状态是否带文字标签？
-- [ ] **校验**：`cd frontend && npm run typecheck` 通过（必要时 `npm run build`）。
+- [ ] **校验**：`cd frontend && npm run typecheck` 通过；`npm run test` 绿（必要时 `npm run build`）。
 
 ## 5. 例外
 

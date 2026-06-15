@@ -1,0 +1,107 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`RunOverviewKpiGrid > matches snapshot 1`] = `
+<div
+  class="kpi-grid"
+>
+  <div
+    class="kpi-tile"
+  >
+    <div
+      class="kpi-label"
+    >
+      平均综合分
+    </div>
+    <div
+      class="kpi-value"
+    >
+      0.876
+    </div>
+  </div>
+  <div
+    class="kpi-tile"
+  >
+    <div
+      class="kpi-label"
+    >
+      通过率
+    </div>
+    <div
+      class="kpi-value"
+    >
+      80.0%
+    </div>
+    <div
+      class="kpi-sub"
+    >
+      95% CI 50.0–95.0%
+    </div>
+  </div>
+  <div
+    class="kpi-tile"
+  >
+    <div
+      class="kpi-label"
+    >
+      硬门槛失败
+    </div>
+    <div
+      class="kpi-value is-fail"
+    >
+      1
+    </div>
+  </div>
+  <div
+    class="kpi-tile"
+  >
+    <div
+      class="kpi-label"
+    >
+      总用例
+    </div>
+    <div
+      class="kpi-value"
+    >
+      10
+    </div>
+  </div>
+  <div
+    class="kpi-tile"
+  >
+    <div
+      class="kpi-label"
+    >
+      稳定性 (N=3)
+    </div>
+    <div
+      class="kpi-value"
+    >
+      7/1/2
+    </div>
+    <div
+      class="kpi-sub"
+    >
+      稳过 / 抖动 / 稳挂
+    </div>
+  </div>
+  <div
+    class="kpi-tile"
+  >
+    <div
+      class="kpi-label"
+    >
+      待审 / 队列
+    </div>
+    <div
+      class="kpi-value"
+    >
+      1/2
+    </div>
+    <div
+      class="kpi-sub"
+    >
+      人审通过率 50%
+    </div>
+  </div>
+</div>
+`;

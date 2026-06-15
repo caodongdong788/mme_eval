@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { RunDiff } from "../api";
+import { RunDiff } from "../api/index";
 import { RunDiffCard } from "./RunDiffCard";
 import { renderWithProviders } from "../test/renderWithProviders";
 

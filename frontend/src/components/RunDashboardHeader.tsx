@@ -6,7 +6,7 @@ import {
   RedoOutlined,
   ReloadOutlined,
 } from "@ant-design/icons";
-import { RunDetail } from "../api";
+import { RunDetail } from "../api/index";
 import { MetaChip } from "./MetaChip";
 import { RunStatusTag } from "./RunStatusTag";
 

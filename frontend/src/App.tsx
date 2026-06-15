@@ -16,7 +16,7 @@ import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import RequireAuth from "./auth/RequireAuth";
 import { useAuth } from "./auth/AuthContext";
-import { api } from "./api";
+import { api } from "./api/index";
 
 // 路由级懒加载：按页分包，首屏只加载登录/壳层，其余页面按需异步拉取。
 const BenchmarksPage = lazy(() => import("./pages/BenchmarksPage"));

@@ -3,7 +3,7 @@
 # expert_score: 0–100 或 0–1 均可（仅用于 Spearman 秩相关，量纲无关）。
 # expert_pass:  人审是否判定该题通过（用于通过一致率）。
 # 用法：
-#   .venv/bin/python calibration/compute_agreement.py \
+#   .venv/bin/python scripts/compute_agreement.py \
 #       --report outputs/<run>/report.json --human calibration/human_scores.example.yaml
 - sample_id: bc_y1_high_risk_lifestyle
   expert_score: 88

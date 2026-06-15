@@ -4,7 +4,7 @@ import {
   api,
   type PairwiseCalibratePayload,
   type PairwiseCaseVerdict,
-} from "../api";
+} from "../api/index";
 import { DIM_LABEL } from "../labels";
 import { formatApiError } from "../utils/apiError";
 

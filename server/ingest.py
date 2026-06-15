@@ -9,6 +9,7 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from medeval.models import CaseResult, RunReport
+from medeval.reporter.token_cost import case_token_cost
 
 from .models_db import CaseResultRow, EvalRun
 
@@ -16,30 +17,6 @@ from .models_db import CaseResultRow, EvalRun
 def _enum_val(v) -> str:
     """枚举取 .value，其它转 str。"""
     return getattr(v, "value", v) if v is not None else ""
-
-
-def _case_token_cost(cr: CaseResult, pricing: dict | None) -> tuple[int | None, float | None]:
-    """从一条 CaseResult 算 (总 token, 成本)。仅观测、不否决。
-
-    总 token 优先取 ``per_run_tokens`` 之和，回退到代表性 trace 逐轮求和；无任何 usage
-    返回 (None, None)。成本仅在配置非零单价时折算（input/output 分别计价），否则 None。
-    """
-    usage = getattr(cr.trace, "turn_token_usage", []) if cr.trace else []
-    if cr.per_run_tokens:
-        total = sum(int(t) for t in cr.per_run_tokens)
-    else:
-        total = sum(int(u.get("total_tokens", 0)) for u in usage)
-    if total == 0 and not usage:
-        return None, None
-    pricing = pricing or {}
-    in_price = float(pricing.get("input_per_million", 0.0) or 0.0)
-    out_price = float(pricing.get("output_per_million", 0.0) or 0.0)
-    cost: float | None = None
-    if in_price > 0 or out_price > 0:
-        prompt = sum(int(u.get("prompt_tokens", 0)) for u in usage)
-        completion = sum(int(u.get("completion_tokens", 0)) for u in usage)
-        cost = prompt / 1_000_000 * in_price + completion / 1_000_000 * out_price
-    return total, cost
 
 
 def populate_run_summary(row: EvalRun, report: RunReport) -> None:
@@ -75,7 +52,7 @@ def build_case_row(
 ) -> CaseResultRow:
     """从一条 CaseResult 构造 case_result 行（标量列 + detail_json）。"""
     case = cr.case
-    total_tokens, cost = _case_token_cost(cr, pricing)
+    total_tokens, cost = case_token_cost(cr, pricing)
     return CaseResultRow(
         run_id=run_id,
         sample_id=case.sample_id,

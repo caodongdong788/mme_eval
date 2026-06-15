@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { guidelineMatch, judgeLabel, scoringPointWeight } from "./caseJudging";
+import { fallbackJudgeLabel, guidelineMatch, scoringPointWeight } from "./caseJudging";
 
 describe("caseJudging", () => {
-  it("judgeLabel maps prefix and suffix", () => {
-    expect(judgeLabel("llm.empathy")).toBe("体验·共情");
-    expect(judgeLabel("hard_gate")).toBe("硬门槛");
-    expect(judgeLabel(undefined)).toBe("-");
+  it("fallbackJudgeLabel maps prefix and suffix", () => {
+    expect(fallbackJudgeLabel("llm.empathy")).toBe("体验·共情");
+    expect(fallbackJudgeLabel("llm.triage_quality")).toBe("体验·分诊建议");
+    expect(fallbackJudgeLabel("hard_gate")).toBe("硬门槛");
+    expect(fallbackJudgeLabel(undefined)).toBe("-");
   });
 
   it("scoringPointWeight parses signed weight from evidence", () => {

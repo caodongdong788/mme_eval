@@ -39,7 +39,10 @@ export function useAsyncData<T>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
-  useEffect(() => run(), [run]);
+  useEffect(() => {
+    const cleanup = run();
+    return cleanup;
+  }, [run]);
 
   return { data, loading, error, reload: run };
 }

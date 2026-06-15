@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { api, MeResponse } from "../api";
+import { api, MeResponse } from "../api/index";
 
 interface AuthState {
   loading: boolean;

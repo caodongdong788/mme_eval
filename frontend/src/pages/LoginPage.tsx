@@ -2,7 +2,7 @@ import { Button, Typography, Alert } from "antd";
 import { HeartFilled } from "@ant-design/icons";
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { FEISHU_LOGIN_URL } from "../api";
+import { FEISHU_LOGIN_URL } from "../api/index";
 import { useAuth } from "../auth/AuthContext";
 
 const { Title, Paragraph } = Typography;

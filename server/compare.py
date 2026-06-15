@@ -11,6 +11,8 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from medeval.judge_labels import FINGERPRINT_LABELS
+
 from .models_db import CaseResultRow, EvalRun
 
 
@@ -36,22 +38,12 @@ def _scoring_snapshot(run: EvalRun) -> Any:
     return (snap.get("scoring") if isinstance(snap, dict) else None) or {}
 
 
-# 判官内部名 → 给人看的中文标签（指纹 key 取自 RunReport.judge_fingerprints）。
-_JUDGE_LABELS: dict[str, str] = {
-    "hard_gate": "硬门槛 HardGate",
-    "rule": "规则 Rule",
-    "llm": "LLM 评委",
-    "scoring_point": "得分点 ScoringPoint",
-    "semantic_adjudicator": "语义裁决 Adjudicator",
-}
-
-
 def _changed_judge_labels(fp_a: dict, fp_b: dict) -> list[str]:
     """逐判官比对指纹，返回「判分逻辑不一致」的判官中文标签列表。"""
     labels: list[str] = []
     for key in sorted(set(fp_a) | set(fp_b)):
         if fp_a.get(key) != fp_b.get(key):
-            labels.append(_JUDGE_LABELS.get(key, key))
+            labels.append(FINGERPRINT_LABELS.get(key, key))
     return labels
 
 

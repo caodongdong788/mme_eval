@@ -2,7 +2,7 @@ import { Dispatch, SetStateAction } from "react";
 import { Button, Card, Space, Table } from "antd";
 import { DownloadOutlined, EditOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import { CaseRow, ReviewStats } from "../api";
+import { CaseRow, ReviewStats } from "../api/index";
 import { CaseFilters, FilterToolbar } from "./FilterToolbar";
 
 export interface RunCaseResultsCardProps {

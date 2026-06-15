@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useState } from "react";
 import {
   Button,
   Card,
@@ -8,86 +7,17 @@ import {
   Table,
   Tag,
   Tooltip,
-  message,
 } from "antd";
 import { DeleteOutlined, ReloadOutlined, RocketOutlined } from "@ant-design/icons";
 import { Link, useNavigate } from "react-router-dom";
-import { api, ProgressInfo, RunSummary } from "../api";
-import { formatApiError } from "../utils/apiError";
+import { RunSummary } from "../api/index";
 import { RunStatusTag } from "../components/RunStatusTag";
+import { useRunsList } from "../hooks/useRunsList";
 
 export default function RunsPage() {
-  const [runs, setRuns] = useState<RunSummary[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState<Record<number, ProgressInfo>>({});
   const navigate = useNavigate();
+  const { runs, loading, progress, reload, onDelete } = useRunsList();
 
-  // 返回是否仍有进行中的任务，供轮询调度决定是否继续。
-  const reload = useCallback(async (): Promise<boolean> => {
-    const list = await api.listRuns();
-    setRuns(list);
-    const active = list.filter(
-      (r) => r.status === "running" || r.status === "pending"
-    );
-    const entries = await Promise.all(
-      active.map(async (r) => [r.id, await api.getProgress(r.id)] as const)
-    );
-    setProgress(Object.fromEntries(entries));
-    return active.length > 0;
-  }, []);
-
-  // 仅当存在进行中任务且页面可见时才轮询；切走后台暂停，回到前台立即刷新。
-  useEffect(() => {
-    let stopped = false;
-    let timer: number | null = null;
-    const clear = () => {
-      if (timer !== null) {
-        window.clearInterval(timer);
-        timer = null;
-      }
-    };
-    const schedule = (hasActive: boolean) => {
-      clear();
-      if (!hasActive || document.visibilityState !== "visible") return;
-      timer = window.setInterval(async () => {
-        if (document.visibilityState !== "visible") return;
-        const stillActive = await reload();
-        if (!stillActive) clear();
-      }, 3000);
-    };
-    setLoading(true);
-    reload()
-      .then((hasActive) => {
-        if (!stopped) schedule(hasActive);
-      })
-      .finally(() => setLoading(false));
-    const onVisibility = async () => {
-      if (document.visibilityState === "visible") {
-        const hasActive = await reload();
-        if (!stopped) schedule(hasActive);
-      } else {
-        clear();
-      }
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      stopped = true;
-      clear();
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [reload]);
-
-  const onDelete = async (id: number) => {
-    try {
-      await api.deleteRun(id);
-      message.success("已删除");
-      reload();
-    } catch (e: any) {
-      message.error(formatApiError(e, "删除失败"));
-    }
-  };
-
-  // 列宽不再固定，由内容自适应（仅靠 nowrap 防止文本换行导致拥挤）。
   const nowrap = { onCell: () => ({ style: { whiteSpace: "nowrap" as const } }) };
 
   const columns = [
@@ -149,7 +79,7 @@ export default function RunsPage() {
     {
       title: "操作",
       ...nowrap,
-      render: (_: any, r: RunSummary) => {
+      render: (_: unknown, r: RunSummary) => {
         const busy = r.status === "running" || r.status === "pending";
         return (
           <Space>
@@ -185,7 +115,7 @@ export default function RunsPage() {
       title="评测列表"
       extra={
         <Space>
-          <Button icon={<ReloadOutlined />} onClick={reload}>
+          <Button icon={<ReloadOutlined />} onClick={() => reload()}>
             刷新
           </Button>
           <Button type="primary" icon={<RocketOutlined />} onClick={() => navigate("/launch")}>

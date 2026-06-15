@@ -1,15 +1,6 @@
-import { useEffect, useState } from "react";
-import {
-  Button,
-  Card,
-  InputNumber,
-  Table,
-  Tag,
-  Typography,
-  message,
-} from "antd";
-import { api, ReleaseThresholdItem } from "../api";
-import { formatApiError } from "../utils/apiError";
+import { Button, Card, InputNumber, Table, Tag, Typography } from "antd";
+import { ReleaseThresholdItem } from "../api/index";
+import { useReleaseThresholdsPage } from "../hooks/useReleaseThresholdsPage";
 
 function coverageLabel(r: ReleaseThresholdItem): string {
   const { is_fallback, score_profile, case_count } = r.coverage;
@@ -21,42 +12,7 @@ function coverageLabel(r: ReleaseThresholdItem): string {
 }
 
 export default function ReleaseThresholdsPage() {
-  const [rows, setRows] = useState<ReleaseThresholdItem[]>([]);
-  const [draft, setDraft] = useState<Record<string, number>>({});
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const reload = async () => {
-    setLoading(true);
-    try {
-      const data = await api.getReleaseThresholds();
-      setRows(data);
-      setDraft(Object.fromEntries(data.map((r) => [r.profile, r.effective])));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    reload();
-  }, []);
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      // 后端把「值=默认」视为删除覆盖，无需前端区分
-      const overrides: Record<string, number> = {};
-      for (const r of rows) overrides[r.profile] = draft[r.profile];
-      const data = await api.putReleaseThresholds(overrides);
-      setRows(data);
-      setDraft(Object.fromEntries(data.map((r) => [r.profile, r.effective])));
-      message.success("上线判定阈值已保存（对之后发起的新评测与重判生效）");
-    } catch (e: any) {
-      message.error(formatApiError(e, "保存失败"));
-    } finally {
-      setSaving(false);
-    }
-  };
+  const rt = useReleaseThresholdsPage();
 
   const columns = [
     {
@@ -101,10 +57,8 @@ export default function ReleaseThresholdsPage() {
           min={0.01}
           max={r.max_total}
           step={0.01}
-          value={draft[r.profile]}
-          onChange={(v) =>
-            setDraft((d) => ({ ...d, [r.profile]: (v as number) ?? r.default_threshold }))
-          }
+          value={rt.draft[r.profile]}
+          onChange={(v) => rt.setProfileDraft(r.profile, (v as number) ?? r.default_threshold)}
           style={{ width: 120 }}
         />
       ),
@@ -113,12 +67,8 @@ export default function ReleaseThresholdsPage() {
       title: "状态",
       width: 120,
       render: (_: unknown, r: ReleaseThresholdItem) => {
-        const changed = (draft[r.profile] ?? r.effective) !== r.default_threshold;
-        return changed ? (
-          <Tag color="orange">已自定义</Tag>
-        ) : (
-          <Tag>默认</Tag>
-        );
+        const changed = (rt.draft[r.profile] ?? r.effective) !== r.default_threshold;
+        return changed ? <Tag color="orange">已自定义</Tag> : <Tag>默认</Tag>;
       },
     },
     {
@@ -128,8 +78,8 @@ export default function ReleaseThresholdsPage() {
         <Button
           size="small"
           type="link"
-          disabled={draft[r.profile] === r.default_threshold}
-          onClick={() => setDraft((d) => ({ ...d, [r.profile]: r.default_threshold }))}
+          disabled={rt.draft[r.profile] === r.default_threshold}
+          onClick={() => rt.resetProfile(r.profile, r.default_threshold)}
         >
           恢复默认
         </Button>
@@ -141,7 +91,7 @@ export default function ReleaseThresholdsPage() {
     <Card
       title="上线判定阈值（按场景）"
       extra={
-        <Button type="primary" loading={saving} onClick={save}>
+        <Button type="primary" loading={rt.saving} onClick={rt.save}>
           保存
         </Button>
       }
@@ -149,9 +99,9 @@ export default function ReleaseThresholdsPage() {
       <Table
         rowKey="profile"
         size="small"
-        loading={loading}
+        loading={rt.loading}
         columns={columns}
-        dataSource={rows}
+        dataSource={rt.rows}
         pagination={false}
       />
     </Card>

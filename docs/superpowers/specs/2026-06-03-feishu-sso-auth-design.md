@@ -1,5 +1,7 @@
 # 设计文档：飞书 SSO 登录 + per-user token 缓存复用
 
+> **SUPERSEDED** — 现行契约见 `openspec/specs/feishu-sso-auth/spec.md`；变更追溯见 `openspec/changes/archive/2026-06-03-add-feishu-sso-auth/`。索引见 [`docs/superpowers/README.md`](../README.md)。
+
 - 日期：2026-06-03
 - 状态：已与用户确认（方案 A）
 - 关联 OpenSpec change：`add-feishu-sso-auth`

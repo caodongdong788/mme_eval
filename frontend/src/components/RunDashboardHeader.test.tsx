@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { RunDetail } from "../api";
+import { RunDetail } from "../api/index";
 import { RunDashboardHeader } from "./RunDashboardHeader";
 import { renderWithProviders } from "../test/renderWithProviders";
 

@@ -1,5 +1,7 @@
 # 人工审核队列（HITL Review Queue）设计
 
+> **SUPERSEDED** — 现行契约见 `openspec/specs/eval-platform-service/spec.md`（人工审核队列段）；变更追溯见 `openspec/changes/archive/2026-06-04-hitl-review-queue/`。索引见 [`docs/superpowers/README.md`](../README.md)。
+
 > 状态：已与用户澄清 4 处设计分叉并定稿。判分内核 `medeval/**` 零改动，纯平台侧（`server/` + `frontend/` + DB）。
 
 ## 1. 背景与目标

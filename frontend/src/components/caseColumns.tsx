@@ -1,7 +1,7 @@
 import { type ReactNode } from "react";
 import { Tooltip, Typography } from "antd";
 import { Link } from "react-router-dom";
-import { CaseRow } from "../api";
+import { CaseRow } from "../api/index";
 
 // 状态圆点 + 文字（去面状彩色 Tag；样式见 styles.css .status-dot）。
 function Dot({ kind, children }: { kind: string; children: ReactNode }) {

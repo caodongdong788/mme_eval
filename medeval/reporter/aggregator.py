@@ -10,6 +10,7 @@ from typing import Any
 from ..models import CaseResult, RunReport
 from .scoring import apply_grading, grading_summary
 from .stats import bootstrap_ci
+from .token_cost import token_cost_from_counts
 
 
 def _percentile(sorted_vals: list[float], pct: float) -> float:
@@ -80,13 +81,10 @@ def _token_summary(
         "total_tokens": token_total,
         "avg_tokens_per_run": (token_total / count) if count else 0.0,
     }
-    pricing = pricing or {}
-    in_price = float(pricing.get("input_per_million", 0.0) or 0.0)
-    out_price = float(pricing.get("output_per_million", 0.0) or 0.0)
-    if in_price > 0 or out_price > 0:
-        cost = prompt_total / 1_000_000 * in_price + completion_total / 1_000_000 * out_price
+    cost = token_cost_from_counts(prompt_total, completion_total, pricing)
+    if cost is not None:
         summary["cost"] = cost
-        summary["currency"] = pricing.get("currency", "USD")
+        summary["currency"] = (pricing or {}).get("currency", "USD")
         summary["cost_per_run"] = (cost / count) if count else 0.0
     return summary
 

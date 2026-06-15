@@ -474,3 +474,32 @@ class PairwiseDetailOut(PairwiseComparisonOut):
     """对比结果详情：汇总 + 逐用例列表。"""
 
     verdicts: list[PairwiseCaseVerdictOut] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# config / release thresholds
+
+
+class ProfileCoverageOut(BaseModel):
+    """该评分档对应的用例 score_profile 映射（用于前端展示覆盖范围）。"""
+
+    is_fallback: bool = False
+    score_profile: str = ""
+    case_count: int = 0
+
+
+class ReleaseThresholdItemOut(BaseModel):
+    profile: str
+    label: str
+    max_total: float
+    default_threshold: float
+    override: Optional[float] = None
+    effective: float
+    coverage: ProfileCoverageOut = Field(default_factory=ProfileCoverageOut)
+
+
+class ReleaseThresholdUpdateRequest(BaseModel):
+    """按 profile 设置综合分上线阈值；值为 None 或等于默认 → 删除覆盖（恢复默认）。"""
+
+    overrides: dict[str, Optional[float]]
+

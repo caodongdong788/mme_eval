@@ -1,5 +1,6 @@
 import { Card, Space, Table, Tag, Typography } from "antd";
-import { CaseVerdict, judgeLabel } from "../utils/caseJudging";
+import { useJudgeVerdictLabels } from "../judgeVerdictLabels";
+import { CaseVerdict } from "../utils/caseJudging";
 
 const { Text } = Typography;
 
@@ -9,6 +10,7 @@ export interface JudgeVerdictTableProps {
 }
 
 export function JudgeVerdictTable({ verdicts, tagLabel }: JudgeVerdictTableProps) {
+  const judgeLabel = useJudgeVerdictLabels();
   const columns = [
     {
       title: "Judge",

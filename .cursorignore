@@ -1,0 +1,8 @@
+# 降低 Cursor 索引体积；文件仍在 git 中，需要时可手动打开或 git show。
+# 详见 AGENTS.md §6「OpenSpec 读取约定」。
+
+# 已归档变更（delta 已合并进 openspec/specs/；追溯见 proposal + git log）
+openspec/changes/archive/
+
+# 代码图谱产物（架构问题用 graphify query，勿通读 GRAPH_REPORT.md）
+graphify-out/
