@@ -1,0 +1,1 @@
+{"nodes": [], "edges": [{"source": "openspec_changes_2026_05_27_add_judge_fingerprint", "target": "docs_heuristics_changelog_md", "relation": "references", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "openspec/changes/archive/2026-05-27-add-judge-fingerprint/tasks.md", "source_location": null, "weight": 1.0}], "hyperedges": []}

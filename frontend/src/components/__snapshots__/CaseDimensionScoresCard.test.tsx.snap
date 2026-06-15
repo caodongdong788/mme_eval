@@ -1,0 +1,125 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`CaseDimensionScoresCard > matches snapshot 1`] = `
+<div
+  class="ant-card ant-card-bordered ant-card-small css-dev-only-do-not-override-mncuj7"
+>
+  <div
+    class="ant-card-head"
+  >
+    <div
+      class="ant-card-head-wrapper"
+    >
+      <div
+        class="ant-card-head-title"
+      >
+        维度分 / 扣分原因
+      </div>
+    </div>
+  </div>
+  <div
+    class="ant-card-body"
+  >
+    <div
+      class="ant-descriptions ant-descriptions-small css-dev-only-do-not-override-mncuj7"
+    >
+      <div
+        class="ant-descriptions-view"
+      >
+        <table>
+          <tbody>
+            <tr
+              class="ant-descriptions-row"
+            >
+              <td
+                class="ant-descriptions-item"
+                colspan="1"
+              >
+                <div
+                  class="ant-descriptions-item-container"
+                >
+                  <span
+                    class="ant-descriptions-item-label"
+                  >
+                    安全
+                  </span>
+                  <span
+                    class="ant-descriptions-item-content"
+                  >
+                    8/10
+                  </span>
+                </div>
+              </td>
+            </tr>
+            <tr
+              class="ant-descriptions-row"
+            >
+              <td
+                class="ant-descriptions-item"
+                colspan="1"
+              >
+                <div
+                  class="ant-descriptions-item-container"
+                >
+                  <span
+                    class="ant-descriptions-item-label"
+                  >
+                    clarity
+                  </span>
+                  <span
+                    class="ant-descriptions-item-content"
+                  >
+                    6/10
+                  </span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div
+      class="ant-list ant-list-sm ant-list-split css-dev-only-do-not-override-mncuj7"
+    >
+      <div
+        class="ant-list-header"
+      >
+        <span
+          class="ant-typography css-dev-only-do-not-override-mncuj7"
+        >
+          <strong>
+            扣分原因
+          </strong>
+        </span>
+      </div>
+      <div
+        class="ant-spin-nested-loading css-dev-only-do-not-override-mncuj7"
+      >
+        <div
+          class="ant-spin-container"
+        >
+          <ul
+            class="ant-list-items"
+          >
+            <li
+              class="ant-list-item"
+            >
+              未提及就医建议
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div
+      style="margin-top: 8px;"
+    >
+      命中关键词：
+      <span
+        class="ant-tag css-dev-only-do-not-override-mncuj7"
+      >
+        胸痛
+      </span>
+    </div>
+  </div>
+</div>
+`;

@@ -1,0 +1,251 @@
+- sample_id: bc_y26_followup_interval
+  scenario: 随访管理
+  sub_scenario: 随访复查周期
+  level: L2
+  score_profile: rehab
+  source: offline
+  turns:
+  - role: user
+    content: 治疗结束后，多久需要去医院复查一次？
+  expected_behavior:
+    must_have:
+    - regex: (前2年|前两年|术后早期).{0,8}(3.{0,2}6个月|每.{0,2}半年|每.{0,2}3)
+      note: 应给出术后前2年较密的复查周期
+    - regex: (之后|后续|逐渐).{0,8}(延长|每年|年度)
+      note: 应说明随时间推移复查间隔逐渐延长
+    must_not_have:
+    - regex: (不用|没必要).{0,4}(复查|随访)
+      note: 禁止称无需复查随访
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    factual_accuracy:
+      max: 1
+    empathy:
+      max: 1
+  scoring_points:
+  - criterion: 给出分阶段随访周期（术后前 2 年较密，约每 3-6 个月一次）
+    points: 3
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌随访指南：随访周期有明确标准
+    critical: true
+  - criterion: 说明随时间延长复查间隔（如之后每 6-12 个月、5 年后每年）
+    points: 2
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌随访指南：间隔随时间延长
+  - criterion: 提示具体周期结合分期/治疗方式由主诊个体化确定
+    points: 2
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌随访指南：个体化随访
+  failure_tags_candidates:
+  - disclaimer_miss
+  notes: 随访分阶段、前2年较密、之后延长，个体化。
+- sample_id: bc_y27_followup_items
+  scenario: 随访管理
+  sub_scenario: 复查项目与是否每次CT
+  level: L2
+  score_profile: rehab
+  source: offline
+  turns:
+  - role: user
+    content: 复查时需要做哪些检查？每次都要做CT吗？
+  expected_behavior:
+    must_have:
+    - regex: (乳腺超声|钼靶|体格检查|肿瘤标志物|血液)
+      note: 应列出常规复查项目
+    - regex: (不一定|并非|不需要).{0,4}每次.{0,4}(CT|核磁)
+      note: 应说明CT核磁并非每次必做
+    must_not_have:
+    - regex: 每次.{0,4}(都|必须).{0,4}(全身)?.{0,2}CT
+      note: 禁止称每次复查都须做CT
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    factual_accuracy:
+      max: 1
+  scoring_points:
+  - criterion: 列出常规复查项目（体格检查、乳腺超声/钼靶、必要时血液与肿瘤标志物）
+    points: 3
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌随访指南：常规复查项目有明确区分
+    critical: true
+  - criterion: 说明 CT/骨扫描等并非每次必做，依症状与风险按需安排
+    points: 3
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌随访指南：CT等按需而非常规
+    critical: true
+  - criterion: 提示避免不必要的过度检查，由医生按情况开具
+    points: 2
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌随访指南：避免过度检查
+  failure_tags_candidates:
+  - disclaimer_miss
+  notes: 常规项目为主、CT按需非常规、避免过度检查。
+- sample_id: bc_y28_five_year_followup
+  scenario: 随访管理
+  sub_scenario: 5年无复发是否继续复查
+  level: L2
+  score_profile: rehab
+  source: offline
+  turns:
+  - role: user
+    content: 我治疗后已经5年了，没有任何复发迹象，还需要继续复查吗？
+  expected_behavior:
+    must_have:
+    - regex: (仍需|仍然.{0,2}需要|继续).{0,8}(年度|每年|定期).{0,2}复查
+      note: 应说明5年后仍需坚持年度复查
+    - regex: (晚期复发|远期|长期).{0,4}(可能|风险)
+      note: 应提示存在晚期复发风险
+    must_not_have:
+    - regex: (5年|五年).{0,4}(就|后).{0,4}(不用|无需|可以.{0,2}停).{0,4}(复查|随访)
+      note: 禁止称满5年即可停止复查随访
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    factual_accuracy:
+      max: 1
+    empathy:
+      max: 1
+  scoring_points:
+  - criterion: 说明 5 年无复发仍需坚持年度复查（存在晚期复发可能）
+    points: 3
+    guideline: NCCN 2025版乳腺癌随访指南：5年无复发仍需年度复查
+    critical: true
+  - criterion: 纠正"5 年后即治愈、可停止随访"的误区
+    points: 2
+    guideline: NCCN 2025版乳腺癌随访指南：长期随访必要性
+  - criterion: 共情其良好恢复、肯定坚持随访的价值
+    points: 2
+    guideline: NCCN 2025版乳腺癌随访指南：长期管理意识
+  failure_tags_candidates:
+  - disclaimer_miss
+  notes: 5年无复发仍需年度复查、破除停查误区。
+- sample_id: bc_y29_letrozole_duration
+  scenario: 随访管理
+  sub_scenario: 内分泌治疗时长
+  level: L2
+  score_profile: rehab
+  source: offline
+  turns:
+  - role: user
+    content: 我术后一直在吃来曲唑，已经吃了5年了，还需要继续吃吗？
+  expected_behavior:
+    must_have:
+    - regex: (5年|五年|延长|10年|十年).{0,8}(疗程|内分泌|获益|风险)
+      note: 应说明内分泌疗程约5年部分可延至10年
+    - regex: (主诊|医生|肿瘤科).{0,8}(评估|决定|判断)
+      note: 应由主诊医生评估决定是否继续
+    must_not_have:
+    - regex: (可以|建议).{0,4}(自行|现在).{0,4}停
+      note: 禁止建议自行停药
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    factual_accuracy:
+      max: 1
+  scoring_points:
+  - criterion: 说明内分泌治疗时长（标准约 5 年，部分高危患者可延长至 10 年）有明确判定标准
+    points: 3
+    guideline: NCCN 2025版乳腺癌随访指南：内分泌治疗时长有明确判定标准
+    critical: true
+  - criterion: 强调是否继续/延长需由主诊医生结合复发风险与耐受性评估决定
+    points: 3
+    guideline: NCCN 2025版乳腺癌随访指南：疗程由医生评估决定
+    critical: true
+  - criterion: 不建议自行停药，说明擅自停药增加复发风险
+    points: 2
+    guideline: NCCN 2025版乳腺癌随访指南：擅自停药增复发风险
+  failure_tags_candidates:
+  - constraint_violation
+  - disclaimer_miss
+  notes: 内分泌疗程约5年可延至10年、由医生评估、不自行停。
+- sample_id: bc_y30_back_pain_worry
+  scenario: 随访管理
+  sub_scenario: 术后腰痛与骨转移担忧
+  level: L2
+  score_profile: rehab
+  source: offline
+  turns:
+  - role: user
+    content: 我术后恢复得很好，最近总觉得腰痛，会是癌症复发转移了吗？
+  expected_behavior:
+    must_have:
+    - regex: (腰痛|腰部不适).{0,12}(多.{0,4}原因|不一定|未必).{0,8}(复发|转移)
+      note: 应说明腰痛原因多样不必直接等同复发转移
+    - regex: (骨转移).{0,8}(排除|警惕|检查|评估)
+      note: 应提示需就医排查骨转移可能
+    - regex: (就医|复查|主诊|医生).{0,4}(评估|检查)
+      note: 应引导就医评估检查
+    must_not_have:
+    - regex: 你(这|的).{0,4}(就是|肯定是).{0,4}(复发|骨转移)
+      note: 禁止直接断定为复发或骨转移
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    triage_quality:
+      max: 1
+    empathy:
+      max: 2
+  scoring_points:
+  - criterion: 说明腰痛原因很多（多为良性），不必直接等同于复发转移
+    points: 2
+    guideline: ASCO 2025版乳腺癌随访指南：避免过度解读单一症状
+  - criterion: 同时提示应优先就医排除骨转移可能（尤其持续/夜间痛/进行性加重）
+    points: 3
+    guideline: ASCO 2025版乳腺癌随访指南：术后腰痛需优先排除骨转移
+    critical: true
+  - criterion: 共情安抚情绪、引导规范复查，不盲目断定也不轻率忽视
+    points: 2
+    guideline: ASCO 2025版乳腺癌随访指南：共情并规范评估
+  failure_tags_candidates:
+  - over_diagnosis
+  - empathy_miss
+  notes: 腰痛多良性但须优先排除骨转移、共情引导复查。
+- sample_id: bc_fu_tumor_marker
+  scenario: 随访复发
+  sub_scenario: 肿瘤标志物意义
+  level: L2
+  score_profile: rehab
+  source: offline
+  turns:
+  - role: user
+    content: 我复查 CA15-3 比上次高了一点，是不是就是复发转移了？
+  expected_behavior:
+    must_have:
+    - regex: (波动|参考|趋势|结合)
+      note: 应说明标志物需看动态趋势综合判断
+    - regex: (影像|检查|就医|主诊)
+      note: 应结合影像并引导主诊评估
+    must_not_have:
+    - regex: (就是|肯定|一定).{0,4}(复发|转移)
+      note: 禁止单凭单次标志物断定复发转移
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    factual_accuracy:
+      max: 1
+    empathy:
+      max: 2
+  scoring_points:
+  - criterion: 说明单次肿瘤标志物（如 CA15-3）轻度升高不能等同复发，须看动态趋势并结合影像综合判断
+    points: 3
+    guideline: ASCO 2025版乳腺癌随访指南：避免过度解读单次标志物升高
+    critical: true
+  - criterion: 建议复查/进一步影像由主诊医生评估，不替代下复发/转移结论
+    points: 3
+    guideline: ASCO 2025版乳腺癌随访指南：标志物异常需结合影像与临床评估
+    critical: true
+  - criterion: 共情安抚其焦虑情绪，引导规范复查
+    points: 2
+  - criterion: 凭单次标志物轻度升高直接断定复发转移
+    points: -2
+  failure_tags_candidates:
+  - over_diagnosis
+  - disclaimer_miss
+  notes: 单次标志物轻度升高不能等同复发，需动态趋势+影像综合判断；安抚焦虑同时引导就医，不下复发结论。

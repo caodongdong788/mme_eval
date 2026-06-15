@@ -1,0 +1,1 @@
+{"nodes": [], "edges": [{"source": "openspec_changes_2026_05_28_drop_mock_adapter", "target": "config_yaml", "relation": "conceptually_related_to", "confidence": "INFERRED", "confidence_score": 0.9, "source_file": "openspec/changes/archive/2026-05-28-drop-mock-adapter/tasks.md", "source_location": null, "weight": 1.0}], "hyperedges": []}

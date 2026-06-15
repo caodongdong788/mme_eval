@@ -1,0 +1,402 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`HumanReviewCard > matches snapshot in agree mode 1`] = `
+<div
+  class="ant-card ant-card-bordered ant-card-small css-dev-only-do-not-override-mncuj7"
+>
+  <div
+    class="ant-card-head"
+  >
+    <div
+      class="ant-card-head-wrapper"
+    >
+      <div
+        class="ant-card-head-title"
+      >
+        人工裁定（HITL）
+      </div>
+    </div>
+  </div>
+  <div
+    class="ant-card-body"
+  >
+    <div
+      class="ant-alert ant-alert-info css-dev-only-do-not-override-mncuj7"
+      data-show="true"
+      role="alert"
+      style="margin-bottom: 12px;"
+    >
+      <span
+        aria-label="info-circle"
+        class="anticon anticon-info-circle ant-alert-icon"
+        role="img"
+      >
+        <svg
+          aria-hidden="true"
+          data-icon="info-circle"
+          fill="currentColor"
+          focusable="false"
+          height="1em"
+          viewBox="64 64 896 896"
+          width="1em"
+        >
+          <path
+            d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm32 664c0 4.4-3.6 8-8 8h-48c-4.4 0-8-3.6-8-8V456c0-4.4 3.6-8 8-8h48c4.4 0 8 3.6 8 8v272zm-32-344a48.01 48.01 0 010-96 48.01 48.01 0 010 96z"
+          />
+        </svg>
+      </span>
+      <div
+        class="ant-alert-content"
+      >
+        <div
+          class="ant-alert-message"
+        >
+          裁定为旁路记录，不会修改机器判分（verdict / 综合分 / 上线判定均保持不变）。若要按新判据重判，可用「推翻」后就地「改判据(YAML)」改这一条、先「试判预览」验证，满意后覆盖当前 benchmark 或另存新集；要让某个 run 反映新判据需另行「重判」。
+        </div>
+      </div>
+    </div>
+    <div
+      class="ant-space css-dev-only-do-not-override-mncuj7 ant-space-vertical ant-space-gap-row-small ant-space-gap-col-small"
+      style="width: 100%;"
+    >
+      <div
+        class="ant-space-item"
+      >
+        <div
+          class="ant-radio-group ant-radio-group-outline css-dev-only-do-not-override-mncuj7"
+        >
+          <label
+            class="ant-radio-button-wrapper ant-radio-button-wrapper-checked css-dev-only-do-not-override-mncuj7"
+          >
+            <span
+              class="ant-radio-button ant-radio-button-checked"
+            >
+              <input
+                checked=""
+                class="ant-radio-button-input"
+                name="test-id"
+                type="radio"
+                value="agree"
+              />
+              <span
+                class="ant-radio-button-inner"
+              />
+            </span>
+            <span
+              class="ant-radio-button-label"
+            >
+              同意机器
+            </span>
+          </label>
+          <label
+            class="ant-radio-button-wrapper css-dev-only-do-not-override-mncuj7"
+          >
+            <span
+              class="ant-radio-button"
+            >
+              <input
+                class="ant-radio-button-input"
+                name="test-id"
+                type="radio"
+                value="override"
+              />
+              <span
+                class="ant-radio-button-inner"
+              />
+            </span>
+            <span
+              class="ant-radio-button-label"
+            >
+              推翻机器
+            </span>
+          </label>
+        </div>
+      </div>
+      <div
+        class="ant-space-item"
+      >
+        <textarea
+          class="ant-input css-dev-only-do-not-override-mncuj7 ant-input-outlined"
+          placeholder="建议修正（可选，如：橘皮征属红旗，应建议立即就医）"
+          style="resize: none;"
+        />
+      </div>
+      <div
+        class="ant-space-item"
+      >
+        <textarea
+          class="ant-input css-dev-only-do-not-override-mncuj7 ant-input-outlined"
+          placeholder="备注（可选）"
+          style="resize: none; min-height: 2px;"
+        />
+      </div>
+      <div
+        class="ant-space-item"
+      >
+        <button
+          class="ant-btn css-dev-only-do-not-override-mncuj7 ant-btn-primary ant-btn-color-primary ant-btn-variant-solid"
+          type="button"
+        >
+          <span>
+            提交裁定
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`HumanReviewCard > matches snapshot in override mode with history 1`] = `
+<div
+  class="ant-card ant-card-bordered ant-card-small css-dev-only-do-not-override-mncuj7"
+>
+  <div
+    class="ant-card-head"
+  >
+    <div
+      class="ant-card-head-wrapper"
+    >
+      <div
+        class="ant-card-head-title"
+      >
+        人工裁定（HITL）
+      </div>
+    </div>
+  </div>
+  <div
+    class="ant-card-body"
+  >
+    <div
+      class="ant-alert ant-alert-info css-dev-only-do-not-override-mncuj7"
+      data-show="true"
+      role="alert"
+      style="margin-bottom: 12px;"
+    >
+      <span
+        aria-label="info-circle"
+        class="anticon anticon-info-circle ant-alert-icon"
+        role="img"
+      >
+        <svg
+          aria-hidden="true"
+          data-icon="info-circle"
+          fill="currentColor"
+          focusable="false"
+          height="1em"
+          viewBox="64 64 896 896"
+          width="1em"
+        >
+          <path
+            d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm32 664c0 4.4-3.6 8-8 8h-48c-4.4 0-8-3.6-8-8V456c0-4.4 3.6-8 8-8h48c4.4 0 8 3.6 8 8v272zm-32-344a48.01 48.01 0 010-96 48.01 48.01 0 010 96z"
+          />
+        </svg>
+      </span>
+      <div
+        class="ant-alert-content"
+      >
+        <div
+          class="ant-alert-message"
+        >
+          裁定为旁路记录，不会修改机器判分（verdict / 综合分 / 上线判定均保持不变）。若要按新判据重判，可用「推翻」后就地「改判据(YAML)」改这一条、先「试判预览」验证，满意后覆盖当前 benchmark 或另存新集；要让某个 run 反映新判据需另行「重判」。
+        </div>
+      </div>
+    </div>
+    <div
+      class="ant-space css-dev-only-do-not-override-mncuj7 ant-space-vertical ant-space-gap-row-small ant-space-gap-col-small"
+      style="width: 100%;"
+    >
+      <div
+        class="ant-space-item"
+      >
+        <div
+          class="ant-radio-group ant-radio-group-outline css-dev-only-do-not-override-mncuj7"
+        >
+          <label
+            class="ant-radio-button-wrapper css-dev-only-do-not-override-mncuj7"
+          >
+            <span
+              class="ant-radio-button"
+            >
+              <input
+                class="ant-radio-button-input"
+                name="test-id"
+                type="radio"
+                value="agree"
+              />
+              <span
+                class="ant-radio-button-inner"
+              />
+            </span>
+            <span
+              class="ant-radio-button-label"
+            >
+              同意机器
+            </span>
+          </label>
+          <label
+            class="ant-radio-button-wrapper ant-radio-button-wrapper-checked css-dev-only-do-not-override-mncuj7"
+          >
+            <span
+              class="ant-radio-button ant-radio-button-checked"
+            >
+              <input
+                checked=""
+                class="ant-radio-button-input"
+                name="test-id"
+                type="radio"
+                value="override"
+              />
+              <span
+                class="ant-radio-button-inner"
+              />
+            </span>
+            <span
+              class="ant-radio-button-label"
+            >
+              推翻机器
+            </span>
+          </label>
+        </div>
+      </div>
+      <div
+        class="ant-space-item"
+      >
+        <div
+          class="ant-space css-dev-only-do-not-override-mncuj7 ant-space-horizontal ant-space-align-center ant-space-gap-row-small ant-space-gap-col-small"
+        >
+          <div
+            class="ant-space-item"
+          >
+            <span
+              class="ant-typography ant-typography-secondary css-dev-only-do-not-override-mncuj7"
+            >
+              想真正改判据并重判？
+            </span>
+          </div>
+          <div
+            class="ant-space-item"
+          >
+            <button
+              class="ant-btn css-dev-only-do-not-override-mncuj7 ant-btn-primary ant-btn-color-primary ant-btn-variant-solid ant-btn-sm ant-btn-background-ghost"
+              type="button"
+            >
+              <span>
+                改判据(YAML)
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div
+        class="ant-space-item"
+      >
+        <textarea
+          class="ant-input css-dev-only-do-not-override-mncuj7 ant-input-outlined"
+          placeholder="建议修正（可选，如：橘皮征属红旗，应建议立即就医）"
+          style="resize: none;"
+        >
+          应建议急诊
+        </textarea>
+      </div>
+      <div
+        class="ant-space-item"
+      >
+        <textarea
+          class="ant-input css-dev-only-do-not-override-mncuj7 ant-input-outlined"
+          placeholder="备注（可选）"
+          style="resize: none; min-height: 2px;"
+        >
+          备注
+        </textarea>
+      </div>
+      <div
+        class="ant-space-item"
+      >
+        <button
+          class="ant-btn css-dev-only-do-not-override-mncuj7 ant-btn-primary ant-btn-color-primary ant-btn-variant-solid"
+          type="button"
+        >
+          <span>
+            提交裁定
+          </span>
+        </button>
+      </div>
+    </div>
+    <div
+      class="ant-list ant-list-sm ant-list-split css-dev-only-do-not-override-mncuj7"
+      style="margin-top: 16px;"
+    >
+      <div
+        class="ant-list-header"
+      >
+        <span
+          class="ant-typography css-dev-only-do-not-override-mncuj7"
+        >
+          <strong>
+            历史裁定（
+            1
+            ）
+          </strong>
+        </span>
+      </div>
+      <div
+        class="ant-spin-nested-loading css-dev-only-do-not-override-mncuj7"
+      >
+        <div
+          class="ant-spin-container"
+        >
+          <ul
+            class="ant-list-items"
+          >
+            <li
+              class="ant-list-item"
+            >
+              <div
+                class="ant-space css-dev-only-do-not-override-mncuj7 ant-space-vertical"
+                style="column-gap: 2px; row-gap: 2px; width: 100%;"
+              >
+                <div
+                  class="ant-space-item"
+                >
+                  <div
+                    class="ant-space css-dev-only-do-not-override-mncuj7 ant-space-horizontal ant-space-align-center ant-space-gap-row-small ant-space-gap-col-small"
+                  >
+                    <div
+                      class="ant-space-item"
+                    >
+                      <span
+                        class="status-dot status-dot--pass"
+                      >
+                        同意机器
+                      </span>
+                    </div>
+                    <div
+                      class="ant-space-item"
+                    >
+                      <span
+                        class="ant-typography ant-typography-secondary css-dev-only-do-not-override-mncuj7"
+                      >
+                        alice
+                      </span>
+                    </div>
+                    <div
+                      class="ant-space-item"
+                    >
+                      <span
+                        class="ant-typography ant-typography-secondary css-dev-only-do-not-override-mncuj7"
+                      >
+                        2026-06-11 07:00
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;

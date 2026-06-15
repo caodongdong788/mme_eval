@@ -1,0 +1,33 @@
+# Git / IDE
+.git
+.cursor
+.vscode
+*.md
+!README.md
+
+# Python
+.venv
+__pycache__
+*.py[cod]
+*.egg-info
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# 运行期产物（不打进镜像，由 volume 挂载）
+outputs
+uploads
+*.db
+.env
+.env.*
+
+# 前端（dist 在镜像内构建；忽略本地 node_modules）
+frontend/node_modules
+frontend/dist
+
+# 图谱 / OpenSpec 进行中变更（归档 spec 已在 openspec/specs）
+graphify-out
+openspec/changes
+
+# 测试 / 大体积历史 run
+tests/**/__pycache__

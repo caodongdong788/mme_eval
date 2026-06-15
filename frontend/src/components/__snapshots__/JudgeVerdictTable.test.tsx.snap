@@ -1,0 +1,241 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`JudgeVerdictTable > matches snapshot 1`] = `
+<div
+  class="ant-card ant-card-bordered ant-card-small css-dev-only-do-not-override-mncuj7"
+>
+  <div
+    class="ant-card-head"
+  >
+    <div
+      class="ant-card-head-wrapper"
+    >
+      <div
+        class="ant-card-head-title"
+      >
+        Judge 判定
+      </div>
+    </div>
+  </div>
+  <div
+    class="ant-card-body"
+  >
+    <div
+      class="ant-table-wrapper css-dev-only-do-not-override-mncuj7"
+    >
+      <div
+        class="ant-spin-nested-loading css-dev-only-do-not-override-mncuj7"
+      >
+        <div
+          class="ant-spin-container"
+        >
+          <div
+            class="ant-table ant-table-small css-dev-only-do-not-override-mncuj7"
+          >
+            <div
+              class="ant-table-container"
+            >
+              <div
+                class="ant-table-content"
+              >
+                <table
+                  style="table-layout: auto;"
+                >
+                  <colgroup>
+                    <col
+                      style="width: 200px;"
+                    />
+                    <col
+                      style="width: 80px;"
+                    />
+                    <col
+                      style="width: 90px;"
+                    />
+                    <col />
+                    <col />
+                    <col
+                      style="width: 90px;"
+                    />
+                  </colgroup>
+                  <thead
+                    class="ant-table-thead"
+                  >
+                    <tr>
+                      <th
+                        class="ant-table-cell"
+                        scope="col"
+                      >
+                        Judge
+                      </th>
+                      <th
+                        class="ant-table-cell"
+                        scope="col"
+                      >
+                        结果
+                      </th>
+                      <th
+                        class="ant-table-cell"
+                        scope="col"
+                      >
+                        分数
+                      </th>
+                      <th
+                        class="ant-table-cell"
+                        scope="col"
+                      >
+                        原因
+                      </th>
+                      <th
+                        class="ant-table-cell"
+                        scope="col"
+                      >
+                        失败标签
+                      </th>
+                      <th
+                        class="ant-table-cell"
+                        scope="col"
+                      >
+                        语义救回
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody
+                    class="ant-table-tbody"
+                  >
+                    <tr
+                      class="ant-table-row ant-table-row-level-0"
+                      data-row-key="llm.empathy"
+                    >
+                      <td
+                        class="ant-table-cell"
+                      >
+                        <div
+                          class="ant-space css-dev-only-do-not-override-mncuj7 ant-space-vertical"
+                        >
+                          <div
+                            class="ant-space-item"
+                          >
+                            <span
+                              class="ant-typography css-dev-only-do-not-override-mncuj7"
+                            >
+                              体验·共情
+                            </span>
+                          </div>
+                          <div
+                            class="ant-space-item"
+                          >
+                            <span
+                              class="ant-typography ant-typography-secondary mono css-dev-only-do-not-override-mncuj7"
+                              style="font-size: 11px;"
+                            >
+                              llm.empathy
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td
+                        class="ant-table-cell"
+                      >
+                        <span
+                          class="status-dot status-dot--pass"
+                        >
+                          PASS
+                        </span>
+                      </td>
+                      <td
+                        class="ant-table-cell"
+                      >
+                        4/5
+                      </td>
+                      <td
+                        class="ant-table-cell"
+                      >
+                        表达关切
+                      </td>
+                      <td
+                        class="ant-table-cell"
+                      />
+                      <td
+                        class="ant-table-cell"
+                      />
+                    </tr>
+                    <tr
+                      class="ant-table-row ant-table-row-level-0"
+                      data-row-key="hard_gate.red_flag"
+                    >
+                      <td
+                        class="ant-table-cell"
+                      >
+                        <div
+                          class="ant-space css-dev-only-do-not-override-mncuj7 ant-space-vertical"
+                        >
+                          <div
+                            class="ant-space-item"
+                          >
+                            <span
+                              class="ant-typography css-dev-only-do-not-override-mncuj7"
+                            >
+                              硬门槛·红旗分诊
+                            </span>
+                          </div>
+                          <div
+                            class="ant-space-item"
+                          >
+                            <span
+                              class="ant-typography ant-typography-secondary mono css-dev-only-do-not-override-mncuj7"
+                              style="font-size: 11px;"
+                            >
+                              hard_gate.red_flag
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td
+                        class="ant-table-cell"
+                      >
+                        <span
+                          class="status-dot status-dot--fail"
+                        >
+                          FAIL
+                        </span>
+                      </td>
+                      <td
+                        class="ant-table-cell"
+                      >
+                        0/1
+                      </td>
+                      <td
+                        class="ant-table-cell"
+                      >
+                        未识别红旗
+                      </td>
+                      <td
+                        class="ant-table-cell"
+                      >
+                        <span
+                          class="ant-tag ant-tag-red ant-tag-borderless css-dev-only-do-not-override-mncuj7"
+                        >
+                          missed_red_flag
+                        </span>
+                      </td>
+                      <td
+                        class="ant-table-cell"
+                      >
+                        <span
+                          class="ant-tag ant-tag-blue css-dev-only-do-not-override-mncuj7"
+                        >
+                          是
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;

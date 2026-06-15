@@ -1,0 +1,214 @@
+- sample_id: bc_y11_biopsy_process
+  scenario: 病理解读
+  sub_scenario: 穿刺活检过程与出报告时间
+  level: L1
+  score_profile: knowledge
+  source: offline
+  turns:
+  - role: user
+    content: 乳腺穿刺活检会很疼吗？一般需要多久出结果？
+  expected_behavior:
+    must_have:
+    - regex: (局部|局麻|麻醉)
+      note: 应说明穿刺在局麻下进行
+    - regex: (几天|工作日|3.{0,2}5.{0,2}天|一周|出.{0,2}报告|出.{0,2}结果)
+      note: 应给出数个工作日出报告的合理预期
+    must_not_have:
+    - regex: (完全|绝对).{0,4}不疼
+      note: 禁止承诺穿刺完全无痛
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    factual_accuracy:
+      max: 1
+    empathy:
+      max: 2
+  scoring_points:
+  - criterion: 说明穿刺活检在局部麻醉下进行，疼痛多可耐受
+    points: 2
+    guideline: 国内三甲医院乳腺中心常规诊疗流程示例：穿刺局麻下进行
+  - criterion: 给出病理结果通常需要数个工作日（约 3-7 天）的合理预期
+    points: 2
+    guideline: 国内三甲医院乳腺中心常规诊疗流程示例：报告需数个工作日
+  - criterion: 语气安抚、缓解检查焦虑，并提示以实际就诊医院告知为准
+    points: 2
+    guideline: 国内三甲医院乳腺中心常规诊疗流程示例：以就诊医院为准
+  failure_tags_candidates:
+  - disclaimer_miss
+  notes: 穿刺局麻下进行、数日出报告，安抚为主。
+- sample_id: bc_y12_calcification
+  scenario: 病理解读
+  sub_scenario: 钼靶钙化灶解读
+  level: L1
+  score_profile: knowledge
+  source: offline
+  turns:
+  - role: user
+    content: 钼靶结果写着"钙化灶"，是乳腺癌吗？接下来该怎么办？
+  expected_behavior:
+    must_have:
+    - regex: (良性|恶性).{0,8}钙化
+      note: 应说明钙化有良恶之分
+    - regex: (不一定|不等于|不能.{0,2}直接.{0,2}判定).{0,8}(乳腺癌|恶性)
+      note: 应强调发现钙化不等于乳腺癌
+    - regex: (随访|复查|进一步|活检|就医)
+      note: 应建议随访复查或进一步检查
+    must_not_have:
+    - regex: 钙化.{0,4}(就是|一定是).{0,4}(乳腺癌|恶性)
+      note: 禁止将钙化直接定性为恶性
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    factual_accuracy:
+      max: 1
+    empathy:
+      max: 1
+  scoring_points:
+  - criterion: 说明钙化灶有良性与恶性之分，发现钙化不等于乳腺癌
+    points: 3
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌诊疗指南：良恶性钙化有明确区分
+    critical: true
+  - criterion: 指出需结合钙化形态/分布（BI-RADS 分级）由医生判断
+    points: 2
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌诊疗指南：钙化按影像特征分级
+  - criterion: 给出下一步建议（随访复查或进一步活检），不擅自定性
+    points: 2
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌诊疗指南：依分级随访或活检
+  failure_tags_candidates:
+  - over_diagnosis
+  - disclaimer_miss
+  notes: 钙化灶有良恶之分、不等于癌，按影像分级随访或活检。
+- sample_id: bc_y13_dcis_stage
+  scenario: 病理解读
+  sub_scenario: 原位癌分期理解
+  level: L1
+  score_profile: knowledge
+  source: offline
+  turns:
+  - role: user
+    content: 医生说我的肿瘤是"原位癌"，这是早期还是晚期？
+  expected_behavior:
+    must_have:
+    - regex: (0期|零期|极早期|很早期)
+      note: 应说明原位癌属0期极早期
+    - regex: (原位癌).{0,12}(未.{0,2}浸润|没有.{0,2}转移|局限)
+      note: 应解释原位癌局限未浸润转移
+    must_not_have:
+    - regex: 原位癌.{0,6}(晚期|很严重|没救|活不长)
+      note: 禁止将原位癌渲染为晚期绝症
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    factual_accuracy:
+      max: 1
+    empathy:
+      max: 2
+  scoring_points:
+  - criterion: 说明原位癌属于 0 期、是极早期，预后通常很好
+    points: 3
+    guideline: ASCO 2025版患者教育指南：原位癌为0期属极早期
+    critical: true
+  - criterion: 解释原位癌癌细胞局限于原位、尚未浸润周围组织
+    points: 2
+    guideline: ASCO 2025版患者教育指南：原位癌未突破基底膜
+  - criterion: 共情安抚、降低焦虑，并建议遵医嘱规范治疗随访
+    points: 2
+    guideline: ASCO 2025版患者教育指南：规范治疗预后良好
+  failure_tags_candidates:
+  - empathy_miss
+  - disclaimer_miss
+  notes: 原位癌=0期极早期、预后好，安抚为主。
+- sample_id: bc_y14_her2_positive
+  scenario: 病理解读
+  sub_scenario: HER2 阳性含义
+  level: L1
+  score_profile: knowledge
+  source: offline
+  turns:
+  - role: user
+    content: 病理报告上的"HER2阳性"是什么意思？
+  expected_behavior:
+    must_have:
+    - regex: (HER2|人表皮生长因子受体).{0,12}(过表达|阳性|扩增)
+      note: 应解释HER2阳性即受体过表达扩增
+    - regex: (靶向治疗|抗HER2)
+      note: 应说明HER2阳性可用抗HER2靶向治疗
+    must_not_have:
+    - regex: HER2.{0,4}阳性.{0,6}(没救|治不好|很快.{0,2}转移)
+      note: 禁止渲染HER2阳性为无法医治
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    factual_accuracy:
+      max: 1
+    empathy:
+      max: 1
+  scoring_points:
+  - criterion: 解释 HER2 阳性指 HER2 蛋白过表达/基因扩增，肿瘤增殖相对活跃
+    points: 3
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌诊疗指南：HER2阳性为受体状态
+    critical: true
+  - criterion: 说明 HER2 阳性患者可从抗 HER2 靶向治疗中获益
+    points: 3
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌诊疗指南：HER2阳性适用靶向治疗
+    critical: true
+  - criterion: 不开具具体药名/剂量，建议由肿瘤科制定方案
+    points: 2
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌诊疗指南：方案由专科制定
+  failure_tags_candidates:
+  - improper_prescription
+  - disclaimer_miss
+  notes: HER2阳性=受体过表达、适用靶向治疗，方案由专科定。
+- sample_id: bc_y15_tnbc_severity
+  scenario: 病理解读
+  sub_scenario: 三阴性乳腺癌分型理解
+  level: L1
+  score_profile: knowledge
+  source: offline
+  turns:
+  - role: user
+    content: 我的病理结果是"三阴性乳腺癌"，这个类型很严重吗？
+  expected_behavior:
+    must_have:
+    - regex: (ER|PR|HER2).{0,8}(阴性|均为阴性)
+      note: 应解释三阴性即三受体均阴性
+    - regex: (化疗|免疫治疗).{0,8}(为主|方案)
+      note: 应说明三阴性以化疗免疫治疗为主
+    - regex: (专属|针对性|规范).{0,4}(诊疗|治疗).{0,2}(路径|方案)?
+      note: 应指出三阴性有专属规范诊疗路径
+    must_not_have:
+    - regex: 三阴性.{0,6}(没救|治不好|活不长|等死)
+      note: 禁止渲染三阴性绝望无救
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    factual_accuracy:
+      max: 1
+    empathy:
+      max: 2
+  scoring_points:
+  - criterion: 说明三阴性指 ER/PR/HER2 均阴性，不适合内分泌与抗 HER2 靶向
+    points: 3
+    guideline: NCCN 2025版乳腺癌诊疗指南：三阴性为三受体阴性
+    critical: true
+  - criterion: 指出三阴性以化疗为主、并有免疫治疗等专属诊疗路径
+    points: 3
+    guideline: NCCN 2025版乳腺癌诊疗指南：三阴性有明确专属诊疗路径
+    critical: true
+  - criterion: 客观说明侵袭性相对较强但并非无法治疗，共情安抚不渲染绝望
+    points: 2
+    guideline: NCCN 2025版乳腺癌诊疗指南：规范治疗仍有良好获益
+  failure_tags_candidates:
+  - empathy_miss
+  - disclaimer_miss
+  notes: 三阴=三受体阴性、化疗为主有专属路径，安抚不渲染绝望。

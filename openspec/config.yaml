@@ -1,0 +1,24 @@
+schema: spec-driven
+context: |
+  语言：简体中文
+  所有文档正文/描述必须中文；**代码、命令、变量、路径、Markdown标题关键字（Proposal/Tasks）保留英文不变**
+  技术术语不翻译：API、class、import、function、endpoint
+  
+# 项目上下文（可选）
+# 在创建工件时向 AI 显示此信息。
+# 添加您的技术栈、约定、风格指南、领域知识等。
+# 示例：
+#   context: |
+#     技术栈：TypeScript, React, Node.js
+#     我们使用约定式提交
+#     领域：电商平台
+
+# 每个工件的规则（可选）
+# 为特定工件添加自定义规则。
+# 示例：
+#   rules:
+#     proposal:
+#       - 保持提案在500字以内
+#       - 始终包含"非目标"部分
+#     tasks:
+#       - 将任务分解为最多2小时的块

@@ -1,0 +1,77 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ConversationThread > matches snapshot for empty messages 1`] = `
+<div
+  style="max-height: 560px; overflow-y: auto; padding-right: 6px;"
+/>
+`;
+
+exports[`ConversationThread > matches snapshot for user/assistant/system messages 1`] = `
+<div
+  style="max-height: 560px; overflow-y: auto; padding-right: 6px;"
+>
+  <div
+    class="ant-space css-dev-only-do-not-override-mncuj7 ant-space-vertical"
+    style="column-gap: 12px; row-gap: 12px; display: flex;"
+  >
+    <div
+      class="ant-space-item"
+    >
+      <div
+        style="display: flex; flex-direction: column; align-items: flex-end;"
+      >
+        <span
+          class="ant-typography ant-typography-secondary css-dev-only-do-not-override-mncuj7"
+          style="font-size: 11px; margin-bottom: 4px;"
+        >
+          用户
+        </span>
+        <div
+          style="max-width: 86%; padding: 10px 14px; border-radius: 12px; white-space: pre-wrap; line-height: 1.6; background: var(--primary-soft); border-color: var(--primary-border);"
+        >
+          我最近胸口闷，需要去医院吗？
+        </div>
+      </div>
+    </div>
+    <div
+      class="ant-space-item"
+    >
+      <div
+        style="display: flex; flex-direction: column; align-items: flex-start;"
+      >
+        <span
+          class="ant-typography ant-typography-secondary css-dev-only-do-not-override-mncuj7"
+          style="font-size: 11px; margin-bottom: 4px;"
+        >
+          AI 回复
+        </span>
+        <div
+          style="max-width: 86%; padding: 10px 14px; border-radius: 12px; white-space: pre-wrap; line-height: 1.6; background: var(--panel); border-color: var(--border);"
+        >
+          胸口闷可能由多种原因引起。
+请先观察是否伴有胸痛、呼吸困难。
+        </div>
+      </div>
+    </div>
+    <div
+      class="ant-space-item"
+    >
+      <div
+        style="display: flex; flex-direction: column; align-items: flex-start;"
+      >
+        <span
+          class="ant-typography ant-typography-secondary css-dev-only-do-not-override-mncuj7"
+          style="font-size: 11px; margin-bottom: 4px;"
+        >
+          system
+        </span>
+        <div
+          style="max-width: 86%; padding: 10px 14px; border-radius: 12px; white-space: pre-wrap; line-height: 1.6; background: var(--surface-subtle); border-color: var(--border);"
+        >
+          internal note
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;

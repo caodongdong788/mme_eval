@@ -1,0 +1,167 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ScoringPointsTable > matches snapshot for scoring points 1`] = `
+<div
+  class="ant-card ant-card-bordered ant-card-small css-dev-only-do-not-override-mncuj7"
+>
+  <div
+    class="ant-card-head"
+  >
+    <div
+      class="ant-card-head-wrapper"
+    >
+      <div
+        class="ant-card-head-title"
+      >
+        得分点
+      </div>
+    </div>
+  </div>
+  <div
+    class="ant-card-body"
+  >
+    <div
+      class="ant-table-wrapper css-dev-only-do-not-override-mncuj7"
+    >
+      <div
+        class="ant-spin-nested-loading css-dev-only-do-not-override-mncuj7"
+      >
+        <div
+          class="ant-spin-container"
+        >
+          <div
+            class="ant-table ant-table-small css-dev-only-do-not-override-mncuj7"
+          >
+            <div
+              class="ant-table-container"
+            >
+              <div
+                class="ant-table-content"
+              >
+                <table
+                  style="table-layout: auto;"
+                >
+                  <colgroup>
+                    <col
+                      style="width: 180px;"
+                    />
+                    <col
+                      style="width: 64px;"
+                    />
+                    <col
+                      style="width: 120px;"
+                    />
+                  </colgroup>
+                  <thead
+                    class="ant-table-thead"
+                  >
+                    <tr>
+                      <th
+                        class="ant-table-cell"
+                        scope="col"
+                      >
+                        得分点
+                      </th>
+                      <th
+                        class="ant-table-cell"
+                        scope="col"
+                      >
+                        命中
+                      </th>
+                      <th
+                        class="ant-table-cell"
+                        scope="col"
+                      >
+                        分 / 罚则
+                      </th>
+                      <th
+                        class="ant-table-cell"
+                        scope="col"
+                      >
+                        说明
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody
+                    class="ant-table-tbody"
+                  >
+                    <tr
+                      class="ant-table-row ant-table-row-level-0"
+                      data-row-key="scoring_point.point0"
+                    >
+                      <td
+                        class="ant-table-cell"
+                      >
+                        scoring_point.point0
+                      </td>
+                      <td
+                        class="ant-table-cell"
+                      >
+                        ✅
+                      </td>
+                      <td
+                        class="ant-table-cell"
+                      >
+                        2/2
+                      </td>
+                      <td
+                        class="ant-table-cell"
+                      >
+                        <div>
+                          <div>
+                            [✓ +2] 给出就医建议
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr
+                      class="ant-table-row ant-table-row-level-0"
+                      data-row-key="scoring_point.point1"
+                    >
+                      <td
+                        class="ant-table-cell"
+                      >
+                        scoring_point.point1
+                      </td>
+                      <td
+                        class="ant-table-cell"
+                      >
+                        ❌
+                      </td>
+                      <td
+                        class="ant-table-cell"
+                      >
+                        <span
+                          class="ant-tag ant-tag-green css-dev-only-do-not-override-mncuj7"
+                        >
+                          未触发 · 罚则 
+                          -3
+                        </span>
+                      </td>
+                      <td
+                        class="ant-table-cell"
+                      >
+                        <div>
+                          <div>
+                            [✓ -3] 错误处方
+                          </div>
+                          <span
+                            class="ant-typography ant-typography-secondary css-dev-only-do-not-override-mncuj7"
+                            style="font-size: 12px;"
+                          >
+                            提及具体药名
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;

@@ -1,0 +1,1 @@
+{"nodes": [], "edges": [{"source": "medeval_reporter_markdown_report", "target": "medeval_models_failuretag", "relation": "references", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "openspec/changes/archive/2026-05-29-localize-failure-tags-zh/specs/reporting/spec.md", "source_location": null, "weight": 1.0}], "hyperedges": []}

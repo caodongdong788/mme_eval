@@ -1,0 +1,1 @@
+{"nodes": [], "edges": [{"source": "harden_evaluation_determinism_change", "target": "medeval_runner_dialog_runner", "relation": "references", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "openspec/changes/archive/2026-05-28-harden-evaluation-determinism/specs/dialog-runner/spec.md", "source_location": null, "weight": 1.0}], "hyperedges": []}

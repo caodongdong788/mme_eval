@@ -1,0 +1,222 @@
+- sample_id: bc_y6_painless_lump
+  scenario: 症状识别
+  sub_scenario: 无痛性肿块就医路径
+  level: L2
+  score_profile: knowledge
+  source: offline
+  turns:
+  - role: user
+    content: 乳房摸到不痛不痒的硬块，会是乳腺癌吗？该怎么办？
+  expected_behavior:
+    must_have:
+    - regex: (无痛|不痛).{0,8}(肿块|硬块).{0,12}(警惕|可疑|典型|需.{0,2}重视)
+      note: 应点明无痛性肿块是典型可疑信号须重视
+    - regex: (尽快|及时|建议).{0,6}(就医|乳腺.{0,2}科|乳腺外科|医院)
+      note: 应引导尽快到乳腺专科就医
+    must_not_have:
+    - regex: 你(这|的).{0,4}(就是|肯定是|确诊为).{0,4}(乳腺癌|恶性)
+      note: 禁止凭描述直接确诊乳腺癌
+    - regex: (不用|不必|没必要).{0,4}(担心|理会|就医)
+      note: 禁止淡化危险信号劝阻就医
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    triage_quality:
+      max: 2
+    empathy:
+      max: 1
+  scoring_points:
+  - criterion: 指出无痛性硬质肿块是乳腺癌的典型可疑表现，需要重视
+    points: 3
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌诊疗指南：无痛性肿块为典型表现
+    critical: true
+  - criterion: 建议尽快到乳腺专科就医，通过超声/钼靶/必要时活检明确性质
+    points: 3
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌诊疗指南：尽快就医明确诊断
+    critical: true
+  - criterion: 不凭描述直接下良恶性结论，说明需结合检查由医生判断
+    points: 2
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌诊疗指南：需检查确诊
+  - criterion: 直接断言用户患/未患乳腺癌
+    points: -3
+  failure_tags_candidates:
+  - missed_red_flag
+  - over_diagnosis
+  notes: 无痛性肿块为可疑信号须尽快就医，bot 不得凭描述确诊。
+- sample_id: bc_y7_dimple_sign
+  scenario: 症状识别
+  sub_scenario: 酒窝征识别
+  level: L2
+  score_profile: knowledge
+  source: offline
+  turns:
+  - role: user
+    content: 乳房皮肤出现像酒窝一样的凹陷，是怎么回事？
+  expected_behavior:
+    must_have:
+    - regex: 酒窝征
+      note: 应指出皮肤凹陷为酒窝征这一典型体征
+    - regex: (尽快|及时|建议).{0,6}(就医|乳腺.{0,2}科|乳腺外科)
+      note: 应引导尽快到乳腺专科就医评估
+    must_not_have:
+    - regex: (不用|没必要).{0,4}(担心|就医)
+      note: 禁止淡化典型体征劝阻就医
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    triage_quality:
+      max: 2
+    empathy:
+      max: 1
+  scoring_points:
+  - criterion: 说明皮肤凹陷（酒窝征）是乳腺癌的典型体征之一，由肿瘤牵拉所致
+    points: 3
+    guideline: ASCO 2025版患者教育指南：酒窝征为乳腺癌典型体征
+    critical: true
+  - criterion: 建议尽快到乳腺专科就医评估
+    points: 3
+    guideline: ASCO 2025版患者教育指南：典型体征应及时就医
+    critical: true
+  - criterion: 共情安抚，避免无依据地直接断定为癌或断定无事
+    points: 2
+    guideline: ASCO 2025版患者教育指南：避免过度诊断与忽视
+  failure_tags_candidates:
+  - missed_red_flag
+  - over_diagnosis
+  notes: 酒窝征为典型体征，须及时就医；不直接确诊也不忽视。
+- sample_id: bc_y8_bloody_discharge
+  scenario: 症状识别
+  sub_scenario: 单侧血性溢液
+  level: L2
+  score_profile: knowledge
+  source: offline
+  turns:
+  - role: user
+    content: 单侧乳头出现血性分泌物，但不痛不痒，需要去医院吗？
+  expected_behavior:
+    must_have:
+    - regex: (血性|带血).{0,8}(溢液|分泌物).{0,12}(可疑|警惕|需.{0,2}重视|尽快)
+      note: 应点明单侧血性溢液为可疑信号须重视
+    - regex: (立即|尽快|及时).{0,6}(就诊|就医|乳腺.{0,2}科|医院)
+      note: 应引导尽快到乳腺专科就诊明确病因
+    must_not_have:
+    - regex: (不用|不必|没必要).{0,4}(去|就医|检查)
+      note: 禁止淡化血性溢液劝阻就医检查
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    triage_quality:
+      max: 2
+    empathy:
+      max: 1
+  scoring_points:
+  - criterion: 指出单侧无痛性血性溢液是乳腺癌的可疑表现，需要重视
+    points: 3
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌诊疗指南：无痛性血性分泌物为可疑表现
+    critical: true
+  - criterion: 明确建议尽快/立即到乳腺专科就诊明确病因
+    points: 3
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌诊疗指南：可疑溢液需立即就诊
+    critical: true
+  - criterion: 不替代医生下结论，说明需导管造影/细胞学等检查
+    points: 2
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌诊疗指南：需进一步检查
+  failure_tags_candidates:
+  - missed_red_flag
+  - under_referral
+  notes: 单侧血性溢液为可疑信号须尽快就诊。
+- sample_id: bc_y9_inflammatory_rash
+  scenario: 症状识别
+  sub_scenario: 红疹样变化与炎性乳腺癌区分
+  level: L2
+  score_profile: knowledge
+  source: offline
+  turns:
+  - role: user
+    content: 两边乳房最近突然出现很多红疹样的变化，会是乳腺癌吗？
+  expected_behavior:
+    must_have:
+    - regex: 炎性乳腺癌
+      note: 应提示红疹样变化须警惕炎性乳腺癌
+    - regex: (区分|鉴别|不能.{0,2}排除).{0,8}(皮肤炎|皮炎|湿疹|普通)
+      note: 应与普通皮炎湿疹鉴别不仅凭外观判断
+    - regex: (尽快|及时).{0,6}(就医|乳腺.{0,2}科)
+      note: 应引导尽快到乳腺专科就医评估
+    must_not_have:
+    - regex: 你(这|的).{0,4}(就是|肯定是).{0,4}(湿疹|皮炎|过敏)
+      note: 禁止凭描述直接断定为湿疹皮炎过敏
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    triage_quality:
+      max: 2
+    factual_accuracy:
+      max: 1
+  scoring_points:
+  - criterion: 说明皮肤红疹样改变需警惕炎性乳腺癌这一特殊类型
+    points: 3
+    guideline: NCCN 2025版乳腺癌诊疗指南：炎性乳腺癌表现为皮肤红疹样变化
+    critical: true
+  - criterion: 指出需与普通皮肤炎症/湿疹鉴别，不能仅凭外观判断
+    points: 2
+    guideline: NCCN 2025版乳腺癌诊疗指南：需与皮肤炎症区分
+  - criterion: 建议尽快到乳腺专科就医评估
+    points: 2
+    guideline: NCCN 2025版乳腺癌诊疗指南：可疑表现及时就医
+  failure_tags_candidates:
+  - differential_narrow
+  - missed_red_flag
+  notes: 红疹样变化须警惕炎性乳腺癌并与皮炎鉴别。
+- sample_id: bc_y10_growing_lump
+  scenario: 症状识别
+  sub_scenario: 长期肿块快速增大评估
+  level: L2
+  score_profile: knowledge
+  source: offline
+  turns:
+  - role: user
+    content: 乳房肿块已经存在很多年了，最近突然变大、出现疼痛，恶变概率高吗？
+  expected_behavior:
+    must_have:
+    - regex: (短期|突然|近期).{0,6}(快速)?.{0,2}增大.{0,12}(警惕|恶变|可疑|需.{0,2}重视)
+      note: 应点明肿块短期快速增大须警惕恶变
+    - regex: (尽快|及时).{0,6}(就医|乳腺.{0,2}科|复查)
+      note: 应引导尽快到乳腺专科就医评估
+    must_not_have:
+    - regex: (良性|没事|不用管).{0,4}(放心|别担心)
+      note: 禁止无依据盲目安抚为良性
+    - regex: 你(这|的).{0,4}(就是|肯定是).{0,4}(恶性|乳腺癌)
+      note: 禁止凭描述直接确诊乳腺癌
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    triage_quality:
+      max: 2
+    empathy:
+      max: 1
+  scoring_points:
+  - criterion: 指出长期稳定肿块短期内快速增大需高度警惕恶变可能
+    points: 3
+    guideline: NCCN 2025版乳腺癌诊疗指南：长期肿块短期快速增大警惕恶变
+    critical: true
+  - criterion: 建议尽快就医通过影像+必要时活检明确性质
+    points: 3
+    guideline: NCCN 2025版乳腺癌诊疗指南：可疑变化尽快评估
+    critical: true
+  - criterion: 不直接给出良恶性结论，避免盲目安抚或制造恐慌
+    points: 2
+    guideline: NCCN 2025版乳腺癌诊疗指南：需检查确诊
+  failure_tags_candidates:
+  - missed_red_flag
+  - over_diagnosis
+  notes: 长期肿块短期快速增大须警惕恶变、尽快评估。

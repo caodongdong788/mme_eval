@@ -1,0 +1,58 @@
+---
+alwaysApply: true
+---
+
+# 固定开发流程（强制门禁 · 不可跳步）
+
+> 本文件是流程的**权威定义**（AGENTS.md §2 为速查口径，二者冲突以本文件为准）。
+> 配套工具：**Graphify**（代码图谱/依赖/风险）｜**OpenSpec**（变更文档/契约/追溯）｜**Superpowers**（澄清/计划/TDD/排障/验证）。
+
+## 0. 触发边界（先判定，再决定走不走流程）
+
+每次任务开始，AI MUST 先把请求归入下面**两类之一**：
+
+- **只读 / 讨论类**：解释代码、答疑、检索、看报告、出方案讨论、纯分析——**不修改任何 `代码 / 用例 / specs`**。
+  → 这类**不强制**走完整流程，正常对话即可。
+- **变更类**：任何会**写入/修改/删除** `medeval/**`、`tests/**`、`cases/**`、`config.yaml`、`openspec/specs/**`、治理脚本等的任务。
+  → 这类 MUST 走下面的完整流程，**不可跳步**。
+
+> ⚠️ **转化闸**：当一次"讨论"演变为"动手改"时，AI MUST **先停下、声明进入变更流程、补建 OpenSpec change**，然后才能编辑代码。禁止从讨论直接滑入编码。
+
+## 1. 开场自检（变更类任务的第一条输出）
+
+进入变更流程时，AI MUST 先输出一行**流程自检**，让跳步可见：
+
+```
+流程自检：①图谱已刷新 ②需求已澄清(brainstorming/无歧义可跳并注明) ③计划已定(writing-plans 或 proposal+tasks) ④变更类型=Bug/新功能 ⑤OpenSpec change 已建 ⑥测试先行 ⑦待验证项
+```
+
+未完成的项标注待办，不得跳过。
+
+## 2. 两条链路（AI 自动判定 Bug / 新功能）
+
+- **Bug 修复链路**：刷新图谱 → 澄清问题 → 制定修复计划 → 创建修复 change → 排障+写测试 → 编码修复 → 验证回归 → 更新图谱 → 归档
+- **新功能链路**：刷新图谱 → 澄清需求 → 拆解任务 → 创建功能 change → TDD 开发 → 编码实现 → 验收验证 → 更新图谱 → 归档
+
+## 3. 不可破的铁律（MUST / 禁止）
+
+1. **图谱**：变更类任务**启动**时 MUST `graphify update .` 刷新；**改完代码**后 MUST 再次 `graphify update .`。
+2. **先有设计与变更，后有代码**：编辑任何代码前，`openspec/changes/<name>/` MUST 已存在（至少含 `proposal.md` + `tasks.md`）。**禁止无设计、无测试直接编码。**
+3. **测试先行**：MUST 按 TDD 先写/补测试，再写实现；变更收尾 MUST 跑全量 `pytest` 绿。
+4. **HardGate 治理**：触碰 `medeval/judges/hard_gate.py` 前后 MUST 跑 `medeval verify-heuristics`（详见 AGENTS.md §5）。
+5. **核心节点**：触及 `TestCase` / `BaseJudge` / `FailureTag` MUST 先查依赖与循环导入（用 Graphify）。
+6. **归档**：任务完成 MUST 走 OpenSpec 归档（`openspec validate --strict` 通过后 `openspec archive`），并同步规格。
+7. **真实配置 dry-run**：涉及评测主链路的变更，收尾 MUST 跑一次 `medeval run --config config.yaml --dry-run`。
+8. **澄清与计划（Superpowers · 分级）**：变更类任务在创建 OpenSpec change *之前* ——
+   - **澄清**：需求 / 范围**有歧义**时 MUST 先用 Superpowers `brainstorming` 澄清意图与设计；需求已明确可跳过，但 MUST 在开场自检里写明"需求已明确，跳过澄清"。
+   - **计划**：S/M 改动可由 `proposal.md` + `tasks.md` 充当计划；**多文件 / 触及核心节点（`TestCase`/`BaseJudge`/`FailureTag`）/ 高风险** 改动 MUST 先用 Superpowers `writing-plans` 产出计划再编码。
+   - 此条是"软 MUST"（无法被 hook 机器强制），靠开场自检显式交代落实——禁止把澄清/计划一笔带过。
+
+## 4. 例外
+
+仅当满足任一条件可豁免完整流程（但仍 MUST 在回复中**显式说明豁免理由**）：
+
+- 纯文档/注释/排版且不改行为；
+- 用户**明确**要求"快速改、跳过流程"；
+- 紧急止血修复（事后 MUST 补建 change 与测试）。
+
+> 关键目录：代码图谱 `graphify-out/`｜变更文档 `openspec/changes/`｜全局规则 `.cursor/rules/`。

@@ -1,0 +1,549 @@
+/* 单一信任源（CSS 层）：所有色值/字体在此定义，禁止页面内散落硬编码 hex。
+   JS 侧镜像见 theme.ts palette；两者必须保持一致（详见 .cursor/rules/frontend-workflow.mdc）。
+   设计语言：Ink & Whitespace —— 纯白底 / 无边框无阴影 / 大留白 / 圆点状态 / 降噪图表。
+   （change redesign-ui-minimal-whitespace；权威见 DESIGN.md） */
+:root {
+  /* 表面 / 中性（纯白纸 + 近黑墨 + 浅灰，无灰底分区） */
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --surface-subtle: #ffffff;
+  --surface-chip: #f3f4f6;
+  --surface-hover: #fafafa;
+  --border: #f3f4f6;          /* hairline：唯一允许的分隔线（表格行底线） */
+  --border-strong: #e5e7eb;   /* 仅输入/次按钮极细描边 */
+  --hairline: #f3f4f6;
+  --hairline-strong: #e5e7eb;
+  --ink: #111827;
+  --ink-secondary: #374151;   /* 状态文本 / 表格正文 / 次级标题 */
+  --menu-ink: #374151;
+  --chip-ink: #9ca3af;
+  --muted: #9ca3af;
+  --axis: #d1d5db;
+  --scroll-thumb: #e5e7eb;
+  --scroll-thumb-hover: #d1d5db;
+  /* 交互强调（唯一亮灯）：墨黑单色——主按钮/链接/开关/选中/聚焦/图表强调（去 teal，黑白印刷） */
+  --primary: #111827;
+  --primary-strong: #374151;
+  --primary-soft: #f3f4f6;
+  --primary-border: #e5e7eb;
+  --primary-glow: #eef0f3;
+  /* 语义（仅作圆点 / 极小着色） */
+  --pass: #1f8a5b;
+  --warn: #c6841f;
+  --fail: #c1453a;
+  /* 图表灰阶（与 theme.ts palette.chart.ink 镜像，单一信任源） */
+  --chart-ink: #6b7280;
+  --chart-muted: #9ca3af;
+  --chart-faint: #e5e7eb;
+  /* 字体：系统无衬线优先（Apple/Dieter Rams）；表内数字仍 mono */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
+    "Inter", "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono",
+    Menlo, Consolas, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 链接走墨黑单色（去 teal）；hover 加下划线，保留「可点」可感而不靠颜色 */
+a:hover {
+  text-decoration: underline;
+}
+
+/* 等宽数字/ID/指标，启用表格数字对齐 */
+.mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum" 1, "cv01" 1;
+}
+
+/* 标签去面状彩色：所有 AntD Tag 拍平为黑白印刷质感的纯文本（状态请改用 .status-dot 圆点）。
+   分类/关键词类标签即时中性化，无需逐个改写。 */
+.ant-tag {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--ink-secondary) !important;
+  padding-inline: 0;
+  margin-inline-end: 10px;
+  font-size: 13px;
+}
+.ant-tag:last-child {
+  margin-inline-end: 0;
+}
+
+/* 提示条统一（Ink & Whitespace）：弃 AntD 面状彩底，改为极浅底 + 发丝描边 + 3px 左侧语义色条。
+   一处覆写，全站 <Alert> 自动统一；语义色只落在左条与图标，正文用墨色，克制不刺眼。 */
+.ant-alert {
+  border: 1px solid var(--border-strong) !important;
+  border-left-width: 3px !important;
+  border-radius: 8px;
+  background: var(--surface-hover) !important;
+  padding: 12px 16px;
+  align-items: flex-start;
+  box-shadow: none;
+}
+.ant-alert .ant-alert-icon {
+  font-size: 16px;
+  margin-top: 1px;
+  margin-inline-end: 10px;
+}
+.ant-alert .ant-alert-message {
+  color: var(--ink);
+  font-weight: 600;
+}
+.ant-alert:not(.ant-alert-with-description) .ant-alert-message {
+  font-weight: 500;
+}
+.ant-alert-with-description .ant-alert-message {
+  margin-bottom: 4px;
+}
+.ant-alert .ant-alert-description {
+  color: var(--ink-secondary);
+  font-size: 13px;
+}
+.ant-alert .ant-alert-description ul {
+  margin: 0;
+  padding-inline-start: 18px;
+}
+.ant-alert-error {
+  border-left-color: var(--fail) !important;
+}
+.ant-alert-error .ant-alert-icon {
+  color: var(--fail) !important;
+}
+.ant-alert-warning {
+  border-left-color: var(--warn) !important;
+}
+.ant-alert-warning .ant-alert-icon {
+  color: var(--warn) !important;
+}
+.ant-alert-success {
+  border-left-color: var(--pass) !important;
+}
+.ant-alert-success .ant-alert-icon {
+  color: var(--pass) !important;
+}
+.ant-alert-info {
+  border-left-color: var(--primary) !important;
+}
+.ant-alert-info .ant-alert-icon {
+  color: var(--primary) !important;
+}
+
+/* 卡片：去边框、去阴影、透明底、去表头分隔线（留白优先；浮层阴影另算） */
+.ant-card {
+  box-shadow: none;
+  background: transparent;
+}
+.ant-card-bordered {
+  border-color: transparent;
+}
+.ant-card .ant-card-head {
+  border-bottom: none;
+  padding-inline: 0;
+  min-height: auto;
+  color: var(--ink);
+  font-weight: 600;
+}
+.ant-card .ant-card-body {
+  padding-inline: 0;
+}
+/* 标题与正文之间留白替代分隔线 */
+.ant-card .ant-card-head + .ant-card-body {
+  padding-top: 16px;
+}
+
+/* ---- 应用骨架 ---- */
+.app-sider {
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 18px 6px;
+}
+.app-brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+  color: var(--panel);
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+}
+.app-brand-text {
+  line-height: 1.1;
+}
+.app-brand-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--ink);
+}
+.app-brand-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* 侧栏分组标题：克制大写小字 */
+.app-sider .ant-menu-item-group-title {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  padding-inline: 16px;
+  margin-top: 6px;
+}
+
+/* 侧栏底部用户位 */
+.app-userbar {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.app-userbar:hover {
+  background: var(--surface-hover);
+}
+.app-userbar--header {
+  margin-top: 0;
+  border-top: none;
+  padding: 4px 8px;
+  border-radius: 10px;
+}
+
+/* 内容头：面包屑 */
+.app-content-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ---- KPI 核心指标：无瓦片、无边框、无底色，靠留白 + 字号对比 ---- */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  column-gap: 0;
+  row-gap: 28px;
+}
+/* 列间竖发丝线分区（比表格行线略深，肉眼可辨）；首列不加线。 */
+.kpi-tile {
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border-strong);
+  border-radius: 0;
+  padding: 2px 24px;
+  box-shadow: none;
+}
+.kpi-tile:first-child {
+  border-left: none;
+  padding-left: 0;
+}
+.kpi-label {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+.kpi-value {
+  font-family: var(--font-sans);
+  font-size: 40px;
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.kpi-value.is-fail {
+  color: var(--primary);
+}
+
+/* ---- 概览杂志网格分区：区块间横向发丝线 + 列间纵向发丝线（#E5E7EB 可辨） ---- */
+.ov-rule {
+  height: 1px;
+  background: var(--border-strong);
+  margin: 28px 0;
+}
+.ov-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-secondary);
+  letter-spacing: 0.02em;
+  margin-bottom: 16px;
+}
+.ov-duo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.ov-trio {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+.ov-duo > .ov-col + .ov-col,
+.ov-trio > .ov-col + .ov-col {
+  border-left: 1px solid var(--border-strong);
+  padding-left: 32px;
+}
+.ov-duo > .ov-col:not(:last-child) {
+  padding-right: 32px;
+}
+.ov-trio > .ov-col:not(:last-child) {
+  padding-right: 24px;
+}
+.kpi-sub {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 6px;
+  font-family: var(--font-mono);
+}
+
+/* ---- 状态圆点：6px 纯色点 + 深灰文字（文字始终保留） ---- */
+.status-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink-secondary);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.status-dot::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  flex: none;
+  background: var(--muted);
+}
+.status-dot--pass::before {
+  background: var(--pass);
+}
+.status-dot--fail::before {
+  background: var(--fail);
+}
+.status-dot--warn::before {
+  background: var(--warn);
+}
+.status-dot--running::before {
+  background: var(--primary);
+}
+.status-dot--muted::before {
+  background: var(--axis);
+}
+
+/* run 页头 */
+.run-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.run-title {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.run-meta {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+/* 元数据 chip：去底色去边框，浅灰等宽小字（靠间距分隔） */
+.run-meta .chip,
+.chip {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--chip-ink);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+/* 用例筛选工具条：去底色去边框，靠留白成组（留白优先） */
+.case-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px 14px;
+  flex-wrap: wrap;
+  padding: 0;
+  margin-bottom: 24px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+.case-toolbar__lead {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 2px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.case-toolbar__lead .anticon {
+  color: var(--primary);
+}
+.case-toolbar .ant-select {
+  width: 118px;
+}
+.case-toolbar__right {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  white-space: nowrap;
+}
+.case-toolbar__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+/* ---- 杂志级表格：无竖网格 / 无斑马 / 无表头底色 / 仅水平发丝线 ---- */
+.ant-table-wrapper .ant-table {
+  background: transparent;
+}
+.ant-table-wrapper .ant-table-thead > tr > th {
+  background: transparent;
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+.ant-table-wrapper .ant-table-thead > tr > th::before {
+  display: none !important; /* 去掉表头竖分隔条 */
+}
+.ant-table-wrapper .ant-table-tbody > tr > td {
+  border-bottom: 1px solid var(--border);
+}
+.ant-table-wrapper .ant-table-cell {
+  border-inline: none;
+}
+
+/* 细滚动条 */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+  background-clip: padding-box;
+}
+
+/* 登录页：纯白底（去渐变），卡片为浮层（保留柔和阴影做层级分离） */
+.login-wrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+}
+.login-card {
+  width: 408px;
+  border: none;
+  border-radius: 16px;
+  background: var(--panel);
+  padding: 36px 32px 30px;
+  box-shadow: 0 16px 48px rgba(17, 24, 39, 0.1);
+}
+
+/* Pairwise 回退用例行（B 更差）：极淡 fail 底色，提示人工复核 */
+.pairwise-regress-row > td {
+  background: color-mix(in srgb, var(--fail) 6%, transparent);
+}
+
+/* Pairwise 进行中卡片 */
+.pw-running__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.pw-running__meta {
+  flex: 1;
+  min-width: 0;
+}
+.pw-running__title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.3;
+}
+.pw-running__sub {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.pw-running__count {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--primary);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.pw-running__count-total {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.pw-progress {
+  position: relative;
+  height: 4px;
+  margin-top: 16px;
+  border-radius: 999px;
+  background: var(--surface-chip);
+  overflow: hidden;
+}
+.pw-progress__bar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary);
+  transition: width 0.4s ease;
+}
+.pw-progress__bar--indeterminate {
+  position: absolute;
+  width: 35%;
+  animation: pw-indeterminate 1.2s ease-in-out infinite;
+}
+@keyframes pw-indeterminate {
+  0% {
+    left: -35%;
+  }
+  100% {
+    left: 100%;
+  }
+}

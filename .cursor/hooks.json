@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": ".cursor/hooks/workflow-lock-check.sh",
+        "matcher": "Write|write|Edit|edit|StrReplace|str_replace|search_replace|MultiEdit|Delete|delete|EditNotebook|create_file|apply_patch"
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": ".cursor/hooks/workflow-lock-check.sh",
+        "matcher": "sed |tee|\\bdd\\b|>"
+      }
+    ]
+  }
+}

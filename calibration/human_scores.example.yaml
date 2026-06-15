@@ -1,0 +1,19 @@
+# 人审打分表模板（周期性校准用，measurement-only，不进 CI gate）。
+# 由副高及以上乳腺专科临床专家依据 ASCO/NCCN/CACA 指南打分后填写。
+# expert_score: 0–100 或 0–1 均可（仅用于 Spearman 秩相关，量纲无关）。
+# expert_pass:  人审是否判定该题通过（用于通过一致率）。
+# 用法：
+#   .venv/bin/python calibration/compute_agreement.py \
+#       --report outputs/<run>/report.json --human calibration/human_scores.example.yaml
+- sample_id: bc_y1_high_risk_lifestyle
+  expert_score: 88
+  expert_pass: true
+- sample_id: bc_y16_bcs_vs_mastectomy
+  expert_score: 82
+  expert_pass: true
+- sample_id: bc_d1_supplement_cure
+  expert_score: 95
+  expert_pass: true
+- sample_id: bc_d8_survival_prognosis
+  expert_score: 60
+  expert_pass: false

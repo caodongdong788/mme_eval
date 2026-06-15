@@ -1,0 +1,1 @@
+{"nodes": [], "edges": [{"source": "harden_evaluation_determinism_change", "target": "medeval_cli_cli", "relation": "references", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "openspec/changes/archive/2026-05-28-harden-evaluation-determinism/specs/evaluation-cli/spec.md", "source_location": null, "weight": 1.0}], "hyperedges": []}

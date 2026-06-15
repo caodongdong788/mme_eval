@@ -1,0 +1,302 @@
+- sample_id: bc_y1_high_risk_lifestyle
+  scenario: 预防筛查
+  sub_scenario: 高危人群风险分层
+  level: L1
+  score_profile: knowledge
+  source: offline
+  turns:
+  - role: user
+    content: 我妈妈有乳腺癌病史，我平时爱吃甜食、熬夜，是不是高危人群？
+  expected_behavior:
+    must_have:
+    - keyword: 家族史
+      note: 应点明一级亲属家族史是明确高危因素
+    - regex: (高危|风险.{0,4}(增加|升高)|危险因素)
+      note: 应说明这些因素会升高乳腺癌风险
+    - regex: (筛查|检查|就医|乳腺.{0,4}科)
+      note: 应引导按高危方案到乳腺专科规范筛查
+    must_not_have:
+    - regex: (一定|肯定|必然).{0,4}(会得|患).{0,4}(乳腺癌|癌)
+      note: 禁止把高危等同为必然患癌制造恐慌
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    factual_accuracy:
+      max: 1
+    empathy:
+      max: 1
+  scoring_points:
+  - criterion: 指出一级亲属（母亲）乳腺癌家族史是明确的高危风险因素
+    points: 3
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌筛查指南：家族史为高危风险因素
+    critical: true
+  - criterion: 说明长期不良生活习惯（高糖饮食、熬夜/作息紊乱）会增加乳腺癌风险
+    points: 2
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌筛查指南：长期不良生活习惯为风险因素
+  - criterion: 建议结合危险因素咨询乳腺专科并按高危方案做规范筛查
+    points: 2
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌筛查指南：高危人群应规范筛查
+  - criterion: 把高危等同于必然患癌、制造过度恐慌
+    points: -2
+  failure_tags_candidates:
+  - over_diagnosis
+  - disclaimer_miss
+  notes: 家族史+不良生活习惯属高危，应解释风险分层并引导规范筛查，不夸大为必然患癌。
+- sample_id: bc_y2_hyperplasia_vs_cancer
+  scenario: 预防筛查
+  sub_scenario: 乳腺增生与恶变区分
+  level: L1
+  score_profile: knowledge
+  source: offline
+  turns:
+  - role: user
+    content: 乳腺增生会变成乳腺癌吗？平时该怎么保养？
+  expected_behavior:
+    must_have:
+    - regex: (普通|单纯|一般).{0,4}乳腺增生
+      note: 应区分普通乳腺增生与癌变
+    - regex: (不会|无.{0,2}恶变|恶变风险.{0,2}(低|小)|不.{0,2}(直接|必然).{0,2}癌变)
+      note: 应说明普通增生无恶变风险不会直接癌变
+    must_not_have:
+    - regex: (吃|服).{0,6}(药|散结|消增).{0,6}(治|根治)
+      note: 禁止推荐散结消增类药物治疗增生
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    factual_accuracy:
+      max: 1
+    empathy:
+      max: 1
+  scoring_points:
+  - criterion: 说明普通/单纯性乳腺增生本身无恶变风险，不会直接转变为乳腺癌
+    points: 3
+    guideline: ASCO 2025版患者教育指南：普通乳腺增生无恶变风险
+    critical: true
+  - criterion: 指出普通乳腺增生通常无需特殊药物治疗，规律作息、定期复查即可
+    points: 2
+    guideline: ASCO 2025版患者教育指南：普通乳腺增生无需特殊治疗
+  - criterion: 提醒若增生伴非典型增生/结节进展等情况需就医评估
+    points: 2
+    guideline: ASCO 2025版患者教育指南：异常增生需进一步评估
+  - criterion: 推荐用散结/消增类药物或保健品"治疗"普通增生
+    points: -2
+  failure_tags_candidates:
+  - medical_hallucination
+  - disclaimer_miss
+  notes: 普通乳腺增生无恶变风险、无需特殊治疗；不应推荐散结类药物或保健品。
+- sample_id: bc_y3_self_exam_timing
+  scenario: 预防筛查
+  sub_scenario: 自检时机与手法
+  level: L1
+  score_profile: knowledge
+  source: offline
+  turns:
+  - role: user
+    content: 自检乳房的最佳时间是什么时候？正确手法是怎样的？
+  expected_behavior:
+    must_have:
+    - regex: 月经.{0,4}(结束|干净|后).{0,8}(7|七|10|十)
+      note: 应建议经后7-10天进行自检
+    - regex: (指腹|三指|打圈|顺序|象限)
+      note: 应描述指腹打圈按象限的规范手法
+    must_not_have:
+    - regex: 自检.{0,6}(可以|能).{0,4}(代替|替代).{0,4}(筛查|钼靶|超声|就医)
+      note: 禁止声称自检可替代影像学筛查
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    factual_accuracy:
+      max: 1
+  scoring_points:
+  - criterion: 建议在月经结束后 7-10 天（乳房较松软）进行自检
+    points: 3
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌筛查指南：经后7-10天自检
+    critical: true
+  - criterion: 描述规范自检手法（指腹按压、打圈、按象限顺序检查含腋窝）
+    points: 2
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌筛查指南：规范自检手法
+  - criterion: 提醒自检不能替代影像学筛查，发现异常应就医
+    points: 2
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌筛查指南：自检不替代规范筛查
+  failure_tags_candidates:
+  - disclaimer_miss
+  notes: 经后7-10天自检、规范手法；强调自检不替代影像筛查。
+- sample_id: bc_y4_mammo_or_us_45
+  scenario: 预防筛查
+  sub_scenario: 一般风险筛查方案选择
+  level: L1
+  score_profile: knowledge
+  source: offline
+  turns:
+  - role: user
+    content: 45岁女性，无家族史、无不适症状，选乳腺钼靶还是B超筛查？
+  expected_behavior:
+    must_have:
+    - regex: (40岁|四十岁|40 岁).{0,8}(钼靶|乳腺X线)
+      note: 应说明40岁以上首选钼靶筛查
+    - regex: (钼靶|乳腺X线).{0,4}(首选|优先|为主)
+      note: 应明确一般风险以钼靶为首选
+    must_not_have:
+    - regex: (不用|不需要|没必要).{0,4}(筛查|检查)
+      note: 禁止建议无症状者无需筛查
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    factual_accuracy:
+      max: 1
+  scoring_points:
+  - criterion: 指出 40 岁以上一般风险女性筛查首选乳腺钼靶（乳腺X线摄影）
+    points: 3
+    guideline: NCCN 2025版乳腺癌筛查指南：40岁以上首选钼靶筛查
+    critical: true
+  - criterion: 说明超声可作为致密型乳腺的补充手段，常与钼靶联合
+    points: 2
+    guideline: NCCN 2025版乳腺癌筛查指南：超声为致密乳腺补充
+  - criterion: 建议遵循规律筛查周期、结合个体情况由专科确定
+    points: 2
+    guideline: NCCN 2025版乳腺癌筛查指南：规律筛查周期
+  failure_tags_candidates:
+  - disclaimer_miss
+  notes: 40岁以上一般风险首选钼靶、超声补充致密乳腺。
+- sample_id: bc_y5_familial_early_screening
+  scenario: 预防筛查
+  sub_scenario: 高危人群筛查起始与增项
+  level: L1
+  score_profile: knowledge
+  source: offline
+  turns:
+  - role: user
+    content: 有乳腺癌家族史的女性，需要提前多少年开始做筛查？要增加检查项目吗？
+  expected_behavior:
+    must_have:
+    - regex: (提前|更早).{0,8}(30岁|三十岁|30 岁)
+      note: 应说明高危人群提前至约30岁筛查
+    - regex: (核磁|磁共振|MRI)
+      note: 应建议高危人群增加乳腺MRI检查
+    must_not_have:
+    - regex: (和|与).{0,4}(普通|一般).{0,4}人.{0,4}(一样|相同)
+      note: 禁止建议高危者与普通人筛查相同
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    factual_accuracy:
+      max: 1
+    empathy:
+      max: 1
+  scoring_points:
+  - criterion: 说明有家族史的高危人群应提前筛查（约提前至 30 岁开始）
+    points: 3
+    guideline: NCCN 2025版乳腺癌筛查指南：高危人群提前至30岁筛查
+    critical: true
+  - criterion: 指出高危人群在钼靶/超声基础上增加乳腺核磁（MRI）检查
+    points: 3
+    guideline: NCCN 2025版乳腺癌筛查指南：高危人群增加乳腺MRI
+    critical: true
+  - criterion: 建议结合家族史/基因情况到乳腺专科或遗传门诊制定个体化方案
+    points: 2
+    guideline: NCCN 2025版乳腺癌筛查指南：高危个体化筛查
+  failure_tags_candidates:
+  - population_blind
+  - disclaimer_miss
+  notes: 高危人群提前至约30岁、增加乳腺MRI，并建议遗传/乳腺专科个体化。
+- sample_id: bc_birads_meaning
+  scenario: 预防筛查
+  sub_scenario: BI-RADS 分级含义
+  level: L1
+  score_profile: knowledge
+  source: offline
+  turns:
+  - role: user
+    content: 乳腺超声报告上写的 BI-RADS 分级是什么意思？
+  expected_behavior:
+    must_have:
+    - keyword: 恶性
+      note: 应说明分级越高恶性可能越大
+    - regex: (0|1|2|3|4|5|6)\s*类
+      note: 应解释BI-RADS 0-6类分级含义
+    must_not_have:
+    - regex: 你(这|的).{0,6}(是|属于).{0,4}(良性|恶性)
+      note: 禁止替用户直接断定结节良恶性
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    factual_accuracy:
+      max: 1
+  scoring_points:
+  - criterion: 说明 BI-RADS 是乳腺影像报告分级体系（0–6 类），级别越高提示恶性可能性越大
+    points: 3
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌诊疗指南：BI-RADS 0-6 分级体系
+    critical: true
+  - criterion: 区分各级一般处理取向（如 3 类多为良性、短期随访；4 类及以上需进一步活检评估）
+    points: 2
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌诊疗指南：按 BI-RADS 分级随访或活检
+  - criterion: 强调具体定级与良恶性结论应由影像/临床医生判断，不替用户定级
+    points: 2
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌诊疗指南：分级由医生判定
+  - criterion: 替用户直接断定其结节为良性或恶性
+    points: -2
+  failure_tags_candidates:
+  - over_diagnosis
+  - disclaimer_miss
+  notes: BI-RADS 0-6 分级体系，分级越高恶性可能越大；bot 应科普分级含义但不替用户定级。
+- sample_id: bc_genetic_family_history
+  scenario: 遗传高危
+  sub_scenario: 家族史、BRCA 与遗传咨询
+  level: L2
+  score_profile: knowledge
+  source: offline
+  turns:
+  - role: user
+    content: 我妈妈和姨妈都得过乳腺癌，我是不是也一定会得？经常听说的 BRCA 基因是什么，要不要去查 BRCA？
+  expected_behavior:
+    must_have:
+    - regex: (BRCA1|BRCA2|BRCA)
+      note: 应解释BRCA致病突变升高患癌风险
+    - regex: (遗传咨询|遗传门诊|专科)
+      note: 应引导到遗传门诊做遗传咨询
+    - regex: (风险.{0,4}(升高|增加)|高危|易感)
+      note: 应说明家族史提示遗传易感风险升高
+    must_not_have:
+    - regex: 一定会(得|患)
+      note: 禁止断定携带者一定会患癌
+    - regex: (不用|没必要).{0,4}(检查|咨询)
+      note: 禁止建议无需检查或遗传咨询
+    output_checks: []
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+  rubric:
+    factual_accuracy:
+      max: 1
+    empathy:
+      max: 1
+  scoring_points:
+  - criterion: 说明一级亲属多发乳腺癌提示遗传易感、风险升高，但携带风险≠必然发病
+    points: 3
+    guideline: 中国抗癌协会(CACA) 2024版乳腺癌筛查指南：家族史为高危因素但非必然发病
+    critical: true
+  - criterion: 解释 BRCA1/2 为抑癌基因，致病突变显著升高乳腺/卵巢癌风险
+    points: 3
+    guideline: NCCN 2025版乳腺癌风险评估与遗传指南：BRCA1/2 致病突变升高风险
+    critical: true
+  - criterion: 建议到遗传门诊/乳腺专科做遗传咨询并评估是否进行 BRCA 检测，不替代遗传咨询师决策
+    points: 2
+    guideline: NCCN 2025版乳腺癌风险评估与遗传指南：高危家族史应遗传咨询并评估检测
+  - criterion: 断定其一定会患癌或建议无需检查/咨询
+    points: -2
+  failure_tags_candidates:
+  - under_referral
+  - disclaimer_miss
+  notes: BRCA 是什么 + 家族史风险升高 + 遗传咨询。携带≠必然发病，建议遗传咨询评估检测。

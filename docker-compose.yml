@@ -1,0 +1,51 @@
+# MME · Agent 评测平台 — Docker Compose（app + Postgres + 持久化 volume）
+#
+# 快速开始：
+#   cp .env.docker.example .env   # 编辑 SESSION_SECRET、域名、飞书等
+#   docker compose up -d --build
+#   open http://localhost:8000
+#
+# 注意：JobRunner 为进程内调度，请保持 app 单实例；水平扩展需外部队列（未实现）。
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-medeval}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-medeval}
+      POSTGRES_DB: ${POSTGRES_DB:-medeval}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-medeval} -d ${POSTGRES_DB:-medeval}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${MME_PORT:-8000}:8000"
+    env_file:
+      - .env
+    environment:
+      # 确保容器内 DB 主机名指向 compose 网络中的 db 服务
+      MEDEVAL_DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-medeval}:${POSTGRES_PASSWORD:-medeval}@db:5432/${POSTGRES_DB:-medeval}
+      MEDEVAL_OUTPUTS_DIR: /data/outputs
+      MEDEVAL_UPLOADS_DIR: /data/uploads/benchmarks
+    volumes:
+      - mme-data:/data
+      # 生产可挂载自有 config（含真实 adapter / judge 配置），覆盖镜像内置默认
+      - ${MEDEVAL_CONFIG_HOST_PATH:-./config.yaml}:/app/config.yaml:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  mme-data:

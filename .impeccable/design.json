@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-10T00:00:00Z",
+  "title": "Design System: MME · Agent 评测平台",
+  "extensions": {
+    "colorMeta": {
+      "primary": { "role": "primary", "displayName": "Ink Accent", "canonical": "#111827", "tonalRamp": ["#000000", "#111827", "#1f2937", "#374151", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb"] },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#111827", "tonalRamp": ["#111827", "#1f2937", "#374151", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb", "#f3f4f6"] },
+      "bg": { "role": "neutral", "displayName": "Paper", "canonical": "#FFFFFF", "tonalRamp": ["#374151", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb", "#f3f4f6", "#fafafa", "#ffffff"] },
+      "pass": { "role": "tertiary", "displayName": "Pass Green (dot)", "canonical": "#1F8A5B", "tonalRamp": ["#0a3322", "#0f4d33", "#156b46", "#1f8a5b", "#2e9e6b", "#5bb88c", "#94d3b3", "#d4ede0"] },
+      "fail": { "role": "tertiary", "displayName": "Fail Red (dot)", "canonical": "#C1453A", "tonalRamp": ["#4a1612", "#6b211b", "#8f2f27", "#c1453a", "#d6453b", "#e07a72", "#eeaaa4", "#fbeae8"] }
+    },
+    "typographyMeta": {
+      "metric-hero": { "displayName": "Metric Hero", "purpose": "顶部概览核心指标，系统无衬线 40px / 400，大而轻盈、单行呈现；列间用 1px #E5E7EB 竖发丝线分区。" },
+      "title": { "displayName": "Title", "purpose": "页面/run 主标题，系统无衬线 28px / 600。" },
+      "body": { "displayName": "Body", "purpose": "默认正文、表格单元、表单，系统无衬线 15px。" },
+      "mono": { "displayName": "Mono", "purpose": "表格内 ID/指纹/数字列/成本，JetBrains Mono + tnum 保对齐。" }
+    },
+    "shadows": [
+      { "name": "flat", "value": "none", "purpose": "默认：卡片/KPI/区块/按钮/标签/表格行一律无边框无阴影。" },
+      { "name": "float-overlay", "value": "0 16px 48px rgba(17, 24, 39, 0.10)", "purpose": "Modal / Dropdown / 登录卡等真正浮在页面之上的层。" }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "AntD 默认缓动，承载 hover/focus/选中等状态切换。" }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "992px" },
+      { "name": "xl", "value": "1200px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "主操作：发起评测、确认。墨黑实底 + 白字（去 teal）。",
+      "html": "<button class=\"ds-btn-primary\">发起评测</button>",
+      "css": ".ds-btn-primary { background: #111827; color: #FFFFFF; height: 36px; padding: 0 18px; border: none; border-radius: 8px; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s; } .ds-btn-primary:hover { background: #374151; } .ds-btn-primary:focus-visible { outline: 2px solid #111827; outline-offset: 2px; }"
+    },
+    {
+      "name": "Default Button (Ghost / Text)",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "次操作：编辑判据、导出、重判、续跑、置顶。无边框无底色的幽灵/文本按钮，hover 仅加极浅灰底 + 字转墨黑。",
+      "html": "<button class=\"ds-btn-default\">编辑判据</button>",
+      "css": ".ds-btn-default { background: transparent; color: #374151; height: 36px; padding: 0 14px; border: none; border-radius: 8px; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; transition: color 0.2s, background 0.2s; } .ds-btn-default:hover { color: #111827; background: #FAFAFA; }"
+    },
+    {
+      "name": "KPI Hero",
+      "kind": "metric",
+      "refersTo": "kpi-hero",
+      "description": "核心指标：浅灰标签在上、52px 近黑大数字在下，无边框无底色，靠留白成组。",
+      "html": "<div class=\"ds-kpi\"><div class=\"ds-kpi-label\">通过率</div><div class=\"ds-kpi-value\">93.0%</div></div>",
+      "css": ".ds-kpi { background: transparent; border: none; border-left: 1px solid #E5E7EB; box-shadow: none; padding: 2px 24px; } .ds-kpi:first-child { border-left: none; padding-left: 0; } .ds-kpi-label { font-family: -apple-system, 'SF Pro Text', Inter, sans-serif; font-size: 13px; font-weight: 400; color: #9CA3AF; } .ds-kpi-value { margin-top: 8px; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', Inter, sans-serif; font-size: 40px; font-weight: 400; letter-spacing: -0.015em; line-height: 1.05; color: #111827; }"
+    },
+    {
+      "name": "Status Dot",
+      "kind": "status",
+      "refersTo": "status-dot",
+      "description": "状态指示：6px 纯色圆点 + 深灰文字（文字始终保留，兼顾色觉无障碍）。",
+      "html": "<span class=\"ds-status\"><i class=\"ds-dot ds-dot--pass\"></i>通过</span> <span class=\"ds-status\"><i class=\"ds-dot ds-dot--fail\"></i>失败</span>",
+      "css": ".ds-status { display: inline-flex; align-items: center; gap: 6px; color: #374151; font-family: -apple-system, 'SF Pro Text', Inter, sans-serif; font-size: 14px; } .ds-dot { width: 6px; height: 6px; border-radius: 9999px; flex: none; } .ds-dot--pass { background: #1F8A5B; } .ds-dot--fail { background: #C1453A; }"
+    },
+    {
+      "name": "Search Input",
+      "kind": "input",
+      "refersTo": "input-search",
+      "description": "用例搜索/筛选输入。白底极细描边，墨黑聚焦环。",
+      "html": "<input class=\"ds-input-search\" placeholder=\"搜索用例\" />",
+      "css": ".ds-input-search { background: #FFFFFF; color: #111827; height: 36px; padding: 0 12px; border: 1px solid #E5E7EB; border-radius: 8px; font-family: -apple-system, 'SF Pro Text', Inter, sans-serif; font-size: 15px; } .ds-input-search::placeholder { color: #9CA3AF; } .ds-input-search:focus-visible { outline: none; border-color: #111827; box-shadow: 0 0 0 2px rgba(17,24,39,0.15); }"
+    },
+    {
+      "name": "Magazine Table Row",
+      "kind": "table",
+      "refersTo": "table",
+      "description": "杂志级表格：无竖网格、无斑马、无表头底色，仅水平发丝线 + 大单元内边距。",
+      "html": "<table class=\"ds-table\"><thead><tr><th>用例</th><th>综合分</th></tr></thead><tbody><tr><td>无痛性肿块</td><td class=\"mono\">0.982</td></tr></tbody></table>",
+      "css": ".ds-table { width: 100%; border-collapse: collapse; } .ds-table th { text-align: left; font-family: -apple-system, 'SF Pro Text', sans-serif; font-size: 13px; font-weight: 400; color: #9CA3AF; letter-spacing: 0.04em; padding: 10px 16px; border: none; background: transparent; } .ds-table td { padding: 18px 16px; border: none; border-bottom: 1px solid #F3F4F6; color: #374151; font-size: 15px; } .ds-table .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-feature-settings: 'tnum' 1; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Clinical Instrument — Ink & Whitespace（临床仪器 · 墨与留白）",
+    "overview": "仍是一台仪器，但外壳几乎抹去：没有卡片、边框、阴影、灰底分区——只剩纯白的纸、夸张的留白与杂志大标题级的核心指标。层级靠间距呼吸与字号极致对比（52px 近黑大指标 ↔ 13px 浅灰副信息），不靠描边或投影。表格还原成杂志正文：无竖线、无斑马、无表头底色，仅水平发丝线 + 大单元内边距。图表融进白底，关网格、隐藏轴线，只留浅灰刻度文字与调细线柱。唯一的强调是墨黑 ink——界面里唯一会亮起的那盏灯，但它本身就是黑白印刷里的黑（去 teal）；整页是真正的黑白印刷品。表内 ID/分数/数字列仍用 JetBrains Mono 保对齐。",
+    "keyCharacteristics": [
+      "纯白底 #FFFFFF，无卡片边框/无卡片阴影/无灰底分区；模块靠大留白区隔。",
+      "核心指标 52px Semibold 近黑系统无衬线——杂志大标题级对比。",
+      "表格无竖网格/无斑马/无表头底色，仅 1px #F3F4F6 水平行线 + 大单元内边距。",
+      "状态用 6px 纯色圆点 + 深灰文字（文字保留，兼顾色觉无障碍）。",
+      "图表降噪：无网格、隐藏轴线/刻度、浅灰轴文字、调细线柱、冷灰 + 单一墨黑强调。",
+      "墨黑 ink 作唯一亮灯（去 teal）；表内 ID/分数/数字列仍用 JetBrains Mono + tnum。"
+    ],
+    "rules": [
+      { "name": "The One Lamp Rule（唯一亮灯）", "body": "墨黑 ink 是界面唯一交互强调色（链接/主按钮/选中/聚焦/图表强调），覆盖率极低；禁止任何品牌彩色强调（含 teal），任何可点信号都用墨黑 + 留白/hover 反馈。", "section": "colors" },
+      { "name": "The Status-Not-Just-Color Rule（状态不靠纯色）", "body": "状态必须圆点 + 文字，绝不只靠红绿圆点区分。", "section": "colors" },
+      { "name": "The Ink & Paper Rule（墨与纸）", "body": "除三枚语义圆点（pass/warn/fail）外，全页只有近黑/深灰/浅灰/纯白，无任何品牌彩色（含 teal）；禁止面状彩色填充。", "section": "colors" },
+      { "name": "The Whitespace-First Rule（留白优先）", "body": "层级只用留白与字号对比；禁止给卡片/KPI/区块/按钮/标签/表格行加边框或阴影（行底发丝线、浮层阴影除外）。", "section": "elevation" },
+      { "name": "The Numerals-In-Tables-Are-Mono Rule（表内数字等宽）", "body": "表内指标/分数/ID/数值用 JetBrains Mono + tnum 保对齐；Hero 大指标用系统无衬线 Semibold。", "section": "typography" }
+    ],
+    "dos": [
+      "Do 用留白与字号对比表达层级，区块间 48–64px 呼吸。",
+      "Do 纯白底、全页是黑白印刷；墨黑 ink 作唯一交互强调色。",
+      "Do 状态用 6px 圆点 + 深灰文字。",
+      "Do 表格无竖线/无斑马/无表头底色，仅水平发丝线 + 大单元内边距。",
+      "Do 图表关网格、隐藏轴线、调细线柱、冷灰 + 单一墨黑强调。",
+      "Do 表内数字用 JetBrains Mono + tnum，Hero 大指标用系统无衬线 Semibold。"
+    ],
+    "donts": [
+      "Don't 给卡片/KPI/区块/按钮/标签/表格行加边框或阴影（行底发丝线、浮层阴影除外）。",
+      "Don't 用面状彩色 Tag/Badge/色块背景表达状态或分类。",
+      "Don't 用灰底分区或竖网格线切割内容——用留白。",
+      "Don't 引入第二个品牌强调色。",
+      "Don't 做花哨营销落地页/老旧医院系统/玩具化/大屏炫技。",
+      "Don't 用纯红绿圆点而不配文字；Don't 把表内数字用比例字体破坏列对齐。"
+    ]
+  }
+}

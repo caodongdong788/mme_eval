@@ -1,0 +1,1 @@
+{"nodes": [], "edges": [{"source": "openspec_changes_2026_05_28_add_transcript_excel_output", "target": "readme_md", "relation": "references", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "openspec/changes/archive/2026-05-28-add-transcript-excel-output/tasks.md", "source_location": null, "weight": 1.0}], "hyperedges": []}

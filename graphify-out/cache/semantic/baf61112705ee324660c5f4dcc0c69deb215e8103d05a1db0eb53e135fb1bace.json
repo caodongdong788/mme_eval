@@ -1,0 +1,1 @@
+{"nodes": [], "edges": [{"source": "openspec_changes_2026_05_28_harden_evaluation_determinism", "target": "config_yaml", "relation": "references", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "openspec/changes/archive/2026-05-28-harden-evaluation-determinism/tasks.md", "source_location": null, "weight": 1.0}], "hyperedges": []}

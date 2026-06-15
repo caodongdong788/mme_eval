@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "medeval"
+version = "0.1.0"
+description = "Automated evaluation framework for AI medical consultation chatbots"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "medeval" }]
+dependencies = [
+    "pydantic>=2.6",
+    "pyyaml>=6.0",
+    "httpx>=0.27",
+    "click>=8.1",
+    "rich>=13.7",
+    "tenacity>=8.2",
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+llm-openai = ["openai>=1.30"]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
+# 可选 OpenTelemetry tracing（enhance-eval-engine）。不装时 tracing 自动退化为 no-op。
+otel = [
+    "opentelemetry-api>=1.20",
+    "opentelemetry-sdk>=1.20",
+    "opentelemetry-exporter-otlp-proto-http>=1.20",
+]
+# 可选 Langfuse 追踪（add-langfuse-bot-tracing）。不装时追踪自动退化为 no-op。
+langfuse = ["langfuse>=4,<5"]
+# 可选 Ray 分布式执行后端（enhance-eval-engine）。仅在 run.executor=ray 时需要。
+ray = ["ray>=2.9"]
+server = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "sqlalchemy>=2.0",
+    "python-multipart>=0.0.9",
+    "httpx>=0.27",
+]
+# Docker Compose 默认 Postgres；裸机 SQLite 无需安装。
+postgres = ["psycopg2-binary>=2.9"]
+
+[project.scripts]
+medeval = "medeval.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["medeval*", "server*"]

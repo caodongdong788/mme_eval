@@ -1,0 +1,72 @@
+---
+description: 前端开发固定流程与自审规范（MME 看板 frontend/）
+globs: frontend/**/*.{ts,tsx,css,html}
+alwaysApply: false
+---
+
+# 前端开发流程规范（强制 · 自审门禁）
+
+> 适用范围：`frontend/**`（React 看板）。配套设计契约：根目录 `PRODUCT.md`（战略）+ `DESIGN.md`（视觉系统）+ `.impeccable/design.json`（边车）。
+> 任何前端「变更类」任务（新增/修改页面、组件、样式、token），**开工前先过这份流程，收尾前先过自审清单**。只读/答疑类不强制。
+
+## 0. 五步固定流程（不可跳步）
+
+任何新页面 / 新组件落地前，按序确认下面五件事，让后续页面都长在同一套规则上：
+
+1. **确定整体设计风格** —— 视觉语言、颜色、字体、字号层级、行高、间距、圆角、卡片样式、按钮形态、页面布局与信息密度。**权威来源 = `DESIGN.md`**（北极星「The Clinical Instrument — Ink & Whitespace」、teal `#0E6E5C` 唯一交互色、系统无衬线正文 + 表内 JetBrains Mono 数字、**纯白底 / 无卡片边框 / 无卡片阴影 / 大留白分区**、核心指标 52px 近黑、状态用 6px 圆点 + 深灰文字、图表降噪）。不得自创风格；新需求若涉及风格扩展，先更新 `DESIGN.md`。
+2. **确定技术方案与 UI 组件库** —— 框架管项目结构，组件库管界面统一。**本项目锁定**：React 18 + TypeScript + Vite + **Ant Design 5（唯一 UI 库）** + Recharts（图表）+ react-router 6 + axios + dayjs。**禁止**引入第二个 UI / 组件 / CSS 框架（如 MUI、Chakra、Tailwind、styled-components）；缺组件优先用 AntD 组合或自建 `components/`。
+3. **确定目录、模块与组件规则** —— 见 §2 目录边界与组件复用规则。
+4. **提前准备样式系统** —— 见 §3 单一信任源 token + i18n 规则。
+5. **写进实施计划，再搭骨架** —— 多文件 / 新页面级改动，先用 OpenSpec（`proposal.md` + `tasks.md`）或 `writing-plans` 落计划，再搭骨架（路由 + 骨架组件 + 复用 token），最后填内容。**禁止**无计划直接堆页面。
+
+## 1. 设计契约（Step 1）
+
+- 改前端前先读 `DESIGN.md` 的 Colors / Typography / Elevation / Components / Do's & Don'ts，与 `PRODUCT.md` 的 anti-references。
+- `PRODUCT.md` 四条 anti-reference 是硬红线，等价于 `DESIGN.md` 的 Don't：**禁止**花哨营销落地页（大渐变/插画/滚动动效轰炸）、老旧医院系统（灰蓝死板/拥挤无层级）、玩具化（糖果色/过度圆角/拟物）、大屏炫技（为冲击牺牲可读性的图表墙）。
+- 设计漂移（要改色板/字号/圆角等）：先改 `DESIGN.md` + `.impeccable/design.json`，再改代码，二者同步。
+
+## 2. 目录、模块与组件规则（Step 3）
+
+目录边界（`frontend/src/`）：
+
+- `pages/` —— 路由级页面，对应 `App.tsx` 的一条路由；只做编排（取数 + 组合组件），不沉淀可复用 UI。
+- `components/` —— **可复用 UI 组件**（≥2 处使用，或页面 > ~300 行需拆分时抽取）。如 `KpiTile`、`MetaChip`、`StatusTag`、`CaseToolbar`。
+- `auth/` —— 鉴权上下文与守卫。
+- `api.ts` —— 唯一后端访问层（axios 封装 + 类型）；页面不得散落裸 `fetch`/`axios`。
+- `theme.ts` —— AntD 主题 + `palette`（JS 侧 token 单一源）。
+- `failureTags.ts` 等 —— 领域常量/hooks。
+- `styles.css` —— 全局样式 + `:root` CSS 变量（CSS 侧 token 单一源）。
+
+组件复用规则：
+
+- **一处内联、二处抽取**：同一 UI 片段在 ≥2 个页面出现，必须抽到 `components/`。
+- **单文件体量**：页面文件超过 ~300 行应拆分子组件；当前 `RunDashboardPage`（900+ 行）属技术债，新增功能时顺手抽离，勿继续膨胀。
+- 组件 props 用 TS 显式类型；样式优先用 AntD props + className（引用全局类/变量），其次受控 `style` 且只引用 token。
+
+## 3. 样式系统：单一信任源（Step 4 · 自审重点）
+
+- **Token 双层、单一信任源**：
+  - CSS 层 = `frontend/src/styles.css` 的 `:root` 变量（`--primary`、`--ink`、`--surface-*`、`--pass/--warn/--fail` 等）。
+  - JS 层 = `frontend/src/theme.ts` 的 `palette`（喂给 AntD `ConfigProvider` 与 Recharts）。
+  - 两层**必须保持镜像一致**；新增/改色值时同步改这两处，**不得只改一处**。
+- **禁止散落硬编码色值**：`.tsx`/`.css` 业务代码里**不得**出现裸 hex（`#xxxxxx`）。
+  - className 样式用 `var(--token)`；受控 `style` 用 `var(--token)` 或 `palette.*`；图表配色用 `palette.chart.*` / `palette.*`。
+  - 唯二允许出现 hex 的地方：`styles.css` 的 `:root` 与 `theme.ts` 的 `palette` 定义本身。
+- **字体**：正文/中英文 = `var(--font-sans)`（Manrope）；一切指标/分数/ID/token/成本数字 = `.mono` 或 `var(--font-mono)`（JetBrains Mono，`tnum`）。
+- **圆角/间距**：守住 `DESIGN.md` 的梯子（tag 6 / 按钮·输入 8 / 卡片 12 / 浮层 16）；间距走 8 基准。
+- **多语言（i18n）规范**：本平台为内部中文工具，统一 `ConfigProvider locale={zhCN}`，文案用简体中文直写；**禁止**散落其它 locale 或自建半套 i18n。未来若需国际化，先建统一 i18n 方案再迁移，不得页面级临时拼。
+- **状态色**：通过/失败/稳定性/红旗等**必须带文字标签**，绝不只靠红绿区分（色觉无障碍）。
+
+## 4. 收尾自审清单（提交前逐条过）
+
+- [ ] **风格**：是否符合 `DESIGN.md`？有无踩 `PRODUCT.md` 的 4 条 anti-reference？
+- [ ] **技术栈**：是否只用了 AntD（无第二 UI/CSS 框架）？取数是否走 `api.ts`？
+- [ ] **目录/组件**：新可复用 UI 是否进了 `components/`？有无在页面里重复内联？页面是否过胖？
+- [ ] **Token**：`rg '#[0-9A-Fa-f]{3,8}' frontend/src --glob '!styles.css' --glob '!theme.ts'` 应**无输出**；色值是否走 `var(--*)` / `palette.*`？CSS 层与 JS 层是否同步？
+- [ ] **字体**：指标数字是否用 mono？正文是否用 Manrope？
+- [ ] **i18n / 无障碍**：文案中文一致？状态是否带文字标签？
+- [ ] **校验**：`cd frontend && npm run typecheck` 通过（必要时 `npm run build`）。
+
+## 5. 例外
+
+仅纯文案/注释、或用户明确要求「快速改跳过流程」时可豁免，但**须在回复中显式说明豁免理由**。
