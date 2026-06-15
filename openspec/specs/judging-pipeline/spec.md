@@ -704,7 +704,7 @@ grader 的输出 MUST 为严格 JSON，对每个得分点给出 `{met: bool, rea
 
 ### Requirement: README 失败归因标签段必须保留 AUTO-GENERATED 标记块并经单测守门
 
-`README.md` 的失败归因标签段 MUST 由 `medeval.docs.gen_failure_tags` 机器生成，并 MUST 保留 `<!-- AUTO-GENERATED:failure-tags-start -->` 与 `<!-- AUTO-GENERATED:failure-tags-end -->` 标记块，使生成器可机器定位并整段重写。该段 MUST NOT 被手工编辑。任何对 `FailureTag` 枚举的新增/删除/重命名 MUST 重跑 `python -m medeval.docs.gen_failure_tags --write` 同步 README。该契约 MUST 由单测 `tests/test_failure_tags.py::test_readme_in_sync_with_enum` 守门（调用 `gen_failure_tags.check()`），本仓库当前非 git 仓库，pytest 即真正的防漂移闸。
+`README.md` 的失败归因标签段 MUST 由 `medeval.docs.gen_failure_tags` 机器生成，并 MUST 保留 `<!-- AUTO-GENERATED:failure-tags-start -->` 与 `<!-- AUTO-GENERATED:failure-tags-end -->` 标记块，使生成器可机器定位并整段重写。该段 MUST NOT 被手工编辑。任何对 `FailureTag` 枚举的新增/删除/重命名 MUST 重跑 `python -m medeval.docs.gen_failure_tags --write` 同步 README。该契约 MUST 由单测 `tests/test_failure_tags.py::test_readme_in_sync_with_enum` 守门（调用 `gen_failure_tags.check()`）；有 Git 时亦可辅以 `git diff README.md` 人工复核，但**以 pytest 为权威防漂移闸**。
 
 #### Scenario: 缺失标记块时单测失败
 

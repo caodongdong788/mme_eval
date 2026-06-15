@@ -53,6 +53,7 @@ docker compose down            # 数据在 volume pgdata / mme-data 中保留
 - **持久化**：评测产物 `outputs/`、上传 benchmark `uploads/` 挂载在 volume `mme-data`；数据库在 `pgdata`。
 - **配置**：默认挂载宿主机 `./config.yaml` 到容器（可设 `MEDEVAL_CONFIG_HOST_PATH`）；生产 adapter / judge 在此文件或判分模型库配置。
 - **HTTPS**：公网请在前面加 Nginx/Caddy 反代并配证书；`MEDEVAL_ENV=production` 时会话 cookie 需 `Secure`。
+- **飞书回调**：Docker / 单端口模式须把 `FEISHU_REDIRECT_URI` 设为 `http://localhost:8000/api/auth/feishu/callback`（公网改 HTTPS 域名），并在飞书开发者后台登记该 URL；与 `dev_platform.sh` 的 `:5173` 回调可并存两条。未登记对应 URL 时登录会报 `20029`。
 - **内网免登录**：`.env` 中不填 `FEISHU_APP_ID` 即 dev 兜底放行（仅可信内网）。
 
 详见仓库根目录 `Dockerfile`、`docker-compose.yml`、`.env.docker.example`。
@@ -96,7 +97,7 @@ docker compose down            # 数据在 volume pgdata / mme-data 中保留
 - **附加列自动迁移（ORM 驱动）**：`init_db` 建表后由 `Base.metadata` 自动 diff 旧库缺失的「可空/带默认」列并 `ALTER TABLE ADD COLUMN`（含 `has_traces`/`pinned`/`parent_run_id`/`review_requested`/`token_summary`/`cost`/`total_tokens` 等），新增 ORM 列无需手工登记；JSON 列以空 `{}`/`[]` 追加并回填存量 NULL，避免响应模型校验 500。NOT NULL 且无默认的列跳过（留给完整迁移）。
 - **生产安全前置校验**：`MEDEVAL_ENV=production` 时，若 `SESSION_SECRET` 仍为内置默认值，lifespan 启动直接失败；生产态会话 cookie 自动 `Secure`（需 HTTPS）。开发/测试默认 `MEDEVAL_ENV=development` 不受影响。
 - **产物路径边界校验**：`outputs/`、`uploads/` 下所有路径拼接经 `server/paths.py::safe_join`（`resolve()` + `is_relative_to`），`run_slug` 经 `medeval/run_slug.py` 消毒，防目录穿越。
-- **飞书 SSO + 按用户导出**：飞书 OAuth2 登录（会话 cookie + 自动续期），导出对话流水以**当前登录用户**的飞书 token 上传为在线表格；环境变量 `FEISHU_APP_ID/SECRET/REDIRECT_URI/SCOPES`、`SESSION_SECRET`（见 `.env.example`）。配齐密钥才强制登录，否则 dev 放行。
+- **飞书 SSO + 按用户导出**：飞书 OAuth2 登录（会话 cookie + 自动续期），导出对话流水以**当前登录用户**的飞书 token 上传为在线表格；环境变量 `FEISHU_APP_ID/SECRET/REDIRECT_URI/SCOPES`、`SESSION_SECRET`（见 `.env.example`）。`FEISHU_REDIRECT_URI` 须与访问入口一致（dev `:5173` vs Docker/serve `:8000`，见上文 Docker 要点）。配齐密钥才强制登录，否则 dev 放行。
 - **会话过期优雅降级**：access_token 临过期会用 refresh_token 自动续期；当飞书拒绝续期（如 `code=20064` 失效/吊销），`ensure_fresh_token` 把它统一转成 `SessionExpired`——"可选登录"接口（如上传/派生 benchmark 取 `created_by`）会清掉过期会话、以未登录身份继续完成（**不再 500**，仅 `created_by` 记为空＝列表显示「未知」，重新登录后恢复署名）；需登录的接口照常回 401。
 - **上传人 `created_by`**：上传 / 派生 benchmark 时写入当前登录用户显示名，`BenchmarkOut` 透出，Benchmark 库列表新增「上传人」列（无则「未知」）。未登录（dev 放行）时为空。
 - **Benchmark 库：模板入口 + 改名/描述**：列表只展示上传/派生集，内置集从列表抽离、改以页首「用例模板」入口呈现（点击下载内置乳腺癌专科用例 YAML，可改后作为新 benchmark 上传）。`PATCH /api/benchmarks/{id}` 修改名称/描述（内置不可改→400、空名→422），列表每条提供「编辑」弹窗。

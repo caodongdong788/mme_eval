@@ -3,6 +3,8 @@
 > 本文件给 **AI 模型 / agent** 看：在一台新电脑上，按本文件**从上到下顺序执行**，即可让本仓库恢复到可运行状态。本仓库 = **判分内核 medeval（CLI）** + **MME · Agent 评测平台（Web：`server/` 后端 + `frontend/` 看板）**，并（按需）复刻 AI 辅助工作流（graphify 代码图谱、OpenSpec、飞书发布）。
 >
 > **执行约定**：每一步给出命令 + 验证方式。若某步标注「⭐ 必需」务必执行；标注「按需」的根据用户目标决定是否执行（见文末「按目标取舍」）。遇到验证失败先排查再继续，不要跳步。
+>
+> **版本管理**：本仓库已 `git init`（分支 `main`）。换机可用 `git clone` / `git pull`，或附录 A 的 `rsync` 拷贝目录；推送远程见 §8.1。
 
 ---
 
@@ -295,6 +297,7 @@ lark-cli auth login                    # 重新登录飞书（登录态现登现
 |------|--------------|
 | 只想**跑评测（CLI）** | 0 → 1 → 2 |
 | 跑**评测平台（Web）** | 0 → 1 → 2 → 3 |
+| **本地 Docker Compose**（跨平台一致，Mac 可用 Colima） | 0 → 1 → 2 → 8.3（`docker compose up`）；飞书回调用 `:8000`，见 8.2 旁注 |
 | **云主机 Docker 生产部署（公网 HTTPS）** | 8（Git 推送 → 云主机 Docker → Nginx/HTTPS） |
 | 跑评测 + **代码图谱工作流** | 0 → 1 → 2 →（按需 3）→ 4 |
 | 以上 + **发布飞书报告** | 再加 5（lark 那行）→ 6 →（7 按需） |
@@ -395,13 +398,12 @@ scripts/dev_platform.sh                            # 开发：后端 :8000 + 前
 grep -n 'api_key:' config.yaml    # 不应出现真实 key
 git status                        # 不应出现 .env / outputs / uploads / *.db
 
-# 初始化并推送（仓库尚未 git 化时）
-git init
-git add .
-git commit -m "Initial commit"
-git remote add origin https://github.com/<user>/medical-chatbot-eval.git
-git branch -M main
+# 首次推送到远程（仓库已 git init、本地已有 commit 时）
+git remote add origin https://github.com/<user>/medical-chatbot-eval.git   # 仅首次
 git push -u origin main
+
+# 若远程仓库为空、本地尚无 commit（少见）：
+# git add . && git commit -m "Initial commit" && git push -u origin main
 ```
 
 ### 8.2 云主机：准备环境
@@ -423,6 +425,8 @@ sudo usermod -aG docker $USER
 # 重新登录 SSH 使 docker 组生效
 docker --version && docker compose version
 ```
+
+> **Mac 本机无 Docker Desktop 时**：可用 Homebrew 安装 `docker` + `colima`（`brew install docker colima docker-compose` → `colima start`），再执行下文 `docker compose up`。飞书 SSO 用 Docker 单端口 `8000` 时，开发者后台须登记 `http://localhost:8000/api/auth/feishu/callback`（与 `dev_platform.sh` 的 `:5173` 回调可并存）。
 
 ### 8.3 云主机：拉代码、配置、启动
 
