@@ -22,6 +22,7 @@ from ..models import (
     OutputCheck,
     OutputCheckKind,
     Pattern,
+    ScoreProfile,
     TestCase,
 )
 from .base import BaseJudge, stable_hash
@@ -196,7 +197,13 @@ class RuleJudge(BaseJudge):
             unmet = [] if passed else list(eb.must_have)
 
         tags: list[FailureTag] = (
-            [FailureTag.INQUIRY_INCOMPLETE] if not passed else []
+            []
+            if passed
+            else (
+                [FailureTag.POPULATION_BLIND]
+                if case.score_profile == ScoreProfile.population
+                else [FailureTag.INQUIRY_INCOMPLETE]
+            )
         )
         return JudgeVerdict(
             name="rule.must_have",

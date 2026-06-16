@@ -291,6 +291,10 @@ async def judge_traces(
     started_at = started_at or datetime.utcnow()
     n_runs = config.run.repeat
     concurrency = config.run.concurrency
+    judge_concurrency = config.run.judge_concurrency
+    from .judges.llm_backend import configure_llm_rate_limit
+
+    configure_llm_rate_limit(judge_concurrency, config.run.llm_min_interval_s)
     deterministic_judges, llm_judge, scoring_judge = _split_judges(judges)
 
     if declare_plan:
@@ -332,7 +336,7 @@ async def judge_traces(
             llm_fp = llm_judge.fingerprint()
         except Exception:
             pass
-        llm_sem = asyncio.Semaphore(concurrency)
+        llm_sem = asyncio.Semaphore(judge_concurrency)
 
         async def _llm_one(r):
             async with llm_sem:
@@ -355,7 +359,7 @@ async def judge_traces(
             sp_fp = scoring_judge.fingerprint()
         except Exception:
             pass
-        sp_sem = asyncio.Semaphore(concurrency)
+        sp_sem = asyncio.Semaphore(judge_concurrency)
 
         async def _sp_one(r):
             async with sp_sem:

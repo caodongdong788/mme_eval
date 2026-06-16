@@ -50,7 +50,7 @@ def _scripted_judge(scripts: list[dict[str, int]], **kwargs) -> LLMJudge:
     async def fake_call(model, prompt):
         scores = calls.pop(0)
         reasons = {k: f"r-{v}" for k, v in scores.items()}
-        return scores, reasons
+        return scores, reasons, []
 
     j._call = fake_call  # type: ignore[assignment]
     return j

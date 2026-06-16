@@ -60,12 +60,21 @@ def _seed(settings) -> int:
         return run.id
 
 
-def test_cases_include_n_turns(client, settings):
+def test_cases_list_omits_detail_derived_n_turns(client, settings):
+    """列表路径不加载 detail_json，n_turns 为占位默认值 1。"""
     rid = _seed(settings)
     rows = client.get(f"/api/runs/{rid}/cases").json()
     by = {r["sample_id"]: r for r in rows}
     assert by["bc_001"]["n_turns"] == 1
-    assert by["bc_multi"]["n_turns"] == 2
+    assert by["bc_multi"]["n_turns"] == 1
+
+
+def test_cases_turns_filter_loads_detail_for_n_turns(client, settings):
+    rid = _seed(settings)
+    multi = client.get(f"/api/runs/{rid}/cases", params={"turns": "multi"}).json()
+    assert len(multi) == 1
+    assert multi[0]["sample_id"] == "bc_multi"
+    assert multi[0]["n_turns"] == 2
 
 
 def test_filter_turns_multi(client, settings):

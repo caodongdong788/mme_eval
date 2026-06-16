@@ -15,6 +15,7 @@ from ..schemas import (
     ReviewStatsOut,
 )
 from .case_query import case_row_or_404, filtered_case_rows, queue_reasons
+from .cross_run_diff import baseline_case_map
 from .runs import get_run_or_404
 
 
@@ -39,7 +40,9 @@ def get_review_queue(
     scenario: Optional[str] = None,
     score_profile: Optional[str] = None,
 ) -> list[ReviewQueueItemOut]:
-    get_run_or_404(session, run_id)
+    run = get_run_or_404(session, run_id)
+    baseline_by_sample = baseline_case_map(session, run)
+    cross_comparable = bool(baseline_by_sample)
     rows = filtered_case_rows(
         session,
         run_id,
@@ -53,7 +56,11 @@ def get_review_queue(
 
     items: list[ReviewQueueItemOut] = []
     for r in rows:
-        reasons = queue_reasons(r)
+        reasons = queue_reasons(
+            r,
+            baseline=baseline_by_sample.get(r.sample_id),
+            cross_run_comparable=cross_comparable,
+        )
         if not reasons:
             continue
         anns = anns_by_sample.get(r.sample_id, [])
@@ -112,10 +119,63 @@ def annotate_case(
     return ann
 
 
+def pending_review_sample_ids(
+    session: Session,
+    run_id: int,
+    *,
+    level: Optional[str] = None,
+    release_passed: Optional[bool] = None,
+    stability: Optional[str] = None,
+    scenario: Optional[str] = None,
+    score_profile: Optional[str] = None,
+    turns: Optional[str] = None,
+    guideline: Optional[str] = None,
+) -> set[str]:
+    """入队且尚未裁定的 sample_id（与角标 pending 口径一致）。"""
+    run = get_run_or_404(session, run_id)
+    baseline_by_sample = baseline_case_map(session, run)
+    cross_comparable = bool(baseline_by_sample)
+    rows = filtered_case_rows(
+        session,
+        run_id,
+        level=level,
+        release_passed=release_passed,
+        stability=stability,
+        scenario=scenario,
+        score_profile=score_profile,
+        turns=turns,
+        guideline=guideline,
+        load_detail_json=False,
+    )
+    anns_by_sample = _annotations_by_sample(session, run_id)
+    pending: set[str] = set()
+    for r in rows:
+        if anns_by_sample.get(r.sample_id):
+            continue
+        reasons = queue_reasons(
+            r,
+            baseline=baseline_by_sample.get(r.sample_id),
+            cross_run_comparable=cross_comparable,
+        )
+        if reasons:
+            pending.add(r.sample_id)
+    return pending
+
+
 def get_review_stats(session: Session, run_id: int) -> ReviewStatsOut:
-    get_run_or_404(session, run_id)
+    run = get_run_or_404(session, run_id)
+    baseline_by_sample = baseline_case_map(session, run)
+    cross_comparable = bool(baseline_by_sample)
     rows = filtered_case_rows(session, run_id)
-    queued = [r.sample_id for r in rows if queue_reasons(r)]
+    queued = [
+        r.sample_id
+        for r in rows
+        if queue_reasons(
+            r,
+            baseline=baseline_by_sample.get(r.sample_id),
+            cross_run_comparable=cross_comparable,
+        )
+    ]
     queue_total = len(queued)
 
     latest: dict[str, str] = {}

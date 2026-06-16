@@ -20,6 +20,7 @@ from ..paths import safe_join
 from ..schemas import CasesYamlOut
 from ..settings import Settings, get_settings
 from .case_query import case_row_or_404, filtered_case_rows
+from .feishu_transcript_export import import_xlsx_as_sheet, publish_xlsx_to_lark
 from .runs import get_run_or_404
 
 
@@ -51,6 +52,7 @@ def get_cases_yaml(
         scenario=scenario,
         score_profile=score_profile,
         guideline=guideline,
+        load_detail_json=True,
     )
     hit_ids = {r.sample_id for r in rows}
     if sample_id is not None:
@@ -91,8 +93,6 @@ def export_transcripts(
     current_user: Optional[FeishuUser] = None,
     settings: Optional[Settings] = None,
 ) -> dict[str, Any]:
-    from ..routers import runs as runs_pkg
-
     settings = settings or get_settings()
     run = get_run_or_404(session, run_id)
     rows = filtered_case_rows(
@@ -143,7 +143,7 @@ def export_transcripts(
         except SessionExpired:
             raise HTTPException(status_code=401, detail="飞书会话已过期，请重新登录")
         try:
-            url = runs_pkg.import_xlsx_as_sheet(
+            url = import_xlsx_as_sheet(
                 current_user.access_token,
                 xlsx_path,
                 folder_token=token,
@@ -159,7 +159,7 @@ def export_transcripts(
             )
         return {"url": url, "count": len(cases), "filename": xlsx_path.name}
 
-    url = runs_pkg.publish_xlsx_to_lark(xlsx_path, parent_folder_token=token, title=title)
+    url = publish_xlsx_to_lark(xlsx_path, parent_folder_token=token, title=title)
     if not url:
         raise HTTPException(
             status_code=502,

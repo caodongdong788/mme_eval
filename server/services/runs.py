@@ -9,13 +9,14 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
 from medeval import retention
 
 from ..compare import compare_runs
-from ..models_db import Benchmark, EvalRun, JudgeModelConfig
+from ..constants import LIST_LIMIT_DEFAULT
+from ..models_db import Benchmark, CaseAnnotation, EvalRun, JudgeModelConfig, PairwiseComparison
 from ..paths import safe_join
 from ..schemas import JudgeOverride, RunCreate, RunRenameRequest
 from ..settings import get_settings
@@ -156,13 +157,13 @@ def list_runs(
     limit: Optional[int] = None,
     offset: int = 0,
 ) -> list[EvalRun]:
+    effective_limit = LIST_LIMIT_DEFAULT if limit is None else limit
     stmt = select(EvalRun).order_by(EvalRun.id.desc())
     if benchmark_id is not None:
         stmt = stmt.where(EvalRun.benchmark_id == benchmark_id)
     if offset:
         stmt = stmt.offset(offset)
-    if limit is not None:
-        stmt = stmt.limit(limit)
+    stmt = stmt.limit(effective_limit)
     return list(session.execute(stmt).scalars().all())
 
 
@@ -172,6 +173,18 @@ def delete_run(session: Session, run_id: int) -> None:
         raise HTTPException(
             status_code=400, detail="运行中或等待中的评测不可删除，请等待完成"
         )
+    # 旁路表 / 对比表无 ORM cascade，须先清以免 FK 约束导致 commit 失败（Postgres / FK=ON 的 SQLite）。
+    for comp in session.execute(
+        select(PairwiseComparison).where(
+            or_(
+                PairwiseComparison.run_a_id == run_id,
+                PairwiseComparison.run_b_id == run_id,
+            )
+        )
+    ).scalars():
+        session.delete(comp)
+    session.execute(delete(CaseAnnotation).where(CaseAnnotation.run_id == run_id))
+
     run_slug = run.run_slug
     if run_slug and run_slug != "(pending)":
         out_dir = source_out_dir(run)

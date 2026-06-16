@@ -21,10 +21,10 @@ from medeval.judges.rule import RuleJudge
 
 # 当前提交点的稳定基线 —— 任何修改都需要更新这里
 EXPECTED_FINGERPRINTS: dict[str, str] = {
-    "hard_gate": "98cb1591cde4",
+    "hard_gate": "3066f1a4689d",
     "rule_normalize_on": "f59e4da96fea",
     "rule_normalize_off": "33cd41e4d711",
-    "llm_default": "6f91e4a3025c",
+    "llm_default": "a8f27bd01bc6",
 }
 
 

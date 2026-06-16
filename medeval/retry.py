@@ -51,6 +51,7 @@ async def retry_async(
     max_delay: float,
     jitter: float = 0.0,
     on_retry: Callable[[int, BaseException, float], None] | None = None,
+    delay_for: Callable[[int, BaseException], float | None] | None = None,
     sleep: Callable[[float], Awaitable[None]] | None = None,
 ) -> T:
     """异常驱动的指数退避重试。
@@ -70,6 +71,10 @@ async def retry_async(
             delay = backoff_delay(
                 attempt, base=base, factor=factor, max_delay=max_delay, jitter=jitter
             )
+            if delay_for is not None:
+                override = delay_for(attempt, e)
+                if override is not None:
+                    delay = override
             if on_retry is not None:
                 on_retry(attempt, e, delay)
             await _sleep(delay)

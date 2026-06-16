@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from ..auth import get_current_user_optional
+from ..constants import LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX
 from ..db import get_session
 from ..models_db import FeishuUser, PairwiseComparison
 from ..pairwise_job import run_pairwise_comparison
@@ -72,9 +73,14 @@ def delete_pairwise(
 @router.get("/pairwise", response_model=list[PairwiseComparisonOut])
 def list_pairwise(
     run_id: Optional[int] = Query(None),
+    limit: int = Query(
+        LIST_LIMIT_DEFAULT, ge=1, le=LIST_LIMIT_MAX, description="分页大小"
+    ),
+    offset: int = Query(0, ge=0, description="分页偏移"),
     session: Session = Depends(get_session),
 ) -> list[PairwiseComparison]:
-    return pw_svc.list_pairwise_comparisons(session, run_id)
+    rows = pw_svc.list_pairwise_comparisons(session, run_id)
+    return rows[offset : offset + limit]
 
 
 @router.get("/pairwise/{comparison_id}", response_model=PairwiseDetailOut)

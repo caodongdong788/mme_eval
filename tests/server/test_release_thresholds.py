@@ -18,9 +18,9 @@ def test_get_release_thresholds_defaults(client, settings):
     assert resp.status_code == 200, resp.text
     rows = {r["profile"]: r for r in resp.json()}
     assert {"default", "adversarial", "knowledge"} <= set(rows)
-    # 对抗档（perfect）默认阈值 = 满分上限；知识档（threshold）= 0.80
+    # 对抗档（perfect）默认阈值 = 满分上限；知识档（threshold）= 0.85（P1 min_composite）
     assert rows["adversarial"]["default_threshold"] == rows["adversarial"]["max_total"]
-    assert abs(rows["knowledge"]["default_threshold"] - 0.80) < 1e-9
+    assert abs(rows["knowledge"]["default_threshold"] - 0.85) < 1e-9
     # 未配置时 override 为空、effective = 默认
     assert rows["adversarial"]["override"] is None
     assert rows["adversarial"]["effective"] == rows["adversarial"]["default_threshold"]
@@ -69,8 +69,8 @@ def test_put_rejects_unknown_profile(client, settings):
 def test_put_value_equal_default_removes_override(client, settings):
     # 先设一个覆盖
     client.put("/api/config/release-thresholds", json={"overrides": {"knowledge": 0.7}})
-    # 再设回默认 0.80 → 删除覆盖
-    client.put("/api/config/release-thresholds", json={"overrides": {"knowledge": 0.8}})
+    # 再设回默认 0.85 → 删除覆盖
+    client.put("/api/config/release-thresholds", json={"overrides": {"knowledge": 0.85}})
     rows = {r["profile"]: r for r in client.get("/api/config/release-thresholds").json()}
     assert rows["knowledge"]["override"] is None
 

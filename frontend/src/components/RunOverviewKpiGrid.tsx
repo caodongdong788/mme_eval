@@ -17,11 +17,22 @@ export function RunOverviewKpiGrid({
         label="通过率"
         value={`${(run.pass_rate * 100).toFixed(1)}%`}
         sub={
-          run.pass_rate_ci && run.pass_rate_ci.low != null
-            ? `${Math.round((run.pass_rate_ci.confidence ?? 0.95) * 100)}% CI ${(
-                run.pass_rate_ci.low * 100
-              ).toFixed(1)}–${(run.pass_rate_ci.high * 100).toFixed(1)}%`
-            : undefined
+          run.total > 0 || (run.pass_rate_ci && run.pass_rate_ci.low != null) ? (
+            <>
+              {run.total > 0 && (
+                <span className="kpi-meta">
+                  通过 {run.passed} · 失败 {Math.max(0, run.total - run.passed)}
+                </span>
+              )}
+              {run.pass_rate_ci && run.pass_rate_ci.low != null && (
+                <span>
+                  {Math.round((run.pass_rate_ci.confidence ?? 0.95) * 100)}% CI{" "}
+                  {(run.pass_rate_ci.low * 100).toFixed(1)}–
+                  {(run.pass_rate_ci.high * 100).toFixed(1)}%
+                </span>
+              )}
+            </>
+          ) : undefined
         }
       />
       <KpiTile label="硬门槛失败" value={run.hard_gate_failed} emphasize={run.hard_gate_failed > 0} />

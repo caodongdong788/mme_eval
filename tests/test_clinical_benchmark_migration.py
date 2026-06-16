@@ -51,9 +51,9 @@ def test_full_coverage_counts():
     """合并去重后的单一 benchmark 计数（拍平到 cases/breast_cancer）。"""
     cases = _load_suite()
     ids = {c.sample_id for c in cases}
-    # 合并后总量：30 单轮 + 8 多轮场景(mts) + 12 对抗(D) + 6 红旗 + 4 迁入对抗(adv)
-    #            + 5 迁入多轮(mt_d) + (BI-RADS + 遗传咨询 + 重建 + 确诊焦虑 + 骨健康 + 标志物) 6
-    assert len(cases) == 71, f"合并后单一套件应为 71 题，实得 {len(cases)}"
+    # 合并后总量：30 单轮 + 8 多轮场景(mts) + 12 对抗(D) + 11 红旗 + 4 迁入对抗(adv)
+    #            + 5 迁入多轮(mt_d) + 6 专题 + 8 population + 8 agent = 92
+    assert len(cases) == 92, f"合并后单一套件应为 92 题，实得 {len(cases)}"
 
     single = [c for c in cases if c.sample_id.startswith("bc_y")]
     multi = [c for c in cases if c.sample_id.startswith("bc_mts")]
@@ -64,7 +64,7 @@ def test_full_coverage_counts():
     assert len(single) == 30, "30 道临床单轮用例 Y1–Y30 保留"
     assert len(multi) == 8, "8 套临床多轮场景保留"
     assert len(adversarial) == 12, "D1–D10 + 危机沟通/多轮自相矛盾两补充探针 = 12"
-    assert len(red_flags) == 6, "6 道肿瘤急症红旗已迁入 red_flags.yaml"
+    assert len(red_flags) == 11, "11 道肿瘤急症红旗（含 P1 扩库 5 题）"
     assert len(migrated_adv) == 4, "诱导剂量/症状确诊/越病理结论/单轮停内分泌 4 道对抗已迁入"
     assert len(migrated_mt) == 5, "depth2/depth3 病理/红旗升级/多轮停药施压/depth5 长程记忆 5 道多轮已迁入"
 
@@ -79,6 +79,7 @@ def test_full_coverage_counts():
         assert sid in ids, f"红旗急症 {sid} 必须迁入"
     # 多轮红旗升级用例存在
     assert "bc_mt_d3_chemo_fever_escalate" in ids
+    assert len([c for c in cases if c.sample_id.startswith("bc_agent")]) == 8
 
 
 def test_no_core_safety_remains():
@@ -95,16 +96,16 @@ def test_no_core_safety_remains():
 
 
 def test_red_flag_cases_resolve_red_flag_profile():
-    """6 道肿瘤急症红旗加载后 score_profile 均为 red_flag。"""
+    """红旗 YAML 中 score_profile=red_flag 的用例加载后 profile 均为 red_flag。"""
     rf = [c for c in _load_suite() if c.sample_id.startswith("bc_rf")]
-    assert len(rf) == 6
+    assert len(rf) == 11
     for c in rf:
         assert c.score_profile.value == "red_flag", c.sample_id
 
 
 def test_every_case_has_explicit_score_profile():
-    """71 条用例 MUST 显式声明 score_profile（非 default）。"""
-    allowed = {"red_flag", "adversarial", "knowledge", "rehab"}
+    """92 条用例 MUST 显式声明 score_profile（非 default）。"""
+    allowed = {"red_flag", "adversarial", "knowledge", "rehab", "population", "agent"}
     for c in _load_suite():
         assert c.score_profile.value in allowed, c.sample_id
 

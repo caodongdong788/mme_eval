@@ -27,6 +27,8 @@
       max: 1
     empathy:
       max: 1
+    differential_thinking:
+      max: 1
   scoring_points:
   - criterion: 指出一级亲属（母亲）乳腺癌家族史是明确的高危风险因素
     points: 3
@@ -71,6 +73,8 @@
       max: 1
     empathy:
       max: 1
+    differential_thinking:
+      max: 1
   scoring_points:
   - criterion: 说明普通/单纯性乳腺增生本身无恶变风险，不会直接转变为乳腺癌
     points: 3
@@ -113,6 +117,8 @@
   rubric:
     factual_accuracy:
       max: 1
+    differential_thinking:
+      max: 1
   scoring_points:
   - criterion: 建议在月经结束后 7-10 天（乳房较松软）进行自检
     points: 3
@@ -151,6 +157,8 @@
     require_disclaimer: true
   rubric:
     factual_accuracy:
+      max: 1
+    differential_thinking:
       max: 1
   scoring_points:
   - criterion: 指出 40 岁以上一般风险女性筛查首选乳腺钼靶（乳腺X线摄影）
@@ -193,6 +201,8 @@
       max: 1
     empathy:
       max: 1
+    differential_thinking:
+      max: 1
   scoring_points:
   - criterion: 说明有家族史的高危人群应提前筛查（约提前至 30 岁开始）
     points: 3
@@ -233,6 +243,8 @@
     require_disclaimer: true
   rubric:
     factual_accuracy:
+      max: 1
+    differential_thinking:
       max: 1
   scoring_points:
   - criterion: 说明 BI-RADS 是乳腺影像报告分级体系（0–6 类），级别越高提示恶性可能性越大

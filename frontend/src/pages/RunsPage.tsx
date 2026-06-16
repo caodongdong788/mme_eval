@@ -11,6 +11,7 @@ import {
 import { DeleteOutlined, ReloadOutlined, RocketOutlined } from "@ant-design/icons";
 import { Link, useNavigate } from "react-router-dom";
 import { RunSummary } from "../api/index";
+import { formatApiDateTime } from "../utils/datetime";
 import { RunStatusTag } from "../components/RunStatusTag";
 import { useRunsList } from "../hooks/useRunsList";
 
@@ -74,7 +75,7 @@ export default function RunsPage() {
       title: "创建时间",
       dataIndex: "created_at",
       ...nowrap,
-      render: (v?: string) => (v ? new Date(v).toLocaleString() : "-"),
+      render: (v?: string) => formatApiDateTime(v),
     },
     {
       title: "操作",
@@ -90,19 +91,17 @@ export default function RunsPage() {
               okText="删除"
               cancelText="取消"
               okButtonProps={{ danger: true }}
-              onConfirm={() => onDelete(r.id)}
+              onConfirm={() => void onDelete(r.id)}
               disabled={busy}
             >
-              <Button
-                type="link"
-                danger
-                size="small"
-                icon={<DeleteOutlined />}
-                disabled={busy}
-                style={{ padding: 0 }}
+              <a
+                style={{
+                  color: busy ? "var(--ink-tertiary)" : "var(--fail)",
+                  pointerEvents: busy ? "none" : undefined,
+                }}
               >
-                删除
-              </Button>
+                <DeleteOutlined /> 删除
+              </a>
             </Popconfirm>
           </Space>
         );

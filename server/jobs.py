@@ -8,14 +8,18 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 
+from .constants import EVAL_JOB_USER_ERROR
 from .db import session_scope
 from .models_db import EvalRun
 from .progress import InMemoryProgress
 from .settings import get_settings
+
+log = logging.getLogger(__name__)
 
 # 一个评测任务：拿到进度观察者，自行完成评测与落库（不负责状态流转）。
 JobFn = Callable[[InMemoryProgress], Awaitable[None]]
@@ -98,7 +102,8 @@ class InProcessJobRunner(JobRunner):
             try:
                 await job(progress)
             except Exception as exc:  # noqa: BLE001 —— 失败兜底落 error_msg
-                _set_status(run_id, "failed", error=f"{type(exc).__name__}: {exc}")
+                log.exception("eval job run_id=%s failed", run_id)
+                _set_status(run_id, "failed", error=EVAL_JOB_USER_ERROR)
                 return
             _set_status(run_id, "success")
 

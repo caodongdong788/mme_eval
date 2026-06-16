@@ -1,5 +1,6 @@
 import { Alert, Button, Card, Input, List, Radio, Space, Typography } from "antd";
 import { Annotation } from "../api/index";
+import { formatApiDateTimeShort } from "../utils/datetime";
 
 const { Text } = Typography;
 
@@ -81,7 +82,7 @@ export function HumanReviewCard({
                     {a.verdict === "agree" ? "同意机器" : "推翻机器"}
                   </span>
                   <Text type="secondary">{a.reviewer || "匿名"}</Text>
-                  <Text type="secondary">{a.created_at?.replace("T", " ").slice(0, 16)}</Text>
+                  <Text type="secondary">{formatApiDateTimeShort(a.created_at)}</Text>
                 </Space>
                 {a.suggestion && <Text>建议：{a.suggestion}</Text>}
                 {a.comment && <Text type="secondary">备注：{a.comment}</Text>}

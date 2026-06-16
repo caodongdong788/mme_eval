@@ -140,6 +140,29 @@ def test_delete_completed_run(client, settings):
     assert client.get(f"/api/runs/{aid}").status_code == 404
 
 
+def test_delete_run_with_annotations(client, settings):
+    """有人审裁定时删除仍须成功（级联清 case_annotation）。"""
+    from server.models_db import CaseAnnotation
+
+    bid = _seed_builtin(settings)
+    with session_scope() as s:
+        run = ingest_report(s, make_report("annotated"), benchmark_id=bid)
+        s.flush()
+        s.add(
+            CaseAnnotation(
+                run_id=run.id,
+                sample_id="bc_001",
+                verdict="agree",
+                comment="test",
+            )
+        )
+        s.flush()
+        rid = run.id
+
+    assert client.delete(f"/api/runs/{rid}").status_code == 204
+    assert client.get(f"/api/runs/{rid}").status_code == 404
+
+
 def test_delete_missing_run_404(client, settings):
     assert client.delete("/api/runs/424242").status_code == 404
 
@@ -200,7 +223,7 @@ def test_export_transcripts(client, settings, monkeypatch):
         return "https://feishu.example/sheet/abc"
 
     monkeypatch.setattr(
-        "server.routers.runs.publish_xlsx_to_lark", _fake_publish
+        "server.services.case_export.publish_xlsx_to_lark", _fake_publish
     )
     resp = client.post(f"/api/runs/{aid}/export-transcripts")
     assert resp.status_code == 200, resp.text

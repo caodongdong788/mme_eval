@@ -7,10 +7,31 @@ from typing import Any, Optional
 import yaml
 from fastapi import HTTPException
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.inspection import inspect as sa_inspect
+from sqlalchemy.orm import Session, load_only
 
 from ..models_db import CaseAnnotation, CaseResultRow
 from ..schemas import CaseScores, ReviewSummary
+
+_LIST_CASE_COLUMNS = tuple(
+    getattr(CaseResultRow, attr.key)
+    for attr in sa_inspect(CaseResultRow).column_attrs
+    if attr.key != "detail_json"
+)
+
+
+def _attach_row_display_fields(row: CaseResultRow, *, load_detail_json: bool) -> None:
+    if load_detail_json:
+        row.n_turns = case_n_turns(row)
+        row.langfuse_trace_url = case_trace_url(row)
+        gc = guideline_counts(row)
+        row.guideline_matched = gc[0] if gc else None
+        row.guideline_total = gc[1] if gc else None
+    else:
+        row.n_turns = 1
+        row.langfuse_trace_url = None
+        row.guideline_matched = None
+        row.guideline_total = None
 
 
 def case_n_turns(row: CaseResultRow) -> int:
@@ -64,8 +85,13 @@ def filtered_case_rows(
     score_profile: Optional[str] = None,
     turns: Optional[str] = None,
     guideline: Optional[str] = None,
+    load_detail_json: bool = True,
 ) -> list[CaseResultRow]:
+    if turns and not load_detail_json:
+        load_detail_json = True
     stmt = select(CaseResultRow).where(CaseResultRow.run_id == run_id)
+    if not load_detail_json:
+        stmt = stmt.options(load_only(*_LIST_CASE_COLUMNS))
     if level:
         stmt = stmt.where(CaseResultRow.level == level)
     if release_passed is not None:
@@ -88,11 +114,7 @@ def filtered_case_rows(
     if score_profile:
         rows = [r for r in rows if r.score_profile == score_profile]
     for r in rows:
-        r.n_turns = case_n_turns(r)
-        r.langfuse_trace_url = case_trace_url(r)
-        gc = guideline_counts(r)
-        r.guideline_matched = gc[0] if gc else None
-        r.guideline_total = gc[1] if gc else None
+        _attach_row_display_fields(r, load_detail_json=load_detail_json)
     if turns == "single":
         rows = [r for r in rows if r.n_turns <= 1]
     elif turns == "multi":
@@ -175,14 +197,34 @@ def is_red_flag(row: CaseResultRow) -> bool:
     return bool(triage) and triage != "none"
 
 
-def queue_reasons(row: CaseResultRow) -> list[str]:
+def queue_reasons(
+    row: CaseResultRow,
+    *,
+    dispersion_threshold: float = 0.5,
+    baseline: CaseResultRow | None = None,
+    cross_run_comparable: bool = True,
+) -> list[str]:
     reasons: list[str] = []
     if row.needs_human_review:
         reasons.append("needs_human_review")
+    detail = row.detail_json or {}
+    verdicts = detail.get("verdicts") or []
+    max_disp = max(
+        (float(v.get("score_dispersion") or 0.0) for v in verdicts if isinstance(v, dict)),
+        default=0.0,
+    )
+    if max_disp >= dispersion_threshold:
+        reasons.append("high_dispersion")
     if not row.release_passed:
         reasons.append("release_failed")
         if is_red_flag(row):
             reasons.append("red_flag_failed")
+    if baseline is not None and cross_run_comparable:
+        from .cross_run_diff import cross_run_diff_reasons
+
+        for tag in cross_run_diff_reasons(row, baseline):
+            if tag not in reasons:
+                reasons.append(tag)
     return reasons
 
 

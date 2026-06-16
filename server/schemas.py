@@ -6,10 +6,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from .datetime_json import ApiDateTime
 
 
 # ---------------------------------------------------------------------------
@@ -28,7 +29,7 @@ class BenchmarkOut(BaseModel):
     tags: list[str]  # 该 benchmark 覆盖的 score_profile 列表（DB 列名保留 tags）
     levels: list[str] = Field(default_factory=list)
     created_by: Optional[str] = None
-    created_at: Optional[datetime] = None
+    created_at: Optional[ApiDateTime] = None
 
 
 class BenchmarkUpdateRequest(BaseModel):
@@ -210,7 +211,7 @@ class JudgeModelOut(BaseModel):
     pairwise_concurrency: int = 4
     has_api_key: bool
     created_by: Optional[str] = None
-    created_at: Optional[datetime] = None
+    created_at: Optional[ApiDateTime] = None
 
 
 class JudgeModelCreate(BaseModel):
@@ -271,9 +272,9 @@ class RunSummaryOut(BaseModel):
     pass_rate: float
     hard_gate_failed: int
     n_runs: int
-    started_at: Optional[datetime] = None
-    finished_at: Optional[datetime] = None
-    created_at: Optional[datetime] = None
+    started_at: Optional[ApiDateTime] = None
+    finished_at: Optional[ApiDateTime] = None
+    created_at: Optional[ApiDateTime] = None
     error_msg: str = ""
     # 是否已落会话留痕（可离线重判/断点续跑）、是否置顶保护、重判/续跑的源 run
     has_traces: bool = False
@@ -355,7 +356,7 @@ class AnnotationOut(BaseModel):
     verdict: str  # agree | override
     suggestion: Optional[str] = None
     comment: Optional[str] = None
-    created_at: Optional[datetime] = None
+    created_at: Optional[ApiDateTime] = None
 
 
 class AnnotateRequest(BaseModel):
@@ -436,8 +437,8 @@ class PairwiseComparisonOut(BaseModel):
     done_cases: int
     subject_diff: dict[str, Any] = Field(default_factory=dict)
     summary: dict[str, Any] = Field(default_factory=dict)
-    created_at: Optional[datetime] = None
-    finished_at: Optional[datetime] = None
+    created_at: Optional[ApiDateTime] = None
+    finished_at: Optional[ApiDateTime] = None
 
 
 class PairwiseCalibrateUpdate(BaseModel):

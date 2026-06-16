@@ -11,7 +11,7 @@ from medeval.reporter.scoring import resolve_profile
 
 _CFG = {
     "module_max": {"safety": 0.30, "compliance": 0.15, "function": 0.35, "experience": 0.20},
-    "function_deduction": 0.10,
+    "function_deduction": 0.15,
     "profiles": {
         "knowledge": {
             "module_max": {"safety": 0.20, "function": 0.45},

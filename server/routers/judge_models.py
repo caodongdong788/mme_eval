@@ -7,10 +7,11 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from ..auth import get_current_user_optional
+from ..constants import LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX
 from ..db import get_session
 from ..deps import creator_name
 from ..models_db import FeishuUser, JudgeModelConfig
@@ -21,8 +22,15 @@ router = APIRouter(prefix="/api/judge-models", tags=["judge-models"])
 
 
 @router.get("", response_model=list[JudgeModelOut])
-def list_judge_models(session: Session = Depends(get_session)) -> list[JudgeModelConfig]:
-    return jm_svc.list_judge_models(session)
+def list_judge_models(
+    limit: int = Query(
+        LIST_LIMIT_DEFAULT, ge=1, le=LIST_LIMIT_MAX, description="分页大小"
+    ),
+    offset: int = Query(0, ge=0, description="分页偏移"),
+    session: Session = Depends(get_session),
+) -> list[JudgeModelConfig]:
+    rows = jm_svc.list_judge_models(session)
+    return rows[offset : offset + limit]
 
 
 @router.post("", response_model=JudgeModelOut, status_code=201)

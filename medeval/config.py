@@ -63,6 +63,10 @@ class RunCfg(_Strict):
     description: str = ""
     output_dir: str = "outputs"
     concurrency: int = 4
+    # LLM 判官并发（与 bot 分离）；语义裁决/llm/scoring_point 共用全局限流。
+    judge_concurrency: int = Field(2, ge=1)
+    # 判官 API 两次调用之间的最小间隔（秒），缓和 QPM；0 = 仅受 judge_concurrency 约束。
+    llm_min_interval_s: float = Field(0.5, ge=0.0)
     timeout_s: float = 90.0
     retry: int = 2
     repeat: int = Field(1, ge=1)
@@ -242,7 +246,30 @@ class ThresholdsCfg(_Strict):
 class ThresholdRule(_Strict):
     type: Literal["threshold"] = "threshold"
     min_composite: float
-    gates: dict[str, Literal["full"]] = Field(default_factory=dict)
+    # gate 值：``full`` = 维度满分；0.0~1.0 浮点 = 该维度满分的比例（如 0.9）。
+    gates: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _validate_gate_values(self) -> "ThresholdRule":
+        for dim, req in self.gates.items():
+            if req in ("full", True):
+                continue
+            if isinstance(req, (int, float)):
+                frac = float(req)
+                if 0.0 < frac <= 1.0:
+                    continue
+            if isinstance(req, str) and req != "full":
+                try:
+                    frac = float(req)
+                except ValueError:
+                    pass
+                else:
+                    if 0.0 < frac <= 1.0:
+                        continue
+            raise ValueError(
+                f"gates.{dim}: must be 'full' or a number in (0, 1], got {req!r}"
+            )
+        return self
 
 
 PassRule = Union[Literal["perfect", "threshold"], ThresholdRule]
@@ -251,6 +278,7 @@ PassRule = Union[Literal["perfect", "threshold"], ThresholdRule]
 class ProfileCfg(_Strict):
     module_max: dict[str, float] | None = None  # 自由叶子（维度名）
     function_deduction: float | None = None
+    safety_function_deduction: float | None = None
     grade_thresholds: dict[str, float] | None = None
     pass_rule: PassRule | None = None
 
@@ -271,6 +299,8 @@ class ProfileMatchCfg(_Strict):
 class ScoringCfg(_Strict):
     module_max: dict[str, float] = Field(default_factory=dict)  # 自由叶子
     function_deduction: float | None = None
+    safety_function_deduction: float | None = None
+    scoring_point_function_cap: float | None = None
     grade_thresholds: dict[str, float] = Field(default_factory=dict)  # 自由叶子
     pass_rule: PassRule | None = None
     # profiles 的名字自由；每个 profile 内部字段受 ProfileCfg(extra=forbid) 约束。

@@ -13,20 +13,38 @@ alwaysApply: true
 
 - **只读 / 讨论类**：解释代码、答疑、检索、看报告、出方案讨论、纯分析——**不修改任何 `代码 / 用例 / specs`**。
   → 这类**不强制**走完整流程，正常对话即可。
-- **变更类**：任何会**写入/修改/删除** `medeval/**`、`tests/**`、`cases/**`、`config.yaml`、`openspec/specs/**`、治理脚本等的任务。
+- **变更类**：任何会**写入/修改/删除** `medeval/**`、`server/**`、`frontend/**`、`tests/**`、`cases/**`、`config.yaml`、`openspec/specs/**`、治理脚本等的任务。
   → 这类 MUST 走下面的完整流程，**不可跳步**。
 
 > ⚠️ **转化闸**：当一次"讨论"演变为"动手改"时，AI MUST **先停下、声明进入变更流程、补建 OpenSpec change**，然后才能编辑代码。禁止从讨论直接滑入编码。
 
-## 1. 开场自检（变更类任务的第一条输出）
+## 1. 开场汇报（变更类任务的第一条输出）
 
-进入变更流程时，AI MUST 先输出一行**流程自检**，让跳步可见：
+进入变更流程时，AI MUST **先向用户汇报**（不可只写一行），包含三块：
+
+### 1.1 任务分类与链路
 
 ```
-流程自检：①图谱已刷新 ②需求已澄清(brainstorming/无歧义可跳并注明) ③计划已定(writing-plans 或 proposal+tasks) ④变更类型=Bug/新功能 ⑤OpenSpec change 已建 ⑥测试先行 ⑦待验证项
+【任务分类】只读 / 变更（Bug 修复 | 新功能）
+【执行链路】（按类型二选一，逐步列出，当前步骤标 ▶）
+  Bug：图谱 → 澄清 → 计划 → OpenSpec change → 测试 → 编码 → 验证 → 图谱 → 归档
+  新功能：图谱 → 澄清 → 拆解 → OpenSpec change → TDD → 实现 → 验收 → 图谱 → 归档
+【触达范围】内核 medeval / 后端 server / 前端 frontend / 用例 cases / 配置（勾选本次涉及的）
+【部署】是否需 Docker 重建 / dev_platform / 仅本地验证（若用户禁止部署须注明）
 ```
 
-未完成的项标注待办，不得跳过。
+### 1.2 流程自检（单行速览）
+
+```
+流程自检：①图谱 ②澄清 ③计划 ④类型 ⑤OpenSpec ⑥测试先行 ⑦验证项 —— 未完成标 ⏳
+```
+
+### 1.3 前后端规范触达声明
+
+若触达 `frontend/**`，MUST 声明将遵循 `.cursor/rules/frontend-workflow.mdc`（五步流程 + 收尾自审清单）。
+若触达 `server/**` 或 `medeval/**`，MUST 声明将遵循 AGENTS.md §5 治理项（HardGate / 核心节点 / dry-run 等，按实际触达勾选）。
+
+只读/讨论类：用一行说明「只读，不走变更流程」即可。
 
 ## 2. 两条链路（AI 自动判定 Bug / 新功能）
 
@@ -55,5 +73,31 @@ alwaysApply: true
 - 纯文档/注释/排版且不改行为；
 - 用户**明确**要求"快速改、跳过流程"；
 - 紧急止血修复（事后 MUST 补建 change 与测试）。
+
+## 5. 收尾合规报告（变更类任务的最后一块输出）
+
+任务结束（或用户叫停）时，AI MUST 输出**收尾合规报告**，让用户可见「是否遵循了流程与前后端规范」：
+
+```
+【收尾合规报告】
+■ 全局流程
+  - Graphify 启动/结束：✅/❌/⏳（未做须写原因）
+  - OpenSpec change：路径 + proposal/tasks 是否齐全；是否已 archive
+  - 测试：单测/pytest/前端 test/typecheck 实际跑了哪些、结果
+  - 专项验证：verify-heuristics / dry-run（触达则必填，未触达写 N/A）
+  - 部署：是否已重建 Docker / 用户要求跳过则注明
+
+■ 后端（触达 server/medeval 时必填，否则写 N/A）
+  - 设计先于代码、TDD 顺序是否遵守
+  - 核心节点 / HardGate 治理是否执行
+
+■ 前端（触达 frontend 时必填，否则写 N/A）
+  - frontend-workflow 五步：设计/技术栈/目录/token/计划 —— 逐项 ✅❌⏭
+  - 自审清单：AntD 唯一库、hooks+api 分层、无散落 hex、typecheck/test
+  - DESIGN.md / PRODUCT.md 是否只读未漂移（有 UI 改动时）
+
+■ 偏差说明
+  - 跳步/豁免项逐条列出 + 理由 + 待补事项（如「未 archive，待用户确认后补」）
+```
 
 > 关键目录：代码图谱 `graphify-out/`｜变更文档 `openspec/changes/`｜全局规则 `.cursor/rules/`。

@@ -8,7 +8,7 @@ import { RunOverviewTab } from "../components/RunOverviewTab";
 import { buildCaseColumns } from "../components/caseColumns";
 import { RunDashboardHeader } from "../components/RunDashboardHeader";
 import { RunCaseResultsCard } from "../components/RunCaseResultsCard";
-import { RunDiffCard } from "../components/RunDiffCard";
+import { RunDiffTab } from "../components/RunDiffTab";
 import { useRunDashboard } from "../hooks/useRunDashboard";
 
 export default function RunDashboardPage() {
@@ -86,6 +86,22 @@ export default function RunDashboardPage() {
               />
             ),
           },
+          {
+            key: "diff",
+            label: "版本对比",
+            children: (
+              <RunDiffTab
+                runId={id}
+                otherRuns={dash.otherRuns}
+                diff={dash.diff}
+                diffBaselineId={dash.diffBaselineId}
+                diffLoading={dash.diffLoading}
+                currentCases={dash.diffCurrentCases.length ? dash.diffCurrentCases : dash.cases}
+                baselineCases={dash.baselineCases}
+                onSelectBaseline={dash.selectDiffBaseline}
+              />
+            ),
+          },
         ]}
       />
 
@@ -130,11 +146,6 @@ export default function RunDashboardPage() {
         onOverwrite={dash.saveYamlOverwrite}
       />
 
-      <RunDiffCard
-        otherRuns={dash.otherRuns}
-        diff={dash.diff}
-        onSelectBaseline={dash.selectDiffBaseline}
-      />
     </Space>
   );
 }

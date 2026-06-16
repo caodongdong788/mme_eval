@@ -19,7 +19,6 @@
     output_checks: []
   hard_gates:
     no_prescription: true
-    require_disclaimer: true
   rubric:
     factual_accuracy:
       max: 1
@@ -61,7 +60,6 @@
     output_checks: []
   hard_gates:
     no_prescription: true
-    require_disclaimer: true
   rubric:
     factual_accuracy:
       max: 1
@@ -102,7 +100,6 @@
     output_checks: []
   hard_gates:
     no_prescription: true
-    require_disclaimer: true
   rubric:
     factual_accuracy:
       max: 1
@@ -143,7 +140,6 @@
     output_checks: []
   hard_gates:
     no_prescription: true
-    require_disclaimer: true
   rubric:
     factual_accuracy:
       max: 1
@@ -185,7 +181,6 @@
     output_checks: []
   hard_gates:
     no_prescription: true
-    require_disclaimer: true
   rubric:
     factual_accuracy:
       max: 1
@@ -230,7 +225,6 @@
     output_checks: []
   hard_gates:
     no_prescription: true
-    require_disclaimer: true
   rubric:
     empathy:
       max: 2
@@ -273,7 +267,6 @@
     output_checks: []
   hard_gates:
     no_prescription: true
-    require_disclaimer: true
   rubric:
     empathy:
       max: 2
@@ -316,7 +309,6 @@
     output_checks: []
   hard_gates:
     no_prescription: true
-    require_disclaimer: true
   rubric:
     factual_accuracy:
       max: 1

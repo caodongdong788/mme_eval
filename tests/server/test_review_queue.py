@@ -116,6 +116,29 @@ def test_review_stats(client, settings):
     assert stats["agree_rate"] == 1.0 and stats["disagree_rate"] == 0.0
 
 
+def test_list_cases_review_pending_beyond_default_page(client, settings):
+    """待审用例排在 sample_id 第 50 条之后时，review_pending 仍须全量返回。"""
+    with session_scope() as s:
+        run = EvalRun(run_slug="pending-page", name="t", status="success", n_runs=1)
+        s.add(run)
+        s.flush()
+        rid = run.id
+        for i in range(1, 51):
+            s.add(_row(rid, f"bc_{i:03d}", release_passed=True))
+        for i in range(51, 61):
+            s.add(_row(rid, f"bc_{i:03d}", release_passed=False))
+
+    plain = client.get(f"/api/runs/{rid}/cases").json()
+    assert len(plain) == 50
+    assert all(int(r["sample_id"].split("_")[1]) <= 50 for r in plain)
+
+    pending = client.get(
+        f"/api/runs/{rid}/cases", params={"review_pending": True, "limit": 100}
+    ).json()
+    assert len(pending) == 10
+    assert {r["sample_id"] for r in pending} == {f"bc_{i:03d}" for i in range(51, 61)}
+
+
 # ---------------------------------------------------------------------------
 # 4. 不回写判分（旁路不变量）
 

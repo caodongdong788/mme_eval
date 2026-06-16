@@ -18,6 +18,7 @@ from medeval.models import (
     ConversationTrace,
     FailureTag,
     Level,
+    RedFlagTriage,
     Rubric,
     RubricItem,
     TestCase,
@@ -46,19 +47,19 @@ def _trace() -> ConversationTrace:
     return ConversationTrace(messages=[ChatMessage(role="assistant", content="answer")])
 
 
-def _scripted_judge(scores: dict[str, int]) -> LLMJudge:
+def _scripted_judge(scores: dict[str, int], *, flags: list[str] | None = None) -> LLMJudge:
     j = LLMJudge(enabled=False)
     j.enabled = True
 
     async def fake_call(model, prompt):
-        return dict(scores), {k: f"r-{v}" for k, v in scores.items()}
+        return dict(scores), {k: f"r-{v}" for k, v in scores.items()}, list(flags or [])
 
     j._call = fake_call  # type: ignore[assignment]
     return j
 
 
-def _by(scores: dict[str, int]):
-    verdicts = asyncio.run(_scripted_judge(scores).judge(_case(), _trace()))
+def _by(scores: dict[str, int], *, flags: list[str] | None = None):
+    verdicts = asyncio.run(_scripted_judge(scores, flags=flags).judge(_case(), _trace()))
     return {v.name: v for v in verdicts}
 
 
@@ -117,3 +118,21 @@ def test_dim_tag_mapping_in_fingerprint(monkeypatch):
     monkeypatch.setitem(llm_mod._DIM_FAILURE_TAG, "empathy", FailureTag.DIALOG_BREAK)
     fp_after = LLMJudge().fingerprint()
     assert fp_before != fp_after
+
+
+def test_over_refusal_flag_emits_tag_on_non_red_flag():
+    by = _by({"empathy": 4}, flags=["over_refusal"])
+    assert FailureTag.OVER_REFUSAL in by["llm.over_refusal"].failure_tags
+
+
+def test_over_refusal_suppressed_on_red_flag_case():
+    case = _case()
+    case.hard_gates.red_flag_triage = RedFlagTriage.required_emergency
+    j = _scripted_judge({"empathy": 4}, flags=["over_refusal"])
+    verdicts = asyncio.run(j.judge(case, _trace()))
+    assert "llm.over_refusal" not in {v.name for v in verdicts}
+
+
+def test_tool_misuse_flag_emits_tag():
+    by = _by({"empathy": 4}, flags=["tool_misuse"])
+    assert FailureTag.TOOL_MISUSE in by["llm.tool_misuse"].failure_tags

@@ -1,0 +1,182 @@
+---
+description: 服务端开发强制规范（MME 平台 server/ · FastAPI）
+globs: server/**/*.py
+alwaysApply: false
+---
+
+# 服务端开发强制规范
+
+> 适用范围：`server/**`（FastAPI 评测平台后端）。判分内核 `medeval/**` 另有独立约定（见 `AGENTS.md`），本规则**不**覆盖 CLI 内核。
+> 架构背景见 `server/README.md`；API 契约见 `openspec/specs/eval-platform-service/spec.md`。
+
+## 0. 本项目分层映射（必读）
+
+规范四层在本仓库的**实际落地**（无独立 DAO 包——**Service 兼数据访问**）：
+
+| 规范层 | 本项目路径 | 职责 |
+|--------|-----------|------|
+| Controller / 路由 | `server/routers/` | 参数绑定、鉴权 Depends、`response_model`、HTTP 状态码；**禁止**业务分支与 `session.execute` |
+| Service | `server/services/` | 业务逻辑、事务边界、跨模块编排；SQLAlchemy 查询写在此层 |
+| DAO | *（合并进 Service）* | 不单独建包；列表查询须列投影、分页，避免 `detail_json` 等大字段滥用 |
+| Model | `server/models_db.py` + `server/schemas.py` | ORM 实体 vs Pydantic 出入参 |
+
+允许存在的 **Domain 编排模块**（`benchmarks.py`、`ingest.py`、`eval_job.py`、`jobs.py`、`pairwise_job.py` 等）：由 **Service 调用**，Router **不得**直跳绕过 Service（存量逐步收敛）。
+
+**响应格式（本项目例外，刻意保留）**：沿用 FastAPI 原生——`response_model` 直出资源 / `HTTPException(detail=...)` / 校验 422。**不**强制 `{"code","msg","data"}` envelope（前端 `formatApiError` 已绑定 `detail`）。新接口 MUST 保持与现有 OpenAPI 一致。
+
+**Redis**：当前平台默认 **无 Redis**；若引入缓存，本节 Redis 规范全文生效。
+
+---
+
+## 1. 分层架构（四层固定）
+
+1. 分层：Router(路由) → Service(业务+数据访问) → Model(ORM + Pydantic schema)
+2. 路由仅做：参数校验（Pydantic/Query）、统一响应、`Depends` 鉴权；**禁止** DB/缓存/业务逻辑
+3. Service：业务逻辑、事务、跨资源调度；**不**直接读取原始 `Request`（用 schema 入参）
+4. Service 内数据访问：仅 CRUD/查询，**无** HTTP 概念；复杂 SQL 用列投影 / `load_only`，禁止列表路径加载 `detail_json` 全量（除非明细接口）
+5. Model：`models_db` 仅表实体；`schemas` 仅 API 契约；**无**业务方法
+6. **禁止跨层直调**：Router 不得 `session.get` / `session.execute`；Model 不得 import Service；**禁止 Service → Router 反向依赖**
+
+---
+
+## 2. REST 接口规范
+
+1. 标准 method：GET 查、POST 增/动作、PUT 全量改、PATCH 局部改、DELETE 删
+2. 所有入参用 Pydantic / FastAPI `Query` 强校验：非空、长度、数值、格式
+3. 列表接口 **MUST** 分页：`limit` + `offset`（或 `page_num` + `page_size`）；**`limit` 默认 ≤50，`le=100`**，禁止缺省无限拉全表
+4. 敏感参数（密码、api_key）**禁止**放 URL query；统一 body；api_key 入库后 **不回显**
+5. 返回：本项目用 `response_model` 或 204；**禁止**无 schema 的裸 `dict` 泄漏内部字段
+
+---
+
+## 3. 数据库 / SQLAlchemy 规范
+
+1. 禁止语义上的 `SELECT *`：列表 MUST `load_only` / 显式列，**列表禁止拉 `CaseResultRow.detail_json`**
+2. 查询强制分页 / `LIMIT`，杜绝无界全表扫描
+3. `WHERE` 字段须有索引或低基数可接受；避免对索引列套函数导致失效
+4. `UPDATE`/`DELETE` MUST 带主键或唯一键条件；禁止无 `WHERE` 批量改
+5. 多表写 MUST 同一 `session` 事务；事务内 **禁止**长时间 RPC/LLM 调用
+6. 业务删除：优先软删 / `status` 标记（如 `eval_run.status`）；物理删仅用于明确可重建数据（上传 benchmark、judge 配置等）——新增表须在设计中声明
+7. 时间字段：新表用 `created_at` / `updated_at`（UTC）；与现有 `models_db` 命名保持一致
+
+---
+
+## 4. Redis 缓存规范（启用时）
+
+1. Key：`{模块}:{功能}:{唯一id}`，例 `run:summary:42`
+2. 所有 key **MUST** `EX`/`TTL`，禁止永久 key
+3. 更新：先写 DB，再删缓存（延迟双删可选）
+4. 穿透/击穿：空值短 TTL、单飞锁、过期随机抖动
+5. 敏感数据禁止明文缓存
+
+---
+
+## 5. 异常与错误码
+
+1. 全局异常处理（`app.py` exception handler）；**禁止**向客户端返回 Python 堆栈
+2. HTTP 语义：2xx 成功、4xx 客户端、5xx 服务端
+3. 业务错误用 `HTTPException` 或领域异常类型，**禁止**路由内零散 `return {"error": ...}`
+4. `except` MUST `logger.exception(...)` 记录入参与堆栈；**禁止**吞异常
+5. 任务失败写入 DB 的 `error_msg`：**仅**用户可读短文案；完整异常只进日志（`jobs.py` / `pairwise_job.py`）
+
+---
+
+## 6. 日志规范
+
+1. 分级：DEBUG/INFO/WARNING/ERROR；生产默认 INFO+
+2. INFO 记核心入参、run_id；ERROR 必须带 `exc_info=True`
+3. 携带 `run_id` / `user`（飞书登录名）；**禁止**日志打印 api_key、session、完整 cookie
+
+---
+
+## 7. 并发与锁
+
+1. 计数类更新优先 DB 原子操作或单行 `UPDATE ... WHERE`
+2. 多实例部署时任务互斥用 DB 行锁 / 唯一约束；进程内用 `asyncio.Lock`（见 `pairwise_job`）
+3. 锁 MUST `try`/`finally` 释放；异步任务设超时
+4. 定时/后台任务须幂等或可恢复（`reconcile_orphaned_runs` 模式）
+
+---
+
+## 8. 外部调用（HTTP / LLM）
+
+1. MUST 配置 `timeout`；重试用 `medeval.retry` / tenacity，禁止裸循环
+2. 返回值强制判空
+3. 第三方异常单独捕获，与本地故障区分记录
+4. 日志记 URL（脱敏）、耗时、状态码；**禁止**日志打印完整 prompt 中的密钥
+
+---
+
+## 9. 安全规范
+
+1. 非公开接口统一 `Depends` 鉴权（`auth.py`）；业务层不重复解析 token
+2. 数据权限：用户只能操作自己有权的 run/benchmark（`created_by` 等）
+3. **仅** SQLAlchemy ORM / 参数化；禁止拼接 SQL 字符串
+4. 密码/密钥：环境变量或判分模型库加密字段；禁止明文入库
+5. 生产：`MEDEVAL_ENV=production` 强制 `SESSION_SECRET`（`settings.check_production_security`）
+
+---
+
+## 10. 命名与注释（Python）
+
+1. 文件/函数/变量：**snake_case**（`get_run_or_404`）；类 **PascalCase**（`EvalRun`）
+2. 常量：**UPPER_SNAKE**（`CONFIDENCE_KINDS`）
+3. 公共 Service 函数：docstring 说明职责、入参、Raises
+4. 复杂业务注释写**为什么**，不复述代码
+5. 魔术数字提取模块级常量
+
+---
+
+## 11. 性能强制约束
+
+1. 循环内禁止 N+1 查询；用 `IN` 批量加载（参考 `attach_review_summary`、`attach_run_names`）
+2. 大列表强制分页；cases 列表禁止一次返回无界 `detail_json`
+3. 文件/连接用完即关（`with session_scope()`）
+4. 单函数 **≤80 行**；超长须拆辅助函数（job 闭包、pairwise 执行体优先治理）
+
+---
+
+## 12. Python / FastAPI 补充
+
+1. 入参统一 Pydantic `BaseModel` / `Query` 约束
+2. DB 操作在 Service（或 domain 模块由 Service 调用）；Router 只转发
+3. 路由函数可用 `async def`；阻塞 DB 用同步 Session + 线程池（保持与现有 `Session` 一致）
+4. DB 连接池由 SQLAlchemy `engine` 管理，禁止每请求 `create_engine`
+5. 密钥、DB URL、飞书凭证 **仅** `settings.py` / 环境变量
+
+---
+
+## 禁止黑名单（绝对不允许）
+
+1. Router 直接 `session.execute` / `session.get` / `session.delete`
+2. `if`/`for` 嵌套超过 3 层不拆分
+3. 无分页全表列表、无 `WHERE` 的 `UPDATE`/`DELETE`
+4. 代码硬编码密钥、生产数据库 URL
+5. 捕获异常不 log
+6. 循环内逐条查库（N+1）
+7. 明文存密码 / api_key 到日志或 API 响应
+8. 单函数超 80 行不拆分（新代码）
+9. 无注释的复杂状态机 / 评测编排
+10. 长事务内调用 LLM / 外部 HTTP
+
+---
+
+## AI 输出要求（变更 server/ 时）
+
+1. 标明改动落在 Router / Service / Model 哪一层
+2. 复杂逻辑加简短行内注释（意图，非复述）
+3. 新查询注明索引或数据量假设
+4. 若涉及缓存/锁，写明 TTL 与并发策略
+5. 收尾列出安全/性能风险与后续优化点
+6. 行为变更 **MUST** 补 `tests/server/` 用例
+
+---
+
+## 自检清单（PR / 变更收尾）
+
+- [ ] Router 无 `session.*` 与业务分支
+- [ ] 新列表接口有 `limit` 且 `le=100`
+- [ ] 列表未加载 `detail_json`（除非明细 API）
+- [ ] 异常已 log，对外无堆栈
+- [ ] 无 Service → Router import
+- [ ] `pytest tests/server/` 通过

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
@@ -17,6 +17,7 @@ from ..benchmarks import (
     overwrite_benchmark_from_yaml,
     replace_uploaded_benchmark,
 )
+from ..constants import LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX
 from ..db import get_session
 from ..deps import creator_name
 from ..models_db import Benchmark, FeishuUser
@@ -34,8 +35,15 @@ router = APIRouter(prefix="/api/benchmarks", tags=["benchmarks"])
 
 
 @router.get("", response_model=list[BenchmarkOut])
-def list_benchmarks(session: Session = Depends(get_session)) -> list[Benchmark]:
-    return bm_svc.list_benchmarks(session)
+def list_benchmarks(
+    limit: int = Query(
+        LIST_LIMIT_DEFAULT, ge=1, le=LIST_LIMIT_MAX, description="分页大小"
+    ),
+    offset: int = Query(0, ge=0, description="分页偏移"),
+    session: Session = Depends(get_session),
+) -> list[Benchmark]:
+    rows = bm_svc.list_benchmarks(session)
+    return rows[offset : offset + limit]
 
 
 @router.post("", response_model=BenchmarkOut, status_code=201)

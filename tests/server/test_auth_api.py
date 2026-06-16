@@ -170,7 +170,6 @@ def test_export_uses_logged_in_user_token(auth_client, auth_settings, monkeypatc
     from factories import make_report
     from server.db import session_scope
     from server.ingest import ingest_report
-    from server.routers import runs as runs_router
 
     _login(auth_client, monkeypatch)
 
@@ -186,7 +185,9 @@ def test_export_uses_logged_in_user_token(auth_client, auth_settings, monkeypatc
         captured["folder"] = folder_token
         return "https://feishu.cn/sheets/ok"
 
-    monkeypatch.setattr(runs_router, "import_xlsx_as_sheet", fake_import)
+    monkeypatch.setattr(
+        "server.services.case_export.import_xlsx_as_sheet", fake_import
+    )
 
     resp = auth_client.post(
         f"/api/runs/{rid}/export-transcripts",

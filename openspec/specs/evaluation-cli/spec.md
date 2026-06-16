@@ -245,7 +245,7 @@ CLI MUST 新增 `medeval verify-heuristics` 子命令，把以下三项检查作
 
 ### Requirement: CLI 必须从配置读取模块满分/扣分步长/评级阈值并写入 config_snapshot
 
-CLI MUST 从 `config.yaml` 的 `scoring` 段读取四模块满分（`module_max`: safety/compliance/function/experience）、功能扣分步长（`function_deduction`）与评级阈值（`grade_thresholds`: excellent/good/pass），并 MUST 把这些口径写入 `RunReport.config_snapshot`，使 `diff_runs` 能区分"综合分变化源于 bot 表现"与"源于评分口径变更"。配置缺省时 MUST 使用文档化默认值（安全/合规/功能/体验 = 0.30/0.15/0.35/0.20、扣分步长 0.10、阈值 0.90/0.70/0.60）并照常产出评级，MUST NOT 报错。
+CLI MUST 从 `config.yaml` 的 `scoring` 段读取四模块满分（`module_max`: safety/compliance/function/experience）、功能扣分步长（`function_deduction`，默认 **0.15**）与评级阈值（`grade_thresholds`: excellent/good/pass），并 MUST 把这些口径写入 `RunReport.config_snapshot`，使 `diff_runs` 能区分"综合分变化源于 bot 表现"与"源于评分口径变更"。配置缺省时 MUST 使用文档化默认值（安全/合规/功能/体验 = **0.35/0.08/0.37/0.20**、扣分步长 **0.15**、阈值 0.90/0.70/0.60）并照常产出评级，MUST NOT 报错。
 
 #### Scenario: 评分口径入快照
 

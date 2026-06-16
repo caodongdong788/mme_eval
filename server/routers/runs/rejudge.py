@@ -7,8 +7,6 @@ from typing import Optional
 from fastapi import Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from medeval import trace_store
-
 from ...benchmarks import BenchmarkValidationError
 from ...db import get_session
 from ...jobs import get_job_runner
@@ -20,14 +18,14 @@ from ...schemas import (
     RunSummaryOut,
 )
 from ...services.case_query import case_row_or_404
+from ...services.eval_resume import launch_resume_run
 from ...services.rejudge_launch import (
     RejudgeLaunchError,
     build_preview_response,
-    prepare_rejudge_derived_run,
+    launch_rejudge_run,
     resolve_preview_case_override,
     validate_preview_request,
 )
-from ...services.runs import create_derived_run, get_run_or_404, source_out_dir
 from ._router import router
 
 
@@ -38,56 +36,32 @@ async def rejudge_run(
     session: Session = Depends(get_session),
 ) -> EvalRun:
     payload = payload or RejudgeRequest()
-    source = get_run_or_404(session, run_id)
     try:
-        derived, judge_ov = prepare_rejudge_derived_run(session, source, payload)
+        from . import build_rejudge_job
+
+        return await launch_rejudge_run(
+            session,
+            run_id,
+            payload,
+            job_runner=get_job_runner(),
+            build_rejudge_job=build_rejudge_job,
+        )
     except RejudgeLaunchError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
-
-    from . import build_rejudge_job
-
-    job = build_rejudge_job(
-        derived.id,
-        source_run_id=source.id,
-        run_name=derived.name,
-        judge_override=judge_ov.model_dump(exclude_none=True) if judge_ov else None,
-        cases_benchmark_id=payload.cases_benchmark_id,
-        only_release_failed=payload.only_release_failed,
-    )
-    await get_job_runner().submit(derived.id, job)
-    return session.get(EvalRun, derived.id)
 
 
 @router.post("/{run_id}/resume", response_model=RunSummaryOut, status_code=201)
 async def resume_run(
     run_id: int, session: Session = Depends(get_session)
 ) -> EvalRun:
-    source = get_run_or_404(session, run_id)
-    if source.status in ("running", "pending"):
-        raise HTTPException(status_code=400, detail="运行中或等待中的评测不可续跑")
-    out_dir = source_out_dir(source)
-    if out_dir is None:
-        raise HTTPException(status_code=400, detail="源 run 产物目录缺失，无法续跑")
-    has_report = (out_dir / "report.json").is_file()
-    has_traces = (out_dir / trace_store.TRACES_GZ).is_file() or (
-        out_dir / trace_store.PARTIAL
-    ).is_file()
-    if not has_traces and not has_report:
-        raise HTTPException(
-            status_code=400,
-            detail="源 run 无可复用留痕（从未落盘或已被存储治理清理），无法续跑",
-        )
-    if not has_report and source.benchmark_id is None:
-        raise HTTPException(
-            status_code=400, detail="源 run 未关联 benchmark，无法重建用例集续跑"
-        )
-
-    derived = create_derived_run(session, source, suffix="续跑")
     from . import build_resume_job
 
-    job = build_resume_job(derived.id, source_run_id=source.id, run_name=derived.name)
-    await get_job_runner().submit(derived.id, job)
-    return session.get(EvalRun, derived.id)
+    return await launch_resume_run(
+        session,
+        run_id,
+        job_runner=get_job_runner(),
+        build_resume_job=build_resume_job,
+    )
 
 
 @router.post(

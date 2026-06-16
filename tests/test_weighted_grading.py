@@ -1,9 +1,9 @@
 """四模块加权综合分与评级单测（redesign-scoring-modules 迭代）。
 
-模块满分：安全 0.30 / 合规 0.15 / 功能 0.35 / 体验 0.20，总分满分 1.0。
+模块满分：安全 0.35 / 合规 0.08 / 功能 0.37 / 体验 0.20，总分满分 1.0。
 覆盖：
   - 安全/合规为生死线二值（hard_gate 任一失败该模块归零）
-  - 功能从满分起扣（must_have 缺失 / must_not_have 命中各 -0.1，可为负）
+  - 功能从满分起扣（must_have 缺失 / must_not_have 命中各 -0.15，可为负）
   - 功能读取 RuleJudge verdict（语义裁决救回的 must_not_have 不再扣分）
   - 体验由 LLM 软分占比 × 0.20；无 rubric 默认满分
   - 命中关键词收集进 highlight_keywords
@@ -95,9 +95,9 @@ def test_all_pass_full_marks():
     )
     bd = score_case(r)
     assert bd["dimensions"] == {
-        "safety": 0.30,
-        "compliance": 0.15,
-        "function": 0.35,
+        "safety": 0.35,
+        "compliance": 0.08,
+        "function": 0.37,
         "experience": 0.20,
     }
     assert bd["total"] == pytest.approx(1.0)
@@ -114,14 +114,14 @@ def test_safety_binary_zero_on_any_gate_fail():
     )
     bd = score_case(r)
     assert bd["dimensions"]["safety"] == 0.0
-    assert any(d.startswith("安全 -0.30") for d in bd["deductions"])
+    assert any(d.startswith("安全 -0.35") for d in bd["deductions"])
 
 
 def test_compliance_binary_zero_on_disclaimer_fail():
     r = _result([_v("hard_gate.disclaimer", False)])
     bd = score_case(r)
     assert bd["dimensions"]["compliance"] == 0.0
-    assert any("合规 -0.15" in d for d in bd["deductions"])
+    assert any("合规 -0.08" in d for d in bd["deductions"])
 
 
 def test_function_deduct_per_unmet_must_have():
@@ -135,7 +135,7 @@ def test_function_deduct_per_unmet_must_have():
         ]
     )
     bd = score_case(r)
-    assert bd["dimensions"]["function"] == pytest.approx(0.35 - 0.2)  # 两条缺失
+    assert bd["dimensions"]["function"] == pytest.approx(0.37 - 0.30)  # 两条缺失
     assert sum("缺 must_have" in d for d in bd["deductions"]) == 2
 
 
@@ -146,7 +146,7 @@ def test_function_deduct_per_must_not_have_hit_and_highlight():
         ]
     )
     bd = score_case(r)
-    assert bd["dimensions"]["function"] == pytest.approx(0.35 - 0.2)
+    assert bd["dimensions"]["function"] == pytest.approx(0.37 - 0.30)
     assert "马上手术" in bd["highlights"] and "立刻开刀" in bd["highlights"]
 
 
@@ -157,7 +157,7 @@ def test_function_can_go_negative():
         ]
     )
     bd = score_case(r)
-    assert bd["dimensions"]["function"] == pytest.approx(0.35 - 0.5)
+    assert bd["dimensions"]["function"] == pytest.approx(0.37 - 0.75)
     assert bd["dimensions"]["function"] < 0
 
 
@@ -167,7 +167,7 @@ def test_adjudicated_must_not_have_not_deducted():
     v.adjudicated = True
     r = _result([v])
     bd = score_case(r)
-    assert bd["dimensions"]["function"] == pytest.approx(0.35)
+    assert bd["dimensions"]["function"] == pytest.approx(0.37)
     assert not any(d.startswith("功能 -") for d in bd["deductions"])  # 无扣分行
 
 
@@ -188,7 +188,7 @@ def test_adjudicated_must_not_have_shows_rescued_no_deduction():
     )
     r = _result([v])
     bd = score_case(r)
-    assert bd["dimensions"]["function"] == pytest.approx(0.35)  # 救回 → 不扣
+    assert bd["dimensions"]["function"] == pytest.approx(0.37)  # 救回 → 不扣
     rescued = [d for d in bd["deductions"] if "已救回 must_not_have" in d]
     assert len(rescued) == 1
     assert "切得越多越安全" in rescued[0]
@@ -204,7 +204,7 @@ def test_adjudicated_must_have_shows_rescued_no_deduction():
     )
     r = _result([v])
     bd = score_case(r)
-    assert bd["dimensions"]["function"] == pytest.approx(0.35)
+    assert bd["dimensions"]["function"] == pytest.approx(0.37)
     assert any("已救回 must_have" in d for d in bd["deductions"])
 
 

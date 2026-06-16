@@ -23,13 +23,22 @@ VALID_YAML = b"""
 
 # --- 分页 --------------------------------------------------------------------
 
-def test_list_runs_default_returns_all(client, settings):
+def test_list_runs_default_limit_fifty(client, settings):
     with session_scope() as s:
         for i in range(3):
             ingest_report(s, make_report(run_name=f"r_{i}"))
     resp = client.get("/api/runs")
     assert resp.status_code == 200
-    assert len(resp.json()) == 3
+    assert len(resp.json()) == 3  # 不足默认 limit 时全返回
+
+
+def test_list_runs_default_caps_at_fifty(client, settings):
+    with session_scope() as s:
+        for i in range(55):
+            ingest_report(s, make_report(run_name=f"r_{i}"))
+    resp = client.get("/api/runs")
+    assert resp.status_code == 200
+    assert len(resp.json()) == 50
 
 
 def test_list_runs_pagination_slices(client, settings):

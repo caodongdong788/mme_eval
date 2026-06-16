@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
+from server.constants import EVAL_JOB_USER_ERROR
 from server.db import session_scope
 from server.jobs import InProcessJobRunner
 from server.models_db import EvalRun
@@ -58,7 +59,7 @@ def test_job_failure_records_error(initialized_db):
     assert _status(run_id) == "failed"
     with session_scope() as s:
         row = s.get(EvalRun, run_id)
-        assert "boom" in row.error_msg
+        assert row.error_msg == EVAL_JOB_USER_ERROR
         assert row.finished_at is not None
 
 

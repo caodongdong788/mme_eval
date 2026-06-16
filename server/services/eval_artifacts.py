@@ -61,6 +61,12 @@ def persist_outcome(
         row.has_traces = has_traces
         if parent_run_id is not None:
             row.parent_run_id = parent_run_id
+        if prev_json is not None:
+            from .cross_run_diff import run_id_from_prev_json
+
+            against_id = run_id_from_prev_json(session, prev_json)
+            if against_id is not None and against_id != run_id:
+                row.diff_against_run_id = against_id
 
     try:
         write_core_artifacts(report, out_dir, prev_json=prev_json)

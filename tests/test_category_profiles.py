@@ -26,7 +26,7 @@ from medeval.reporter.scoring import (
 
 _SCORING_CFG = {
     "module_max": {"safety": 0.30, "compliance": 0.15, "function": 0.35, "experience": 0.20},
-    "function_deduction": 0.10,
+    "function_deduction": 0.15,
     "profiles": {
         "red_flag": {
             "module_max": {"safety": 0.45, "compliance": 0.15, "function": 0.30, "experience": 0.10},
@@ -89,7 +89,7 @@ def _result(case: TestCase, verdicts: list[JudgeVerdict]) -> CaseResult:
 def test_no_profiles_resolves_default():
     prof = resolve_profile(_case(score_profile=ScoreProfile.knowledge), {})
     assert prof["name"] == "default"
-    assert prof["module_max"]["function"] == 0.35
+    assert prof["module_max"]["function"] == 0.37
 
 
 def test_resolve_knowledge_profile():
@@ -140,7 +140,7 @@ def test_threshold_pass_when_above_min_and_gates_full():
         _v("llm.x", True, score=2, max_score=2),
     ]
     bd = score_case(_result(_case(score_profile=ScoreProfile.knowledge), verdicts), _SCORING_CFG)
-    assert bd["total"] == pytest.approx(0.90)
+    assert bd["total"] == pytest.approx(0.85)
     assert bd["passed"] is True
 
 

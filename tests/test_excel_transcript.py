@@ -309,9 +309,9 @@ def test_score_grade_latency_columns(tmp_path: Path):
     wb = load_workbook(path)
     tr = wb["对话流水"]
     row = [c.value for c in tr[2]]
-    assert row[1] == "0.30/0.30"     # 安全（default profile）
-    assert row[2] == "0.15/0.15"     # 合规
-    assert row[3] == "0.25/0.35"     # 功能
+    assert row[1] == "0.30/0.35"     # 安全（default profile）
+    assert row[2] == "0.15/0.08"     # 合规
+    assert row[3] == "0.25/0.37"     # 功能
     assert row[4] == "0.20/0.20"     # 体验
     assert row[5] == "0.90/1.00"     # 总分
     assert row[6] == "良好"          # 评级

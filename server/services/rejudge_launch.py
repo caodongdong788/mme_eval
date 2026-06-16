@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -18,6 +18,9 @@ from ..schemas import (
 )
 from .case_query import case_row_or_404, case_scores, override_from_yaml
 from .runs import create_derived_run, get_run_or_404, source_out_dir
+
+if TYPE_CHECKING:
+    from ..jobs import JobRunner
 
 
 class RejudgeLaunchError(Exception):
@@ -93,6 +96,29 @@ def prepare_rejudge_derived_run(
         session, source, suffix="重判", extra_judge_overrides=extra_judge
     )
     return derived, judge_ov
+
+
+async def launch_rejudge_run(
+    session: Session,
+    source_run_id: int,
+    payload: RejudgeRequest,
+    *,
+    job_runner: "JobRunner",
+    build_rejudge_job,
+) -> EvalRun:
+    """校验源 run → 派生 pending run → 提交重判 job。"""
+    source = get_run_or_404(session, source_run_id)
+    derived, judge_ov = prepare_rejudge_derived_run(session, source, payload)
+    job = build_rejudge_job(
+        derived.id,
+        source_run_id=source.id,
+        run_name=derived.name,
+        judge_override=judge_ov.model_dump(exclude_none=True) if judge_ov else None,
+        cases_benchmark_id=payload.cases_benchmark_id,
+        only_release_failed=payload.only_release_failed,
+    )
+    await job_runner.submit(derived.id, job)
+    return derived
 
 
 def resolve_preview_case_override(

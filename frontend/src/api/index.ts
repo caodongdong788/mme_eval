@@ -7,6 +7,7 @@ import { judgeModelsApi } from "./judgeModels";
 import { pairwiseApi } from "./pairwise";
 import { runsApi } from "./runs";
 
+export { CASE_LIST_LIMIT } from "./runs";
 export * from "./types";
 export { FEISHU_LOGIN_URL, selectableBenchmarks };
 

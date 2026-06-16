@@ -34,7 +34,23 @@ exports[`RunOverviewKpiGrid > matches snapshot 1`] = `
     <div
       class="kpi-sub"
     >
-      95% CI 50.0–95.0%
+      <span
+        class="kpi-meta"
+      >
+        通过 
+        8
+         · 失败 
+        2
+      </span>
+      <span>
+        95
+        % CI
+         
+        50.0
+        –
+        95.0
+        %
+      </span>
     </div>
   </div>
   <div

@@ -101,6 +101,7 @@ def test_prompt_template_uses_conversation_placeholder():
     rendered = _PROMPT_TEMPLATE.format(
         conversation="[turn 1 · 用户] x\n[turn 1 · bot] y",
         rubric_text="- empathy (0~2)",
+        tool_context="",
     )
     assert "【完整对话历史" in rendered
     assert "[turn 1 · 用户] x" in rendered

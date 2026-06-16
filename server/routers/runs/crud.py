@@ -7,6 +7,7 @@ from typing import Any, Optional
 from fastapi import Depends, Query
 from sqlalchemy.orm import Session
 
+from ...constants import LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX
 from ...db import get_session
 from ...jobs import get_job_runner
 from ...models_db import EvalRun
@@ -40,7 +41,9 @@ async def create_run(
 @router.get("", response_model=list[RunSummaryOut])
 def list_runs(
     benchmark_id: Optional[int] = None,
-    limit: Optional[int] = Query(None, ge=1, le=1000, description="分页大小，缺省返回全部"),
+    limit: int = Query(
+        LIST_LIMIT_DEFAULT, ge=1, le=LIST_LIMIT_MAX, description="分页大小"
+    ),
     offset: int = Query(0, ge=0, description="分页偏移"),
     session: Session = Depends(get_session),
 ) -> list[EvalRun]:

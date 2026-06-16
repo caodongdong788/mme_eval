@@ -16,6 +16,17 @@
 > ｜ [漂移保护测试](../tests/test_judge_fingerprint.py)
 > ｜ [黄金集](../tests/golden/)
 
+## [v1.1.0] - 2026-06-15
+
+* **Fingerprint**: `3066f1a4689d`
+* **Author**: framework-author
+* **Reviewers**: TBD-clinician
+* **Scope**: P1 隐式红旗用户题面路由 + 扩展肿瘤急症/_EMERGENCY_PATTERNS
+* **Changes**:
+  - 新增 ``_IMPLICIT_EMERGENCY_USER_PATTERNS``：用户题面含急症线索时升级分诊要求。
+  - 扩展 ``_EMERGENCY_PATTERNS``：补充肿瘤急症相关短语（发热中性粒、脊髓压迫、高钙等）。
+* **Golden Tests Impact**: 黄金集 13 条全绿，无新增/删除用例。
+
 ## [v1.0.0] - 2025-12-15
 
 * **Fingerprint**: `98cb1591cde4`

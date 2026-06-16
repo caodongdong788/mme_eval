@@ -16,6 +16,9 @@ import type {
   RunSummary,
 } from "./types";
 
+/** 用例列表单次拉取上限（当前 benchmark ≤92，与 LIST_LIMIT_MAX 对齐）。 */
+export const CASE_LIST_LIMIT = 100;
+
 export const runsApi = {
   listRuns: () => http.get<RunSummary[]>("/runs").then((r) => r.data),
   getRun: (id: number) => http.get<RunDetail>(`/runs/${id}`).then((r) => r.data),

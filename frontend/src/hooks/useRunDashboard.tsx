@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   api,
   Benchmark,
+  CASE_LIST_LIMIT,
   CaseRow,
   JudgeModel,
   RejudgePayload,
@@ -52,6 +53,10 @@ export function useRunDashboard(runId: number) {
   );
   const [otherRuns, setOtherRuns] = useState<RunSummary[]>([]);
   const [diff, setDiff] = useState<RunDiff | null>(null);
+  const [diffBaselineId, setDiffBaselineId] = useState<number | null>(null);
+  const [baselineCases, setBaselineCases] = useState<CaseRow[]>([]);
+  const [diffCurrentCases, setDiffCurrentCases] = useState<CaseRow[]>([]);
+  const [diffLoading, setDiffLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [acting, setActing] = useState(false);
@@ -110,26 +115,28 @@ export function useRunDashboard(runId: number) {
   }, [runId]);
 
   useEffect(() => {
-    api.listCaseResults(runId, filters).then(setCases);
+    const params: Record<string, string | number | boolean> = {
+      ...filters,
+      limit: CASE_LIST_LIMIT,
+    };
+    if (onlyPending) params.review_pending = true;
+    api.listCaseResults(runId, params).then(setCases);
     api.getReviewStats(runId).then(setReviewStats).catch(() => setReviewStats(null));
     api
       .getReviewQueue(runId, filters)
       .then((q) => setQueueIds(new Set(q.map((it) => it.sample_id))))
       .catch(() => setQueueIds(new Set()));
-  }, [runId, filters]);
+  }, [runId, filters, onlyPending]);
 
   const shownCases = useMemo(() => {
     let result = cases;
-    if (onlyPending) {
-      result = result.filter((c) => queueIds.has(c.sample_id) && !c.review);
-    }
     if (reviewFilter === "agree" || reviewFilter === "override") {
       result = result.filter((c) => c.review?.verdict === reviewFilter);
     } else if (reviewFilter === "none") {
       result = result.filter((c) => !c.review);
     }
     return result;
-  }, [cases, onlyPending, queueIds, reviewFilter]);
+  }, [cases, reviewFilter]);
 
   const hasActiveFilters =
     onlyPending ||
@@ -286,7 +293,26 @@ export function useRunDashboard(runId: number) {
   };
 
   const selectDiffBaseline = async (againstId: number) => {
-    setDiff(await api.diffRun(runId, againstId));
+    setDiffBaselineId(againstId);
+    setDiffLoading(true);
+    setActiveTab("diff");
+    try {
+      const [diffResult, baseCases, curCases] = await Promise.all([
+        api.diffRun(runId, againstId),
+        api.listCaseResults(againstId, { limit: CASE_LIST_LIMIT }),
+        api.listCaseResults(runId, { limit: CASE_LIST_LIMIT }),
+      ]);
+      setDiff(diffResult);
+      setBaselineCases(baseCases);
+      setDiffCurrentCases(curCases);
+    } catch (e: unknown) {
+      setDiff(null);
+      setBaselineCases([]);
+      setDiffCurrentCases([]);
+      message.error(formatApiError(e, "加载对比数据失败"));
+    } finally {
+      setDiffLoading(false);
+    }
   };
 
   return {
@@ -306,6 +332,10 @@ export function useRunDashboard(runId: number) {
     setActiveTab,
     otherRuns,
     diff,
+    diffBaselineId,
+    baselineCases,
+    diffCurrentCases,
+    diffLoading,
     exporting,
     exportOpen,
     setExportOpen,

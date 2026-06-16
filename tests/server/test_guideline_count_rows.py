@@ -57,14 +57,28 @@ def _seed_run_with_cases(settings):
         return run.id
 
 
-def test_case_rows_expose_guideline_counts(client, settings):
+def test_case_rows_list_omits_guideline_counts(client, settings):
+    """列表路径不加载 detail_json，指南命中计数仅在明细/导出路径计算。"""
     run_id = _seed_run_with_cases(settings)
     resp = client.get(f"/api/runs/{run_id}/cases")
     assert resp.status_code == 200, resp.text
     by_id = {r["sample_id"]: r for r in resp.json()}
 
-    assert by_id["bc_a"]["guideline_matched"] == 2
-    assert by_id["bc_a"]["guideline_total"] == 3
-
+    assert by_id["bc_a"]["guideline_matched"] is None
+    assert by_id["bc_a"]["guideline_total"] is None
     assert by_id["bc_b"]["guideline_matched"] is None
     assert by_id["bc_b"]["guideline_total"] is None
+
+
+def test_guideline_counts_with_detail_json(client, settings):
+    from server.db import session_scope
+    from server.services.case_query import filtered_case_rows
+
+    run_id = _seed_run_with_cases(settings)
+    with session_scope() as s:
+        rows = filtered_case_rows(s, run_id, load_detail_json=True)
+    by_id = {r.sample_id: r for r in rows}
+    assert by_id["bc_a"].guideline_matched == 2
+    assert by_id["bc_a"].guideline_total == 3
+    assert by_id["bc_b"].guideline_matched is None
+    assert by_id["bc_b"].guideline_total is None

@@ -157,6 +157,6 @@ def test_failed_output_check_deducts_function():
         )
     )
     assert with_fail["dimensions"]["function"] == round(
-        base["dimensions"]["function"] - 0.10, 4
+        base["dimensions"]["function"] - 0.15, 4
     )
     assert any("输出检查" in d for d in with_fail["deductions"])

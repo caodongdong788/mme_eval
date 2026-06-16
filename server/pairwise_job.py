@@ -13,6 +13,8 @@ from typing import Any
 
 from sqlalchemy import select
 
+from .constants import PAIRWISE_JOB_USER_ERROR
+
 from .db import session_scope
 from .models_db import (
     CaseResultRow,
@@ -376,5 +378,5 @@ async def run_pairwise_comparison(comparison_id: int, judge_model_id: int) -> No
             comp = session.get(PairwiseComparison, comparison_id)
             if comp is not None:
                 comp.status = "failed"
-                comp.error_msg = f"{type(exc).__name__}: {exc}"[:4000]
+                comp.error_msg = PAIRWISE_JOB_USER_ERROR
                 comp.finished_at = datetime.utcnow()

@@ -79,6 +79,8 @@ class EvalRun(Base):
     pinned: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     # 重判 / 续跑产出的 run 指向其源 run（审计血缘）
     parent_run_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # 版本对比基线 run（outputs resolve_diff_target 落库时写入）
+    diff_against_run_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # 汇总标量（来自 RunReport）
     total: Mapped[int] = mapped_column(Integer, default=0)
