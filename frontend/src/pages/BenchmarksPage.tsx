@@ -1,6 +1,5 @@
 import {
   Button,
-  Card,
   Drawer,
   Form,
   Input,
@@ -18,6 +17,9 @@ import {
   UploadOutlined,
 } from "@ant-design/icons";
 import { api } from "../api/index";
+import { AsyncLoadError } from "../components/AsyncLoadError";
+import { DashTableActions, DashTableDangerLink, DashTableLink } from "../components/DashTableActions";
+import { DashboardPageShell } from "../components/DashboardPageShell";
 import { useBenchmarksPage } from "../hooks/useBenchmarksPage";
 
 export default function BenchmarksPage() {
@@ -59,17 +61,17 @@ export default function BenchmarksPage() {
       title: "操作",
       width: 280,
       render: (_: unknown, b: (typeof bm.uploaded)[0]) => (
-        <Space>
-          <a onClick={() => bm.viewCases(b)}>查看用例</a>
-          <a onClick={() => bm.openEdit(b)}>编辑</a>
-          <a href={api.downloadBenchmarkUrl(b.id)} download>
+        <DashTableActions>
+          <DashTableLink onClick={() => bm.viewCases(b)}>查看用例</DashTableLink>
+          <DashTableLink onClick={() => bm.openEdit(b)}>编辑</DashTableLink>
+          <DashTableLink href={api.downloadBenchmarkUrl(b.id)} download>
             <DownloadOutlined /> 下载
-          </a>
-          <a onClick={() => bm.openReplace(b)}>覆盖</a>
+          </DashTableLink>
+          <DashTableLink onClick={() => bm.openReplace(b)}>覆盖</DashTableLink>
           <Popconfirm title="确认删除该 benchmark?" onConfirm={() => bm.deleteBenchmark(b.id)}>
-            <a style={{ color: "var(--fail)" }}>删除</a>
+            <DashTableDangerLink>删除</DashTableDangerLink>
           </Popconfirm>
-        </Space>
+        </DashTableActions>
       ),
     },
   ];
@@ -82,8 +84,9 @@ export default function BenchmarksPage() {
   ];
 
   return (
-    <Card
+    <DashboardPageShell
       title="Benchmark 库"
+      sub="管理内置与上传的评测用例集"
       extra={
         <Space>
           <Button
@@ -101,7 +104,20 @@ export default function BenchmarksPage() {
         </Space>
       }
     >
-      <Table rowKey="id" loading={bm.loading} columns={columns} dataSource={bm.uploaded} />
+      <div className="dash-table-card">
+        {bm.loadError ? (
+          <AsyncLoadError message={bm.loadError} onRetry={bm.reload} />
+        ) : (
+          <Table
+            className="dash-table"
+            rowKey="id"
+            loading={bm.loading}
+            columns={columns}
+            dataSource={bm.uploaded}
+            pagination={{ showTotal: (t) => `共 ${t} 条` }}
+          />
+        )}
+      </div>
 
       <Modal
         title={
@@ -163,6 +179,7 @@ export default function BenchmarksPage() {
 
       <Drawer title={bm.casesTitle} width={720} open={bm.casesOpen} onClose={() => bm.setCasesOpen(false)}>
         <Table
+          className="dash-table"
           rowKey="sample_id"
           size="small"
           columns={caseColumns}
@@ -170,6 +187,6 @@ export default function BenchmarksPage() {
           pagination={{ pageSize: 20 }}
         />
       </Drawer>
-    </Card>
+    </DashboardPageShell>
   );
 }

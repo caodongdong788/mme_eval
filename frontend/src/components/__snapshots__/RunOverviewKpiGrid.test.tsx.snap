@@ -2,47 +2,82 @@
 
 exports[`RunOverviewKpiGrid > matches snapshot 1`] = `
 <div
-  class="kpi-grid"
+  class="runs-kpi-row runs-kpi-row--overview"
 >
   <div
-    class="kpi-tile"
+    class="runs-kpi"
   >
     <div
-      class="kpi-label"
+      class="runs-kpi__title"
     >
       平均综合分
     </div>
     <div
-      class="kpi-value"
+      class="runs-kpi__value-row"
     >
-      0.876
+      <span
+        class="runs-kpi__value"
+      >
+        0.876
+      </span>
     </div>
   </div>
   <div
-    class="kpi-tile"
+    class="runs-kpi"
   >
     <div
-      class="kpi-label"
+      class="runs-kpi__title"
     >
       通过率
+      <span
+        aria-describedby="test-id"
+        aria-label="info-circle"
+        class="anticon anticon-info-circle runs-kpi__info"
+        role="img"
+      >
+        <svg
+          aria-hidden="true"
+          data-icon="info-circle"
+          fill="currentColor"
+          focusable="false"
+          height="1em"
+          viewBox="64 64 896 896"
+          width="1em"
+        >
+          <path
+            d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"
+          />
+          <path
+            d="M464 336a48 48 0 1096 0 48 48 0 10-96 0zm72 112h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8h48c4.4 0 8-3.6 8-8V456c0-4.4-3.6-8-8-8z"
+          />
+        </svg>
+      </span>
     </div>
     <div
-      class="kpi-value"
-    >
-      80.0%
-    </div>
-    <div
-      class="kpi-sub"
+      class="runs-kpi__value-row"
     >
       <span
-        class="kpi-meta"
+        class="runs-kpi__value"
       >
+        80.0
+      </span>
+      <span
+        class="runs-kpi__unit"
+      >
+        %
+      </span>
+    </div>
+    <div
+      class="runs-kpi__sub"
+    >
+      <span>
         通过 
         8
          · 失败 
         2
       </span>
       <span>
+         · 
         95
         % CI
          
@@ -54,67 +89,111 @@ exports[`RunOverviewKpiGrid > matches snapshot 1`] = `
     </div>
   </div>
   <div
-    class="kpi-tile"
+    class="runs-kpi runs-kpi--danger"
   >
     <div
-      class="kpi-label"
+      class="runs-kpi__title"
     >
       硬门槛失败
     </div>
     <div
-      class="kpi-value is-fail"
+      class="runs-kpi__value-row"
     >
-      1
+      <span
+        class="runs-kpi__value"
+      >
+        1
+      </span>
+      <span
+        class="runs-kpi__unit"
+      >
+        例
+      </span>
     </div>
   </div>
   <div
-    class="kpi-tile"
+    class="runs-kpi"
   >
     <div
-      class="kpi-label"
+      class="runs-kpi__title"
     >
       总用例
     </div>
     <div
-      class="kpi-value"
+      class="runs-kpi__value-row"
     >
-      10
+      <span
+        class="runs-kpi__value"
+      >
+        10
+      </span>
+      <span
+        class="runs-kpi__unit"
+      >
+        例
+      </span>
     </div>
   </div>
   <div
-    class="kpi-tile"
+    class="runs-kpi"
   >
     <div
-      class="kpi-label"
+      class="runs-kpi__title"
     >
       稳定性 (N=3)
+      <span
+        aria-describedby="test-id"
+        aria-label="info-circle"
+        class="anticon anticon-info-circle runs-kpi__info"
+        role="img"
+      >
+        <svg
+          aria-hidden="true"
+          data-icon="info-circle"
+          fill="currentColor"
+          focusable="false"
+          height="1em"
+          viewBox="64 64 896 896"
+          width="1em"
+        >
+          <path
+            d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z"
+          />
+          <path
+            d="M464 336a48 48 0 1096 0 48 48 0 10-96 0zm72 112h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8h48c4.4 0 8-3.6 8-8V456c0-4.4-3.6-8-8-8z"
+          />
+        </svg>
+      </span>
     </div>
     <div
-      class="kpi-value"
+      class="runs-kpi__value-row"
     >
-      7/1/2
-    </div>
-    <div
-      class="kpi-sub"
-    >
-      稳过 / 抖动 / 稳挂
+      <span
+        class="runs-kpi__value"
+      >
+        7/1/2
+      </span>
     </div>
   </div>
   <div
-    class="kpi-tile"
+    class="runs-kpi"
   >
     <div
-      class="kpi-label"
+      class="runs-kpi__title"
     >
       待审 / 队列
     </div>
     <div
-      class="kpi-value"
+      class="runs-kpi__value-row"
     >
-      1/2
+      <span
+        class="runs-kpi__value"
+      >
+        1/2
+      </span>
     </div>
     <div
-      class="kpi-sub"
+      class="runs-kpi__sub"
     >
       人审通过率 50%
     </div>

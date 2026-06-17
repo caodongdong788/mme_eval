@@ -1,4 +1,4 @@
-import { Button, Card, Result, Space, Tabs } from "antd";
+import { Button, Result, Spin, Tabs } from "antd";
 import { useParams } from "react-router-dom";
 import { useFailureTagLabels } from "../failureTags";
 import { ExportTranscriptsModal } from "../components/ExportTranscriptsModal";
@@ -19,23 +19,31 @@ export default function RunDashboardPage() {
 
   if (dash.runError)
     return (
-      <Result
-        status="warning"
-        title="无法加载评测详情"
-        subTitle={dash.runError}
-        extra={
-          <Button type="primary" onClick={() => dash.navigate("/runs")}>
-            返回评测列表
-          </Button>
-        }
-      />
+      <div className="dash-page">
+        <Result
+          status="warning"
+          title="无法加载评测详情"
+          subTitle={dash.runError}
+          extra={
+            <Button type="primary" onClick={() => dash.navigate("/runs")}>
+              返回评测列表
+            </Button>
+          }
+        />
+      </div>
     );
-  if (!dash.run) return <Card loading />;
+  if (!dash.run) {
+    return (
+      <div className="dash-page" style={{ display: "grid", placeItems: "center", paddingTop: 80 }}>
+        <Spin />
+      </div>
+    );
+  }
 
   const columns = buildCaseColumns(id, tagLabel);
 
   return (
-    <Space direction="vertical" size={16} style={{ display: "flex" }}>
+    <div className="dash-page">
       <RunDashboardHeader
         run={dash.run}
         editingName={dash.editingName}
@@ -51,6 +59,7 @@ export default function RunDashboardPage() {
       />
 
       <Tabs
+        className="dash-tabs"
         activeKey={dash.activeTab}
         onChange={dash.setActiveTab}
         items={[
@@ -146,6 +155,6 @@ export default function RunDashboardPage() {
         onOverwrite={dash.saveYamlOverwrite}
       />
 
-    </Space>
+    </div>
   );
 }

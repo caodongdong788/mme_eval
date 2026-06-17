@@ -34,7 +34,7 @@ describe("usePairwiseExpandedMessages", () => {
   });
 
   it("uses cache on remount", async () => {
-    const { unmount } = renderHook(() => usePairwiseExpandedMessages(1, 2, "bc_001"));
+    renderHook(() => usePairwiseExpandedMessages(1, 2, "bc_001"));
     await waitFor(() => expect(mockedApi.getCaseDetail).toHaveBeenCalledTimes(2));
 
     vi.clearAllMocks();

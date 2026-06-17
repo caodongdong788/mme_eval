@@ -1,5 +1,6 @@
-import { Card, Table, Tag, Typography } from "antd";
+import { Table, Tag, Typography } from "antd";
 import { CaseVerdict, scoringPointWeight } from "../utils/caseJudging";
+import { DashPanel } from "./DashPanel";
 
 const { Text } = Typography;
 
@@ -11,8 +12,9 @@ export function ScoringPointsTable({ scoringPoints }: ScoringPointsTableProps) {
   if (scoringPoints.length === 0) return null;
 
   return (
-    <Card title="得分点" size="small">
+    <DashPanel title="得分点" bodyClassName="dash-panel__body--flush">
       <Table
+        className="dash-table"
         rowKey="name"
         size="small"
         columns={[
@@ -59,6 +61,6 @@ export function ScoringPointsTable({ scoringPoints }: ScoringPointsTableProps) {
         dataSource={scoringPoints}
         pagination={false}
       />
-    </Card>
+    </DashPanel>
   );
 }

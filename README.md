@@ -315,6 +315,7 @@ medeval run --config config.yaml --repeat 3
 ```bash
 pip install -e ".[server]"          # 后端依赖
 cd frontend && npm install          # 前端依赖
+cd frontend && npm run verify       # 规范门禁 + typecheck + lint + test（改 frontend 后必跑）
 
 scripts/dev_platform.sh             # 开发：后端 :8000 + 前端 :5173（/api 自动代理）
 scripts/serve_platform.sh --port 8000   # 生产：构建前端后由 FastAPI 静态托管

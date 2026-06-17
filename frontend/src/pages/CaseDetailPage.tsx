@@ -1,10 +1,11 @@
-import { Button, Card, Col, Result, Row, Space } from "antd";
+import { Col, Result, Row, Spin } from "antd";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { CasePreviewRejudgePanel } from "../components/CasePreviewRejudgePanel";
 import { EditCriteriaDrawer } from "../components/EditCriteriaDrawer";
 import { CaseDetailSummary, CaseDetailSummaryCard } from "../components/CaseDetailSummaryCard";
 import { CaseDimensionScoresCard } from "../components/CaseDimensionScoresCard";
 import { ConversationThread } from "../components/ConversationThread";
+import { DashPanel } from "../components/DashPanel";
 import { HumanReviewCard } from "../components/HumanReviewCard";
 import { JudgeVerdictTable } from "../components/JudgeVerdictTable";
 import { ScoringPointsTable } from "../components/ScoringPointsTable";
@@ -26,19 +27,27 @@ export default function CaseDetailPage() {
 
   if (cd.detailError) {
     return (
-      <Result
-        status="warning"
-        title="无法加载用例明细"
-        subTitle={cd.detailError}
-        extra={
-          <Link to={backTo} state={backState}>
-            <Button>返回{backLabel}</Button>
-          </Link>
-        }
-      />
+      <div className="dash-page">
+        <Result
+          status="warning"
+          title="无法加载用例明细"
+          subTitle={cd.detailError}
+          extra={
+            <Link to={backTo} state={backState} className="dash-table__link">
+              返回{backLabel}
+            </Link>
+          }
+        />
+      </div>
     );
   }
-  if (!cd.detail) return <Card loading />;
+  if (!cd.detail) {
+    return (
+      <div className="dash-page" style={{ display: "grid", placeItems: "center", paddingTop: 80 }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
 
   const trace = cd.detail.trace as { messages?: Array<{ role: string; content: string }> } | undefined;
   const messages = trace?.messages || [];
@@ -48,7 +57,7 @@ export default function CaseDetailPage() {
   const caseInfo = cd.detail.case as { sample_id?: string; sub_scenario?: string; scenario?: string } | undefined;
 
   return (
-    <Space direction="vertical" size={16} style={{ display: "flex" }}>
+    <div className="dash-page">
       <CaseDetailSummaryCard
         detail={cd.detail as CaseDetailSummary}
         scoringPoints={scoringPoints}
@@ -57,13 +66,13 @@ export default function CaseDetailPage() {
         backLabel={backLabel}
       />
 
-      <Row gutter={16}>
-        <Col span={14}>
-          <Card title="对话流水" size="small">
+      <Row gutter={14}>
+        <Col xs={24} lg={14}>
+          <DashPanel title="对话流水">
             <ConversationThread messages={messages} />
-          </Card>
+          </DashPanel>
         </Col>
-        <Col span={10}>
+        <Col xs={24} lg={10}>
           <CaseDimensionScoresCard
             dimensionScores={cd.detail.dimension_scores as Record<string, number | null> | undefined}
             dimensionMax={cd.detail.dimension_max as Record<string, number> | undefined}
@@ -119,6 +128,6 @@ export default function CaseDetailPage() {
           />
         }
       />
-    </Space>
+    </div>
   );
 }

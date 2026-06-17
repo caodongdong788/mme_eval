@@ -5,10 +5,13 @@
   "extensions": {
     "colorMeta": {
       "primary": { "role": "primary", "displayName": "Ink Accent", "canonical": "#111827", "tonalRamp": ["#000000", "#111827", "#1f2937", "#374151", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb"] },
+      "link": { "role": "primary", "displayName": "Link Teal", "canonical": "#0D6B5C", "tonalRamp": ["#052e28", "#0a5549", "#0d6b5c", "#1a8574", "#2e9e6b", "#5bb88c", "#94d3b3", "#d4ede0"] },
       "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#111827", "tonalRamp": ["#111827", "#1f2937", "#374151", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb", "#f3f4f6"] },
       "bg": { "role": "neutral", "displayName": "Paper", "canonical": "#FFFFFF", "tonalRamp": ["#374151", "#6b7280", "#9ca3af", "#d1d5db", "#e5e7eb", "#f3f4f6", "#fafafa", "#ffffff"] },
       "pass": { "role": "tertiary", "displayName": "Pass Green (dot)", "canonical": "#1F8A5B", "tonalRamp": ["#0a3322", "#0f4d33", "#156b46", "#1f8a5b", "#2e9e6b", "#5bb88c", "#94d3b3", "#d4ede0"] },
-      "fail": { "role": "tertiary", "displayName": "Fail Red (dot)", "canonical": "#C1453A", "tonalRamp": ["#4a1612", "#6b211b", "#8f2f27", "#c1453a", "#d6453b", "#e07a72", "#eeaaa4", "#fbeae8"] }
+      "fail": { "role": "tertiary", "displayName": "Fail Red (dot)", "canonical": "#C1453A", "tonalRamp": ["#4a1612", "#6b211b", "#8f2f27", "#c1453a", "#d6453b", "#e07a72", "#eeaaa4", "#fbeae8"] },
+      "dashboard-purple": { "role": "primary", "displayName": "Dashboard Purple", "canonical": "#7C5CFC", "tonalRamp": ["#3d2a99", "#5c45d4", "#7c5cfc", "#9b8afb", "#b8a9fc", "#d4ccfd", "#ede9fe", "#f3f0ff"] },
+      "dashboard-bg": { "role": "neutral", "displayName": "Dashboard Canvas", "canonical": "#F3F4F8", "tonalRamp": ["#1f2329", "#646a73", "#8f959e", "#c9cdd4", "#e8eaed", "#f3f4f8", "#fafbfc", "#ffffff"] }
     },
     "typographyMeta": {
       "metric-hero": { "displayName": "Metric Hero", "purpose": "顶部概览核心指标，系统无衬线 40px / 400，大而轻盈、单行呈现；列间用 1px #E5E7EB 竖发丝线分区。" },

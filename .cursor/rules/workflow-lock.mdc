@@ -4,79 +4,100 @@ alwaysApply: true
 
 # 固定开发流程（强制门禁 · 不可跳步）
 
-> 本文件是流程的**权威定义**（AGENTS.md §2 为速查口径，二者冲突以本文件为准）。
-> 配套工具：**Graphify**（代码图谱/依赖/风险）｜**OpenSpec**（变更文档/契约/追溯）｜**Superpowers**（澄清/计划/TDD/排障/验证）。
+> **权威定义**：AGENTS.md §2 为速查口径；二者冲突以本文件为准。
+> **配套工具**：Graphify（图谱/依赖/风险）｜OpenSpec（变更/契约/追溯）｜Superpowers（澄清/计划/TDD/排障/验证）｜CodeRabbit（提交前代码审查）
+
+## 速查
+
+| 请求类型 | 开场 | 执行 | 收尾 |
+|----------|------|------|------|
+| **只读 / 讨论** | 一行说明「只读，不走变更流程」 | 正常对话 | 无 |
+| **变更类** | §1 填空模板（一次性输出） | §2 对应链路 + §3 铁律 | §5 合规报告 |
+
+> ⚠️ **转化闸**：讨论演变为动手改时，MUST 先停下 → 声明进入变更流程 → 补建 OpenSpec change → 才能编辑代码。
+
+---
 
 ## 0. 触发边界（先判定，再决定走不走流程）
 
-每次任务开始，AI MUST 先把请求归入下面**两类之一**：
+每次任务开始，AI MUST 先把请求归入**两类之一**：
 
-- **只读 / 讨论类**：解释代码、答疑、检索、看报告、出方案讨论、纯分析——**不修改任何 `代码 / 用例 / specs`**。
-  → 这类**不强制**走完整流程，正常对话即可。
-- **变更类**：任何会**写入/修改/删除** `medeval/**`、`server/**`、`frontend/**`、`tests/**`、`cases/**`、`config.yaml`、`openspec/specs/**`、治理脚本等的任务。
-  → 这类 MUST 走下面的完整流程，**不可跳步**。
+| 类型 | 判定 | 流程要求 |
+|------|------|----------|
+| **只读 / 讨论** | 解释代码、答疑、检索、看报告、出方案、纯分析；**不修改**代码/用例/specs | 不强制完整流程 |
+| **变更类** | 写入/修改/删除 `medeval/**`、`server/**`、`frontend/**`、`tests/**`、`cases/**`、`config.yaml`、`openspec/specs/**`、`.cursor/rules/**`、`openspec/changes/**`、治理脚本等 | MUST 走 §1→§2→§3→§5，**不可跳步** |
 
-> ⚠️ **转化闸**：当一次"讨论"演变为"动手改"时，AI MUST **先停下、声明进入变更流程、补建 OpenSpec change**，然后才能编辑代码。禁止从讨论直接滑入编码。
+---
 
-## 1. 开场汇报（变更类任务的第一条输出）
+## 1. 开场汇报（变更类 · 第一条输出）
 
-进入变更流程时，AI MUST **先向用户汇报**（不可只写一行），包含三块：
-
-### 1.1 任务分类与链路
+进入变更流程时，AI MUST **一次性输出**下方填空模板（不可只写一行；只读类见 §0 一行说明即可）。
 
 ```
-【任务分类】只读 / 变更（Bug 修复 | 新功能）
-【执行链路】（按类型二选一，逐步列出，当前步骤标 ▶）
-  Bug：图谱 → 澄清 → 计划 → OpenSpec change → 测试 → 编码 → 验证 → 图谱 → 归档
-  新功能：图谱 → 澄清 → 拆解 → OpenSpec change → TDD → 实现 → 验收 → 图谱 → 归档
-【触达范围】内核 medeval / 后端 server / 前端 frontend / 用例 cases / 配置（勾选本次涉及的）
-【部署】是否需 Docker 重建 / dev_platform / 仅本地验证（若用户禁止部署须注明）
+【开场汇报】
+■ 分类：变更 · Bug 修复 / 新功能
+■ 链路：见 §2，逐步列出，当前步骤标 ▶
+■ 触达：☐ medeval  ☐ server  ☐ frontend  ☐ cases  ☐ 配置
+■ 部署：Docker 重建 / dev_platform / 仅本地验证 / 用户禁止部署
+■ 自检：①图谱 ②澄清 ③计划 ④类型 ⑤OpenSpec ⑥测试先行 ⑦验证项 ⑧提交前审查（未完成标 ⏳）
+■ 规范：N/A / frontend-workflow / AGENTS.md §5
 ```
 
-### 1.2 流程自检（单行速览）
+**填法**（按触达填空，不必逐条复述规则）：
 
-```
-流程自检：①图谱 ②澄清 ③计划 ④类型 ⑤OpenSpec ⑥测试先行 ⑦验证项 —— 未完成标 ⏳
-```
+- **澄清**（自检②）：需求有歧义 → `brainstorming`；已明确 → 旁注「跳过澄清」
+- **规范**：未触达前后端 → `N/A`；触达 `frontend/**` → `frontend-workflow`（五步流程 + 收尾自审清单）；触达 `server/**` 或 `medeval/**` → `AGENTS.md §5` 并勾选 HardGate / 核心节点 / dry-run
 
-### 1.3 前后端规范触达声明
+---
 
-若触达 `frontend/**`，MUST 声明将遵循 `.cursor/rules/frontend-workflow.mdc`（五步流程 + 收尾自审清单）。
-若触达 `server/**` 或 `medeval/**`，MUST 声明将遵循 AGENTS.md §5 治理项（HardGate / 核心节点 / dry-run 等，按实际触达勾选）。
+## 2. 两条执行链路（AI 自动判定 Bug / 新功能）
 
-只读/讨论类：用一行说明「只读，不走变更流程」即可。
+| | Bug 修复 | 新功能 |
+|---|----------|--------|
+| **链路** | 图谱 → 澄清 → 计划 → OpenSpec change → 测试 → 编码 → 验证 → **提交前审查** → 图谱 → 归档 | 图谱 → 澄清 → 拆解 → OpenSpec change → TDD → 实现 → 验收 → **提交前审查** → 图谱 → 归档 |
+| **差异** | 排障导向；先测后修 | 需求导向；TDD 先行 |
 
-## 2. 两条链路（AI 自动判定 Bug / 新功能）
+---
 
-- **Bug 修复链路**：刷新图谱 → 澄清问题 → 制定修复计划 → 创建修复 change → 排障+写测试 → 编码修复 → 验证回归 → 更新图谱 → 归档
-- **新功能链路**：刷新图谱 → 澄清需求 → 拆解任务 → 创建功能 change → TDD 开发 → 编码实现 → 验收验证 → 更新图谱 → 归档
+## 3. 铁律（MUST / 禁止）
 
-## 3. 不可破的铁律（MUST / 禁止）
+### 生命周期
 
-1. **图谱**：变更类任务**启动**时 MUST `graphify update .` 刷新；**改完代码**后 MUST 再次 `graphify update .`。
-2. **先有设计与变更，后有代码**：编辑任何代码前，`openspec/changes/<name>/` MUST 已存在（至少含 `proposal.md` + `tasks.md`）。**禁止无设计、无测试直接编码。**
-3. **测试先行**：MUST 按 TDD 先写/补测试，再写实现；变更收尾 MUST 跑全量 `pytest` 绿。
-4. **HardGate 治理**：触碰 `medeval/judges/hard_gate.py` 前后 MUST 跑 `medeval verify-heuristics`（详见 AGENTS.md §5）。
-5. **核心节点**：触及 `TestCase` / `BaseJudge` / `FailureTag` MUST 先查依赖与循环导入（用 Graphify）。
-6. **归档**：任务完成 MUST 走 OpenSpec 归档（`openspec validate --strict` 通过后 `openspec archive`），并同步规格。
-7. **真实配置 dry-run**：涉及评测主链路的变更，收尾 MUST 跑一次 `medeval run --config config.yaml --dry-run`。
-8. **澄清与计划（Superpowers · 分级）**：变更类任务在创建 OpenSpec change *之前* ——
-   - **澄清**：需求 / 范围**有歧义**时 MUST 先用 Superpowers `brainstorming` 澄清意图与设计；需求已明确可跳过，但 MUST 在开场自检里写明"需求已明确，跳过澄清"。
-   - **计划**：S/M 改动可由 `proposal.md` + `tasks.md` 充当计划；**多文件 / 触及核心节点（`TestCase`/`BaseJudge`/`FailureTag`）/ 高风险** 改动 MUST 先用 Superpowers `writing-plans` 产出计划再编码。
-   - 此条是"软 MUST"（无法被 hook 机器强制），靠开场自检显式交代落实——禁止把澄清/计划一笔带过。
-9. **OpenSpec 读取（省 token）**：**MUST NOT** 通读 `openspec/changes/archive/`。现行契约只读 `openspec/specs/<相关 capability>/`；历史决策只打开单个 archive 的 `proposal.md`；架构/依赖优先 `graphify query` 而非翻 spec。`.cursorignore` 已排除 archive 与 `graphify-out/` 索引。
+1. **图谱**：变更类**启动**时 MUST `graphify update .`；**改完代码**后 MUST 再次 `graphify update .`。
+2. **先有设计与变更，后有代码**：编辑代码前，`openspec/changes/<name>/` MUST 已存在（至少 `proposal.md` + `tasks.md`）。**禁止无设计、无测试直接编码。**
+3. **测试先行**：MUST TDD（先写/补测试，再实现）；收尾 MUST 全量 `pytest` 绿。
+4. **归档**：任务完成 MUST `openspec validate --strict` 通过后 `openspec archive`，并同步规格。
+5. **提交前审查**：每次 `git commit` 之前 MUST 对**本次待提交改动**跑 CodeRabbit 审查（`coderabbit review --agent -t uncommitted`；skill：`~/.agents/skills/code-review`）。**Critical / Warning** 须修复或经用户书面确认接受后方可提交；**禁止**未审查直接 commit。CLI 未安装或未登录时 MUST 提示用户安装/登录，不得静默跳过。
+
+### 治理专项
+
+6. **HardGate**：触碰 `medeval/judges/hard_gate.py` 前后 MUST 跑 `medeval verify-heuristics`（详见 AGENTS.md §5）。
+7. **核心节点**：触及 `TestCase` / `BaseJudge` / `FailureTag` MUST 先用 Graphify 查依赖与循环导入。
+8. **dry-run**：涉及评测主链路的变更，收尾 MUST `medeval run --config config.yaml --dry-run`。
+
+### 协作规范
+
+9. **澄清与计划（Superpowers · 分级）**——创建 OpenSpec change *之前*：
+   - **澄清**：需求/范围有歧义 → MUST 先用 `brainstorming`；已明确可跳过，但开场自检 MUST 写明「需求已明确，跳过澄清」。
+   - **计划**：S/M 改动可由 `proposal.md` + `tasks.md` 充当；**多文件 / 核心节点 / 高风险** → MUST 先用 `writing-plans`。
+   - 软 MUST（靠开场自检落实），禁止一笔带过。
+10. **OpenSpec 读取（省 token）**：**MUST NOT** 通读 `openspec/changes/archive/`。现行契约 → `openspec/specs/<capability>/`；历史决策 → 单个 archive 的 `proposal.md`；架构/依赖 → 优先 `graphify query`。
+
+---
 
 ## 4. 例外
 
-仅当满足任一条件可豁免完整流程（但仍 MUST 在回复中**显式说明豁免理由**）：
+满足**任一**条件可豁免完整流程（回复中 MUST **显式说明豁免理由**）：
 
-- 纯文档/注释/排版且不改行为；
-- 用户**明确**要求"快速改、跳过流程"；
-- 紧急止血修复（事后 MUST 补建 change 与测试）。
+- 纯文档/注释/排版，不改行为（**不含** `.cursor/rules/**`、`openspec/**`——虽为 Markdown，但直接影响 agent 行为与契约）
+- 用户**明确**要求「快速改、跳过流程」
+- 紧急止血修复（事后 MUST 补建 change、测试与**提交前审查**）
 
-## 5. 收尾合规报告（变更类任务的最后一块输出）
+---
 
-任务结束（或用户叫停）时，AI MUST 输出**收尾合规报告**，让用户可见「是否遵循了流程与前后端规范」：
+## 5. 收尾合规报告（变更类 · 最后一块输出）
+
+任务结束（或用户叫停）时，AI MUST 输出：
 
 ```
 【收尾合规报告】
@@ -85,19 +106,21 @@ alwaysApply: true
   - OpenSpec change：路径 + proposal/tasks 是否齐全；是否已 archive
   - 测试：单测/pytest/前端 test/typecheck 实际跑了哪些、结果
   - 专项验证：verify-heuristics / dry-run（触达则必填，未触达写 N/A）
+  - 提交前审查：CodeRabbit 是否已跑、findings 数量、Critical/Warning 处理结论
   - 部署：是否已重建 Docker / 用户要求跳过则注明
 
-■ 后端（触达 server/medeval 时必填，否则写 N/A）
+■ 后端（触达 server/medeval 时必填，否则 N/A）
   - 设计先于代码、TDD 顺序是否遵守
   - 核心节点 / HardGate 治理是否执行
 
-■ 前端（触达 frontend 时必填，否则写 N/A）
+■ 前端（触达 frontend 时必填，否则 N/A）
   - frontend-workflow 五步：设计/技术栈/目录/token/计划 —— 逐项 ✅❌⏭
-  - 自审清单：AntD 唯一库、hooks+api 分层、无散落 hex、typecheck/test
+  - 门禁：`cd frontend && npm run verify` 结果（含 check:standards）
+  - 自审：AntD 唯一库、hooks+api 分层、DashTableActions / AsyncLoadError（未自动化项）
   - DESIGN.md / PRODUCT.md 是否只读未漂移（有 UI 改动时）
 
 ■ 偏差说明
   - 跳步/豁免项逐条列出 + 理由 + 待补事项（如「未 archive，待用户确认后补」）
 ```
 
-> 关键目录：代码图谱 `graphify-out/`｜变更文档 `openspec/changes/`｜全局规则 `.cursor/rules/`。
+> 关键目录：`graphify-out/`（图谱）｜`openspec/changes/`（变更）｜`.cursor/rules/`（规则）

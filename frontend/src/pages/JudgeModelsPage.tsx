@@ -1,6 +1,5 @@
 import {
   Button,
-  Card,
   Divider,
   Form,
   Input,
@@ -14,6 +13,9 @@ import {
 } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { JudgeModel } from "../api/index";
+import { AsyncLoadError } from "../components/AsyncLoadError";
+import { DashTableActions, DashTableDangerLink, DashTableLink } from "../components/DashTableActions";
+import { DashboardPageShell } from "../components/DashboardPageShell";
 import { useJudgeModelsPage } from "../hooks/useJudgeModelsPage";
 
 export default function JudgeModelsPage() {
@@ -61,32 +63,40 @@ export default function JudgeModelsPage() {
       title: "操作",
       width: 140,
       render: (_: unknown, m: JudgeModel) => (
-        <Space>
-          <a onClick={() => jm.openEdit(m)}>编辑</a>
-          <Popconfirm
-            title="确认删除该判分模型？"
-            onConfirm={() => jm.deleteModel(m.id)}
-          >
-            <a style={{ color: "var(--fail)" }}>删除</a>
+        <DashTableActions>
+          <DashTableLink onClick={() => jm.openEdit(m)}>编辑</DashTableLink>
+          <Popconfirm title="确认删除该判分模型？" onConfirm={() => jm.deleteModel(m.id)}>
+            <DashTableDangerLink>删除</DashTableDangerLink>
           </Popconfirm>
-        </Space>
+        </DashTableActions>
       ),
     },
   ];
 
   return (
-    <Card
+    <DashboardPageShell
       title="判分模型（LLM-as-Judge）"
+      sub="在此一次配好打分模型的连接信息（含 API Key，仅写入、不回显），发起评测时直接下拉选用，免手填。"
       extra={
         <Button type="primary" icon={<PlusOutlined />} onClick={jm.openCreate}>
           新增判分模型
         </Button>
       }
     >
-      <Typography.Paragraph type="secondary" style={{ marginTop: -4 }}>
-        在此一次配好打分模型的连接信息（含 API Key，仅写入、不回显），发起评测时直接下拉选用，免手填。
-      </Typography.Paragraph>
-      <Table rowKey="id" loading={jm.loading} columns={columns} dataSource={jm.models} pagination={false} />
+      <div className="dash-table-card">
+        {jm.loadError ? (
+          <AsyncLoadError message={jm.loadError} onRetry={jm.reload} />
+        ) : (
+          <Table
+            className="dash-table"
+            rowKey="id"
+            loading={jm.loading}
+            columns={columns}
+            dataSource={jm.models}
+            pagination={false}
+          />
+        )}
+      </div>
 
       <Modal
         title={jm.editId != null ? "编辑判分模型" : "新增判分模型"}
@@ -152,6 +162,6 @@ export default function JudgeModelsPage() {
           </Form.Item>
         </Form>
       </Modal>
-    </Card>
+    </DashboardPageShell>
   );
 }

@@ -1,6 +1,7 @@
-import { Alert, Button, Card, Input, List, Radio, Space, Typography } from "antd";
+import { Alert, Button, Input, List, Radio, Space, Typography } from "antd";
 import { Annotation } from "../api/index";
 import { formatApiDateTimeShort } from "../utils/datetime";
+import { DashPanel } from "./DashPanel";
 
 const { Text } = Typography;
 
@@ -30,7 +31,7 @@ export function HumanReviewCard({
   annotations,
 }: HumanReviewCardProps) {
   return (
-    <Card title="人工裁定（HITL）" size="small">
+    <DashPanel title="人工裁定（HITL）">
       <Alert
         type="info"
         showIcon
@@ -91,6 +92,6 @@ export function HumanReviewCard({
           )}
         />
       )}
-    </Card>
+    </DashPanel>
   );
 }

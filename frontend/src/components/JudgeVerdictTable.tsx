@@ -1,6 +1,7 @@
-import { Card, Space, Table, Tag, Typography } from "antd";
+import { Space, Table, Tag, Typography } from "antd";
 import { useJudgeVerdictLabels } from "../judgeVerdictLabels";
 import { CaseVerdict } from "../utils/caseJudging";
+import { DashPanel } from "./DashPanel";
 
 const { Text } = Typography;
 
@@ -61,8 +62,15 @@ export function JudgeVerdictTable({ verdicts, tagLabel }: JudgeVerdictTableProps
   ];
 
   return (
-    <Card title="Judge 判定" size="small">
-      <Table rowKey="name" size="small" columns={columns} dataSource={verdicts} pagination={false} />
-    </Card>
+    <DashPanel title="Judge 判定" bodyClassName="dash-panel__body--flush">
+      <Table
+        className="dash-table"
+        rowKey="name"
+        size="small"
+        columns={columns}
+        dataSource={verdicts}
+        pagination={false}
+      />
+    </DashPanel>
   );
 }

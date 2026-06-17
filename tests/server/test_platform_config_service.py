@@ -20,3 +20,8 @@ def test_judge_verdict_labels_has_hard_gate():
 
 def test_profile_labels_zh_covers_default():
     assert cfg_svc.PROFILE_LABELS_ZH["default"]
+
+
+def test_profile_labels_zh_covers_all_scoring_profiles():
+    expected = {"default", "red_flag", "adversarial", "knowledge", "rehab", "population", "agent"}
+    assert expected <= set(cfg_svc.PROFILE_LABELS_ZH.keys())

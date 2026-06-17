@@ -5,7 +5,7 @@ import { formatApiError } from "../utils/apiError";
 import { useAsyncData } from "./useAsyncData";
 
 export function useReleaseThresholdsPage() {
-  const { data: rows, loading, reload } = useAsyncData(() => api.getReleaseThresholds(), []);
+  const { data: rows, loading, error, reload } = useAsyncData(() => api.getReleaseThresholds(), []);
   const [draft, setDraft] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
 
@@ -44,6 +44,8 @@ export function useReleaseThresholdsPage() {
     rows: rows ?? [],
     draft,
     loading,
+    loadError: error,
+    reload,
     saving,
     save,
     resetProfile,

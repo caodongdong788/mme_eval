@@ -1,7 +1,8 @@
-/* 单一信任源（CSS 层）：所有色值/字体在此定义，禁止页面内散落硬编码 hex。
-   JS 侧镜像见 theme.ts palette；两者必须保持一致（详见 .cursor/rules/frontend-workflow.mdc）。
-   设计语言：Ink & Whitespace —— 纯白底 / 无边框无阴影 / 大留白 / 圆点状态 / 降噪图表。
-   （change redesign-ui-minimal-whitespace；权威见 DESIGN.md） */
+/* 单一信任源（CSS 层）：色值/字体定义于此，业务代码禁止散落 hex。
+   JS 镜像：src/theme.ts palette（Ink 层 + palette.dashboard）。
+   规范：.cursor/rules/frontend-workflow.mdc · 设计：DESIGN.md · 门禁：npm run check:standards
+   设计语言：Ink & Whitespace + Dashboard Surface（--runs-* / --dash-*）。
+ */
 :root {
   /* 表面 / 中性（纯白纸 + 近黑墨 + 浅灰，无灰底分区） */
   --bg: #ffffff;
@@ -21,12 +22,16 @@
   --axis: #d1d5db;
   --scroll-thumb: #e5e7eb;
   --scroll-thumb-hover: #d1d5db;
-  /* 交互强调（唯一亮灯）：墨黑单色——主按钮/链接/开关/选中/聚焦/图表强调（去 teal，黑白印刷） */
+  /* 交互强调：墨黑主操作 + Muted Teal 导航链接（双灯规则，见 DESIGN.md） */
   --primary: #111827;
   --primary-strong: #374151;
   --primary-soft: #f3f4f6;
   --primary-border: #e5e7eb;
   --primary-glow: #eef0f3;
+  --link: #0d6b5c;
+  --link-hover: #0a5549;
+  --link-underline: rgba(13, 107, 92, 0.38);
+  --link-tint: rgba(13, 107, 92, 0.06);
   /* 语义（仅作圆点 / 极小着色） */
   --pass: #1f8a5b;
   --warn: #c6841f;
@@ -57,9 +62,76 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* 链接走墨黑单色（去 teal）；hover 加下划线，保留「可点」可感而不靠颜色 */
-a:hover {
+/* 链接：Muted Teal（仅主内容区普通正文链；Dashboard 表格链走紫色 dash-table__link） */
+.ant-layout-content a:not(.ant-btn):not(.no-link-style):not(.dash-table__link):not(.runs-table__link):not(.dash-table__danger-link) {
+  color: var(--link);
   text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--link-underline);
+}
+.ant-layout-content a:not(.ant-btn):not(.no-link-style):not(.dash-table__link):not(.runs-table__link):not(.dash-table__danger-link):hover {
+  color: var(--link-hover);
+  text-decoration-color: var(--link-hover);
+}
+.ant-layout-content a[target="_blank"]:not(.ant-btn):not(.no-link-style)::after {
+  content: " ↗";
+  font-size: 0.85em;
+  opacity: 0.72;
+  text-decoration: none;
+}
+.ant-btn-link,
+.ant-btn-link:not(:disabled):hover {
+  color: var(--link) !important;
+  font-weight: 500;
+  text-decoration: underline !important;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--link-underline) !important;
+}
+.ant-btn-link:not(:disabled):hover {
+  color: var(--link-hover) !important;
+  text-decoration-color: var(--link-hover) !important;
+}
+.ant-btn-link.ant-btn-dangerous,
+.ant-btn-link.ant-btn-dangerous:not(:disabled):hover {
+  color: var(--fail) !important;
+  text-decoration-color: color-mix(in srgb, var(--fail) 45%, transparent) !important;
+}
+.ant-typography a,
+a.ant-typography {
+  color: var(--link);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--link-underline);
+}
+.ant-typography a.ant-typography-secondary,
+a.ant-typography-secondary {
+  color: var(--muted);
+  font-weight: 400;
+  text-decoration-style: dotted;
+}
+.ant-typography a.ant-typography-secondary:hover,
+a.ant-typography-secondary:hover {
+  color: var(--ink-secondary);
+}
+/* 侧栏 Menu：Dashboard 紫强调，无下划线 */
+.app-sider .ant-menu a,
+.app-sider .ant-menu a:hover,
+.app-sider .ant-menu .ant-menu-item-selected a {
+  color: inherit;
+  text-decoration: none;
+  text-underline-offset: unset;
+  text-decoration-color: transparent;
+}
+.app-sider .ant-menu a::after {
+  content: none;
+}
+.app-shell .ant-breadcrumb a {
+  color: var(--runs-purple);
+  text-decoration: none;
+}
+.app-shell .ant-breadcrumb a:hover {
+  text-decoration: underline;
+  color: var(--runs-purple-line);
 }
 
 /* 等宽数字/ID/指标，启用表格数字对齐 */
@@ -164,11 +236,25 @@ a:hover {
   padding-top: 16px;
 }
 
-/* ---- 应用骨架 ---- */
+/* ---- 应用骨架（全站 Dashboard 灰底壳） ---- */
+.app-shell .app-content {
+  margin: 0;
+  padding: 0;
+  background: var(--runs-bg);
+  min-height: calc(100vh - 56px);
+}
+.app-shell .ant-layout-header {
+  background: var(--runs-card) !important;
+  border-bottom: 1px solid var(--runs-border);
+  padding-inline: 24px 36px;
+  line-height: 56px;
+}
+
 .app-sider {
-  border-right: 1px solid var(--border);
+  border-right: 1px solid var(--runs-border) !important;
   display: flex;
   flex-direction: column;
+  background: var(--runs-card) !important;
 }
 .app-brand {
   display: flex;
@@ -180,8 +266,8 @@ a:hover {
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
-  color: var(--panel);
+  background: linear-gradient(135deg, var(--runs-purple), var(--runs-purple-line));
+  color: var(--runs-card);
   display: grid;
   place-items: center;
   font-size: 16px;
@@ -192,22 +278,31 @@ a:hover {
 .app-brand-title {
   font-weight: 600;
   font-size: 15px;
-  color: var(--ink);
+  color: var(--runs-text);
 }
 .app-brand-sub {
   font-size: 11px;
-  color: var(--muted);
+  color: var(--runs-text-muted);
 }
 
-/* 侧栏分组标题：克制大写小字 */
+/* 侧栏分组标题 */
 .app-sider .ant-menu-item-group-title {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 11px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--runs-text-muted);
   padding-inline: 16px;
   margin-top: 6px;
+}
+.app-sider .ant-menu-item-selected {
+  font-weight: 600;
+}
+.app-sider .ant-menu-item .anticon {
+  color: var(--runs-text-muted);
+}
+.app-sider .ant-menu-item-selected .anticon {
+  color: var(--runs-purple);
 }
 
 /* 侧栏底部用户位 */
@@ -233,7 +328,7 @@ a:hover {
   align-items: center;
   justify-content: space-between;
   height: 100%;
-  border-bottom: 1px solid var(--border);
+  border-bottom: none;
 }
 
 /* ---- KPI 核心指标：无瓦片、无边框、无底色，靠留白 + 字号对比 ---- */
@@ -356,19 +451,24 @@ a:hover {
   background: var(--axis);
 }
 
-/* run 页头 */
+/* run 页头（Dashboard 风） */
 .run-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+  background: var(--runs-card);
+  border-radius: 12px;
+  box-shadow: var(--runs-shadow);
+  padding: 18px 20px;
+  margin-bottom: 4px;
 }
 .run-title {
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--ink);
+  letter-spacing: -0.02em;
+  color: var(--runs-text);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -532,13 +632,13 @@ a:hover {
   height: 4px;
   margin-top: 16px;
   border-radius: 999px;
-  background: var(--surface-chip);
+  background: var(--runs-bg);
   overflow: hidden;
 }
 .pw-progress__bar {
   height: 100%;
   border-radius: 999px;
-  background: var(--primary);
+  background: var(--runs-purple);
   transition: width 0.4s ease;
 }
 .pw-progress__bar--indeterminate {
@@ -554,3 +654,962 @@ a:hover {
     left: 100%;
   }
 }
+
+/* ---- Dashboard 数据面（Coze 风；主内容区；侧栏保持 Ink & Whitespace） ---- */
+:root {
+  --runs-bg: #f3f4f8;
+  --runs-card: #ffffff;
+  --runs-text: #1f2329;
+  --runs-text-secondary: #646a73;
+  --runs-text-muted: #8f959e;
+  --runs-border: #e8eaed;
+  --runs-purple: #7c5cfc;
+  --runs-purple-soft: #f3f0ff;
+  --runs-purple-line: #9b8afb;
+  --runs-teal: #2db88a;
+  --runs-teal-soft: #e8f8f1;
+  --runs-red: #f54a45;
+  --runs-red-soft: #fdeeed;
+  --runs-shadow: 0 1px 2px rgba(31, 35, 41, 0.04), 0 4px 16px rgba(31, 35, 41, 0.06);
+  /* dash-* 与 runs-* 镜像，新代码优先 dash-* */
+  --dash-bg: var(--runs-bg);
+  --dash-card: var(--runs-card);
+  --dash-text: var(--runs-text);
+  --dash-text-secondary: var(--runs-text-secondary);
+  --dash-text-muted: var(--runs-text-muted);
+  --dash-border: var(--runs-border);
+  --dash-purple: var(--runs-purple);
+  --dash-purple-soft: var(--runs-purple-soft);
+  --dash-shadow: var(--runs-shadow);
+}
+
+.dash-page,
+.runs-page {
+  padding: 24px 36px 40px;
+  min-height: calc(100vh - 56px);
+  background: transparent;
+}
+
+.dash-page__head,
+.runs-page__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.dash-page__title,
+.runs-page__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--runs-text);
+}
+.dash-page__sub,
+.runs-page__sub {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--runs-text-secondary);
+}
+.runs-page__btn {
+  border-color: var(--runs-border) !important;
+  background: var(--runs-card) !important;
+}
+.runs-page__btn-primary {
+  background: var(--runs-purple) !important;
+  border-color: var(--runs-purple) !important;
+}
+.runs-page__btn-primary:hover {
+  filter: brightness(1.05);
+}
+
+.runs-overview {
+  margin-bottom: 16px;
+}
+
+.runs-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 16px;
+}
+@media (max-width: 1100px) {
+  .runs-kpi-row { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) {
+  .runs-kpi-row { grid-template-columns: 1fr; }
+  .dash-page,
+  .runs-page { padding: 20px 16px 32px; }
+}
+
+.runs-kpi {
+  background: var(--runs-card);
+  border-radius: 12px;
+  box-shadow: var(--runs-shadow);
+  padding: 16px 18px 14px;
+  min-height: 108px;
+  position: relative;
+}
+.runs-kpi__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--runs-text-secondary);
+  margin-bottom: 10px;
+}
+.runs-kpi__info {
+  font-size: 12px;
+  color: var(--runs-text-muted);
+  cursor: help;
+}
+.runs-kpi__value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.runs-kpi__value {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--runs-text);
+  font-variant-numeric: tabular-nums;
+}
+.runs-kpi__unit {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--runs-text-secondary);
+}
+.runs-kpi__trend {
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.runs-kpi__trend--up { background: var(--runs-teal-soft); color: var(--runs-teal); }
+.runs-kpi__trend--down { background: var(--runs-red-soft); color: var(--runs-red); }
+.runs-kpi__trend--neutral { background: #f5f6f7; color: var(--runs-text-muted); }
+
+.runs-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.runs-toolbar .runs-tabs {
+  margin-bottom: 0;
+  flex: 1;
+  min-width: 0;
+}
+.runs-date-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.runs-date-quick {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.runs-date-quick__btn {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--runs-text-secondary);
+  background: var(--runs-card);
+  border: 1px solid var(--runs-border);
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.runs-date-quick__btn:hover {
+  border-color: var(--runs-purple-line);
+  color: var(--runs-text);
+}
+.runs-date-quick__btn.is-active {
+  background: var(--runs-purple-soft);
+  border-color: var(--runs-purple);
+  color: var(--runs-purple);
+}
+.runs-date-filter__icon {
+  color: var(--runs-text-muted);
+  font-size: 14px;
+}
+.runs-date-filter__picker.ant-picker {
+  border-radius: 8px;
+  border-color: var(--runs-border);
+  min-width: 240px;
+}
+.runs-date-filter__picker.ant-picker:hover,
+.runs-date-filter__picker.ant-picker-focused {
+  border-color: var(--runs-purple-line);
+}
+.runs-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.runs-tab {
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--runs-text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+}
+.runs-tab:hover {
+  background: rgba(124, 92, 252, 0.06);
+  color: var(--runs-text);
+}
+.runs-tab.is-active {
+  background: var(--runs-purple-soft);
+  color: var(--runs-purple);
+}
+.runs-tab__count {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--runs-text-muted);
+}
+.runs-tab.is-active .runs-tab__count {
+  color: var(--runs-purple-line);
+}
+.runs-filter-hint {
+  margin: -6px 0 12px;
+  font-size: 12px;
+  color: var(--runs-text-muted);
+}
+
+.runs-chart-card {
+  background: var(--runs-card);
+  border-radius: 12px;
+  box-shadow: var(--runs-shadow);
+  padding: 18px 20px 14px;
+  margin-bottom: 14px;
+}
+.runs-chart-card--main {
+  margin-bottom: 14px;
+}
+.runs-chart-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.runs-chart-card__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--runs-text);
+}
+.runs-chart-card__title--solo {
+  margin-bottom: 8px;
+}
+.runs-mini-kpis {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.runs-mini-kpi__label {
+  font-size: 12px;
+  color: var(--runs-text-muted);
+}
+.runs-mini-kpi__val {
+  font-size: 22px;
+  font-weight: 600;
+  margin-top: 2px;
+  color: var(--runs-text);
+  font-variant-numeric: tabular-nums;
+}
+.runs-chart-area {
+  min-height: 220px;
+}
+.runs-chart-area--short {
+  min-height: 160px;
+}
+.runs-chart-empty {
+  display: grid;
+  place-items: center;
+  height: 160px;
+  color: var(--runs-text-muted);
+  font-size: 13px;
+}
+.runs-duo-charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+@media (max-width: 900px) {
+  .runs-duo-charts { grid-template-columns: 1fr; }
+}
+.runs-duo-charts .runs-chart-card {
+  margin-bottom: 0;
+}
+
+.dash-table-card,
+.runs-table-card {
+  background: var(--runs-card);
+  border-radius: 12px;
+  box-shadow: var(--runs-shadow);
+  overflow: hidden;
+}
+.dash-table-card__head,
+.runs-table-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--runs-border);
+}
+.dash-table-card__head h3,
+.runs-table-card__head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--runs-text);
+}
+.dash-table-card__sub {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--runs-text-muted);
+}
+.dash-table-card__count,
+.runs-table-card__count {
+  font-size: 12px;
+  color: var(--runs-text-muted);
+}
+
+.dash-table .ant-table,
+.runs-table .ant-table {
+  background: transparent;
+}
+.dash-table .ant-table-thead > tr > th,
+.runs-table .ant-table-thead > tr > th {
+  background: #fafbfc !important;
+  color: var(--runs-text-muted) !important;
+  font-size: 12px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--runs-border) !important;
+}
+.dash-table .ant-table-tbody > tr > td,
+.runs-table .ant-table-tbody > tr > td {
+  border-bottom: 1px solid var(--runs-border);
+  color: var(--runs-text-secondary);
+  font-size: 13px;
+}
+.dash-table .ant-table-tbody > tr:hover > td,
+.runs-table .ant-table-tbody > tr:hover > td {
+  background: #fafbfc !important;
+}
+.dash-table__link,
+.runs-table__link {
+  color: var(--runs-purple) !important;
+  text-decoration: none !important;
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0;
+  margin: 0;
+  display: inline;
+  line-height: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.dash-table__link:hover,
+.runs-table__link:hover {
+  text-decoration: underline !important;
+  color: var(--runs-purple-line) !important;
+}
+.dash-table__link[aria-disabled="true"],
+.dash-table__danger-link[aria-disabled="true"] {
+  color: var(--runs-text-muted) !important;
+  cursor: not-allowed;
+  pointer-events: none;
+  text-decoration: none !important;
+}
+.dash-table__mono,
+.runs-table__mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--runs-text) !important;
+}
+.runs-table__pass {
+  color: var(--runs-text);
+  font-weight: 500;
+}
+.dash-table__danger-link,
+.dash-table__danger-btn,
+.runs-table__danger-btn {
+  border: none !important;
+  background: none !important;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--runs-red) !important;
+  cursor: pointer;
+  text-decoration: none !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: none !important;
+  -webkit-appearance: none;
+  appearance: none;
+  line-height: inherit;
+}
+.dash-table__danger-link:disabled,
+.dash-table__danger-link[aria-disabled="true"],
+.dash-table__danger-btn:disabled,
+.runs-table__danger-btn:disabled {
+  color: var(--runs-text-muted) !important;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.dash-table__danger-link:hover:not([aria-disabled="true"]),
+.dash-table__danger-btn:hover:not(:disabled),
+.runs-table__danger-btn:hover:not(:disabled) {
+  text-decoration: underline !important;
+}
+.dash-table-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.dash-table-actions .dash-table__link,
+.dash-table-actions .dash-table__danger-link {
+  font-size: 13px;
+}
+/* AntD link 按钮在 Dashboard 表格内强制紫/红 */
+.dash-table .ant-btn-link:not(.ant-btn-dangerous),
+.dash-table-card .ant-btn-link:not(.ant-btn-dangerous),
+.dash-panel .ant-btn-link:not(.ant-btn-dangerous) {
+  color: var(--runs-purple) !important;
+  padding-inline: 0 !important;
+  height: auto !important;
+  font-weight: 500;
+}
+.dash-table .ant-btn-link.ant-btn-dangerous,
+.dash-table-card .ant-btn-link.ant-btn-dangerous,
+.dash-panel .ant-btn-link.ant-btn-dangerous {
+  color: var(--runs-red) !important;
+  padding-inline: 0 !important;
+  height: auto !important;
+  font-weight: 500;
+}
+.dash-table__danger,
+.runs-table__danger {
+  color: var(--runs-red);
+  font-weight: 600;
+}
+.runs-table__pin {
+  font-size: 11px;
+  color: var(--runs-purple);
+  font-weight: 500;
+}
+
+/* Dashboard 表单卡内控件 */
+.dash-form-card .ant-select-selector {
+  border-radius: 8px !important;
+  border-color: var(--runs-border) !important;
+}
+.dash-form-card .ant-select:hover .ant-select-selector {
+  border-color: var(--runs-purple-line) !important;
+}
+.dash-form-card .ant-select-focused .ant-select-selector {
+  border-color: var(--runs-purple) !important;
+  box-shadow: 0 0 0 2px rgba(124, 92, 252, 0.12) !important;
+}
+.dash-form-card .ant-input,
+.dash-form-card .ant-input-affix-wrapper,
+.dash-form-card textarea.ant-input {
+  border-radius: 8px !important;
+  border-color: var(--runs-border) !important;
+}
+.dash-form-card .ant-segmented {
+  background: var(--runs-bg);
+  border-radius: 8px;
+  padding: 2px;
+}
+.dash-form-card .ant-segmented-item-selected {
+  color: var(--runs-purple) !important;
+  font-weight: 500;
+}
+.dash-form-card .ant-input-number {
+  width: 100%;
+  border-radius: 8px !important;
+  border-color: var(--runs-border) !important;
+}
+.dash-form-card .ant-input-number:hover {
+  border-color: var(--runs-purple-line) !important;
+}
+.dash-form-card .ant-input-number-focused,
+.dash-form-card .ant-input-number:focus-within {
+  border-color: var(--runs-purple) !important;
+  box-shadow: 0 0 0 2px rgba(124, 92, 252, 0.12) !important;
+}
+.dash-form-card .ant-input-number-input {
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+.dash-form-card .ant-switch.ant-switch-checked {
+  background: var(--runs-purple) !important;
+}
+
+/* 发起评测 · 单页居中表单（Coze 注册应用风） */
+.dash-page--centered .dash-page__head {
+  max-width: 960px;
+  margin: 0 auto 8px;
+  text-align: center;
+  justify-content: center;
+}
+.dash-page--centered .dash-page__sub {
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.dash-launch {
+  max-width: 960px;
+  margin: 0 auto;
+}
+.dash-launch-card {
+  margin-bottom: 0;
+}
+.dash-form-section .dash-form-card__title {
+  margin-bottom: 6px;
+}
+.dash-form-section .dash-form-card__desc {
+  margin-bottom: 20px;
+}
+.dash-launch-divider {
+  margin: 8px 0 24px !important;
+  border-color: var(--runs-border) !important;
+}
+.dash-launch-form .ant-form-item-label > label {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--runs-text);
+}
+.dash-launch-form .ant-form-item-label > label.ant-form-item-required::before {
+  color: var(--runs-red) !important;
+}
+.dash-field-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--runs-text-muted);
+}
+.dash-form__link {
+  color: var(--runs-purple);
+  text-decoration: none;
+  font-weight: 500;
+}
+.dash-form__link:hover {
+  text-decoration: underline;
+  color: var(--runs-purple-line);
+}
+.dash-form-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--runs-border);
+}
+.dash-option-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  width: 100%;
+}
+.dash-option-cards .ant-checkbox-wrapper {
+  margin: 0;
+  width: 100%;
+}
+.dash-option-card {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 !important;
+  padding: 14px 16px !important;
+  border: 1px solid var(--runs-border);
+  border-radius: 10px;
+  background: var(--runs-card);
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.dash-option-card:hover {
+  border-color: var(--runs-purple-line);
+}
+.dash-option-card.ant-checkbox-wrapper-checked {
+  border-color: var(--runs-purple);
+  background: var(--runs-purple-soft);
+  box-shadow: 0 0 0 1px rgba(124, 92, 252, 0.12);
+}
+.dash-option-card .ant-checkbox {
+  margin-top: 2px;
+}
+.dash-option-card .ant-checkbox-checked .ant-checkbox-inner {
+  background-color: var(--runs-purple);
+  border-color: var(--runs-purple);
+}
+.dash-option-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.dash-option-card__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--runs-text);
+}
+.dash-option-card__desc {
+  font-size: 12px;
+  color: var(--runs-text-muted);
+  line-height: 1.45;
+}
+.dash-option-empty {
+  padding: 20px;
+  border: 1px dashed var(--runs-border);
+  border-radius: 10px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--runs-text-muted);
+  background: var(--runs-bg);
+}
+.dash-toggle-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border: 1px solid var(--runs-border);
+  border-radius: 10px;
+  background: var(--runs-bg);
+}
+.dash-toggle-card__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--runs-text);
+  margin-bottom: 4px;
+}
+.dash-toggle-card__desc {
+  font-size: 12px;
+  color: var(--runs-text-muted);
+  line-height: 1.45;
+}
+.dash-launch-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0 4px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--runs-bg);
+  border: 1px solid var(--runs-border);
+}
+
+/* Dashboard 表格内 chip / 输入框 */
+.dash-chip {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--runs-bg);
+  border: 1px solid var(--runs-border);
+  font-size: 12px;
+  color: var(--runs-text-secondary);
+  font-family: var(--font-mono);
+  line-height: 1.5;
+  max-width: 100%;
+}
+.dash-chip--fallback {
+  color: var(--runs-text-muted);
+  font-family: var(--font-sans);
+}
+.dash-table .ant-input-number {
+  width: 120px;
+  border-radius: 8px !important;
+  border-color: var(--runs-border) !important;
+  background: var(--runs-card) !important;
+}
+.dash-table .ant-input-number:hover {
+  border-color: var(--runs-purple-line) !important;
+}
+.dash-table .ant-input-number-focused,
+.dash-table .ant-input-number:focus-within {
+  border-color: var(--runs-purple) !important;
+  box-shadow: 0 0 0 2px rgba(124, 92, 252, 0.12) !important;
+}
+.dash-table .ant-input-number-input {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--runs-text);
+}
+.dash-table .dash-table__profile-name {
+  font-weight: 600;
+  color: var(--runs-text);
+  font-size: 13px;
+}
+.dash-table .dash-table__profile-id {
+  font-size: 12px;
+  color: var(--runs-text-muted);
+  font-family: var(--font-mono);
+}
+.dash-table .dash-table__row--dirty > td {
+  background: rgba(124, 92, 252, 0.03) !important;
+}
+.dash-table .dash-table__row--dirty:hover > td {
+  background: rgba(124, 92, 252, 0.06) !important;
+}
+
+/* ---- Run 看板 · 概览 Tab（Coze 风，与评测列表共用 --runs-* token） ---- */
+.run-overview-page {
+  padding: 4px 0 8px;
+  background: transparent;
+  border-radius: 0;
+}
+.runs-kpi-row--overview {
+  grid-template-columns: repeat(3, 1fr);
+}
+@media (min-width: 1200px) {
+  .runs-kpi-row--overview {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+@media (max-width: 720px) {
+  .runs-kpi-row--overview {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.runs-kpi__sub {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--runs-text-muted);
+  line-height: 1.45;
+}
+.runs-kpi--danger .runs-kpi__value {
+  color: var(--runs-red);
+}
+.runs-duo-charts--metrics {
+  margin-bottom: 14px;
+}
+.runs-duo-charts--trio {
+  grid-template-columns: repeat(3, 1fr);
+}
+@media (max-width: 1100px) {
+  .runs-duo-charts--trio {
+    grid-template-columns: 1fr;
+  }
+}
+.runs-metric-card {
+  margin-bottom: 0;
+}
+.runs-chart-empty--compact {
+  height: 120px;
+}
+.run-overview-page .ant-statistic-title {
+  color: var(--runs-text-muted) !important;
+  font-size: 12px !important;
+}
+.run-overview-page .ant-statistic-content {
+  color: var(--runs-text-secondary) !important;
+  font-size: 15px !important;
+}
+.run-overview-page .ant-statistic-content-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Run 看板 · 用例明细 / 版本对比 Tab ---- */
+.run-detail-page {
+  padding: 4px 0 8px;
+  background: transparent;
+  border-radius: 0;
+}
+.run-detail-page .dash-table-card + .dash-table-card,
+.run-detail-page .runs-table-card + .runs-table-card {
+  margin-top: 14px;
+}
+.run-detail-page__toolbar {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--runs-border);
+  background: var(--runs-card);
+}
+.run-detail-page__body {
+  padding: 16px 20px 8px;
+  background: var(--runs-card);
+}
+
+/* Dashboard 筛选条：圆角 pill Select */
+.case-toolbar.dash-filter-bar {
+  padding: 14px 20px;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--runs-border);
+  background: var(--runs-card);
+}
+.case-toolbar.dash-filter-bar .ant-select-selector {
+  border-radius: 999px !important;
+  background: var(--runs-bg) !important;
+  border-color: var(--runs-border) !important;
+  min-height: 32px !important;
+}
+.case-toolbar.dash-filter-bar .ant-select:hover .ant-select-selector {
+  border-color: var(--runs-purple-line) !important;
+}
+.case-toolbar.dash-filter-bar .ant-select-focused .ant-select-selector {
+  border-color: var(--runs-purple) !important;
+  box-shadow: 0 0 0 2px rgba(124, 92, 252, 0.12) !important;
+}
+.case-toolbar.dash-filter-bar .ant-select {
+  width: 128px;
+}
+.case-toolbar.dash-filter-bar .case-toolbar__lead .anticon {
+  color: var(--runs-purple);
+}
+.case-toolbar.dash-filter-bar .ant-btn-link {
+  color: var(--runs-purple) !important;
+}
+
+/* Run 看板 Tab：紫色 active */
+.dash-tabs.ant-tabs-top > .ant-tabs-nav {
+  margin-bottom: 12px;
+}
+.dash-tabs.ant-tabs-top > .ant-tabs-nav::before {
+  border-color: var(--runs-border);
+}
+.dash-tabs .ant-tabs-tab-btn {
+  font-size: 14px;
+  color: var(--runs-text-secondary);
+}
+.dash-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--runs-purple) !important;
+  font-weight: 600;
+}
+.dash-tabs .ant-tabs-ink-bar {
+  background: var(--runs-purple) !important;
+  height: 2px !important;
+}
+
+/* Dashboard 表单白卡 */
+.dash-form-card {
+  background: var(--runs-card);
+  border-radius: 12px;
+  box-shadow: var(--runs-shadow);
+  padding: 20px 24px 24px;
+  margin-bottom: 14px;
+}
+.dash-form-card__title {
+  margin: 0 0 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--runs-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dash-form-card__desc {
+  margin: -8px 0 16px;
+  font-size: 13px;
+  color: var(--runs-text-secondary);
+  line-height: 1.5;
+}
+
+/* Dashboard 白卡分区（详情页 / 对比页通用） */
+.dash-panel {
+  background: var(--runs-card);
+  border-radius: 12px;
+  box-shadow: var(--runs-shadow);
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.dash-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--runs-border);
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.dash-panel__head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--runs-text);
+}
+.dash-panel__body {
+  padding: 16px 20px 20px;
+}
+.dash-panel__body--flush {
+  padding: 0;
+}
+.dash-panel .ant-descriptions-item-label {
+  color: var(--runs-text-muted) !important;
+  font-size: 12px !important;
+}
+.dash-panel .ant-descriptions-item-content {
+  color: var(--runs-text-secondary) !important;
+  font-size: 13px !important;
+}
+.dash-panel .ant-descriptions-title {
+  color: var(--runs-text) !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+}
+
+/* Dashboard 面内主按钮紫色 */
+.app-shell .ant-btn-primary:not(:disabled),
+.dash-page .ant-btn-primary:not(:disabled),
+.run-detail-page .ant-btn-primary:not(:disabled),
+.run-overview-page .ant-btn-primary:not(:disabled) {
+  background: var(--runs-purple) !important;
+  border-color: var(--runs-purple) !important;
+}
+.dash-page .ant-btn-primary:not(:disabled):hover,
+.run-detail-page .ant-btn-primary:not(:disabled):hover,
+.run-overview-page .ant-btn-primary:not(:disabled):hover,
+.app-shell .ant-btn-primary:not(:disabled):hover {
+  filter: brightness(1.05);
+}
+.dash-page .ant-btn-default,
+.run-detail-page .ant-btn-default {
+  border-color: var(--runs-border) !important;
+  background: var(--runs-card) !important;
+}
+
+/* Dashboard 面内 Segmented */
+.dash-page .ant-segmented,
+.run-detail-page .ant-segmented {
+  background: var(--runs-bg);
+  border-radius: 8px;
+  padding: 2px;
+}
+.dash-page .ant-segmented-item-selected,
+.run-detail-page .ant-segmented-item-selected {
+  color: var(--runs-purple) !important;
+  font-weight: 500;
+}
+

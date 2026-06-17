@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Result, Space } from "antd";
+import { Alert, Result, Spin } from "antd";
 import { Link, useParams } from "react-router-dom";
 import PairwiseCalibrateModal from "../components/PairwiseCalibrateModal";
 import { PairwiseCaseTable } from "../components/PairwiseCaseTable";
@@ -13,25 +13,29 @@ export default function PairwiseDetailPage() {
 
   if (!pw.detail) {
     return pw.detailError ? (
-      <Result
-        status="warning"
-        title="无法加载对比详情"
-        subTitle={pw.detailError}
-        extra={
-          <Link to="/pairwise">
-            <Button>返回 Pairwise 列表</Button>
-          </Link>
-        }
-      />
+      <div className="dash-page">
+        <Result
+          status="warning"
+          title="无法加载对比详情"
+          subTitle={pw.detailError}
+          extra={
+            <Link to="/pairwise" className="dash-table__link">
+              返回 Pairwise 列表
+            </Link>
+          }
+        />
+      </div>
     ) : (
-      <Card loading />
+      <div className="dash-page" style={{ display: "grid", placeItems: "center", paddingTop: 80 }}>
+        <Spin size="large" />
+      </div>
     );
   }
 
   const detail = pw.detail;
 
   return (
-    <Space direction="vertical" size={16} style={{ display: "flex" }}>
+    <div className="dash-page">
       {detail.status === "running" && (
         <PairwiseDetailRunningCard
           detail={detail}
@@ -91,6 +95,6 @@ export default function PairwiseDetailPage() {
         onClose={() => pw.setCalibrateVerdict(null)}
         onSaved={pw.load}
       />
-    </Space>
+    </div>
   );
 }

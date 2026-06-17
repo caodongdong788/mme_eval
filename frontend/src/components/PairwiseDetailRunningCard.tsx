@@ -1,6 +1,7 @@
-import { Card, Spin } from "antd";
+import { Spin } from "antd";
 import { LoadingOutlined } from "@ant-design/icons";
 import type { PairwiseDetail } from "../api/index";
+import { DashPanel } from "./DashPanel";
 
 export function PairwiseDetailRunningCard({
   detail,
@@ -18,7 +19,7 @@ export function PairwiseDetailRunningCard({
   pct: number;
 }) {
   return (
-    <Card className="pw-running" styles={{ body: { padding: 20 } }}>
+    <DashPanel className="pw-running">
       <div className="pw-running__head">
         <Spin indicator={<LoadingOutlined style={{ fontSize: 20 }} spin />} />
         <div className="pw-running__meta">
@@ -38,6 +39,6 @@ export function PairwiseDetailRunningCard({
           style={totalCases ? { width: `${pct}%` } : undefined}
         />
       </div>
-    </Card>
+    </DashPanel>
   );
 }

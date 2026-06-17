@@ -18,6 +18,7 @@ export function buildCaseColumns(runId: number, tagLabel: (k: string) => string)
         <Link
           to={`/runs/${runId}/cases/${r.sample_id}`}
           state={{ from: { to: `/runs/${runId}`, state: { tab: "detail" }, label: "用例列表" } }}
+          className="dash-table__link"
         >
           {s || r.sample_id}
         </Link>
@@ -112,7 +113,7 @@ export function buildCaseColumns(runId: number, tagLabel: (k: string) => string)
       render: (url?: string | null) =>
         url ? (
           <Tooltip title="在 Langfuse 打开该用例的完整流程追踪">
-            <a href={url} target="_blank" rel="noreferrer">
+            <a href={url} target="_blank" rel="noreferrer" className="dash-table__link">
               查看链路
             </a>
           </Tooltip>

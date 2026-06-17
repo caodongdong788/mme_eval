@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { useRunsList } from "./useRunsList";
-import { api } from "../api/index";
+import { api, type RunSummary } from "../api/index";
 
 vi.mock("../api/index", () => ({
   api: {
@@ -20,23 +20,31 @@ vi.mock("antd", () => ({
 
 const mockedApi = vi.mocked(api);
 
-const run = (id: number) =>
+const run = (id: number): RunSummary =>
   ({
     id,
+    run_slug: `run-${id}`,
     name: `run-${id}`,
     status: "success",
+    adapter_type: "openai_compat",
     pass_rate: 0.9,
     passed: 9,
     total: 10,
     hard_gate_failed: 0,
     n_runs: 1,
-  }) as any;
+    error_msg: "",
+    has_traces: true,
+    pinned: false,
+  }) as RunSummary;
 
 describe("useRunsList onDelete", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedApi.listRuns.mockResolvedValue([run(1), run(2)]);
-    mockedApi.getProgress.mockResolvedValue({ percent: 0, done: 0, total: 0 });
+    mockedApi.getProgress.mockResolvedValue({
+      status: "running",
+      progress: { percent: 0, done: 0, total: 0 },
+    });
     mockedApi.deleteRun.mockResolvedValue(undefined);
   });
 

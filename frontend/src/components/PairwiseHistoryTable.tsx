@@ -1,26 +1,30 @@
-import { Button, Card, Popconfirm, Progress, Space, Table, Tag, Tooltip, Typography } from "antd";
+import { DeleteOutlined } from "@ant-design/icons";
+import { Popconfirm, Progress, Space, Table, Tag, Tooltip, Typography } from "antd";
 import type { PairwiseComparison } from "../api/index";
+import { DashTableActions, DashTableDangerLink, DashTableNavLink } from "./DashTableActions";
 
 const { Text } = Typography;
 
 export function PairwiseHistoryTable({
   history,
-  onView,
   onSaveNote,
   onDelete,
 }: {
   history: PairwiseComparison[];
-  onView: (id: number) => void;
   onSaveNote: (id: number, value: string) => void;
   onDelete: (id: number) => void;
 }) {
   return (
-    <Card title="历史对比">
+    <div className="dash-table-card">
+      <div className="dash-table-card__head">
+        <h3>历史对比</h3>
+      </div>
       <Table<PairwiseComparison>
+        className="dash-table"
         rowKey="id"
         dataSource={history}
         size="small"
-        pagination={{ pageSize: 10 }}
+        pagination={{ pageSize: 10, showTotal: (t) => `共 ${t} 条` }}
         columns={[
           { title: "ID", dataIndex: "id", width: 70 },
           {
@@ -69,7 +73,7 @@ export function PairwiseHistoryTable({
                   <Space direction="vertical" size={2} style={{ minWidth: 170, display: "flex" }}>
                     <Tag color="blue">{total ? "进行中" : "准备中"}</Tag>
                     <Tooltip title={`${done}/${total || "…"}`}>
-                      <Progress percent={pct} size="small" status="active" />
+                      <Progress percent={pct} size="small" strokeColor="var(--runs-purple)" />
                     </Tooltip>
                   </Space>
                 );
@@ -93,10 +97,8 @@ export function PairwiseHistoryTable({
             title: "操作",
             width: 120,
             render: (_, r) => (
-              <Space size={4}>
-                <Button type="link" size="small" onClick={() => onView(r.id)}>
-                  查看
-                </Button>
+              <DashTableActions>
+                <DashTableNavLink to={`/pairwise/${r.id}`}>查看</DashTableNavLink>
                 <Popconfirm
                   title="确认删除该对比？"
                   description="将连带删除其逐用例结论，不可恢复。"
@@ -105,15 +107,15 @@ export function PairwiseHistoryTable({
                   okButtonProps={{ danger: true }}
                   onConfirm={() => onDelete(r.id)}
                 >
-                  <Button type="link" size="small" danger>
-                    删除
-                  </Button>
+                  <DashTableDangerLink>
+                    <DeleteOutlined /> 删除
+                  </DashTableDangerLink>
                 </Popconfirm>
-              </Space>
+              </DashTableActions>
             ),
           },
         ]}
       />
-    </Card>
+    </div>
   );
 }

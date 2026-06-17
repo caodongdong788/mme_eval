@@ -2,7 +2,7 @@
 
 exports[`FilterToolbar > matches snapshot with active filters and pending queue 1`] = `
 <div
-  class="case-toolbar"
+  class="case-toolbar dash-filter-bar"
 >
   <span
     class="case-toolbar__lead"
@@ -493,15 +493,13 @@ exports[`FilterToolbar > matches snapshot with active filters and pending queue 
   <div
     class="case-toolbar__right"
   >
-    <button
-      class="ant-btn css-dev-only-do-not-override-mncuj7 ant-btn-link ant-btn-color-link ant-btn-variant-link ant-btn-sm"
-      style="padding-inline: 0px;"
-      type="button"
+    <a
+      class="dash-table__link"
+      role="button"
+      tabindex="0"
     >
-      <span>
-        重置
-      </span>
-    </button>
+      重置
+    </a>
     <span
       class="case-toolbar__switch"
     >
@@ -533,7 +531,7 @@ exports[`FilterToolbar > matches snapshot with active filters and pending queue 
 
 exports[`FilterToolbar > matches snapshot with no active filters 1`] = `
 <div
-  class="case-toolbar"
+  class="case-toolbar dash-filter-bar"
 >
   <span
     class="case-toolbar__lead"

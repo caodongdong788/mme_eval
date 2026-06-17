@@ -1,5 +1,6 @@
-import { Card, Descriptions, List, Tag, Typography } from "antd";
+import { Descriptions, List, Tag, Typography } from "antd";
 import { DIM_LABEL } from "../labels";
+import { DashPanel } from "./DashPanel";
 
 const { Text } = Typography;
 
@@ -17,7 +18,7 @@ export function CaseDimensionScoresCard({
   highlightKeywords = [],
 }: CaseDimensionScoresCardProps) {
   return (
-    <Card title="维度分 / 扣分原因" size="small">
+    <DashPanel title="维度分 / 扣分原因">
       <Descriptions column={1} size="small">
         {Object.entries(dimensionScores).map(([k, v]) => {
           const max = dimensionMax[k];
@@ -42,6 +43,6 @@ export function CaseDimensionScoresCard({
           命中关键词：{highlightKeywords.map((k) => <Tag key={k}>{k}</Tag>)}
         </div>
       )}
-    </Card>
+    </DashPanel>
   );
 }

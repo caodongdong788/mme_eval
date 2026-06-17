@@ -23,11 +23,14 @@ from ..schemas import (
 from ..settings import get_settings
 
 PROFILE_LABELS_ZH = {
+    # 与 frontend/src/labels.ts PROFILE_LABEL 保持同步（门禁：npm run check:standards）
     "default": "默认（兜底）",
     "red_flag": "红旗分诊",
     "adversarial": "对抗",
     "knowledge": "知识科普",
     "rehab": "康复随访",
+    "population": "人群特异",
+    "agent": "Agent 问诊",
 }
 
 

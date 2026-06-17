@@ -2,23 +2,21 @@
 
 exports[`CaseDimensionScoresCard > matches snapshot 1`] = `
 <div
-  class="ant-card ant-card-bordered ant-card-small css-dev-only-do-not-override-mncuj7"
+  class="dash-panel"
 >
   <div
-    class="ant-card-head"
+    class="dash-panel__head"
   >
     <div
-      class="ant-card-head-wrapper"
+      class="dash-panel__title-wrap"
     >
-      <div
-        class="ant-card-head-title"
-      >
+      <h3>
         维度分 / 扣分原因
-      </div>
+      </h3>
     </div>
   </div>
   <div
-    class="ant-card-body"
+    class="dash-panel__body"
   >
     <div
       class="ant-descriptions ant-descriptions-small css-dev-only-do-not-override-mncuj7"

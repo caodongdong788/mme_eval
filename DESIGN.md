@@ -1,9 +1,12 @@
 ---
 name: MME · Agent 评测平台
-description: 一套面向内部医疗 chatbot 评测的「极致留白 / 杂志级排版」视觉系统——纯白底、无边框无阴影、超大核心指标、黑白印刷质感、圆点状态、降噪图表，让数据当主角，界面退成留白上的一行字。墨黑 ink 是唯一会亮起的交互强调色（去 teal，纯黑白印刷）。
+description: 一套面向内部医疗 chatbot 评测的「极致留白 / 杂志级排版」视觉系统——纯白底、无边框无阴影、超大核心指标、黑白印刷质感、圆点状态、降噪图表；墨黑 ink 主操作 + Muted Teal 导航链接（双灯规则）。
 colors:
   primary: "#111827"
   primary-soft: "#F3F4F6"
+  link: "#0D6B5C"
+  link-hover: "#0A5549"
+  link-tint: "rgba(13, 107, 92, 0.06)"
   ink: "#111827"
   ink-secondary: "#374151"
   muted: "#9CA3AF"
@@ -126,29 +129,31 @@ components:
 
 ## 1. Overview
 
-**Creative North Star: "The Clinical Instrument — Ink & Whitespace（临床仪器 · 墨与留白）"**
+**Creative North Star: Dashboard Surface（全站统一）**
 
-它仍是一台**仪器**，但这一版把外壳几乎抹去：没有卡片、没有边框、没有阴影、没有灰底分区——只剩**纯白的纸**、**夸张的留白**和**像杂志大标题一样的核心指标**。层级不再靠发丝边框与表面微差，而是靠**间距的呼吸**与**字号的极致对比**：顶部综合分 / 通过率用 52px 近黑大字主导视线，副标题与单位退到 13px 浅灰。数据表格被还原成杂志正文——无竖线、无斑马纹、无表头底色，只用极弱的水平发丝线分行、用充裕的单元内边距换取阅读的清爽。图表也融进白底，关掉一切网格与轴线，只留浅灰刻度文字与调细的线/柱。
-
-它**拒绝**：花哨营销落地页（大渐变 / 插画 / 滚动动效轰炸）；老旧医院系统（灰蓝死板 / 拥挤无层级）；玩具化（糖果色 / 过度圆角 / 拟物）；大屏炫技（为冲击牺牲可读性的图表墙）。
-
-唯一的「强调」是墨黑 ink `{colors.primary}`（#111827）——它是界面里**唯一会亮起的那盏灯**（链接、主按钮、选中、聚焦、图表的单一强调序列），但本身就是黑白印刷里的黑。去掉了 teal，整页是真正的**黑白印刷品**。
+平台采用 Coze 风 **Dashboard Surface**：浅灰底 `#F3F4F8`、白卡片（圆角 12px + 轻阴影）、紫色 `#7C5CFC` 作 Tab / 主按钮 / 表格链接 / 侧栏选中 / 图表强调。覆盖侧栏、所有列表/表单页、Run 看板、用例钻取、Pairwise 对比详情。
 
 **Key Characteristics:**
-- 纯白底 `#FFFFFF`，无卡片边框 / 无卡片阴影 / 无灰底分区；模块靠**大留白**区隔。
-- 核心指标 40px、Regular、近黑 `{colors.ink}`、系统无衬线——克制而轻盈的大字（不压成黑体），单行不换行。
-- 表格无竖网格 / 无斑马纹 / 无表头底色，仅 1px `{colors.hairline}` 水平行线 + 大单元内边距。
-- 状态不用面状彩色标签，改 **6px 纯色圆点 + 深灰文字**（文字保留 → 兼顾色觉无障碍）。
-- 图表降噪：无 splitLine、隐藏轴线 / 刻度，浅灰轴文字，调细线柱，冷灰 + 单一墨黑强调（去 teal）。
-- 墨黑 ink 作「唯一亮灯」（去 teal）；ID / 分数 / 列内数字仍用 JetBrains Mono 保表格对齐。
+- 浅灰画布 + 白卡片 + 轻阴影；紫色强调、Teal 作次要图表序列。
+- 侧栏白底、紫色选中项、品牌标紫渐变。
+- 表格灰表头 `#FAFBFC`、紫链接、pill 圆角筛选条。
+- KPI 白卡网格；状态仍用 6px 圆点 + 文字。
+- 表内数字 JetBrains Mono + tnum。
+- 正文导航链（面包屑 / 表内链）紫色；外链仍附 ↗。
 
 ## 2. Colors
 
-纯粹的黑白印刷纸面——没有专色，连那盏「灯」也是墨黑：靠字重、留白与对比说话，而非颜色。
+纯粹的黑白印刷纸面为底，靠字重、留白与对比说话；导航链接单独用低饱和 Teal 提升可发现性。
 
-### Primary（交互强调 = 墨黑）
-- **Ink Accent**（`{colors.primary}` · #111827）：唯一交互强调色——链接、主按钮（实底黑 + 白字）、选中态、聚焦环、图表强调序列。它就是黑白印刷里的黑，覆盖率仍保持极低。
-- **Ink Wash**（`{colors.primary-soft}` · #F3F4F6）：极浅中性灰，仅用于侧栏选中项等极少量轻填充（不再是 teal 回声）。
+### Primary（主操作 = 墨黑）
+- **Ink Accent**（`{colors.primary}` · #111827）：主按钮（实底黑 + 白字）、聚焦环、图表主强调序列。覆盖率极低。
+- **Ink Wash**（`{colors.primary-soft}` · #F3F4F6）：极浅中性灰，用于 hover 等极少量轻填充。
+
+### Link（导航 = Muted Teal）
+- **Link**（`{colors.link}` · #0D6B5C）：正文内链、操作型链接（`Button type="link"`）、面包屑跳转。默认下划线，`text-underline-offset` 3px。
+- **Link Hover**（`{colors.link-hover}` · #0A5549）：链接 hover 色。
+- **Link Tint**（`{colors.link-tint}` · rgba(13,107,92,0.06)）：侧栏选中项极淡底。
+- **外链**：`target="_blank"` 在主内容区自动附 ↗；侧栏 Menu 无下划线、无 Teal。
 
 ### Neutral（黑白印刷骨架）
 - **Ink**（`{colors.ink}` · #111827）：近黑墨色，承载标题、核心指标与正文主字。
@@ -166,11 +171,13 @@ components:
 - **Chart Accent / Ink / Muted / Faint**（#111827 / #6B7280 / #9CA3AF / #E5E7EB）：图表全冷灰阶单色——主强调序列用墨黑 #111827，次级序列用 #6B7280 与之拉开层次（去 teal）。
 
 ### Named Rules
-**The One Lamp Rule（唯一亮灯）.** 墨黑 ink 是界面唯一交互强调色（链接 / 主按钮 / 选中 / 聚焦 / 图表强调），覆盖率极低。**禁止**任何品牌彩色强调（含 teal）；任何「可点」信号都用墨黑 + 留白 / hover 反馈表达。
+**The Dashboard-Everywhere Rule（全站 Dashboard）.** 侧栏、主内容、用例钻取、资源与对比页 MUST 同一套灰底 + 白卡 + 紫强调，禁止在同一产品内混用「无边框杂志表」与「灰表头白卡表」。
+
+**The Purple-Lamp Rule（紫色强调）.** 紫色管主按钮 / Tab / 侧栏选中 / 表格链接 / 面包屑；状态圆点仍用 pass/warn/fail 语义色。
 
 **The Status-Not-Just-Color Rule（状态不靠纯色）.** 通过 / 失败 / 稳定性 / 红旗等状态**必须**同时带文字（圆点 + 深灰文字），绝不只靠红绿圆点区分。
 
-**The Ink & Paper Rule（墨与纸）.** 除三枚语义圆点（pass/warn/fail）外，全页只有近黑 / 深灰 / 浅灰 / 纯白，无任何品牌彩色（含 teal）。**禁止**面状彩色填充（标签、徽章、色块背景）。
+**The Ink & Paper Rule（墨与纸）.** 除语义圆点（pass/warn/fail）与导航链接色外，全页只有近黑 / 深灰 / 浅灰 / 纯白。**禁止**面状彩色填充（标签、徽章、色块背景）。
 
 ## 3. Typography
 
@@ -239,7 +246,26 @@ components:
 
 ### Navigation
 - Sider / Header：纯白底，仅 1px `{colors.hairline}` 分隔；header 高 56px。
-- Menu：选中项 Ink Wash 浅灰底 + 墨黑字 + 8px 圆角；未选中 `{colors.ink-secondary}`，hover 极浅灰底；分组标题用 Label。
+- Menu：选中项 Ink Wash 浅灰底 + 墨黑字 + 8px 圆角；未选中 `{colors.ink-secondary}`、无下划线，hover 极浅灰底；分组标题用 Label；**不受 Link Teal 规则影响**。
+
+### 评测列表页（Runs · Coze 风概览区）
+- **范围**：仅 `/runs` 主内容区（`.dash-page` / `.runs-page`）；**侧栏保持 Ink & Whitespace**。
+- **表面**：浅灰底 `#F3F4F8` + 白卡片圆角 12px + 轻阴影；强调色 `#7C5CFC`（紫）用于 Tab 选中、主按钮、图表、表格链接。
+- **结构**：顶栏 KPI 四卡 → 筛选 Tab → 通过率趋势图 → 双列副图 → 评测记录表。
+- **Token**：`theme.ts` → `palette.dashboard` 与 `styles.css` → `--runs-*` / `--dash-*` 镜像。
+
+### Dashboard Surface（全站统一）
+- **范围**：侧栏 + 顶栏 + **所有**路由主内容（评测 / 资源 / 对比 / 用例钻取）。
+- **页面壳**：`DashboardPageShell` 或 `.dash-page`；详情分区用 `DashPanel`（`.dash-panel`）。
+- **侧栏**：白底、紫渐变品牌标、Menu 选中 `purpleSoft` + 紫字。
+- **表格**：`.dash-table-card` / `.dash-panel` + `.dash-table`；操作列用 `DashTableActions` + `DashTableLink`（紫）/ `DashTableDangerLink`（红）。
+- **筛选**：`.case-toolbar.dash-filter-bar` pill Select；profile 标签用 `.dash-chip`。
+- **Token**：`palette.dashboard` ↔ `--runs-*` / `--dash-*`。
+
+### Run 看板 · 概览 Tab
+- **范围**：`.run-overview-page`（`/runs/:id` 概览 Tab 内容区）；侧栏与页头（RunDashboardHeader）保持原风格。
+- **结构**：6 项 KPI 白卡 → 延迟/Token 双卡 → 三列图表（分层级、四模块、失败标签）。
+- **图表色**：紫柱 + Teal 折线 / 饼图，与评测列表共用 `palette.dashboard`。
 - 品牌标记：30×30 圆角方块，墨黑渐变（#111827 → #374151，去 teal）。
 
 ### Charts（Recharts · 降噪）
@@ -250,7 +276,7 @@ components:
 
 ### Do:
 - **Do** 用留白与字号对比（52px ↔ 13px）表达层级，区块间 48–64px 呼吸。
-- **Do** 纯白底，全页是黑白印刷；墨黑 ink 作唯一交互强调色，覆盖率极低。
+- **Do** 纯白底，全页黑白印刷为底；墨黑管主操作，Muted Teal 管导航链接（默认下划线）。
 - **Do** 状态用 6px 圆点 + 深灰文字（保留文字，兼顾色觉差异）。
 - **Do** 表格无竖线 / 无斑马 / 无表头底色，仅水平发丝线 + 大单元内边距。
 - **Do** 图表关网格、隐藏轴线、调细线柱、冷灰 + 单一墨黑强调。
@@ -260,6 +286,29 @@ components:
 - **Don't** 给卡片 / KPI / 区块 / 按钮 / 标签 / 表格行加边框或阴影（行底发丝线、浮层阴影除外）。
 - **Don't** 用面状彩色 Tag / Badge / 色块背景表达状态或分类。
 - **Don't** 用灰底分区或竖网格线切割内容——用留白。
-- **Don't** 引入任何品牌彩色强调（含 teal）；任何可点信号都用墨黑 + 留白 / hover。
+- **Don't** 让链接与正文同色且无下划线（不可发现）。
+- **Don't** 引入大面积品牌色块或渐变。
 - **Don't** 做花哨营销落地页 / 老旧医院系统 / 玩具化 / 大屏炫技（呼应 PRODUCT.md anti-reference）。
 - **Don't** 用纯红绿圆点而不配文字；**Don't** 把表内数字用比例字体破坏列对齐。
+
+## 7. Governance（规范与门禁）
+
+设计与实现通过以下链路互引，**改色板须四处同步**（`DESIGN.md` → `.impeccable/design.json` → `frontend/src/styles.css` → `frontend/src/theme.ts`）。
+
+| 文档 / 代码 | 角色 |
+|-------------|------|
+| `PRODUCT.md` | 战略、anti-reference 红线 |
+| 本文件 `DESIGN.md` | 视觉命名规则、Dashboard / Ink 双灯 |
+| `.cursor/rules/frontend-workflow.mdc` | 开发五步流程、目录分层、组件硬规则 |
+| `frontend/src/styles.css` | CSS token 单一源（`:root` + `--runs-*`） |
+| `frontend/src/theme.ts` | JS token 镜像（`palette` / `palette.dashboard`） |
+| `frontend/src/labels.ts` | 领域中文标签；`PROFILE_LABEL` 与 `server/services/platform_config.PROFILE_LABELS_ZH` 同步 |
+
+**自动门禁**（触达 `frontend/**` 变更后 MUST 全绿）：
+
+```bash
+cd frontend && npm run verify
+# 或仓库根：scripts/verify_frontend.sh
+```
+
+`check:standards` 校验：散落 hex、禁止第二 UI 框架、`pages/` 分层、`styles.css`↔`theme.ts` 镜像、`PROFILE_LABEL` 前后端一致。详见 `frontend-workflow.mdc` §5。

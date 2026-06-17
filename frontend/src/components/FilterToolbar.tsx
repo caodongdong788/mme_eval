@@ -1,6 +1,7 @@
 import { Dispatch, SetStateAction } from "react";
-import { Button, Select, Switch } from "antd";
+import { Select, Switch } from "antd";
 import { FilterOutlined } from "@ant-design/icons";
+import { DashTableLink } from "./DashTableActions";
 
 export type CaseFilters = Record<string, string | undefined>;
 
@@ -28,7 +29,7 @@ export function FilterToolbar({
   resetFilters,
 }: FilterToolbarProps) {
   return (
-    <div className="case-toolbar">
+    <div className="case-toolbar dash-filter-bar">
       <span className="case-toolbar__lead">
         <FilterOutlined />
         筛选
@@ -95,9 +96,7 @@ export function FilterToolbar({
       />
       <div className="case-toolbar__right">
         {hasActiveFilters && (
-          <Button type="link" size="small" onClick={resetFilters} style={{ paddingInline: 0 }}>
-            重置
-          </Button>
+          <DashTableLink onClick={resetFilters}>重置</DashTableLink>
         )}
         <span className="case-toolbar__switch">
           <Switch

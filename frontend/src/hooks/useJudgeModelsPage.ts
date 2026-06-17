@@ -5,7 +5,7 @@ import { useAsyncData } from "./useAsyncData";
 import { useEditModal } from "./useEditModal";
 
 export function useJudgeModelsPage() {
-  const { data: list, loading, reload } = useAsyncData(() => api.listJudgeModels(), []);
+  const { data: list, loading, error, reload } = useAsyncData(() => api.listJudgeModels(), []);
   const models = list ?? [];
   const modal = useEditModal<number>();
 
@@ -68,6 +68,8 @@ export function useJudgeModelsPage() {
   return {
     models,
     loading,
+    loadError: error,
+    reload,
     open: modal.open,
     setOpen: modal.setOpen,
     editId: modal.editId,

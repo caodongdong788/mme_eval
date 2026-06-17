@@ -3,10 +3,12 @@ import { api, selectableBenchmarks, TrendPoint } from "../api/index";
 import { useAsyncData } from "./useAsyncData";
 
 export function useTrendsPage() {
-  const { data: benchmarks, loading: loadingBenchmarks } = useAsyncData(
-    () => api.listBenchmarks().then(selectableBenchmarks),
-    []
-  );
+  const {
+    data: benchmarks,
+    loading: loadingBenchmarks,
+    error: benchmarksError,
+    reload: reloadBenchmarks,
+  } = useAsyncData(() => api.listBenchmarks().then(selectableBenchmarks), []);
   const [benchmarkId, setBenchmarkId] = useState<number | undefined>();
 
   useEffect(() => {
@@ -15,7 +17,12 @@ export function useTrendsPage() {
     }
   }, [benchmarks, benchmarkId]);
 
-  const { data: points, loading: loadingTrends } = useAsyncData(
+  const {
+    data: points,
+    loading: loadingTrends,
+    error: trendsError,
+    reload: reloadTrends,
+  } = useAsyncData(
     () =>
       benchmarkId != null
         ? api.getTrends(benchmarkId).then((d) => d.points)
@@ -42,11 +49,19 @@ export function useTrendsPage() {
     [points]
   );
 
+  const loadError = benchmarksError ?? (benchmarkId != null ? trendsError : null);
+  const reload = () => {
+    reloadBenchmarks();
+    if (benchmarkId != null) reloadTrends();
+  };
+
   return {
     benchmarks: benchmarks ?? [],
     benchmarkId,
     setBenchmarkId,
     chartData,
     loading: loadingBenchmarks || loadingTrends,
+    loadError,
+    reload,
   };
 }

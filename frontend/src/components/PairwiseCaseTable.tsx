@@ -1,8 +1,10 @@
-import { Button, Card, Select, Table, Tag, Typography } from "antd";
+import { Select, Table, Tag, Typography } from "antd";
 import { FilterOutlined } from "@ant-design/icons";
 import type { PairwiseCaseVerdict, PairwiseDetail } from "../api/index";
 import { DIM_LABEL } from "../labels";
 import type { usePairwiseDetail } from "../hooks/usePairwiseDetail";
+import { DashTableLink } from "./DashTableActions";
+import { DashPanel } from "./DashPanel";
 import { PairwiseExpandedRow } from "./PairwiseExpandedRow";
 import {
   PAIRWISE_CONFIDENCE_HINT,
@@ -79,8 +81,8 @@ export function PairwiseCaseTable({
   | "runBName"
 >) {
   return (
-    <Card title="逐用例对比">
-      <div className="case-toolbar">
+    <DashPanel title="逐用例对比" bodyClassName="dash-panel__body--flush">
+      <div className="case-toolbar dash-filter-bar">
         <span className="case-toolbar__lead">
           <FilterOutlined />
           筛选
@@ -109,19 +111,11 @@ export function PairwiseCaseTable({
           ]}
         />
         <div className="case-toolbar__right">
-          {hasActiveFilters && (
-            <Button
-              type="link"
-              size="small"
-              onClick={resetFilters}
-              style={{ paddingInline: 0 }}
-            >
-              重置
-            </Button>
-          )}
+          {hasActiveFilters && <DashTableLink onClick={resetFilters}>重置</DashTableLink>}
         </div>
       </div>
       <Table<PairwiseCaseVerdict>
+        className="dash-table"
         rowKey="sample_id"
         dataSource={filtered}
         size="small"
@@ -169,9 +163,7 @@ export function PairwiseCaseTable({
             title: "操作",
             width: 72,
             render: (_, r) => (
-              <Button type="link" size="small" onClick={() => setCalibrateVerdict(r)}>
-                校准
-              </Button>
+              <DashTableLink onClick={() => setCalibrateVerdict(r)}>校准</DashTableLink>
             ),
           },
           {
@@ -194,6 +186,6 @@ export function PairwiseCaseTable({
           ),
         }}
       />
-    </Card>
+    </DashPanel>
   );
 }

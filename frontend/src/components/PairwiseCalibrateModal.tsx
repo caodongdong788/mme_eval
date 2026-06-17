@@ -64,7 +64,7 @@ export default function PairwiseCalibrateModal({
       message.success("已保存人工校准，报告统计已更新");
       onSaved();
       onClose();
-    } catch (e: any) {
+    } catch (e: unknown) {
       message.error(formatApiError(e, "保存失败"));
     } finally {
       setSaving(false);
@@ -78,7 +78,7 @@ export default function PairwiseCalibrateModal({
       message.success("已恢复机器判定");
       onSaved();
       onClose();
-    } catch (e: any) {
+    } catch (e: unknown) {
       message.error(formatApiError(e, "恢复失败"));
     }
   };

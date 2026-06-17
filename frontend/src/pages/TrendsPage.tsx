@@ -1,4 +1,4 @@
-import { Card, Empty, Select, Space } from "antd";
+import { Empty, Select } from "antd";
 import {
   ErrorBar,
   Legend,
@@ -10,14 +10,17 @@ import {
   YAxis,
 } from "recharts";
 import { palette } from "../theme";
+import { AsyncLoadError } from "../components/AsyncLoadError";
+import { DashboardPageShell } from "../components/DashboardPageShell";
 import { useTrendsPage } from "../hooks/useTrendsPage";
 
 export default function TrendsPage() {
-  const { benchmarks, benchmarkId, setBenchmarkId, chartData } = useTrendsPage();
+  const { benchmarks, benchmarkId, setBenchmarkId, chartData, loadError, reload } = useTrendsPage();
 
   return (
-    <Card
+    <DashboardPageShell
       title="跨 run 趋势看板"
+      sub="同一 benchmark 下多次评测的通过率与综合分走势"
       extra={
         <Select
           style={{ width: 320 }}
@@ -27,24 +30,56 @@ export default function TrendsPage() {
         />
       }
     >
-      {chartData.length === 0 ? (
-        <Empty description="该 benchmark 暂无成功的评测记录" />
-      ) : (
-        <Space direction="vertical" style={{ width: "100%" }} size={24}>
+      <div className="runs-chart-card runs-chart-card--main">
+        {loadError ? (
+          <AsyncLoadError message={loadError} onRetry={reload} />
+        ) : chartData.length === 0 ? (
+          <Empty description="该 benchmark 暂无成功的评测记录" />
+        ) : (
           <ResponsiveContainer width="100%" height={360}>
             <LineChart data={chartData}>
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: palette.muted, fontSize: 12 }} />
-              <YAxis domain={[0, 100]} unit="%" axisLine={false} tickLine={false} tick={{ fill: palette.muted, fontSize: 12 }} />
+              <XAxis
+                dataKey="name"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: palette.dashboard.textMuted, fontSize: 12 }}
+              />
+              <YAxis
+                domain={[0, 100]}
+                unit="%"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fill: palette.dashboard.textMuted, fontSize: 12 }}
+              />
               <RTooltip />
               <Legend iconType="circle" />
-              <Line type="monotone" dataKey="通过率" stroke={palette.chart.teal} strokeWidth={1.5} dot={{ r: 2.5 }}>
-                <ErrorBar dataKey="通过率CI" width={4} strokeWidth={1} stroke={palette.chart.muted} direction="y" />
+              <Line
+                type="monotone"
+                dataKey="通过率"
+                stroke={palette.dashboard.purple}
+                strokeWidth={1.5}
+                dot={{ r: 2.5 }}
+              >
+                <ErrorBar
+                  dataKey="通过率CI"
+                  width={4}
+                  strokeWidth={1}
+                  stroke={palette.dashboard.textMuted}
+                  direction="y"
+                />
               </Line>
-              <Line type="monotone" dataKey="综合分" stroke={palette.chart.ink} strokeWidth={1.5} dot={{ r: 2.5 }} connectNulls />
+              <Line
+                type="monotone"
+                dataKey="综合分"
+                stroke={palette.dashboard.teal}
+                strokeWidth={1.5}
+                dot={{ r: 2.5 }}
+                connectNulls
+              />
             </LineChart>
           </ResponsiveContainer>
-        </Space>
-      )}
-    </Card>
+        )}
+      </div>
+    </DashboardPageShell>
   );
 }

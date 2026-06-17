@@ -1,7 +1,7 @@
 import type { ThemeConfig } from "antd";
 
-// 统一调色板（与 styles.css 的 CSS 变量镜像一致，禁止各页散落硬编码色值）。
-// 设计语言：Ink & Whitespace —— 纯白底 / 无边框无阴影 / 大留白 / 圆点状态 / 降噪图表。
+// 统一调色板（与 styles.css CSS 变量镜像；禁止业务代码散落 hex）。
+// Ink 层 + palette.dashboard（--runs-*）；门禁：npm run check:standards · 规范：frontend-workflow.mdc
 export const palette = {
   bg: "#FFFFFF",
   panel: "#FFFFFF",
@@ -11,10 +11,30 @@ export const palette = {
   inkSecondary: "#374151",
   muted: "#9CA3AF",
   axis: "#D1D5DB",
-  // 交互强调（唯一亮灯）：墨黑单色，去 teal（黑白印刷质感）
+  // 交互强调：墨黑主操作 + Muted Teal 导航链接（双灯规则，见 DESIGN.md）
   primary: "#111827",
   primaryStrong: "#374151",
   primarySoft: "#F3F4F6",
+  link: "#0D6B5C",
+  linkHover: "#0A5549",
+  linkTint: "rgba(13, 107, 92, 0.06)",
+  // 评测列表概览（Coze 风卡片区，不影响侧栏）
+  dashboard: {
+    bg: "#F3F4F8",
+    card: "#FFFFFF",
+    text: "#1F2329",
+    textSecondary: "#646A73",
+    textMuted: "#8F959E",
+    border: "#E8EAED",
+    purple: "#7C5CFC",
+    purpleSoft: "#F3F0FF",
+    purpleLine: "#9B8AFB",
+    teal: "#2DB88A",
+    tealSoft: "#E8F8F1",
+    red: "#F54A45",
+    redSoft: "#FDEEED",
+    shadow: "0 1px 2px rgba(31, 35, 41, 0.04), 0 4px 16px rgba(31, 35, 41, 0.06)",
+  },
   // 语义软色（仅作圆点 / 极小着色）
   pass: "#1F8A5B",
   warn: "#C6841F",
@@ -44,8 +64,8 @@ export const themeConfig: ThemeConfig = {
     colorPrimaryHover: palette.primaryStrong, // 黑底主按钮 hover 提亮为深灰
     colorPrimaryActive: "#000000",
     colorInfo: palette.primary,
-    colorLink: palette.primary,
-    colorLinkHover: palette.primaryStrong,
+    colorLink: palette.link,
+    colorLinkHover: palette.linkHover,
     colorSuccess: palette.pass,
     colorWarning: palette.warn,
     colorError: palette.fail,
@@ -62,22 +82,23 @@ export const themeConfig: ThemeConfig = {
   },
   components: {
     Layout: {
-      siderBg: palette.panel,
-      headerBg: palette.panel,
-      bodyBg: palette.bg,
+      siderBg: palette.dashboard.card,
+      headerBg: palette.dashboard.card,
+      bodyBg: palette.dashboard.bg,
       headerHeight: 56,
     },
     Menu: {
       itemBg: "transparent",
       subMenuItemBg: "transparent",
-      itemSelectedBg: palette.primarySoft,
-      itemSelectedColor: palette.primary,
-      itemColor: palette.inkSecondary,
-      itemHoverBg: "#FAFAFA",
+      itemSelectedBg: palette.dashboard.purpleSoft,
+      itemSelectedColor: palette.dashboard.purple,
+      itemColor: palette.dashboard.textSecondary,
+      itemHoverBg: palette.dashboard.purpleSoft,
+      itemHoverColor: palette.dashboard.text,
       itemHeight: 38,
       itemMarginInline: 8,
       itemBorderRadius: 8,
-      groupTitleColor: palette.muted,
+      groupTitleColor: palette.dashboard.textMuted,
       iconSize: 16,
     },
     Card: {
@@ -122,9 +143,9 @@ export const themeConfig: ThemeConfig = {
       trackBg: "#F3F4F6",
     },
     Tabs: {
-      inkBarColor: palette.primary,
-      itemSelectedColor: palette.ink,
-      itemColor: palette.muted,
+      inkBarColor: palette.dashboard.purple,
+      itemSelectedColor: palette.dashboard.purple,
+      itemColor: palette.dashboard.textSecondary,
       titleFontSize: 15,
     },
   },

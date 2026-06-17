@@ -1,33 +1,81 @@
+import { useMemo, useState } from "react";
 import {
   Button,
-  Card,
   Popconfirm,
   Progress,
   Space,
   Table,
-  Tag,
   Tooltip,
 } from "antd";
 import { DeleteOutlined, ReloadOutlined, RocketOutlined } from "@ant-design/icons";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { RunSummary } from "../api/index";
+import { DashTableActions, DashTableDangerLink, DashTableNavLink } from "../components/DashTableActions";
 import { formatApiDateTime } from "../utils/datetime";
 import { RunStatusTag } from "../components/RunStatusTag";
+import { RunsListOverview } from "../components/RunsListOverview";
 import { useRunsList } from "../hooks/useRunsList";
+import {
+  filterRunsByPeriod,
+  previousPeriodBounds,
+  type RunsDateRangeValue,
+  toPeriodBounds,
+} from "../utils/runsDateRange";
+import {
+  computeRunsPeriodDeltas,
+  filterRuns,
+  type RunsListFilter,
+} from "../utils/runsListOverview";
 
 export default function RunsPage() {
   const navigate = useNavigate();
   const { runs, loading, progress, reload, onDelete } = useRunsList();
+  const [filter, setFilter] = useState<RunsListFilter>("all");
+  const [dateRange, setDateRange] = useState<RunsDateRangeValue | null>(null);
+
+  const statusFiltered = useMemo(() => filterRuns(runs, filter), [runs, filter]);
+
+  const { displayRuns, periodBounds, previousBounds, periodDeltas } = useMemo(() => {
+    if (!dateRange) {
+      return {
+        displayRuns: statusFiltered,
+        periodBounds: null,
+        previousBounds: null,
+        periodDeltas: null,
+      };
+    }
+    const bounds = toPeriodBounds(dateRange);
+    const prevBounds = previousPeriodBounds(bounds);
+    const current = filterRunsByPeriod(statusFiltered, bounds);
+    const previous = filterRunsByPeriod(statusFiltered, prevBounds);
+    return {
+      displayRuns: current,
+      periodBounds: bounds,
+      previousBounds: prevBounds,
+      periodDeltas: computeRunsPeriodDeltas(current, previous),
+    };
+  }, [statusFiltered, dateRange]);
+
+  const onDateRangeChange = (range: RunsDateRangeValue | null) => {
+    setDateRange(range);
+  };
 
   const nowrap = { onCell: () => ({ style: { whiteSpace: "nowrap" as const } }) };
 
   const columns = [
-    { title: "ID", dataIndex: "id", ...nowrap },
+    { title: "ID", dataIndex: "id", ...nowrap, className: "runs-table__mono" },
     {
       title: "名称",
       dataIndex: "name",
       ...nowrap,
-      render: (name: string, r: RunSummary) => <Link to={`/runs/${r.id}`}>{name || r.run_slug}</Link>,
+      render: (name: string, r: RunSummary) => (
+        <Space size={4}>
+          <DashTableNavLink to={`/runs/${r.id}`}>
+            {name || r.run_slug}
+          </DashTableNavLink>
+          {r.pinned && <span className="runs-table__pin">置顶</span>}
+        </Space>
+      ),
     },
     {
       title: "状态",
@@ -40,7 +88,7 @@ export default function RunsPage() {
               <RunStatusTag status={s} />
               {p && (
                 <Tooltip title={`${p.current_label || ""} ${p.done || 0}/${p.total || 0}`}>
-                  <Progress percent={p.percent || 0} size="small" />
+                  <Progress percent={p.percent || 0} size="small" strokeColor="var(--runs-purple)" />
                 </Tooltip>
               )}
             </Space>
@@ -61,14 +109,24 @@ export default function RunsPage() {
       dataIndex: "pass_rate",
       ...nowrap,
       render: (v: number, r: RunSummary) =>
-        r.status === "success" ? `${(v * 100).toFixed(1)}% (${r.passed}/${r.total})` : "-",
+        r.status === "success" ? (
+          <span className="runs-table__pass">
+            {(v * 100).toFixed(1)}% ({r.passed}/{r.total})
+          </span>
+        ) : (
+          "—"
+        ),
     },
     {
-      title: "硬门槛失败",
+      title: "HardGate",
       dataIndex: "hard_gate_failed",
       ...nowrap,
       render: (v: number, r: RunSummary) =>
-        r.status === "success" ? (v > 0 ? <Tag color="red">{v}</Tag> : "0") : "-",
+        r.status === "success" ? (
+          v > 0 ? <span className="runs-table__danger">{v}</span> : "0"
+        ) : (
+          "—"
+        ),
     },
     { title: "N", dataIndex: "n_runs", ...nowrap },
     {
@@ -83,8 +141,8 @@ export default function RunsPage() {
       render: (_: unknown, r: RunSummary) => {
         const busy = r.status === "running" || r.status === "pending";
         return (
-          <Space>
-            <Link to={`/runs/${r.id}`}>看板</Link>
+          <DashTableActions>
+            <DashTableNavLink to={`/runs/${r.id}`}>看板</DashTableNavLink>
             <Popconfirm
               title="确认删除该评测？"
               description="将一并删除其用例结果与产物，且不可恢复。"
@@ -94,36 +152,64 @@ export default function RunsPage() {
               onConfirm={() => void onDelete(r.id)}
               disabled={busy}
             >
-              <a
-                style={{
-                  color: busy ? "var(--ink-tertiary)" : "var(--fail)",
-                  pointerEvents: busy ? "none" : undefined,
-                }}
-              >
+              <DashTableDangerLink disabled={busy}>
                 <DeleteOutlined /> 删除
-              </a>
+              </DashTableDangerLink>
             </Popconfirm>
-          </Space>
+          </DashTableActions>
         );
       },
     },
   ];
 
   return (
-    <Card
-      title="评测列表"
-      extra={
+    <div className="runs-page">
+      <div className="runs-page__head">
+        <div>
+          <h1 className="runs-page__title">评测列表</h1>
+          <p className="runs-page__sub">乳腺癌专科 benchmark · 全量历史记录</p>
+        </div>
         <Space>
-          <Button icon={<ReloadOutlined />} onClick={() => reload()}>
+          <Button className="runs-page__btn" icon={<ReloadOutlined />} onClick={() => reload()}>
             刷新
           </Button>
-          <Button type="primary" icon={<RocketOutlined />} onClick={() => navigate("/launch")}>
+          <Button
+            type="primary"
+            className="runs-page__btn-primary"
+            icon={<RocketOutlined />}
+            onClick={() => navigate("/launch")}
+          >
             发起评测
           </Button>
         </Space>
-      }
-    >
-      <Table rowKey="id" loading={loading} columns={columns} dataSource={runs} />
-    </Card>
+      </div>
+
+      <RunsListOverview
+        runs={runs}
+        filteredRuns={displayRuns}
+        filter={filter}
+        onFilterChange={setFilter}
+        dateRange={dateRange}
+        onDateRangeChange={onDateRangeChange}
+        periodBounds={periodBounds}
+        previousBounds={previousBounds}
+        periodDeltas={periodDeltas}
+      />
+
+      <div className="runs-table-card">
+        <div className="runs-table-card__head">
+          <h3>评测记录</h3>
+          <span className="runs-table-card__count">共 {displayRuns.length} 条</span>
+        </div>
+        <Table
+          rowKey="id"
+          loading={loading}
+          columns={columns}
+          dataSource={displayRuns}
+          pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 条` }}
+          className="runs-table"
+        />
+      </div>
+    </div>
   );
 }

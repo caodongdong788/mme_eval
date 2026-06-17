@@ -126,7 +126,7 @@ function MainLayout() {
   const selected = "/" + (location.pathname.split("/")[1] || "runs");
   const crumbs = useBreadcrumb();
   return (
-    <Layout style={{ minHeight: "100vh" }}>
+    <Layout className="app-shell" style={{ minHeight: "100vh" }}>
       <Sider theme="light" width={236} breakpoint="lg" collapsedWidth="0" className="app-sider">
         <div className="app-brand">
           <span className="app-brand-mark">
@@ -146,7 +146,7 @@ function MainLayout() {
             <UserBar />
           </div>
         </Layout.Header>
-        <Content style={{ margin: "28px 36px 40px" }}>
+        <Content className="app-content">
           <Suspense
             fallback={
               <div style={{ display: "flex", justifyContent: "center", padding: "80px 0" }}>

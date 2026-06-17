@@ -289,7 +289,8 @@ medeval import-feishu --help           # 表头与产出见 cases/README.md
 | `pytest -m golden` | 黄金集回归通过 | 1 |
 | `medeval run --config config.yaml --limit 1 --dry-run` | 正常生成 dry-run | 2 |
 | `scripts/dev_platform.sh` + 打开 `http://localhost:5173` | 平台看板可加载 | 3 |
-| `cd frontend && npm run test` | Vitest 单测通过 | 3 |
+| `cd frontend && npm run verify` | 规范门禁 + typecheck + lint + Vitest 全绿 | 3 |
+| `scripts/verify_frontend.sh` | 同上（仓库根目录入口） | 3 |
 | `pytest tests/server` | 平台后端单测通过 | 3 |
 | `graphify --version` | 输出 0.8.x | 4 |
 | `graphify query "项目结构"` | 返回子图 | 4 |

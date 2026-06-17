@@ -1,7 +1,8 @@
-import { Card, Descriptions, Tag, Typography } from "antd";
+import { Descriptions, Tag, Typography } from "antd";
 import { Link } from "react-router-dom";
 import { PROFILE_LABEL, STABILITY_LABEL } from "../labels";
 import { CaseVerdict, guidelineMatch } from "../utils/caseJudging";
+import { DashPanel } from "./DashPanel";
 
 const { Text } = Typography;
 
@@ -42,9 +43,9 @@ export function CaseDetailSummaryCard({
   const guideline = guidelineMatch(detail, scoringPoints);
 
   return (
-    <Card
+    <DashPanel
       title={
-        <Link to={backTo} state={backState}>
+        <Link to={backTo} state={backState} className="dash-table__link">
           ← 返回{backLabel}
         </Link>
       }
@@ -84,7 +85,12 @@ export function CaseDetailSummaryCard({
         </Descriptions.Item>
         {detail.trace?.langfuse_trace_url && (
           <Descriptions.Item label="追踪链路">
-            <a href={detail.trace.langfuse_trace_url} target="_blank" rel="noreferrer">
+            <a
+              href={detail.trace.langfuse_trace_url}
+              target="_blank"
+              rel="noreferrer"
+              className="dash-table__link"
+            >
               在 Langfuse 查看
             </a>
           </Descriptions.Item>
@@ -95,6 +101,6 @@ export function CaseDetailSummaryCard({
           需人工复核
         </Tag>
       )}
-    </Card>
+    </DashPanel>
   );
 }

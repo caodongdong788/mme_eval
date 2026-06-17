@@ -1,7 +1,6 @@
 import {
   Alert,
   Button,
-  Card,
   Input,
   Segmented,
   Select,
@@ -57,14 +56,11 @@ export function PairwiseCreateCard({
   | "judgeModels"
 >) {
   return (
-    <Card
-      title={
-        <Space>
-          <SwapOutlined />
-          <span>Pairwise 对比 · 同一裁判逐题 PK 两次评测</span>
-        </Space>
-      }
-    >
+    <div className="dash-form-card">
+      <h3 className="dash-form-card__title">
+        <SwapOutlined />
+        Pairwise 对比 · 同一裁判逐题 PK 两次评测
+      </h3>
       <Space direction="vertical" size={12} style={{ display: "flex" }}>
         <Space wrap size={12} align="start">
           <div>
@@ -190,6 +186,6 @@ export function PairwiseCreateCard({
           发起对比
         </Button>
       </Space>
-    </Card>
+    </div>
   );
 }

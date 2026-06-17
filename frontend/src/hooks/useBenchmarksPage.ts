@@ -7,7 +7,7 @@ import { useAsyncData } from "./useAsyncData";
 import { useEditModal } from "./useEditModal";
 
 export function useBenchmarksPage() {
-  const { data: list, loading, reload } = useAsyncData(() => api.listBenchmarks(), []);
+  const { data: list, loading, error, reload } = useAsyncData(() => api.listBenchmarks(), []);
   const benchmarks = list ?? [];
   const editModal = useEditModal<number>();
 
@@ -98,6 +98,7 @@ export function useBenchmarksPage() {
 
   return {
     loading,
+    loadError: error,
     builtin,
     uploaded,
     modalOpen,
