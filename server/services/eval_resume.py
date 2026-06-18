@@ -9,19 +9,14 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from medeval import trace_store
-from medeval.config import load_config
 from medeval.run_slug import make_run_slug
-from medeval.service import (
-    build_adjudicator,
-    build_judges,
-    resolve_diff_target,
-)
+from medeval.service import resolve_diff_target
 
 from ..models_db import EvalRun
 from ..progress import InMemoryProgress
 from ..settings import Settings, get_settings
-from .config_overrides import apply_adapter_overrides, apply_judge_overrides
 from .eval_artifacts import apply_retention, write_run_plan
+from .eval_stack import build_eval_adapter, build_judge_stack, prepare_run_config
 from .eval_source import load_source_run, resume_cases_and_traces
 from .runs import create_derived_run, get_run_or_404, source_out_dir
 
@@ -85,16 +80,16 @@ def build_resume_job(
             src_dir, settings, bm_id
         )
 
-        config = load_config(settings.config_path)
-        if run_name:
-            config.run.name = run_name
-        config.run.repeat = n_runs
-        apply_judge_overrides(config, judge_ov)
-        apply_adapter_overrides(config, adapter_ov)
+        config = prepare_run_config(
+            settings,
+            run_name=run_name,
+            repeat=n_runs,
+            judge_ov=judge_ov,
+            adapter_ov=adapter_ov,
+        )
 
-        adapter = ej.build_adapter(config.adapter.type, config.adapter.model_dump())
-        judges = build_judges(config.judges)
-        adjudicator = build_adjudicator(config.judges)
+        adapter = build_eval_adapter(config)
+        judges, adjudicator = build_judge_stack(config)
 
         new_slug = make_run_slug(config.run.name)
         out_dir = settings.outputs_dir / new_slug

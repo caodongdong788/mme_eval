@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models_db import CaseResultRow, EvalRun
+from .run_comparability import judge_fingerprints_match, same_benchmark
 
 COMPOSITE_SWING_THRESHOLD = 0.25
 DIMENSION_SWING_THRESHOLD = 0.15
@@ -13,9 +14,7 @@ DIMENSION_SWING_THRESHOLD = 0.15
 
 def runs_comparable(current: EvalRun, baseline: EvalRun) -> bool:
     """判分尺子可比：同 benchmark 且 judge_fingerprints 一致。"""
-    if (current.benchmark_id or None) != (baseline.benchmark_id or None):
-        return False
-    return (current.judge_fingerprints or {}) == (baseline.judge_fingerprints or {})
+    return same_benchmark(current, baseline) and judge_fingerprints_match(current, baseline)
 
 
 def cross_run_diff_reasons(

@@ -397,6 +397,21 @@ export interface RunDiffSide {
   total: number;
 }
 
+export type DiffChangeKind = "regression" | "improvement" | "unchanged";
+
+export interface DiffCaseRow {
+  sample_id: string;
+  scenario: string;
+  sub_scenario: string;
+  level: string;
+  current_release_passed: boolean | null;
+  baseline_release_passed: boolean | null;
+  current_score: number | null;
+  baseline_score: number | null;
+  score_delta: number | null;
+  change: DiffChangeKind;
+}
+
 export interface RunDiff {
   current: RunDiffSide;
   against: RunDiffSide;
@@ -405,4 +420,5 @@ export interface RunDiff {
   improvements: string[];
   judge_logic_changed: boolean;
   fingerprint_changes: Record<string, { against: unknown; current: unknown }>;
+  cases: DiffCaseRow[];
 }

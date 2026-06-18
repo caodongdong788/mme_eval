@@ -1,6 +1,6 @@
 import { Button, Result, Spin, Tabs } from "antd";
 import { useParams } from "react-router-dom";
-import { useFailureTagLabels } from "../failureTags";
+import { useFailureTagLabels } from "../hooks/useConfigLabelMap";
 import { ExportTranscriptsModal } from "../components/ExportTranscriptsModal";
 import { RejudgeModal } from "../components/RejudgeModal";
 import { EditCriteriaDrawer } from "../components/EditCriteriaDrawer";
@@ -105,8 +105,6 @@ export default function RunDashboardPage() {
                 diff={dash.diff}
                 diffBaselineId={dash.diffBaselineId}
                 diffLoading={dash.diffLoading}
-                currentCases={dash.diffCurrentCases.length ? dash.diffCurrentCases : dash.cases}
-                baselineCases={dash.baselineCases}
                 onSelectBaseline={dash.selectDiffBaseline}
               />
             ),

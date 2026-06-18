@@ -9,7 +9,7 @@ import { DashPanel } from "../components/DashPanel";
 import { HumanReviewCard } from "../components/HumanReviewCard";
 import { JudgeVerdictTable } from "../components/JudgeVerdictTable";
 import { ScoringPointsTable } from "../components/ScoringPointsTable";
-import { useFailureTagLabels } from "../failureTags";
+import { useFailureTagLabels } from "../hooks/useConfigLabelMap";
 import { useCaseDetail } from "../hooks/useCaseDetail";
 import { CaseVerdict } from "../utils/caseJudging";
 

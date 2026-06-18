@@ -17,24 +17,47 @@
 
 ## 2. 项目固定开发流程（强制执行，不可跳步）
 
-> 权威定义见 `.cursor/rules/workflow-lock.mdc`（`alwaysApply`）。本节为跨工具统一口径速查。配套工具：**Graphify | OpenSpec | Superpowers | CodeRabbit**。
+> 权威定义见 `.cursor/rules/workflow-lock.mdc`（`alwaysApply`）。本节为跨工具统一口径速查。配套工具：**Graphify | OpenSpec | Superpowers | Ponytail | CodeRabbit**。
 
 所有任务分「**Bug 修复**」「**新功能需求**」两大类，AI 自动判定并执行对应流程。
+
+**Bug 修复分流（权威细则见 workflow-lock.mdc §4.2）**：
+
+| 类型 | 条件 | 流程 |
+|------|------|------|
+| **轻量 Bug** | 代码净变动 **&lt; 100 行** + 未触及 HardGate / 核心节点 / 主链路口径等禁豁免项 | **精简流程**：一行开场 → 修码 → 触达域验证 → §4.3 精简合规报告；**可跳过** OpenSpec / Graphify / **Cursor Plan** / 子 Agent 审查 |
+| **复杂 Bug** | ≥100 行、多文件、根因未明、触及禁豁免项等（§2） | **完整 Bug 链路** + **必须先 Cursor Plan Mode**（§3.0） |
+| **标准 Bug** | 其余非轻量 | **完整 Bug 链路** |
+
+**新功能**：一律 **完整链路** + **必须先 Cursor Plan Mode**（§3.0）。
+
+**②澄清 / ③计划 / ④ Plan（速查）**——详见 `workflow-lock.mdc` §1.1：
+
+| 项 | 能力 | 路径 |
+|----|------|------|
+| ②澄清 | Superpowers **brainstorming** | `.cursor/skills/brainstorming/SKILL.md` |
+| ③计划（大/复杂） | Superpowers **writing-plans** | `.cursor/skills/writing-plans/SKILL.md` |
+| ③计划（S/M） | OpenSpec **proposal + tasks** | `openspec/changes/<name>/` |
+| ④ Plan | **Cursor Plan Mode**（Shift+Tab；编码前用户确认） | [Cursor 文档](https://cursor.com/docs/agent/plan-mode) |
+
+> 新功能**无**小改动豁免，一律完整流程 + Plan。
 
 **工具定位**
 
 1. **Graphify**：代码结构、依赖、模块、风险扫描。每次任务**启动 & 结束必更新**（`graphify . --update`，改码后刷新图谱）。
 2. **OpenSpec**：全生命周期文档、变更追溯、设计契约。
-3. **Superpowers**：需求澄清、计划、TDD、排障、测试、验证。**澄清/计划已分级硬绑定**（见 workflow-lock.mdc §3.8）：需求有歧义 MUST 先用 `brainstorming` 澄清（无歧义可跳并在开场自检注明）；多文件/动核心节点/高风险改动 MUST 先用 `writing-plans` 出计划，S/M 改动可由 `proposal+tasks` 充当。
-
-**固定启动方式**：用户仅需发送【启动指令 + 任务描述】；AI 自动分流，**开场**汇报完整链路 + 流程自检 + 前后端规范触达，**收尾**输出合规报告（模板见 `workflow-lock.mdc` §1 / §5）。
-
-**Bug 修复链路**：刷新图谱 → 澄清问题 → 制定修复计划 → 创建修复变更 → 排障+写测试 → 编码修复 → 验证回归 → **提交前审查** → 更新图谱 → 归档
-**新功能链路**：刷新图谱 → 澄清需求 → 拆解任务 → 创建功能变更 → TDD 开发 → 编码实现 → 验收验证 → **提交前审查** → 更新图谱 → 归档
+3. **Superpowers**：需求澄清、计划、TDD、排障、测试、验证。**澄清/计划已分级硬绑定**（见 workflow-lock.mdc §3.9）：需求有歧义 MUST 先用 `brainstorming` 澄清（无歧义可跳并在开场自检注明）；多文件/动核心节点/高风险改动 MUST 先用 `writing-plans` 出计划，S/M 改动可由 `proposal+tasks` 充当。
+4. **Ponytail**：编码前梯子（`ponytail.mdc`）；验证后 **子 Agent** 强制 `ponytail-review`（父 Agent 禁止自审过工程化）。
+5. **CodeRabbit**：`git commit` 前由**另一子 Agent** 执行 CLI 审查（父 Agent 禁止自解读 diff 顶替）。
 
 **关键目录**：代码图谱 `graphify-out/`｜变更文档 `openspec/changes/`｜全局规则 `.cursor/rules/`
 
-**全程铁律**：改代码必更新 Graphify 图谱；任务完成必走 OpenSpec 归档；**每次 `git commit` 前必跑 CodeRabbit 审查**（`coderabbit review --agent -t uncommitted`）；禁止无设计、无测试直接编码；触及核心节点（`TestCase` / `BaseJudge` / `FailureTag`）必查依赖与循环导入。
+**固定启动方式**：用户仅需发送【启动指令 + 任务描述】；AI 自动分流，**开场**汇报完整链路 + 流程自检 + 前后端规范触达，**收尾**输出合规报告（模板见 `workflow-lock.mdc` §1 / §5）。
+
+**Bug 修复链路**：刷新图谱 → … → 验证 → **子 Agent ponytail-review** → **子 Agent CodeRabbit** → 图谱 → 归档  
+**新功能链路**：刷新图谱 → … → 验收 → **子 Agent ponytail-review** → **子 Agent CodeRabbit** → 图谱 → 归档
+
+**全程铁律**：改代码必更新 Graphify 图谱（**轻量 Bug §4.2 豁免**除外）；任务完成须 OpenSpec 归档（**轻量 Bug 豁免**除外）；**每次 `git commit` 前**须子 Agent ponytail-review + CodeRabbit（**轻量 Bug 未 commit 时可豁免 5a/5b，一旦 commit 仍建议补审**）；禁止无设计、无测试直接编码（**轻量 Bug 须跑触达域验证**）；触及核心节点必查依赖与循环导入。
 
 ## 3. 五层架构与评分口径
 

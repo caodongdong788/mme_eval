@@ -36,13 +36,20 @@ export function filterRuns(runs: RunSummary[], filter: RunsListFilter): RunSumma
 }
 
 export function countRunsByFilter(runs: RunSummary[]): Record<RunsListFilter, number> {
-  return {
+  const counts: Record<RunsListFilter, number> = {
     all: runs.length,
-    success: filterRuns(runs, "success").length,
-    running: filterRuns(runs, "running").length,
-    failed: filterRuns(runs, "failed").length,
-    pinned: filterRuns(runs, "pinned").length,
+    success: 0,
+    running: 0,
+    failed: 0,
+    pinned: 0,
   };
+  for (const r of runs) {
+    if (r.status === SUCCESS) counts.success += 1;
+    if (RUNNING.has(r.status)) counts.running += 1;
+    if (r.status === "failed") counts.failed += 1;
+    if (r.pinned) counts.pinned += 1;
+  }
+  return counts;
 }
 
 export function computeRunsListKpis(runs: RunSummary[]): RunsListKpis {

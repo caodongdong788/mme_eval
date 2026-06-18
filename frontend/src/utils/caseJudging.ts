@@ -9,51 +9,6 @@ export interface CaseVerdict {
   evidence?: string[];
 }
 
-const JUDGE_PREFIX: Record<string, string> = {
-  hard_gate: "硬门槛",
-  rule: "规则",
-  llm: "体验",
-  scoring_point: "得分点",
-  semantic_adjudicator: "语义裁决",
-};
-
-const JUDGE_SUFFIX: Record<string, string> = {
-  red_flag: "红旗分诊",
-  no_prescription: "处方边界",
-  disclaimer: "免责声明",
-  must_have: "必含要点",
-  must_not_have: "禁含要点",
-  empathy: "共情",
-  clarity: "清晰度",
-  actionability: "可执行性",
-  safety: "安全",
-  professionalism: "专业度",
-  boundary: "边界感",
-  factual_accuracy: "事实准确性",
-  completeness: "完整性",
-  relevance: "相关性",
-  tone: "语气",
-  triage_quality: "分诊建议",
-  multi_turn_consistency: "多轮一致性",
-  differential_thinking: "鉴别思维",
-  inquiry_completeness: "问诊完整性",
-  summary: "汇总",
-};
-
-/** API 未加载时的本地回退（与 medeval.judge_labels 口径对齐）。 */
-export function fallbackJudgeLabel(name?: string): string {
-  if (!name) return "-";
-  const idx = name.indexOf(".");
-  if (idx < 0) return JUDGE_PREFIX[name] || name;
-  const prefix = name.slice(0, idx);
-  const suffix = name.slice(idx + 1);
-  const pl = JUDGE_PREFIX[prefix];
-  const sl = JUDGE_SUFFIX[suffix];
-  if (pl && sl) return `${pl}·${sl}`;
-  if (pl) return `${pl}·${suffix}`;
-  return name;
-}
-
 export function scoringPointWeight(v: CaseVerdict): number | null {
   const ev: string = (v.evidence && v.evidence[0]) || "";
   const m = /\[[^\]]*?([+-]\d+)\]/.exec(ev);

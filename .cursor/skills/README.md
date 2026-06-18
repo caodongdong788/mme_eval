@@ -16,8 +16,11 @@
 | `openspec-explore` | 探索模式：讨论想法、澄清需求 | 项目原有 |
 | `openspec-apply-change` | 按 tasks 实施 OpenSpec 变更 | 项目原有 |
 | `openspec-archive-change` | 变更完成后校验并归档 | 项目原有 |
+| `ponytail` | 编码前最简方案梯子（YAGNI → stdlib → 最小 diff）；默认 **full** | [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) |
+| `ponytail-review` | 过工程化审查（yagni/bloat）；**变更类 MUST 由只读子 Agent 执行**，父 Agent 禁止自审 | 同上 |
+| `ponytail-help` | 模式与命令速查 | 同上 |
 
-> 工作流（`.cursor/rules/workflow-lock.mdc`）依赖以上 `graphify` / `brainstorming` / `writing-plans` / `openspec-*`；`frontend-design` 供本项目偶发的前端产物使用。
+> 工作流（`.cursor/rules/workflow-lock.mdc`）依赖以上 `graphify` / `brainstorming` / `writing-plans` / `openspec-*`；**编码前**另强制 `.cursor/rules/ponytail.mdc`（`alwaysApply: true`）。
 
 ## 让 Cursor 扫描到
 
@@ -36,6 +39,13 @@ cp -RL "$HOME/.claude/plugins/marketplaces/claude-plugins-official/plugins/front
 cp -RL "$HOME/.claude/skills/graphify"        .cursor/skills/graphify
 cp -RL $SP/brainstorming                      .cursor/skills/brainstorming
 cp -RL $SP/writing-plans                      .cursor/skills/writing-plans
+# ponytail（上游 MIT，规则 alwaysApply 在 .cursor/rules/ponytail.mdc）
+git clone --depth 1 https://github.com/DietrichGebert/ponytail.git /tmp/ponytail-sync
+cp -R /tmp/ponytail-sync/skills/ponytail .cursor/skills/ponytail
+cp -R /tmp/ponytail-sync/skills/ponytail-review .cursor/skills/ponytail-review
+cp -R /tmp/ponytail-sync/skills/ponytail-help .cursor/skills/ponytail-help
+cp /tmp/ponytail-sync/.cursor/rules/ponytail.mdc .cursor/rules/ponytail.mdc
+# 保留本仓库 ponytail.mdc 末尾「MME 本项目叠加」段后再提交
 ```
 
 > `graphify` / `brainstorming` / `writing-plans` 同时也存在于全局（`~/.claude/skills/` 或 Superpowers 插件缓存），会与本项目副本并存；通常**项目级优先**，功能不受影响。

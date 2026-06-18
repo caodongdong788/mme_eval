@@ -51,11 +51,6 @@ export function isSameDateRange(
   return current[0].isSame(preset[0], "day") && current[1].isSame(preset[1], "day");
 }
 
-export interface RunsPeriodBounds {
-  start: Dayjs;
-  end: Dayjs;
-}
-
 export function toPeriodBounds(range: RunsDateRangeValue): RunsPeriodBounds {
   return { start: range[0].startOf("day"), end: range[1].endOf("day") };
 }

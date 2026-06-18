@@ -300,13 +300,13 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/README.md": {
-    "mtime": 1781597420.5476704,
-    "ast_hash": "d5230eaf3465b00e1afff020a9ecccf7",
+    "mtime": 1781689898.3365734,
+    "ast_hash": "3898701c96ab438aeada448e8f3fbdf0",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/AGENTS.md": {
-    "mtime": 1781667154.372112,
-    "ast_hash": "a78d2c622c6082a258b102ec804325e3",
+    "mtime": 1781748114.5497437,
+    "ast_hash": "83449a7741c6bbf502f5ea12c7c6e788",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/.cursor/commands/opsx-propose.md": {
@@ -1050,8 +1050,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/MIGRATION.md": {
-    "mtime": 1781518969.9731822,
-    "ast_hash": "6733a2f134d2dcb7d9e7ee930958983c",
+    "mtime": 1781689899.5011518,
+    "ast_hash": "720495a5cc2c20ec449a9d4fd6d77f21",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/tests/test_self_consistency.py": {
@@ -1325,8 +1325,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/.cursor/skills/README.md": {
-    "mtime": 1781488260.4090476,
-    "ast_hash": "4412a6d9cd56e6b437a59306aefd9745",
+    "mtime": 1781748103.3277514,
+    "ast_hash": "62400698c5e65905df6f68984f1ea16e",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/.cursor/skills/brainstorming/visual-companion.md": {
@@ -1410,8 +1410,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/package.json": {
-    "mtime": 1781488260.4207964,
-    "ast_hash": "d8b5ae1c22b7e66193fe16f12d3980d5",
+    "mtime": 1781689823.2227955,
+    "ast_hash": "91828f12edb2555d25e509cb3c6779f7",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/tsconfig.json": {
@@ -1420,8 +1420,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/vite.config.ts": {
-    "mtime": 1781488260.4154155,
-    "ast_hash": "8ef747342343555a4708c2c826ccf9ab",
+    "mtime": 1781690044.938223,
+    "ast_hash": "b1a38e389714475e0ed75002e25b59b8",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/App.tsx": {
@@ -1445,8 +1445,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/pages/CaseDetailPage.tsx": {
-    "mtime": 1781681014.1222231,
-    "ast_hash": "7c132a6105db41cc699b4938e874bd7e",
+    "mtime": 1781749267.30534,
+    "ast_hash": "e0204816db89cb8fca4d0759aae59423",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/pages/TrendsPage.tsx": {
@@ -1460,8 +1460,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/pages/RunDashboardPage.tsx": {
-    "mtime": 1781681038.0049129,
-    "ast_hash": "b0ec143124508d1c5c3a43d24651c556",
+    "mtime": 1781749266.2367206,
+    "ast_hash": "6161253c1262c2c1b866b1f9481174ee",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/tests/server/test_db_models.py": {
@@ -1500,8 +1500,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/tests/server/test_api.py": {
-    "mtime": 1781597421.0121064,
-    "ast_hash": "fc3c9e2be3ed82b55b41a55b1eb6507e",
+    "mtime": 1781748889.4756098,
+    "ast_hash": "77d0146d028fbe36728119d306d978e7",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/tests/server/test_import_history.py": {
@@ -1570,8 +1570,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/server/compare.py": {
-    "mtime": 1781506962.654695,
-    "ast_hash": "e250115f4a42b1f69c879e6ef276548c",
+    "mtime": 1781749249.1048617,
+    "ast_hash": "d4782f2dca957ed9309d87060a5f7090",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/server/routers/__init__.py": {
@@ -1585,8 +1585,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/server/routers/benchmarks.py": {
-    "mtime": 1781591940.0061414,
-    "ast_hash": "f4881c43bb5d9e04dffca513a1615f47",
+    "mtime": 1781749252.3865066,
+    "ast_hash": "9be162dd240952fec718424ae359387b",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/scripts/serve_platform.sh": {
@@ -1969,11 +1969,6 @@
     "ast_hash": "0ebdb6eba8ee7deae543297dbea30d92",
     "semantic_hash": ""
   },
-  "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/failureTags.ts": {
-    "mtime": 1781516371.855072,
-    "ast_hash": "0a3acb0e349b47eb16b66718f9a26b61",
-    "semantic_hash": ""
-  },
   "/Users/bytedance/Documents/medical-chatbot-eval/tests/server/test_orphan_recovery.py": {
     "mtime": 1781488260.4420722,
     "ast_hash": "f0d4ad4dca54323696cd22fa8d1bfbc1",
@@ -1985,8 +1980,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/theme.ts": {
-    "mtime": 1781680880.3630197,
-    "ast_hash": "4dffb79a44f0ff7e8cb7ab72cdc05a07",
+    "mtime": 1781748768.969372,
+    "ast_hash": "949cf5a87ebc99777d6bbee7f3959009",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/tests/server/test_runs_rename.py": {
@@ -2045,8 +2040,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/server/routers/judge_models.py": {
-    "mtime": 1781591944.0111737,
-    "ast_hash": "89df2c50bd521516cf7d0f5fad9a0e24",
+    "mtime": 1781749253.5239868,
+    "ast_hash": "c1d8fbf5886048d79ba27b1546dcd4bd",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/openspec/changes/archive/2026-06-05-dashboard-ui-refine-2/tasks.md": {
@@ -2514,11 +2509,6 @@
     "ast_hash": "310714c7a308e35e386034999479ff84",
     "semantic_hash": ""
   },
-  "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/KpiTile.tsx": {
-    "mtime": 1781516371.764462,
-    "ast_hash": "cc7a975722319d4e87f9074c4206e01b",
-    "semantic_hash": ""
-  },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/EditCriteriaDrawer.tsx": {
     "mtime": 1781516371.774487,
     "ast_hash": "ec2d811ca618955f715daa38cd1d3cf8",
@@ -2530,18 +2520,13 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/RunOverviewTab.tsx": {
-    "mtime": 1781676528.7951498,
-    "ast_hash": "d54c06d71e2dd3ea30c554efd8b0ec21",
+    "mtime": 1781749266.398529,
+    "ast_hash": "0cee616c920aeb20f652494f554cde6c",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/RunStatusTag.tsx": {
     "mtime": 1781516371.7920277,
     "ast_hash": "932921de3894416b682c7b447a72a372",
-    "semantic_hash": ""
-  },
-  "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/MetaChip.tsx": {
-    "mtime": 1781516371.817847,
-    "ast_hash": "888970572423faa39f6fc595b90680d6",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/RejudgeModal.tsx": {
@@ -2565,8 +2550,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/DESIGN.md": {
-    "mtime": 1781682040.4436445,
-    "ast_hash": "e13f8ec4a994f328d0ee074a17345d2f",
+    "mtime": 1781689894.4726114,
+    "ast_hash": "d6e70c9e96d74c92f4b3f5c8a153f0ba",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/.cursor/skills/impeccable/SKILL.md": {
@@ -3360,8 +3345,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/labels.ts": {
-    "mtime": 1781684907.1947145,
-    "ast_hash": "76220c768158a71960143ee482356546",
+    "mtime": 1781689854.8636048,
+    "ast_hash": "a7c4c8a19dbc2ea7ea09a84a432f78f3",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/utils/apiError.ts": {
@@ -3385,8 +3370,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/tests/server/test_robustness_hardening.py": {
-    "mtime": 1781504743.5498593,
-    "ast_hash": "03dc57509d64b60f97ea17ad30f7f76a",
+    "mtime": 1781749280.7726865,
+    "ast_hash": "d9b9edef7c1ba69373efcd958f008e56",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/tests/server/test_perf_hardening.py": {
@@ -3397,11 +3382,6 @@
   "/Users/bytedance/Documents/medical-chatbot-eval/tests/server/test_security_hardening.py": {
     "mtime": 1781488260.448899,
     "ast_hash": "9a044454409222b23382a9ea3961a4ea",
-    "semantic_hash": ""
-  },
-  "/Users/bytedance/Documents/medical-chatbot-eval/server/deps.py": {
-    "mtime": 1781488260.4161575,
-    "ast_hash": "47c13a03b74ceb9d33b551cb50b91dc8",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/server/paths.py": {
@@ -3420,13 +3400,13 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/utils/caseJudging.test.ts": {
-    "mtime": 1781516371.7531214,
-    "ast_hash": "b156628afa579e095bc39a425a24d794",
+    "mtime": 1781749270.70013,
+    "ast_hash": "ef0e0ab479e0bd32e1e76bd83bc5b2a5",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/utils/caseJudging.ts": {
-    "mtime": 1781516371.755384,
-    "ast_hash": "18672190649cf64d408a89fe168cacf3",
+    "mtime": 1781749269.8935184,
+    "ast_hash": "64b4309afbb7b67844784e8322a962aa",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/HumanReviewCard.test.tsx": {
@@ -3465,8 +3445,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/RunDashboardHeader.tsx": {
-    "mtime": 1781516371.795514,
-    "ast_hash": "e4d2dd21724ef4a64d043aa2882bbac0",
+    "mtime": 1781749276.8820965,
+    "ast_hash": "8fa6074e78d9ba2219df830e58051337",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/RunCaseResultsCard.tsx": {
@@ -3475,8 +3455,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/JudgeVerdictTable.tsx": {
-    "mtime": 1781680941.301128,
-    "ast_hash": "d802cd94f26da88cd1a8f287ecbce130",
+    "mtime": 1781749267.6864328,
+    "ast_hash": "a5a1f7742b2023ee76f158c78e801715",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/CaseDimensionScoresCard.test.tsx": {
@@ -3719,11 +3699,6 @@
     "ast_hash": "df3b492604956a56fae5f3d29ddb549b",
     "semantic_hash": ""
   },
-  "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/judgeVerdictLabels.ts": {
-    "mtime": 1781516371.7623935,
-    "ast_hash": "a1caa5cbeecf4c6ab1686ed97a2d399b",
-    "semantic_hash": ""
-  },
   "/Users/bytedance/Documents/medical-chatbot-eval/medeval/judge_labels.py": {
     "mtime": 1781506919.6991534,
     "ast_hash": "f02fe790747fc06369f3c6c49cbe3216",
@@ -3785,8 +3760,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/server/services/eval_launch.py": {
-    "mtime": 1781507484.3890855,
-    "ast_hash": "05fb3b4d458244746defcecea7e10fa8",
+    "mtime": 1781749219.716796,
+    "ast_hash": "de711efd133104d1cafbfbe6029951ea",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/server/services/eval_artifacts.py": {
@@ -3800,13 +3775,13 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/server/services/eval_rejudge.py": {
-    "mtime": 1781508316.4693272,
-    "ast_hash": "3420c4d1195f9b73f8dfbde6ceff3d53",
+    "mtime": 1781749238.352007,
+    "ast_hash": "0dd8d617aa23e59a959290101431f05c",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/server/services/eval_resume.py": {
-    "mtime": 1781591981.846198,
-    "ast_hash": "f656d28f66493972eefa41583d07aa4e",
+    "mtime": 1781749229.2434604,
+    "ast_hash": "398284977fb875612f01e6575a5606e5",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/PairwiseConversationCol.tsx": {
@@ -3815,8 +3790,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/hooks/useRunDashboard.tsx": {
-    "mtime": 1781597421.2462273,
-    "ast_hash": "138d1c6df5918528e1060320e34cdeb7",
+    "mtime": 1781748883.7841427,
+    "ast_hash": "3809addb98075a766fc241a26686c2b5",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/hooks/usePairwiseDetail.ts": {
@@ -3850,8 +3825,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/api/types.ts": {
-    "mtime": 1781507873.8468528,
-    "ast_hash": "82ac375b2bd57d788e95e97b86869f23",
+    "mtime": 1781748832.1518505,
+    "ast_hash": "6837767f395ae3487b5ecb15f1d5504b",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/api/client.ts": {
@@ -3945,8 +3920,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/server/services/platform_config.py": {
-    "mtime": 1781683623.599973,
-    "ast_hash": "cf31f83cd9550e97d5f47921fb241784",
+    "mtime": 1781689896.7557397,
+    "ast_hash": "c89af970d77281430112910cdab09746",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/server/services/review.py": {
@@ -4025,8 +4000,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/PairwiseDetailSummaryCard.tsx": {
-    "mtime": 1781681038.6743834,
-    "ast_hash": "51b07490fec4c030bcea5584441d6d25",
+    "mtime": 1781748792.3339112,
+    "ast_hash": "73189f9fbc71a5dbb3eb2c45ff2e893f",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/PairwiseConversationCol.test.tsx": {
@@ -4140,8 +4115,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/RunOverviewCharts.tsx": {
-    "mtime": 1781676550.675849,
-    "ast_hash": "e286765e9292566b9baabf9711831c44",
+    "mtime": 1781748822.837806,
+    "ast_hash": "80b80892f14f5665001207f9e40572fc",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/CasePreviewRejudgePanel.tsx": {
@@ -4150,23 +4125,18 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/RunOverviewMetricsPanel.tsx": {
-    "mtime": 1781676548.2225225,
-    "ast_hash": "90d6b9fef08317d1b871a7611f5c82b9",
+    "mtime": 1781748816.2437003,
+    "ast_hash": "f6b0274c01fc26ef406c99cda2665bc5",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/RunOverviewKpiGrid.tsx": {
-    "mtime": 1781676507.3292613,
-    "ast_hash": "f151cb0ed8efe536993691a16383e371",
+    "mtime": 1781748744.231098,
+    "ast_hash": "54096d3c440b373ae8a5ab70f5fbd052",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/CasePreviewRejudgePanel.test.tsx": {
     "mtime": 1781516371.8347077,
     "ast_hash": "683a120f157dc2d9a188fc197285f741",
-    "semantic_hash": ""
-  },
-  "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/hooks/useRunOverviewData.ts": {
-    "mtime": 1781516371.8599117,
-    "ast_hash": "4854c1d2291be854a94a6c3523d673e6",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/hooks/useEditModal.ts": {
@@ -4219,16 +4189,6 @@
     "ast_hash": "983b0550b13d1cd67cfabb24ceb98017",
     "semantic_hash": ""
   },
-  "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/utils/judgeDefault.ts": {
-    "mtime": 1781516371.759911,
-    "ast_hash": "417b3abcf508068c49ce41a135dad17a",
-    "semantic_hash": ""
-  },
-  "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/utils/judgeDefault.test.ts": {
-    "mtime": 1781516371.761001,
-    "ast_hash": "333d6b2e89c0628bba6594d2fb050ae0",
-    "semantic_hash": ""
-  },
   "/Users/bytedance/Documents/medical-chatbot-eval/openspec/changes/archive/2026-06-15-remove-request-review-show-judge-defaults/tasks.md": {
     "mtime": 1781514330.543481,
     "ast_hash": "28780d91a70a4afce5e58df49d899c63",
@@ -4245,8 +4205,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/hooks/useConfigLabelMap.ts": {
-    "mtime": 1781516371.857289,
-    "ast_hash": "7118da2de06e342c5afbfd2b3230112b",
+    "mtime": 1781749265.919531,
+    "ast_hash": "579788266cd449c1291a07330b63327e",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/hooks/useConfigLabelMap.test.ts": {
@@ -4450,8 +4410,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/server/services/cross_run_diff.py": {
-    "mtime": 1781597421.0544608,
-    "ast_hash": "2a5f48428e5c5970b4b73ff64dab88a7",
+    "mtime": 1781749250.9969778,
+    "ast_hash": "8ed530bad1497e2a404ae83d47906eb1",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/server/constants.py": {
@@ -4610,13 +4570,13 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/RunDiffTab.tsx": {
-    "mtime": 1781680222.4671493,
-    "ast_hash": "18d86b84b2b3be8a7bfab939a7a9b56e",
+    "mtime": 1781748942.4399614,
+    "ast_hash": "fe8615c8b93617cb257ec77c9567052b",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/RunDiffTab.test.tsx": {
-    "mtime": 1781597421.354668,
-    "ast_hash": "1a8bd2906aa999f5cf01001a1c5e8b65",
+    "mtime": 1781748888.1775079,
+    "ast_hash": "08ab8b86f69f53ada4d469589fb556ca",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/scripts/db_queries.sql": {
@@ -4624,19 +4584,9 @@
     "ast_hash": "aa661ffa0e3f2eef0c5051dde5423385",
     "semantic_hash": ""
   },
-  "/Users/bytedance/Documents/medical-chatbot-eval/frontend/demo/link-accent-preview.html": {
-    "mtime": 1781667906.116848,
-    "ast_hash": "d928c7002c4de1c63e08f78b8dd10926",
-    "semantic_hash": ""
-  },
-  "/Users/bytedance/Documents/medical-chatbot-eval/frontend/demo/runs-overview-coze-preview.html": {
-    "mtime": 1781668775.3992472,
-    "ast_hash": "12eaafed9bb186b954e005de59d9e25e",
-    "semantic_hash": ""
-  },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/utils/runsListOverview.ts": {
-    "mtime": 1781689055.0965748,
-    "ast_hash": "31538b7e8468a4989eaa6438861c1a75",
+    "mtime": 1781748746.313771,
+    "ast_hash": "a246704d56622c39c66adaeba41dea9e",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/utils/runsListOverview.test.ts": {
@@ -4645,8 +4595,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/RunsListOverview.tsx": {
-    "mtime": 1781688223.844157,
-    "ast_hash": "324bf4bb820fd36a92267293d397ec27",
+    "mtime": 1781748911.5069625,
+    "ast_hash": "d053404259eaa41ba0e14003ae9b7023",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/DashboardPageShell.tsx": {
@@ -4670,8 +4620,8 @@
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/utils/runsDateRange.ts": {
-    "mtime": 1781688219.2346368,
-    "ast_hash": "3e85f8d0ec822ad57ad6955683e06515",
+    "mtime": 1781748748.008794,
+    "ast_hash": "76635fc4432539cf6638a59c1c8b29a8",
     "semantic_hash": ""
   },
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/utils/launchCaseCount.test.ts": {
@@ -4692,6 +4642,66 @@
   "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/AsyncLoadError.tsx": {
     "mtime": 1781688979.021799,
     "ast_hash": "ee5bad973d533c9aca458c36c0aff3fe",
+    "semantic_hash": ""
+  },
+  "/Users/bytedance/Documents/medical-chatbot-eval/frontend/scripts/check-standards.mjs": {
+    "mtime": 1781690003.4102523,
+    "ast_hash": "c133a829ec80e5649008b1dd92bee444",
+    "semantic_hash": ""
+  },
+  "/Users/bytedance/Documents/medical-chatbot-eval/frontend/scripts/check-standards.test.mjs": {
+    "mtime": 1781690009.8178961,
+    "ast_hash": "573e530a82719ecccac56e7c29c076db",
+    "semantic_hash": ""
+  },
+  "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/RunsChartCard.tsx": {
+    "mtime": 1781748811.4010816,
+    "ast_hash": "3cb003870234529a0e39f0e2ef601027",
+    "semantic_hash": ""
+  },
+  "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/components/RunsKpi.tsx": {
+    "mtime": 1781748720.7874744,
+    "ast_hash": "381497532411838889459746ff876f84",
+    "semantic_hash": ""
+  },
+  "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/hooks/useRunDiff.ts": {
+    "mtime": 1781748859.8773491,
+    "ast_hash": "d1517f2b39d94f7febd8d4a97c6585cc",
+    "semantic_hash": ""
+  },
+  "/Users/bytedance/Documents/medical-chatbot-eval/frontend/src/hooks/useRunCaseFilters.ts": {
+    "mtime": 1781748857.6352966,
+    "ast_hash": "d9fa210d8f4c7a2a2245052060931c20",
+    "semantic_hash": ""
+  },
+  "/Users/bytedance/Documents/medical-chatbot-eval/scripts/verify_frontend.sh": {
+    "mtime": 1781689844.0072067,
+    "ast_hash": "3ad99f9f7e294373ea63eea92a51c712",
+    "semantic_hash": ""
+  },
+  "/Users/bytedance/Documents/medical-chatbot-eval/.cursor/skills/ponytail/SKILL.md": {
+    "mtime": 1781747666.1222372,
+    "ast_hash": "e11fe63cf484d5d0af25292f32891893",
+    "semantic_hash": ""
+  },
+  "/Users/bytedance/Documents/medical-chatbot-eval/.cursor/skills/ponytail-help/SKILL.md": {
+    "mtime": 1781747666.1293538,
+    "ast_hash": "ab2575fbffd7d1a14d5933a69ab9e9d5",
+    "semantic_hash": ""
+  },
+  "/Users/bytedance/Documents/medical-chatbot-eval/.cursor/skills/ponytail-review/SKILL.md": {
+    "mtime": 1781748102.434027,
+    "ast_hash": "996b953d6328a2b594fc0509c0cadc1f",
+    "semantic_hash": ""
+  },
+  "/Users/bytedance/Documents/medical-chatbot-eval/server/services/run_comparability.py": {
+    "mtime": 1781749206.3773193,
+    "ast_hash": "707b97d7d96d79f7d21da2770c2187b6",
+    "semantic_hash": ""
+  },
+  "/Users/bytedance/Documents/medical-chatbot-eval/server/services/eval_stack.py": {
+    "mtime": 1781749311.210182,
+    "ast_hash": "ffa12b64272910d08bcaf578bc4c3edd",
     "semantic_hash": ""
   }
 }

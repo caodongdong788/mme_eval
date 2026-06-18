@@ -7,23 +7,17 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from medeval import trace_store
-from medeval.config import load_config
 from medeval.models import CaseResult, RunReport
 from medeval.reporter.aggregator import build_report
 from medeval.run_slug import make_run_slug
-from medeval.service import build_adjudicator, build_judges
 
 from ..benchmarks import _apply_case_overrides
 from ..db import session_scope
 from ..models_db import Benchmark
 from ..progress import InMemoryProgress
 from ..settings import Settings, get_settings
-from .config_overrides import apply_adapter_overrides, apply_judge_overrides
 from .eval_artifacts import apply_retention
-from .eval_release_thresholds import (
-    apply_release_threshold_overrides,
-    load_release_threshold_overrides,
-)
+from .eval_stack import build_judge_stack, prepare_run_config
 from .eval_source import frozen_cases_and_traces, load_source_run
 
 logger = logging.getLogger(__name__)
@@ -59,20 +53,17 @@ def build_rejudge_job(
             ov_by_id = {c.sample_id: c for c in override_cases}
             cases = [ov_by_id.get(c.sample_id, c) for c in cases]
 
-        config = load_config(settings.config_path)
-        if run_name:
-            config.run.name = run_name
-        config.run.repeat = n_runs
-        apply_judge_overrides(config, judge_ov)
-        apply_adapter_overrides(config, adapter_ov)
-        apply_judge_overrides(config, judge_override)
-        with session_scope() as session:
-            apply_release_threshold_overrides(
-                config, load_release_threshold_overrides(session)
-            )
+        config = prepare_run_config(
+            settings,
+            run_name=run_name,
+            repeat=n_runs,
+            judge_ov=judge_ov,
+            adapter_ov=adapter_ov,
+            extra_judge_ov=judge_override,
+            release_thresholds=True,
+        )
 
-        judges = build_judges(config.judges)
-        adjudicator = build_adjudicator(config.judges)
+        judges, adjudicator = build_judge_stack(config)
 
         new_slug = make_run_slug(config.run.name)
         out_dir = settings.outputs_dir / new_slug
@@ -191,17 +182,15 @@ async def preview_rejudge_case(
         ov["sample_id"] = sample_id
         sub_cases = _apply_case_overrides(sub_cases, [ov])
 
-    config = load_config(settings.config_path)
-    config.run.repeat = n_runs
-    apply_judge_overrides(config, judge_ov)
-    apply_adapter_overrides(config, adapter_ov)
-    with session_scope() as session:
-        apply_release_threshold_overrides(
-            config, load_release_threshold_overrides(session)
-        )
+    config = prepare_run_config(
+        settings,
+        repeat=n_runs,
+        judge_ov=judge_ov,
+        adapter_ov=adapter_ov,
+        release_thresholds=True,
+    )
 
-    judges = build_judges(config.judges)
-    adjudicator = build_adjudicator(config.judges)
+    judges, adjudicator = build_judge_stack(config)
     report = await ej.judge_traces(
         config,
         sub_cases,

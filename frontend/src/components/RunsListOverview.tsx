@@ -1,6 +1,5 @@
-import { type ReactNode } from "react";
-import { CalendarOutlined, InfoCircleOutlined } from "@ant-design/icons";
-import { DatePicker, Tooltip } from "antd";
+import { CalendarOutlined } from "@ant-design/icons";
+import { DatePicker } from "antd";
 import {
   Area,
   Bar,
@@ -17,7 +16,7 @@ import {
   YAxis,
 } from "recharts";
 import type { RunSummary } from "../api/types";
-import { palette } from "../theme";
+import { palette, dashboardPieColors } from "../theme";
 import {
   formatPeriodLabel,
   getRunsDatePresetRange,
@@ -36,9 +35,9 @@ import {
   type RunsListFilter,
   type RunsPeriodDeltas,
 } from "../utils/runsListOverview";
+import { PeriodDeltaBadge, PERIOD_COMPARE_TIP, RunsKpi } from "./RunsKpi";
 
 const D = palette.dashboard;
-const PIE_COLORS = [D.purple, D.purpleLine, D.teal, D.textMuted];
 
 const FILTER_TABS: { key: RunsListFilter; label: string }[] = [
   { key: "all", label: "全部" },
@@ -55,80 +54,6 @@ const FILTER_HINT: Record<RunsListFilter, string> = {
   failed: "仅失败（failed）",
   pinned: "仅置顶保护的评测",
 };
-
-const PERIOD_COMPARE_TIP =
-  "较上周期变化：上周期为与所选日期等长的紧邻上一段时间（按创建时间统计）";
-
-function PassRateDeltaBadge({ delta }: { delta: number | null }) {
-  if (delta == null) return null;
-  if (delta === 0) {
-    return <span className="runs-kpi__trend runs-kpi__trend--neutral">较上周期 持平</span>;
-  }
-  const up = delta > 0;
-  return (
-    <Tooltip title={PERIOD_COMPARE_TIP}>
-      <span className={`runs-kpi__trend ${up ? "runs-kpi__trend--up" : "runs-kpi__trend--down"}`}>
-        较上周期 {up ? "↑" : "↓"} {Math.abs(delta)}%
-      </span>
-    </Tooltip>
-  );
-}
-
-function CountDeltaBadge({
-  delta,
-  unit,
-  invertColor,
-}: {
-  delta: number;
-  unit: string;
-  invertColor?: boolean;
-}) {
-  if (delta === 0) {
-    return <span className="runs-kpi__trend runs-kpi__trend--neutral">较上周期 持平</span>;
-  }
-  const up = delta > 0;
-  const good = invertColor ? !up : up;
-  return (
-    <Tooltip title={PERIOD_COMPARE_TIP}>
-      <span className={`runs-kpi__trend ${good ? "runs-kpi__trend--up" : "runs-kpi__trend--down"}`}>
-        较上周期 {up ? "↑" : "↓"} {Math.abs(delta)}
-        {unit}
-      </span>
-    </Tooltip>
-  );
-}
-
-function KpiCard({
-  title,
-  tip,
-  value,
-  unit,
-  trend,
-}: {
-  title: string;
-  tip?: string;
-  value: string;
-  unit?: string;
-  trend?: ReactNode;
-}) {
-  return (
-    <div className="runs-kpi">
-      <div className="runs-kpi__title">
-        {title}
-        {tip && (
-          <Tooltip title={tip}>
-            <InfoCircleOutlined className="runs-kpi__info" />
-          </Tooltip>
-        )}
-      </div>
-      <div className="runs-kpi__value-row">
-        <span className="runs-kpi__value">{value}</span>
-        {unit && <span className="runs-kpi__unit">{unit}</span>}
-      </div>
-      {trend}
-    </div>
-  );
-}
 
 export function RunsListOverview({
   runs,
@@ -226,7 +151,7 @@ export function RunsListOverview({
       )}
 
       <div className="runs-kpi-row">
-        <KpiCard
+        <RunsKpi
           title="评测总数"
           tip={
             hasPeriod
@@ -239,36 +164,36 @@ export function RunsListOverview({
           unit="次"
           trend={
             hasPeriod && periodDeltas ? (
-              <CountDeltaBadge delta={periodDeltas.total} unit="次" />
+              <PeriodDeltaBadge delta={periodDeltas.total} unit="次" />
             ) : undefined
           }
         />
-        <KpiCard
+        <RunsKpi
           title="平均通过率"
           tip={`仅统计当前范围内已完成的评测${hasPeriod ? ` · ${PERIOD_COMPARE_TIP}` : ""}`}
           value={kpis.avgPassPct != null ? kpis.avgPassPct.toFixed(1) : "—"}
           unit={kpis.avgPassPct != null ? "%" : undefined}
-          trend={hasPeriod ? <PassRateDeltaBadge delta={passRateDelta} /> : undefined}
+          trend={hasPeriod ? <PeriodDeltaBadge delta={passRateDelta} percent /> : undefined}
         />
-        <KpiCard
+        <RunsKpi
           title="HardGate 失败"
           tip={`当前范围内已完成评测的硬门槛失败用例累计${hasPeriod ? ` · ${PERIOD_COMPARE_TIP}` : ""}`}
           value={String(kpis.hardGateTotal)}
           unit="例"
           trend={
             hasPeriod && periodDeltas ? (
-              <CountDeltaBadge delta={periodDeltas.hardGate} unit="例" invertColor />
+              <PeriodDeltaBadge delta={periodDeltas.hardGate} unit="例" invertColor />
             ) : undefined
           }
         />
-        <KpiCard
+        <RunsKpi
           title="进行中"
           tip={`当前范围内 running / pending 状态${hasPeriod ? ` · ${PERIOD_COMPARE_TIP}` : ""}`}
           value={String(kpis.activeCount)}
           unit="次"
           trend={
             hasPeriod && periodDeltas ? (
-              <CountDeltaBadge delta={periodDeltas.active} unit="次" />
+              <PeriodDeltaBadge delta={periodDeltas.active} unit="次" />
             ) : undefined
           }
         />
@@ -389,7 +314,7 @@ export function RunsListOverview({
                     paddingAngle={2}
                   >
                     {statusPie.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      <Cell key={i} fill={dashboardPieColors[i % dashboardPieColors.length]} />
                     ))}
                   </Pie>
                   <RTooltip />

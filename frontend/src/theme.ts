@@ -55,6 +55,13 @@ export const palette = {
   },
 } as const;
 
+export const dashboardPieColors = [
+  palette.dashboard.purple,
+  palette.dashboard.purpleLine,
+  palette.dashboard.teal,
+  palette.dashboard.textMuted,
+] as const;
+
 const FONT_SANS =
   "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif";
 

@@ -1,4 +1,4 @@
-"""B2 工程健壮性：全局异常兜底、deps.creator_name、job runner 优雅关闭。"""
+"""B2 工程健壮性：全局异常兜底、job runner 优雅关闭。"""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from server.app import create_app
-from server.deps import creator_name
 from server.jobs import InProcessJobRunner
 
 
@@ -30,10 +29,6 @@ def test_global_exception_handler_returns_500_json(initialized_db):
     assert "detail" in body
     # 开发态（默认非生产）应暴露异常类型，便于排障。
     assert "RuntimeError" in body["detail"]
-
-
-def test_creator_name_handles_none():
-    assert creator_name(None) is None
 
 
 def test_job_runner_shutdown_cancels_inflight():

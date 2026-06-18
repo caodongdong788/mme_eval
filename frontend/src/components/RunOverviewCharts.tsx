@@ -1,5 +1,4 @@
 import { Empty } from "antd";
-import type { ReactNode } from "react";
 import {
   Bar,
   BarChart,
@@ -15,20 +14,11 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { palette } from "../theme";
+import { palette, dashboardPieColors } from "../theme";
+import { RunsChartCard } from "./RunsChartCard";
 
 const D = palette.dashboard;
-const PIE_COLORS = [D.purple, D.purpleLine, D.teal, D.textMuted];
 const AXIS_TICK = { fill: D.textMuted, fontSize: 11 } as const;
-
-function ChartCard({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="runs-chart-card">
-      <div className="runs-chart-card__title runs-chart-card__title--solo">{title}</div>
-      <div className="runs-chart-area runs-chart-area--short">{children}</div>
-    </div>
-  );
-}
 
 export function RunOverviewCharts({
   levelData,
@@ -41,7 +31,7 @@ export function RunOverviewCharts({
 }) {
   return (
     <div className="runs-duo-charts runs-duo-charts--trio">
-      <ChartCard title="分层级：数量 / 通过率">
+      <RunsChartCard title="分层级：数量 / 通过率">
         <ResponsiveContainer width="100%" height={220}>
           <ComposedChart data={levelData} margin={{ top: 8, right: 8, bottom: 0, left: -10 }}>
             <CartesianGrid stroke={D.border} vertical={false} />
@@ -77,9 +67,9 @@ export function RunOverviewCharts({
             />
           </ComposedChart>
         </ResponsiveContainer>
-      </ChartCard>
+      </RunsChartCard>
 
-      <ChartCard title="四模块平均分">
+      <RunsChartCard title="四模块平均分">
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={dimData} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
             <CartesianGrid stroke={D.border} vertical={false} />
@@ -93,9 +83,9 @@ export function RunOverviewCharts({
             </Bar>
           </BarChart>
         </ResponsiveContainer>
-      </ChartCard>
+      </RunsChartCard>
 
-      <ChartCard title="失败标签分布">
+      <RunsChartCard title="失败标签分布">
         {tagData.length === 0 ? (
           <div className="runs-chart-empty">
             <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="无失败标签" />
@@ -114,7 +104,7 @@ export function RunOverviewCharts({
                 paddingAngle={2}
               >
                 {tagData.map((_, i) => (
-                  <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                  <Cell key={i} fill={dashboardPieColors[i % dashboardPieColors.length]} />
                 ))}
               </Pie>
               <RTooltip formatter={(v: number, n: string) => [`${v} 例`, n]} />
@@ -122,7 +112,7 @@ export function RunOverviewCharts({
             </PieChart>
           </ResponsiveContainer>
         )}
-      </ChartCard>
+      </RunsChartCard>
     </div>
   );
 }

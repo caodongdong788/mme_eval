@@ -19,7 +19,6 @@ from ..benchmarks import (
 )
 from ..constants import LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX
 from ..db import get_session
-from ..deps import creator_name
 from ..models_db import Benchmark, FeishuUser
 from ..schemas import (
     BenchmarkOut,
@@ -64,7 +63,7 @@ def upload_benchmark(
             filename=file.filename or "cases.yaml",
             description=description,
             version=version,
-            created_by=creator_name(current_user),
+            created_by=current_user.name if current_user else None,
         )
     except BenchmarkValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -86,7 +85,7 @@ def derive_benchmark(
             name=payload.name,
             description=payload.description,
             case_overrides=[o.model_dump(exclude_none=True) for o in payload.case_overrides],
-            created_by=creator_name(current_user),
+            created_by=current_user.name if current_user else None,
         )
     except BenchmarkValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -108,7 +107,7 @@ def derive_benchmark_yaml(
             name=payload.name,
             yaml_text=payload.yaml_text,
             description=payload.description,
-            created_by=creator_name(current_user),
+            created_by=current_user.name if current_user else None,
         )
     except BenchmarkValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

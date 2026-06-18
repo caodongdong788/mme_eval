@@ -1,62 +1,28 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Form, Modal, message } from "antd";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   api,
   Benchmark,
-  CASE_LIST_LIMIT,
-  CaseRow,
   JudgeModel,
   RejudgePayload,
-  ReviewStats,
   RunDetail,
-  RunDiff,
-  RunSummary,
 } from "../api/index";
 import { useBenchmarkYamlActions } from "./useBenchmarkYamlActions";
+import { useRunCaseFilters } from "./useRunCaseFilters";
+import { useRunDiff } from "./useRunDiff";
 import { useYamlEditorState } from "./useYamlEditorState";
-import { CaseFilters } from "../components/FilterToolbar";
 import { formatApiError } from "../utils/apiError";
-
-function readSavedFilters(filtersKey: string): {
-  filters: CaseFilters;
-  onlyPending: boolean;
-  reviewFilter?: string;
-} {
-  try {
-    const raw = sessionStorage.getItem(filtersKey);
-    if (raw) return JSON.parse(raw);
-  } catch {
-    /* ignore */
-  }
-  return { filters: {}, onlyPending: false };
-}
 
 export function useRunDashboard(runId: number) {
   const navigate = useNavigate();
   const location = useLocation();
-  const filtersKey = `run:${runId}:caseFilters`;
-  const saved = readSavedFilters(filtersKey);
 
   const [run, setRun] = useState<RunDetail | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
-  const [cases, setCases] = useState<CaseRow[]>([]);
-  const [filters, setFilters] = useState<CaseFilters>(() => saved.filters);
-  const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
-  const [queueIds, setQueueIds] = useState<Set<string>>(new Set());
-  const [onlyPending, setOnlyPending] = useState<boolean>(() => saved.onlyPending);
-  const [reviewFilter, setReviewFilter] = useState<string | undefined>(
-    () => saved.reviewFilter
-  );
   const [activeTab, setActiveTab] = useState<string>(
     () => ((location.state as { tab?: string } | null)?.tab) || "overview"
   );
-  const [otherRuns, setOtherRuns] = useState<RunSummary[]>([]);
-  const [diff, setDiff] = useState<RunDiff | null>(null);
-  const [diffBaselineId, setDiffBaselineId] = useState<number | null>(null);
-  const [baselineCases, setBaselineCases] = useState<CaseRow[]>([]);
-  const [diffCurrentCases, setDiffCurrentCases] = useState<CaseRow[]>([]);
-  const [diffLoading, setDiffLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [acting, setActing] = useState(false);
@@ -83,15 +49,11 @@ export function useRunDashboard(runId: number) {
   const [nameDraft, setNameDraft] = useState("");
   const [savingName, setSavingName] = useState(false);
 
+  const caseFilters = useRunCaseFilters(runId);
+  const runDiff = useRunDiff(runId, () => setActiveTab("diff"));
+
   const isBuiltinBenchmark =
     benchmarks.find((b) => b.id === run?.benchmark_id)?.source === "builtin";
-
-  useEffect(() => {
-    sessionStorage.setItem(
-      filtersKey,
-      JSON.stringify({ filters, onlyPending, reviewFilter })
-    );
-  }, [filtersKey, filters, onlyPending, reviewFilter]);
 
   useEffect(() => {
     setRunError(null);
@@ -107,49 +69,7 @@ export function useRunDashboard(runId: number) {
         }
       })
       .catch((e) => setRunError(formatApiError(e, "加载评测详情失败")));
-    api
-      .listRuns()
-      .then((rs) =>
-        setOtherRuns(rs.filter((r) => r.id !== runId && r.status === "success"))
-      );
   }, [runId]);
-
-  useEffect(() => {
-    const params: Record<string, string | number | boolean> = {
-      ...filters,
-      limit: CASE_LIST_LIMIT,
-    };
-    if (onlyPending) params.review_pending = true;
-    api.listCaseResults(runId, params).then(setCases);
-    api.getReviewStats(runId).then(setReviewStats).catch(() => setReviewStats(null));
-    api
-      .getReviewQueue(runId, filters)
-      .then((q) => setQueueIds(new Set(q.map((it) => it.sample_id))))
-      .catch(() => setQueueIds(new Set()));
-  }, [runId, filters, onlyPending]);
-
-  const shownCases = useMemo(() => {
-    let result = cases;
-    if (reviewFilter === "agree" || reviewFilter === "override") {
-      result = result.filter((c) => c.review?.verdict === reviewFilter);
-    } else if (reviewFilter === "none") {
-      result = result.filter((c) => !c.review);
-    }
-    return result;
-  }, [cases, reviewFilter]);
-
-  const hasActiveFilters =
-    onlyPending ||
-    reviewFilter != null ||
-    ["release_passed", "level", "turns", "stability", "guideline"].some(
-      (k) => filters[k] != null
-    );
-
-  const resetFilters = () => {
-    setFilters({});
-    setReviewFilter(undefined);
-    setOnlyPending(false);
-  };
 
   const startEditName = () => {
     if (!run) return;
@@ -234,7 +154,7 @@ export function useRunDashboard(runId: number) {
 
   const openYamlEditor = () => {
     if (benchmarks.length === 0) api.listBenchmarks().then(setBenchmarks);
-    openFromRun(runId, filters);
+    openFromRun(runId, caseFilters.filters);
   };
 
   const saveYamlAsBenchmark = () =>
@@ -269,7 +189,7 @@ export function useRunDashboard(runId: number) {
     setExporting(true);
     try {
       const res = await api.exportTranscripts(runId, {
-        ...filters,
+        ...caseFilters.filters,
         parent_folder_token: "",
       });
       setExportOpen(false);
@@ -292,50 +212,13 @@ export function useRunDashboard(runId: number) {
     }
   };
 
-  const selectDiffBaseline = async (againstId: number) => {
-    setDiffBaselineId(againstId);
-    setDiffLoading(true);
-    setActiveTab("diff");
-    try {
-      const [diffResult, baseCases, curCases] = await Promise.all([
-        api.diffRun(runId, againstId),
-        api.listCaseResults(againstId, { limit: CASE_LIST_LIMIT }),
-        api.listCaseResults(runId, { limit: CASE_LIST_LIMIT }),
-      ]);
-      setDiff(diffResult);
-      setBaselineCases(baseCases);
-      setDiffCurrentCases(curCases);
-    } catch (e: unknown) {
-      setDiff(null);
-      setBaselineCases([]);
-      setDiffCurrentCases([]);
-      message.error(formatApiError(e, "加载对比数据失败"));
-    } finally {
-      setDiffLoading(false);
-    }
-  };
-
   return {
     run,
     runError,
-    cases,
-    shownCases,
-    filters,
-    setFilters,
-    reviewStats,
-    queueIds,
-    onlyPending,
-    setOnlyPending,
-    reviewFilter,
-    setReviewFilter,
+    ...caseFilters,
     activeTab,
     setActiveTab,
-    otherRuns,
-    diff,
-    diffBaselineId,
-    baselineCases,
-    diffCurrentCases,
-    diffLoading,
+    ...runDiff,
     exporting,
     exportOpen,
     setExportOpen,
@@ -359,8 +242,6 @@ export function useRunDashboard(runId: number) {
     nameDraft,
     setNameDraft,
     savingName,
-    hasActiveFilters,
-    resetFilters,
     startEditName,
     commitName,
     doResume,
@@ -371,7 +252,6 @@ export function useRunDashboard(runId: number) {
     saveYamlAsBenchmark,
     saveYamlOverwrite,
     doExport,
-    selectDiffBaseline,
     navigate,
   };
 }

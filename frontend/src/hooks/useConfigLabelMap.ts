@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { api } from "../api/index";
 
 const caches = new Map<string, Record<string, string>>();
 const inflights = new Map<string, Promise<Record<string, string>>>();
@@ -50,4 +51,25 @@ export function useConfigLabelMap(
     };
   }, [cacheKey, fetcher]);
   return (key: string) => resolve(labels, key);
+}
+
+const CACHE_KEY_FAILURE = "failure-tags";
+const CACHE_KEY_JUDGE = "judge-verdict";
+
+const fetchFailureTagLabels = () => api.getFailureTagLabels();
+const fetchJudgeVerdictLabels = () => api.getJudgeVerdictLabels();
+
+/** 失败标签英文枚举值 → 中文短标签；未知值回退原值。 */
+export function useFailureTagLabels(): (tag: string) => string {
+  return useConfigLabelMap(CACHE_KEY_FAILURE, fetchFailureTagLabels, (labels, tag) => labels[tag] || tag);
+}
+
+/** Judge verdict 全名 → 中文标签；未知值回退英文名。 */
+export function useJudgeVerdictLabels(): (name: string | undefined) => string {
+  const resolve = useConfigLabelMap(
+    CACHE_KEY_JUDGE,
+    fetchJudgeVerdictLabels,
+    (labels, name) => labels[name] || name
+  );
+  return (name: string | undefined) => (name ? resolve(name) : "-");
 }

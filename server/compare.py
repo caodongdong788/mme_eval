@@ -14,6 +14,11 @@ from sqlalchemy.orm import Session
 from medeval.judge_labels import FINGERPRINT_LABELS
 
 from .models_db import CaseResultRow, EvalRun
+from .services.run_comparability import (
+    judge_fingerprint_changes,
+    judge_fingerprints_match,
+    same_benchmark,
+)
 
 
 def _release_map(session: Session, run_id: int) -> dict[str, bool]:
@@ -67,7 +72,7 @@ def check_pairwise_comparable(
     if run_a.id == run_b.id:
         reasons.append("不能和自己对比，请选两个不同的评测。")
         return reasons
-    if (run_a.benchmark_id or None) != (run_b.benchmark_id or None):
+    if not same_benchmark(run_a, run_b):
         reasons.append("两次评测用的题库（benchmark）不一样，题目都不同，没法对比。")
     ids_a, ids_b = _sample_ids(session, run_a.id), _sample_ids(session, run_b.id)
     if ids_a != ids_b:
@@ -80,7 +85,7 @@ def check_pairwise_comparable(
             + "）。"
         )
     fp_a, fp_b = run_a.judge_fingerprints or {}, run_b.judge_fingerprints or {}
-    if fp_a != fp_b:
+    if not judge_fingerprints_match(run_a, run_b):
         labels = _changed_judge_labels(fp_a, fp_b)
         who = "、".join(labels) if labels else "部分判官"
         reasons.append(
@@ -117,6 +122,66 @@ def pairwise_subject_diff(run_a: EvalRun, run_b: EvalRun) -> dict[str, Any]:
     return diff
 
 
+def _case_diff_rows(session: Session, current_id: int, against_id: int) -> list[dict[str, Any]]:
+    """逐用例 release/分数对比（供前端 diff 表，避免双次 listCaseResults）。"""
+    cols = (
+        CaseResultRow.sample_id,
+        CaseResultRow.scenario,
+        CaseResultRow.sub_scenario,
+        CaseResultRow.level,
+        CaseResultRow.release_passed,
+        CaseResultRow.composite_score,
+    )
+
+    def _map(run_id: int) -> dict[str, tuple]:
+        rows = session.execute(select(*cols).where(CaseResultRow.run_id == run_id)).all()
+        return {r[0]: r for r in rows}
+
+    cur_map = _map(current_id)
+    base_map = _map(against_id)
+    all_ids = sorted(set(cur_map) | set(base_map))
+    order = {"regression": 0, "improvement": 1, "unchanged": 2}
+    out: list[dict[str, Any]] = []
+
+    for sample_id in all_ids:
+        cur = cur_map.get(sample_id)
+        base = base_map.get(sample_id)
+        cur_pass = bool(cur[4]) if cur else None
+        base_pass = bool(base[4]) if base else None
+
+        if base_pass and not cur_pass:
+            change = "regression"
+        elif cur_pass and not base_pass:
+            change = "improvement"
+        else:
+            change = "unchanged"
+
+        cur_score = cur[5] if cur else None
+        base_score = base[5] if base else None
+        score_delta = (
+            round(float(cur_score) - float(base_score), 2)
+            if cur_score is not None and base_score is not None
+            else None
+        )
+
+        out.append(
+            {
+                "sample_id": sample_id,
+                "scenario": (cur[1] if cur else base[1]) or "",
+                "sub_scenario": (cur[2] if cur else base[2]) or sample_id,
+                "level": (cur[3] if cur else base[3]) or "",
+                "current_release_passed": cur_pass,
+                "baseline_release_passed": base_pass,
+                "current_score": cur_score,
+                "baseline_score": base_score,
+                "score_delta": score_delta,
+                "change": change,
+            }
+        )
+
+    return sorted(out, key=lambda r: (order[r["change"]], r["sample_id"]))
+
+
 def compare_runs(session: Session, current: EvalRun, against: EvalRun) -> dict[str, Any]:
     """current 相对 against 的差异。regressions = against 通过但 current 失败。"""
     cur_map = _release_map(session, current.id)
@@ -129,13 +194,7 @@ def compare_runs(session: Session, current: EvalRun, against: EvalRun) -> dict[s
         sid for sid, ok in cur_map.items() if ok and not base_map.get(sid, False)
     )
 
-    fp_cur = current.judge_fingerprints or {}
-    fp_base = against.judge_fingerprints or {}
-    fingerprint_changes = {
-        k: {"against": fp_base.get(k), "current": fp_cur.get(k)}
-        for k in set(fp_cur) | set(fp_base)
-        if fp_cur.get(k) != fp_base.get(k)
-    }
+    fingerprint_changes = judge_fingerprint_changes(current, against)
 
     return {
         "current": {
@@ -157,4 +216,5 @@ def compare_runs(session: Session, current: EvalRun, against: EvalRun) -> dict[s
         "improvements": improvements,
         "judge_logic_changed": bool(fingerprint_changes),
         "fingerprint_changes": fingerprint_changes,
+        "cases": _case_diff_rows(session, current.id, against.id),
     }

@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user_optional
 from ..constants import LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX
 from ..db import get_session
-from ..deps import creator_name
 from ..models_db import FeishuUser, JudgeModelConfig
 from ..schemas import JudgeModelCreate, JudgeModelOut, JudgeModelUpdate
 from ..services import judge_models as jm_svc
@@ -40,7 +39,7 @@ def create_judge_model(
     current_user: Optional[FeishuUser] = Depends(get_current_user_optional),
 ) -> JudgeModelConfig:
     return jm_svc.create_judge_model(
-        session, payload, created_by=creator_name(current_user)
+        session, payload, created_by=current_user.name if current_user else None
     )
 
 

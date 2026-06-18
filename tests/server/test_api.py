@@ -202,6 +202,9 @@ def test_seeded_run_queries(client, settings):
     diff = client.get(f"/api/runs/{aid}/diff", params={"against": bid2}).json()
     assert diff["pass_rate_delta"] == 0.0
     assert diff["regressions"] == []
+    assert "cases" in diff
+    assert len(diff["cases"]) == 2
+    assert all("change" in row for row in diff["cases"])
 
     # 趋势
     trends = client.get("/api/dashboard/trends", params={"benchmark_id": bid}).json()

@@ -2,6 +2,7 @@ import { Col, Row, Space, Tag, Typography } from "antd";
 import { DIM_LABEL } from "../labels";
 import type { PairwiseDetail } from "../api/index";
 import { DashPanel } from "./DashPanel";
+import { RunsKpi } from "./RunsKpi";
 
 const { Text, Title } = Typography;
 
@@ -61,17 +62,12 @@ export function PairwiseDetailSummaryCard({
         </div>
         <div className="runs-kpi-row runs-kpi-row--overview" style={{ marginTop: 16, marginBottom: 0 }}>
           {kpiItems.map((item) => (
-            <div key={item.label} className="runs-kpi">
-              <div className="runs-kpi__title">{item.label}</div>
-              <div className="runs-kpi__value-row">
-                <span
-                  className="runs-kpi__value"
-                  style={item.accent ? { color: item.accent } : undefined}
-                >
-                  {item.value}
-                </span>
-              </div>
-            </div>
+            <RunsKpi
+              key={item.label}
+              title={item.label}
+              value={item.value}
+              valueStyle={item.accent ? { color: item.accent } : undefined}
+            />
           ))}
         </div>
         {diffKeys.length > 0 && (
@@ -93,22 +89,17 @@ export function PairwiseDetailSummaryCard({
             <Col span={8} key={dim}>
               <DashPanel title={`${DIM_LABEL[dim]}维度`}>
                 <Space size={16}>
-                  <div>
-                    <div className="runs-kpi__title">B 胜</div>
-                    <div className="runs-kpi__value" style={{ color: "var(--runs-purple)" }}>
-                      {d.B}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="runs-kpi__title">平</div>
-                    <div className="runs-kpi__value">{d.tie}</div>
-                  </div>
-                  <div>
-                    <div className="runs-kpi__title">A 胜</div>
-                    <div className="runs-kpi__value" style={{ color: "var(--runs-red)" }}>
-                      {d.A}
-                    </div>
-                  </div>
+                  <RunsKpi
+                    title="B 胜"
+                    value={d.B}
+                    valueStyle={{ color: "var(--runs-purple)" }}
+                  />
+                  <RunsKpi title="平" value={d.tie} />
+                  <RunsKpi
+                    title="A 胜"
+                    value={d.A}
+                    valueStyle={{ color: "var(--runs-red)" }}
+                  />
                 </Space>
               </DashPanel>
             </Col>

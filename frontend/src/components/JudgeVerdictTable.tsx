@@ -1,5 +1,5 @@
 import { Space, Table, Tag, Typography } from "antd";
-import { useJudgeVerdictLabels } from "../judgeVerdictLabels";
+import { useJudgeVerdictLabels } from "../hooks/useConfigLabelMap";
 import { CaseVerdict } from "../utils/caseJudging";
 import { DashPanel } from "./DashPanel";
 

@@ -7,7 +7,6 @@ import {
   ReloadOutlined,
 } from "@ant-design/icons";
 import { RunDetail } from "../api/index";
-import { MetaChip } from "./MetaChip";
 import { RunStatusTag } from "./RunStatusTag";
 
 export interface RunDashboardHeaderProps {
@@ -62,8 +61,8 @@ export function RunDashboardHeader({
           <RunStatusTag status={run.status} bordered={false} />
         </div>
         <div className="run-meta">
-          <MetaChip>judge {run.judge_overrides?.model || "config 默认"}</MetaChip>
-          <MetaChip>N={run.n_runs}</MetaChip>
+          <span className="chip">judge {run.judge_overrides?.model || "config 默认"}</span>
+          <span className="chip">N={run.n_runs}</span>
         </div>
       </div>
       <Space>

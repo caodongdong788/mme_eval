@@ -1,47 +1,36 @@
 import { describe, expect, it, vi } from "vitest";
-import { RunDiff } from "../api/index";
+import { DiffCaseRow, RunDiff } from "../api/index";
 import { RunDiffTab } from "./RunDiffTab";
 import { renderWithProviders } from "../test/renderWithProviders";
 
 const otherRuns = [{ id: 2, name: "上周基线", run_slug: "run-2", status: "success" } as never];
 
-const currentCases = [
+const diffCases: DiffCaseRow[] = [
   {
     sample_id: "bc-001",
     scenario: "s1",
     sub_scenario: "场景1",
     level: "L1",
-    release_passed: false,
-    composite_score: 0.6,
+    current_release_passed: false,
+    baseline_release_passed: true,
+    current_score: 0.6,
+    baseline_score: 0.85,
+    score_delta: -0.25,
+    change: "regression",
   },
   {
     sample_id: "bc-003",
     scenario: "s2",
     sub_scenario: "场景3",
     level: "L2",
-    release_passed: true,
-    composite_score: 0.9,
+    current_release_passed: true,
+    baseline_release_passed: false,
+    current_score: 0.9,
+    baseline_score: 0.5,
+    score_delta: 0.4,
+    change: "improvement",
   },
-] as never[];
-
-const baselineCases = [
-  {
-    sample_id: "bc-001",
-    scenario: "s1",
-    sub_scenario: "场景1",
-    level: "L1",
-    release_passed: true,
-    composite_score: 0.85,
-  },
-  {
-    sample_id: "bc-003",
-    scenario: "s2",
-    sub_scenario: "场景3",
-    level: "L2",
-    release_passed: false,
-    composite_score: 0.5,
-  },
-] as never[];
+];
 
 describe("RunDiffTab", () => {
   it("matches snapshot without diff", () => {
@@ -52,8 +41,6 @@ describe("RunDiffTab", () => {
         diff={null}
         diffBaselineId={null}
         diffLoading={false}
-        currentCases={currentCases}
-        baselineCases={[]}
         onSelectBaseline={vi.fn()}
       />
     );
@@ -74,12 +61,11 @@ describe("RunDiffTab", () => {
             improvements: ["bc-003"],
             judge_logic_changed: true,
             fingerprint_changes: {},
+            cases: diffCases,
           } as RunDiff
         }
         diffBaselineId={2}
         diffLoading={false}
-        currentCases={currentCases}
-        baselineCases={baselineCases}
         onSelectBaseline={vi.fn()}
       />
     );
