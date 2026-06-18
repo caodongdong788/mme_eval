@@ -24,7 +24,7 @@
 
 ## 安装
 
-> 换机、Docker、graphify、飞书等完整环境重建见根目录 [`MIGRATION.md`](../MIGRATION.md)。
+> 平台完整环境见根目录 [`README.md`](../README.md)「平台开发」；Docker 见 `docker-compose.yml`。
 
 ```bash
 pip install -e ".[server]"      # 后端依赖（已含于 .venv）

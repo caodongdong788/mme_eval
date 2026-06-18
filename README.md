@@ -193,10 +193,10 @@ medeval run --config config.yaml --score-profile adversarial
 
 ## 快速开始（CLI）
 
-> **完整环境**（venv、可选 LLM/平台/Langfuse、Docker、换机）：见 [`MIGRATION.md`](MIGRATION.md) TL;DR 与分步章节。下文为最短 happy path。
+> **完整环境**（venv、可选 LLM/平台/Langfuse、Docker）：见下文「平台开发」与 `docker-compose.yml` / `.env.docker.example`。下文为最短 happy path。
 
 ```bash
-# 1. 安装（开发全量：pip install -e ".[dev,llm-openai,server]" — 见 MIGRATION.md）
+# 1. 安装（开发全量：`pip install -e ".[dev,llm-openai,server]"`）
 pip install -e .
 
 # 2. 配好你的 chatbot adapter 后跑评测
@@ -509,7 +509,6 @@ medical-chatbot-eval/
 ├── uploads/                  # 上传的 benchmark 用例存储（平台）
 ├── outputs/                  # 评测输出（每个 run 一个目录：report.json + transcripts.xlsx + traces.jsonl.gz；retention 滚动清理胖产物，report.json 永久保留）
 ├── docs/heuristics-changelog.md  # HardGate 指纹变更登记
-├── MIGRATION.md              # 换机迁移 / 环境重建 / Git 推送指南
 ├── Dockerfile / docker-compose.yml / .env.docker.example  # Docker 部署
 ├── .gitignore                # 排除 .env、outputs/、uploads/、*.db 等
 ├── graphify-out/             # 代码知识图谱（任务启动/结束更新）
@@ -528,7 +527,7 @@ git diff                # 查看改动
 git log --oneline -5    # 最近提交
 ```
 
-在 Cursor 中查看改动：左侧 **Source Control**（`Cmd/Ctrl+Shift+G`）或 Timeline。换机拷贝、远程协作、Docker 上云见 [`MIGRATION.md`](MIGRATION.md)。
+在 Cursor 中查看改动：左侧 **Source Control**（`Cmd/Ctrl+Shift+G`）或 Timeline。换机协作：`git clone` 后按「快速开始」安装；Docker 部署见 `docker-compose.yml`。
 
 ---
 
