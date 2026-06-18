@@ -12,7 +12,12 @@ from sqlalchemy.orm import Session
 
 from .. import benchmarks as bm_domain
 from ..models_db import Benchmark
-from ..schemas import BenchmarkUpdateRequest, CaseBrief
+from ..schemas import (
+    BenchmarkCaseYamlIn,
+    BenchmarkCaseYamlOut,
+    BenchmarkUpdateRequest,
+    CaseBrief,
+)
 from ..settings import get_settings
 
 
@@ -81,6 +86,39 @@ def list_benchmark_case_briefs(session: Session, benchmark_id: int) -> list[Case
         )
         for c in cases
     ]
+
+
+def get_benchmark_case_yaml(
+    session: Session, benchmark_id: int, sample_id: str
+) -> BenchmarkCaseYamlOut:
+    bm = get_benchmark_or_404(session, benchmark_id)
+    try:
+        case_file, text = bm_domain.export_case_yaml(bm, sample_id)
+    except bm_domain.BenchmarkValidationError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return BenchmarkCaseYamlOut(
+        benchmark_id=benchmark_id,
+        sample_id=sample_id,
+        case_file=case_file,
+        yaml_text=text,
+    )
+
+
+def save_benchmark_case_yaml(
+    session: Session, benchmark_id: int, sample_id: str, payload: BenchmarkCaseYamlIn
+) -> BenchmarkCaseYamlOut:
+    bm = get_benchmark_or_404(session, benchmark_id)
+    try:
+        bm_domain.save_case_yaml(bm, sample_id, payload.yaml_text)
+    except bm_domain.BenchmarkValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    case_file, text = bm_domain.export_case_yaml(bm, sample_id)
+    return BenchmarkCaseYamlOut(
+        benchmark_id=benchmark_id,
+        sample_id=sample_id,
+        case_file=case_file,
+        yaml_text=text,
+    )
 
 
 def export_download(benchmark_id: int, session: Session) -> tuple[str, str]:

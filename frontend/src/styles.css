@@ -1613,3 +1613,260 @@ a.ant-typography-secondary:hover {
   font-weight: 500;
 }
 
+/* 判分模型编辑：左 prompt / 右模型配置 */
+.judge-model-editor {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 20px;
+  align-items: start;
+}
+.judge-model-editor__prompt-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.judge-model-editor__textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+}
+.judge-model-editor__config {
+  border-left: 1px solid var(--runs-border);
+  padding-left: 20px;
+}
+@media (max-width: 860px) {
+  .judge-model-editor {
+    grid-template-columns: 1fr;
+  }
+  .judge-model-editor__config {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid var(--runs-border);
+    padding-top: 16px;
+  }
+}
+
+/* 评分配置（Coze 风 · 顶 Tab + 全宽表单） */
+.dash-scoring-config__alert {
+  margin-bottom: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--runs-border);
+  background: var(--runs-card);
+}
+.dash-scoring-card {
+  background: var(--runs-card);
+  border-radius: 12px;
+  box-shadow: var(--runs-shadow);
+  overflow: hidden;
+}
+.dash-scoring-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 24px 0;
+}
+.dash-scoring-card__head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--runs-text);
+}
+.dash-scoring-card__count {
+  font-size: 12px;
+  color: var(--runs-text-muted);
+}
+.dash-scoring-tabs.ant-tabs-top > .ant-tabs-nav {
+  margin: 0;
+  padding: 8px 24px 0;
+}
+.dash-scoring-tabs .ant-tabs-nav-wrap {
+  flex: 1;
+}
+.dash-scoring-tabs .ant-tabs-tab {
+  padding: 10px 4px 14px !important;
+  margin: 0 20px 0 0 !important;
+}
+.dash-scoring-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  line-height: 1.3;
+}
+.dash-scoring-tab__name {
+  font-size: 14px;
+  white-space: nowrap;
+}
+.dash-scoring-tab__mark {
+  margin-left: 2px;
+  color: var(--runs-purple);
+  font-weight: 600;
+}
+.dash-scoring-tab__meta {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--runs-text-muted);
+}
+.dash-scoring-tabs .ant-tabs-tab.ant-tabs-tab-active .dash-scoring-tab__name {
+  color: var(--runs-purple);
+  font-weight: 600;
+}
+.dash-scoring-card__body {
+  padding: 0 24px 28px;
+}
+.dash-scoring-profile-form__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding: 16px 0 18px;
+  border-bottom: 1px solid var(--runs-border);
+}
+.dash-scoring-profile-form__sub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--runs-text-secondary);
+}
+.dash-scoring-profile-form__sep {
+  margin: 0 6px;
+  color: var(--runs-text-muted);
+}
+.dash-scoring-profile-form__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.dash-scoring-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.dash-scoring-block {
+  padding: 20px 22px;
+  border: 1px solid var(--runs-border);
+  border-radius: 10px;
+  background: #fafbfc;
+}
+.dash-scoring-block__head {
+  margin-bottom: 16px;
+}
+.dash-scoring-block__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--runs-text);
+}
+.dash-scoring-block__hint {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--runs-text-muted);
+  line-height: 1.5;
+}
+.dash-scoring-field-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--runs-text);
+}
+.dash-scoring-field-label__icon {
+  color: var(--runs-text-muted);
+  font-size: 12px;
+}
+.dash-scoring-weight-card,
+.dash-scoring-field-card {
+  height: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--runs-border);
+  border-radius: 10px;
+  background: var(--runs-card);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.dash-scoring-weight-card:hover,
+.dash-scoring-field-card:hover {
+  border-color: var(--runs-purple-line);
+}
+.dash-scoring-weight-card__input,
+.dash-scoring-field-card__input {
+  width: 100% !important;
+  margin-bottom: 6px;
+}
+.dash-scoring-weight-card__default {
+  font-size: 12px;
+}
+.dash-scoring-threshold-panel {
+  margin-bottom: 20px;
+  padding: 16px 18px;
+  border: 1px solid var(--runs-border);
+  border-radius: 10px;
+  background: var(--runs-card);
+}
+.dash-scoring-threshold-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 4px;
+}
+.dash-scoring-threshold-row__slider {
+  flex: 1;
+  min-width: 0;
+  margin: 0 !important;
+}
+.dash-scoring-threshold-row__num {
+  width: 100px !important;
+  flex-shrink: 0;
+}
+.dash-scoring-gates-panel {
+  padding-top: 4px;
+}
+.dash-scoring-gate-card {
+  padding: 12px 14px;
+  border: 1px solid var(--runs-border);
+  border-radius: 10px;
+  background: var(--runs-card);
+}
+.dash-scoring-gate-card__label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--runs-text);
+}
+.dash-scoring-gate-card__select {
+  width: 100% !important;
+}
+.dash-scoring-card .ant-slider-track {
+  background: var(--runs-purple) !important;
+}
+.dash-scoring-card .ant-slider-handle::after {
+  box-shadow: 0 0 0 2px var(--runs-purple) !important;
+}
+.dash-scoring-card .ant-input-number,
+.dash-scoring-card .ant-select-selector {
+  border-color: var(--runs-border) !important;
+}
+.dash-scoring-card .ant-input-number:hover,
+.dash-scoring-card .ant-select:hover .ant-select-selector {
+  border-color: var(--runs-purple-line) !important;
+}
+.dash-scoring-card .ant-input-number-focused,
+.dash-scoring-card .ant-select-focused .ant-select-selector {
+  border-color: var(--runs-purple) !important;
+  box-shadow: 0 0 0 2px rgba(124, 92, 252, 0.12) !important;
+}
+@media (max-width: 768px) {
+  .dash-scoring-card__head,
+  .dash-scoring-tabs.ant-tabs-top > .ant-tabs-nav,
+  .dash-scoring-card__body {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .dash-scoring-tabs .ant-tabs-tab {
+    margin-right: 14px !important;
+  }
+}
+

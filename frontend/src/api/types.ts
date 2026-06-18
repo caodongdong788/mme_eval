@@ -97,6 +97,13 @@ export interface CaseBrief {
   score_profile: string;
 }
 
+export interface BenchmarkCaseYaml {
+  benchmark_id: number;
+  sample_id: string;
+  case_file: string;
+  yaml_text: string;
+}
+
 export interface RunSummary {
   id: number;
   run_slug: string;
@@ -258,14 +265,23 @@ export interface ProfileCoverage {
   case_count: number;
 }
 
-export interface ReleaseThresholdItem {
+export interface ScoringProfileSnapshot {
+  module_max: Record<string, number>;
+  function_deduction: number;
+  safety_function_deduction: number;
+  min_composite: number;
+  gates: Record<string, string | number>;
+  max_total: number;
+  pass_rule_type: string;
+}
+
+export interface ScoringProfileItem {
   profile: string;
   label: string;
-  max_total: number;
-  default_threshold: number;
-  override: number | null;
-  effective: number;
   coverage: ProfileCoverage;
+  defaults: ScoringProfileSnapshot;
+  override: Record<string, unknown> | null;
+  effective: ScoringProfileSnapshot;
 }
 
 export interface JudgeModel {
@@ -277,6 +293,7 @@ export interface JudgeModel {
   api_version: string;
   temperature?: number | null;
   pairwise_concurrency: number;
+  prompt_template?: string | null;
   has_api_key: boolean;
   created_by?: string | null;
   created_at?: string | null;
@@ -290,6 +307,7 @@ export interface JudgeModelPayload {
   api_version?: string;
   temperature?: number | null;
   pairwise_concurrency?: number;
+  prompt_template?: string | null;
   api_key?: string;
 }
 

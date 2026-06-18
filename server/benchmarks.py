@@ -282,13 +282,20 @@ def ensure_builtin_benchmark(
     existing = session.execute(
         select(Benchmark).where(Benchmark.source == "builtin")
     ).scalars().first()
-    if existing is not None:
-        return existing
-
     cases_dir = settings.project_root / settings.builtin_cases_dir
     if not cases_dir.is_dir():
-        return None
+        return existing
     cases = load_cases(include=[str(cases_dir)], base_dir=settings.project_root)
+    if existing is not None:
+        # ponytail: 列表展示 case_count 须与磁盘同步，否则用例增删后仍显示旧值（如 71 vs 92）
+        existing.case_count = len(cases)
+        existing.tags = _collect_score_profiles(cases)
+        existing.levels = _collect_levels(cases)
+        session.flush()
+        return existing
+
+    if not cases:
+        return None
     row = Benchmark(
         name="乳腺癌专科 benchmark",
         description="内置乳腺癌全病程套件（cases/breast_cancer）",
@@ -399,3 +406,106 @@ def load_benchmark_cases(
         _CASES_CACHE[key] = cases
         return [c.model_copy(deep=True) for c in cases]
     return cases
+
+
+def _storage_root(benchmark: Benchmark, settings: Settings) -> Path:
+    root = Path(benchmark.storage_path)
+    if not root.is_absolute():
+        root = settings.project_root / root
+    return root
+
+
+def _invalidate_cases_cache(storage_path: str) -> None:
+    for key in list(_CASES_CACHE):
+        if key[0] == storage_path:
+            del _CASES_CACHE[key]
+
+
+def _parse_single_case_yaml(yaml_text: str, *, expected_sample_id: str) -> dict[str, Any]:
+    try:
+        data = yaml.safe_load(yaml_text)
+    except yaml.YAMLError as exc:
+        raise BenchmarkValidationError(f"YAML 解析失败：{exc}") from exc
+    if not isinstance(data, list) or len(data) != 1:
+        raise BenchmarkValidationError("YAML 须为仅含一条用例的列表")
+    item = data[0]
+    if not isinstance(item, dict):
+        raise BenchmarkValidationError("用例须为 mapping")
+    sid = str(item.get("sample_id") or "").strip()
+    if sid != expected_sample_id:
+        raise BenchmarkValidationError(f"sample_id 须为 {expected_sample_id}，实际为 {sid or '(空)'}")
+    return item
+
+
+def _validate_case_dict(item: dict[str, Any], settings: Settings) -> TestCase:
+    staging = settings.uploads_dir / "_staging"
+    staging.mkdir(parents=True, exist_ok=True)
+    tmp = staging / f"{uuid4().hex}.yaml"
+    tmp.write_text(yaml.safe_dump([item], allow_unicode=True, sort_keys=False), encoding="utf-8")
+    try:
+        cases = load_cases(include=[str(tmp)], base_dir=settings.project_root)
+    except Exception as exc:  # noqa: BLE001
+        raise BenchmarkValidationError(f"用例校验失败：{exc}") from exc
+    finally:
+        tmp.unlink(missing_ok=True)
+    if len(cases) != 1:
+        raise BenchmarkValidationError("用例校验失败：须恰好一条")
+    return cases[0]
+
+
+def _locate_case_file(benchmark: Benchmark, sample_id: str, settings: Settings) -> Path:
+    cases = load_benchmark_cases(benchmark, settings=settings)
+    case = next((c for c in cases if c.sample_id == sample_id), None)
+    if case is None or not case.case_file:
+        raise BenchmarkValidationError(f"用例 {sample_id} 不存在或未记录源文件")
+    path = _storage_root(benchmark, settings) / case.case_file
+    if not path.is_file():
+        raise BenchmarkValidationError(f"未找到用例 {sample_id} 的源 YAML：{case.case_file}")
+    return path
+
+
+def export_case_yaml(
+    benchmark: Benchmark, sample_id: str, *, settings: Settings | None = None
+) -> tuple[str, str]:
+    """导出单条用例 YAML 文本，返回 (case_file, yaml_text)。"""
+    settings = settings or get_settings()
+    cases = load_benchmark_cases(benchmark, settings=settings)
+    case = next((c for c in cases if c.sample_id == sample_id), None)
+    if case is None:
+        raise BenchmarkValidationError(f"用例 {sample_id} 不存在")
+    data = case.model_dump(mode="json")
+    data.pop("case_file", None)
+    text = yaml.safe_dump([data], allow_unicode=True, sort_keys=False)
+    return case.case_file or "", text
+
+
+def save_case_yaml(
+    benchmark: Benchmark,
+    sample_id: str,
+    yaml_text: str,
+    *,
+    settings: Settings | None = None,
+) -> TestCase:
+    """校验并写回单条用例到其源 YAML 文件（内置/上传均可）。"""
+    settings = settings or get_settings()
+    item = _parse_single_case_yaml(yaml_text, expected_sample_id=sample_id)
+    case = _validate_case_dict(item, settings)
+    path = _locate_case_file(benchmark, sample_id, settings)
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, list):
+        raise BenchmarkValidationError("源 YAML 须为用例列表")
+    updated: list[Any] = []
+    found = False
+    for entry in raw:
+        if isinstance(entry, dict) and entry.get("sample_id") == sample_id:
+            updated.append(item)
+            found = True
+        else:
+            updated.append(entry)
+    if not found:
+        raise BenchmarkValidationError(f"源文件中未找到用例 {sample_id}")
+    path.write_text(
+        yaml.safe_dump(updated, allow_unicode=True, sort_keys=False), encoding="utf-8"
+    )
+    _invalidate_cases_cache(benchmark.storage_path)
+    return case

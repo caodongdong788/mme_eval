@@ -15,6 +15,7 @@ JUDGE_OVERRIDE_KEYS = (
     "api_key_env",
     "api_key",
     "temperature",
+    "prompt_template",
 )
 
 ADAPTER_OVERRIDE_KEYS = (

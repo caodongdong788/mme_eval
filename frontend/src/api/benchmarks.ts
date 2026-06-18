@@ -1,6 +1,7 @@
 import { http } from "./client";
 import type {
   Benchmark,
+  BenchmarkCaseYaml,
   CaseBrief,
   DeriveBenchmarkYamlPayload,
   OverwriteBenchmarkYamlPayload,
@@ -13,6 +14,16 @@ export const benchmarksApi = {
   listBenchmarks: () => http.get<Benchmark[]>("/benchmarks").then((r) => r.data),
   getBenchmarkCases: (id: number) =>
     http.get<CaseBrief[]>(`/benchmarks/${id}/cases`).then((r) => r.data),
+  getBenchmarkCaseYaml: (benchmarkId: number, sampleId: string) =>
+    http
+      .get<BenchmarkCaseYaml>(`/benchmarks/${benchmarkId}/cases/${sampleId}/yaml`)
+      .then((r) => r.data),
+  saveBenchmarkCaseYaml: (benchmarkId: number, sampleId: string, yaml_text: string) =>
+    http
+      .put<BenchmarkCaseYaml>(`/benchmarks/${benchmarkId}/cases/${sampleId}/yaml`, {
+        yaml_text,
+      })
+      .then((r) => r.data),
   uploadBenchmark: (form: FormData) =>
     http.post<Benchmark>("/benchmarks", form).then((r) => r.data),
   replaceBenchmark: (id: number, form: FormData) =>

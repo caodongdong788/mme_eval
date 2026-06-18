@@ -21,6 +21,8 @@ from ..constants import LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX
 from ..db import get_session
 from ..models_db import Benchmark, FeishuUser
 from ..schemas import (
+    BenchmarkCaseYamlIn,
+    BenchmarkCaseYamlOut,
     BenchmarkOut,
     BenchmarkUpdateRequest,
     CaseBrief,
@@ -182,6 +184,23 @@ def list_benchmark_cases(
     benchmark_id: int, session: Session = Depends(get_session)
 ) -> list[CaseBrief]:
     return bm_svc.list_benchmark_case_briefs(session, benchmark_id)
+
+
+@router.get("/{benchmark_id}/cases/{sample_id}/yaml", response_model=BenchmarkCaseYamlOut)
+def get_benchmark_case_yaml(
+    benchmark_id: int, sample_id: str, session: Session = Depends(get_session)
+) -> BenchmarkCaseYamlOut:
+    return bm_svc.get_benchmark_case_yaml(session, benchmark_id, sample_id)
+
+
+@router.put("/{benchmark_id}/cases/{sample_id}/yaml", response_model=BenchmarkCaseYamlOut)
+def save_benchmark_case_yaml(
+    benchmark_id: int,
+    sample_id: str,
+    payload: BenchmarkCaseYamlIn,
+    session: Session = Depends(get_session),
+) -> BenchmarkCaseYamlOut:
+    return bm_svc.save_benchmark_case_yaml(session, benchmark_id, sample_id, payload)
 
 
 @router.delete("/{benchmark_id}", status_code=204)

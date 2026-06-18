@@ -9,8 +9,19 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from medeval.judges.prompt_template import DEFAULT_PROMPT_TEMPLATE, validate_judge_prompt_template
+
 from ..models_db import JudgeModelConfig
 from ..schemas import JudgeModelCreate, JudgeModelUpdate
+
+
+def _validated_prompt(raw: str | None) -> str:
+    text = (raw or "").strip() or DEFAULT_PROMPT_TEMPLATE
+    try:
+        validate_judge_prompt_template(text)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return text
 
 
 def get_judge_model_or_404(session: Session, model_id: int) -> JudgeModelConfig:
@@ -54,6 +65,7 @@ def create_judge_model(
         api_version=payload.api_version or "",
         temperature=payload.temperature,
         pairwise_concurrency=payload.pairwise_concurrency,
+        prompt_template=_validated_prompt(payload.prompt_template),
         api_key=(payload.api_key or None),
         created_by=created_by,
     )
@@ -89,6 +101,8 @@ def update_judge_model(
         row.temperature = payload.temperature
     if payload.pairwise_concurrency is not None:
         row.pairwise_concurrency = payload.pairwise_concurrency
+    if payload.prompt_template is not None:
+        row.prompt_template = _validated_prompt(payload.prompt_template)
     if payload.api_key:
         row.api_key = payload.api_key
     session.flush()

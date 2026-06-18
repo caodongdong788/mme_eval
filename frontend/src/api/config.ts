@@ -1,12 +1,12 @@
 import { http } from "./client";
-import type { JudgeDefaults, ReleaseThresholdItem } from "./types";
+import type { JudgeDefaults, ScoringProfileItem } from "./types";
 
 export const configApi = {
-  getReleaseThresholds: () =>
-    http.get<ReleaseThresholdItem[]>("/config/release-thresholds").then((r) => r.data),
-  putReleaseThresholds: (overrides: Record<string, number | null>) =>
+  getScoringProfiles: () =>
+    http.get<ScoringProfileItem[]>("/config/scoring-profiles").then((r) => r.data),
+  putScoringProfiles: (overrides: Record<string, Record<string, unknown> | null>) =>
     http
-      .put<ReleaseThresholdItem[]>("/config/release-thresholds", { overrides })
+      .put<ScoringProfileItem[]>("/config/scoring-profiles", { overrides })
       .then((r) => r.data),
   getFailureTagLabels: () =>
     http.get<Record<string, string>>(`/config/failure-tags`).then((r) => r.data),

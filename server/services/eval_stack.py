@@ -11,9 +11,9 @@ from medeval.service import build_adjudicator, build_judges
 from ..db import session_scope
 from ..settings import Settings
 from .config_overrides import apply_adapter_overrides, apply_judge_overrides
-from .eval_release_thresholds import (
-    apply_release_threshold_overrides,
-    load_release_threshold_overrides,
+from .scoring_profile_config import (
+    apply_scoring_profile_overrides,
+    load_scoring_profile_rows,
 )
 
 
@@ -38,8 +38,8 @@ def prepare_run_config(
         apply_judge_overrides(config, extra_judge_ov)
     if release_thresholds:
         with session_scope() as session:
-            apply_release_threshold_overrides(
-                config, load_release_threshold_overrides(session)
+            apply_scoring_profile_overrides(
+                config, load_scoring_profile_rows(session)
             )
     return config
 

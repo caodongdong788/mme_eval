@@ -94,6 +94,7 @@ def build_judges(jcfg: JudgesCfg) -> list:
                 default_headers=llm.default_headers,
                 self_consistency=llm.self_consistency,
                 aggregate=llm.aggregate,
+                prompt_template=llm.prompt_template,
             )
         )
     sp = jcfg.scoring_point

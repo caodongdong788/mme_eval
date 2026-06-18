@@ -19,8 +19,14 @@ from ..schemas import (
     ProfileCoverageOut,
     ReleaseThresholdItemOut,
     ReleaseThresholdUpdateRequest,
+    ScoringProfileItemOut,
+    ScoringProfileUpdateRequest,
 )
 from ..settings import get_settings
+from .scoring_profile_config import (
+    build_scoring_profile_items,
+    put_scoring_profile_overrides,
+)
 
 PROFILE_LABELS_ZH = {
     # 与 frontend/src/labels.ts PROFILE_LABEL 保持同步（门禁：npm run check:standards）
@@ -116,6 +122,7 @@ def get_release_thresholds(session: Session) -> list[ReleaseThresholdItemOut]:
     overrides = {
         r.profile: float(r.composite_threshold)
         for r in session.execute(select(ReleaseThresholdConfig)).scalars().all()
+        if r.composite_threshold is not None
     }
     out: list[ReleaseThresholdItemOut] = []
     for r in rows:
@@ -142,36 +149,46 @@ def put_release_thresholds(
     *,
     updated_by: Optional[str],
 ) -> list[ReleaseThresholdItemOut]:
-    rows = {r["profile"]: r for r in profile_release_thresholds(_scoring_snapshot())}
-    existing = {
-        r.profile: r
-        for r in session.execute(select(ReleaseThresholdConfig)).scalars().all()
-    }
-
+    scoring_rows = {r["profile"]: r for r in profile_release_thresholds(_scoring_snapshot())}
+    patches: dict[str, Optional[dict[str, Any]]] = {}
     for profile, value in payload.overrides.items():
-        if profile not in rows:
+        if profile not in scoring_rows:
             raise HTTPException(status_code=422, detail=f"未知评分档：{profile}")
-        max_total = rows[profile]["max_total"]
-        default_threshold = rows[profile]["default_threshold"]
+        row = scoring_rows[profile]
+        default_threshold = row["default_threshold"]
+        max_total = row["max_total"]
         if value is None or abs(float(value) - default_threshold) < 1e-9:
-            if profile in existing:
-                session.delete(existing[profile])
-            continue
-        if float(value) <= 0 or float(value) > max_total + 1e-9:
+            patches[profile] = {"min_composite": default_threshold}
+        elif float(value) <= 0 or float(value) > max_total + 1e-9:
             raise HTTPException(
                 status_code=422,
                 detail=f"评分档「{profile}」阈值须在 (0, {max_total}] 内",
             )
-        if profile in existing:
-            existing[profile].composite_threshold = float(value)
-            existing[profile].updated_by = updated_by
         else:
-            session.add(
-                ReleaseThresholdConfig(
-                    profile=profile,
-                    composite_threshold=float(value),
-                    updated_by=updated_by,
-                )
-            )
-    session.flush()
+            patches[profile] = {"min_composite": float(value)}
+    put_scoring_profile_overrides(session, patches, updated_by=updated_by)
     return get_release_thresholds(session)
+
+
+def get_scoring_profiles(session: Session) -> list[ScoringProfileItemOut]:
+    counts = _score_profile_counts()
+    items = build_scoring_profile_items(
+        session,
+        profile_labels=PROFILE_LABELS_ZH,
+        coverage_fn=lambda p: _profile_coverage(p, counts),
+    )
+    return [ScoringProfileItemOut.model_validate(x) for x in items]
+
+
+def put_scoring_profiles(
+    session: Session,
+    payload: ScoringProfileUpdateRequest,
+    *,
+    updated_by: Optional[str],
+) -> list[ScoringProfileItemOut]:
+    overrides = {
+        k: (v.model_dump(exclude_none=True) if v is not None else None)
+        for k, v in payload.overrides.items()
+    }
+    put_scoring_profile_overrides(session, overrides, updated_by=updated_by)
+    return get_scoring_profiles(session)

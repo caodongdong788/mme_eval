@@ -18,6 +18,17 @@ export function useBenchmarksPage() {
   const [casesOpen, setCasesOpen] = useState(false);
   const [cases, setCases] = useState<CaseBrief[]>([]);
   const [casesTitle, setCasesTitle] = useState("");
+  const [casesBenchmark, setCasesBenchmark] = useState<Benchmark | null>(null);
+
+  const [caseYamlOpen, setCaseYamlOpen] = useState(false);
+  const [caseYamlLoading, setCaseYamlLoading] = useState(false);
+  const [caseYamlSaving, setCaseYamlSaving] = useState(false);
+  const [caseYamlText, setCaseYamlText] = useState("");
+  const [caseYamlMeta, setCaseYamlMeta] = useState<{
+    sampleId: string;
+    subScenario: string;
+    caseFile: string;
+  } | null>(null);
 
   const builtin = benchmarks.find((b) => b.source === "builtin");
   const uploaded = benchmarks.filter((b) => b.source !== "builtin");
@@ -65,9 +76,62 @@ export function useBenchmarksPage() {
   };
 
   const viewCases = async (b: Benchmark) => {
+    setCasesBenchmark(b);
     setCasesTitle(`${b.name}（${b.case_count} 条用例）`);
     setCasesOpen(true);
     setCases(await api.getBenchmarkCases(b.id));
+  };
+
+  const openCaseYaml = async (row: CaseBrief) => {
+    if (!casesBenchmark) return;
+    setCaseYamlOpen(true);
+    setCaseYamlLoading(true);
+    setCaseYamlText("");
+    setCaseYamlMeta({
+      sampleId: row.sample_id,
+      subScenario: row.sub_scenario || row.sample_id,
+      caseFile: "",
+    });
+    try {
+      const res = await api.getBenchmarkCaseYaml(casesBenchmark.id, row.sample_id);
+      setCaseYamlText(res.yaml_text);
+      setCaseYamlMeta((m) =>
+        m
+          ? { ...m, caseFile: res.case_file }
+          : {
+              sampleId: row.sample_id,
+              subScenario: row.sub_scenario || row.sample_id,
+              caseFile: res.case_file,
+            }
+      );
+    } catch (e: unknown) {
+      message.error(formatApiError(e, "加载用例 YAML 失败"));
+      setCaseYamlOpen(false);
+    } finally {
+      setCaseYamlLoading(false);
+    }
+  };
+
+  const saveCaseYaml = async () => {
+    if (!casesBenchmark || !caseYamlMeta) return;
+    setCaseYamlSaving(true);
+    try {
+      const res = await api.saveBenchmarkCaseYaml(
+        casesBenchmark.id,
+        caseYamlMeta.sampleId,
+        caseYamlText
+      );
+      setCaseYamlText(res.yaml_text);
+      setCaseYamlMeta((m) => (m ? { ...m, caseFile: res.case_file } : m));
+      message.success("用例已保存");
+      setCases(await api.getBenchmarkCases(casesBenchmark.id));
+      reload();
+      setCaseYamlOpen(false);
+    } catch (e: unknown) {
+      message.error(formatApiError(e, "保存失败"));
+    } finally {
+      setCaseYamlSaving(false);
+    }
   };
 
   const openEdit = (b: Benchmark) => {
@@ -111,6 +175,16 @@ export function useBenchmarksPage() {
     setCasesOpen,
     cases,
     casesTitle,
+    casesBenchmark,
+    caseYamlOpen,
+    setCaseYamlOpen,
+    caseYamlLoading,
+    caseYamlSaving,
+    caseYamlText,
+    setCaseYamlText,
+    caseYamlMeta,
+    openCaseYaml,
+    saveCaseYaml,
     editForm: editModal.form,
     editOpen: editModal.open,
     setEditOpen: editModal.setOpen,

@@ -48,7 +48,7 @@ const MENU = [
     children: [
       { key: "/benchmarks", icon: <DatabaseOutlined />, label: <Link to="/benchmarks">Benchmark 库</Link> },
       { key: "/judge-models", icon: <ExperimentOutlined />, label: <Link to="/judge-models">判分模型</Link> },
-      { key: "/release-thresholds", icon: <SlidersOutlined />, label: <Link to="/release-thresholds">阈值配置</Link> },
+      { key: "/release-thresholds", icon: <SlidersOutlined />, label: <Link to="/release-thresholds">评分配置</Link> },
     ],
   },
   {
@@ -65,7 +65,7 @@ const SECTION_LABEL: Record<string, string> = {
   trends: "趋势看板",
   benchmarks: "Benchmark 库",
   "judge-models": "判分模型",
-  "release-thresholds": "阈值配置",
+  "release-thresholds": "评分配置",
   launch: "发起评测",
   pairwise: "Pairwise 对比",
 };

@@ -49,6 +49,7 @@ def resolve_judge_override(
         api_version=jm.api_version or None,
         api_key=jm.api_key or None,
         temperature=jm.temperature,
+        prompt_template=jm.prompt_template or None,
     )
 
 

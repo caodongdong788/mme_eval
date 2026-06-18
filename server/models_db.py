@@ -275,6 +275,8 @@ class JudgeModelConfig(Base):
     base_url: Mapped[str] = mapped_column(String(500), default="")
     api_version: Mapped[str] = mapped_column(String(60), default="")
     temperature: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # 自定义 LLM-as-Judge prompt 模板；空=内核内置。须含 {conversation}/{rubric_text}/{tool_context}。
+    prompt_template: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # Pairwise 对比题间并发度（仅作用于对比，不影响主评测链路）。默认 4。
     pairwise_concurrency: Mapped[int] = mapped_column(Integer, default=4)
     # 只写不读：仅服务端发起评测时读取注入，接口侧只暴露 has_api_key。
@@ -291,22 +293,27 @@ class JudgeModelConfig(Base):
 
 
 class ReleaseThresholdConfig(Base):
-    """按评分档（profile）覆盖「综合分上线阈值」的全局配置：仅作用于之后发起的新评测。
+    """按评分档（profile）覆盖评分口径：权重 / 扣分 / 及格线 / gates。
 
-    无行 = 该 profile 沿用 config.yaml 原 pass_rule（零行为变化）。只覆盖综合分阈值，
-    不削弱 HardGate 与该 profile 原有的安全/合规 gates。
+    无行或某列为 NULL = 该字段沿用 config.yaml。仅作用于之后发起的新评测与重判。
+    composite_threshold 非 NULL 表示覆盖 min_composite（历史字段名保留）。
     """
 
     __tablename__ = "release_threshold_config"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     profile: Mapped[str] = mapped_column(String(60), unique=True, index=True)
-    composite_threshold: Mapped[float] = mapped_column(Float, nullable=False)
+    composite_threshold: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    module_max: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    function_deduction: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    safety_function_deduction: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True
+    )
+    gates: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
     updated_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
-
 
 class FeishuUser(Base):
     """一个飞书登录用户及其 per-user OAuth token 缓存。

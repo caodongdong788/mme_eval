@@ -14,8 +14,16 @@ from ..auth import get_current_user_optional
 from ..constants import LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX
 from ..db import get_session
 from ..models_db import FeishuUser, JudgeModelConfig
-from ..schemas import JudgeModelCreate, JudgeModelOut, JudgeModelUpdate
+from ..schemas import (
+    DefaultJudgePromptOut,
+    JudgeModelCreate,
+    JudgeModelOut,
+    JudgeModelUpdate,
+    OptimizeJudgePromptIn,
+    OptimizeJudgePromptOut,
+)
 from ..services import judge_models as jm_svc
+from ..services.judge_prompt_optimize import optimize_judge_prompt
 
 router = APIRouter(prefix="/api/judge-models", tags=["judge-models"])
 
@@ -32,6 +40,13 @@ def list_judge_models(
     return rows[offset : offset + limit]
 
 
+@router.get("/default-prompt", response_model=DefaultJudgePromptOut)
+def default_judge_prompt() -> DefaultJudgePromptOut:
+    from medeval.judges.prompt_template import DEFAULT_PROMPT_TEMPLATE
+
+    return DefaultJudgePromptOut(prompt_template=DEFAULT_PROMPT_TEMPLATE)
+
+
 @router.post("", response_model=JudgeModelOut, status_code=201)
 def create_judge_model(
     payload: JudgeModelCreate,
@@ -41,6 +56,12 @@ def create_judge_model(
     return jm_svc.create_judge_model(
         session, payload, created_by=current_user.name if current_user else None
     )
+
+
+@router.post("/optimize-prompt", response_model=OptimizeJudgePromptOut)
+async def optimize_judge_prompt_route(payload: OptimizeJudgePromptIn) -> OptimizeJudgePromptOut:
+    optimized = await optimize_judge_prompt(payload.prompt)
+    return OptimizeJudgePromptOut(optimized_prompt=optimized)
 
 
 @router.patch("/{model_id}", response_model=JudgeModelOut)

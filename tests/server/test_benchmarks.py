@@ -160,3 +160,14 @@ def test_ensure_builtin_idempotent(session, settings):
     # 再次调用不重复创建
     second = ensure_builtin_benchmark(session, settings)
     assert second.id == first.id
+
+
+def test_ensure_builtin_refreshes_case_count(session, settings):
+    bm = ensure_builtin_benchmark(session, settings)
+    assert bm is not None
+    bm.case_count = 71
+    session.flush()
+    refreshed = ensure_builtin_benchmark(session, settings)
+    cases = load_benchmark_cases(bm, settings=settings)
+    assert refreshed.case_count == len(cases)
+    assert refreshed.case_count != 71

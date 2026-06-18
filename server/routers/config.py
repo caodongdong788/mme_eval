@@ -14,6 +14,8 @@ from ..schemas import (
     ProfileCoverageOut,
     ReleaseThresholdItemOut,
     ReleaseThresholdUpdateRequest,
+    ScoringProfileItemOut,
+    ScoringProfileUpdateRequest,
 )
 from ..services import platform_config as cfg_svc
 
@@ -58,3 +60,20 @@ def put_release_thresholds(
 ) -> list[ReleaseThresholdItemOut]:
     updater = current_user.name if current_user is not None else None
     return cfg_svc.put_release_thresholds(session, payload, updated_by=updater)
+
+
+@router.get("/scoring-profiles", response_model=list[ScoringProfileItemOut])
+def get_scoring_profiles(
+    session: Session = Depends(get_session),
+) -> list[ScoringProfileItemOut]:
+    return cfg_svc.get_scoring_profiles(session)
+
+
+@router.put("/scoring-profiles", response_model=list[ScoringProfileItemOut])
+def put_scoring_profiles(
+    payload: ScoringProfileUpdateRequest,
+    session: Session = Depends(get_session),
+    current_user: Optional[FeishuUser] = Depends(get_current_user_optional),
+) -> list[ScoringProfileItemOut]:
+    updater = current_user.name if current_user is not None else None
+    return cfg_svc.put_scoring_profiles(session, payload, updated_by=updater)

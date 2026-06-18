@@ -206,6 +206,8 @@ class LLMJudgeCfg(_LLMClientCfg):
     second_model: str = ""
     self_consistency: int = Field(1, ge=1)
     aggregate: Literal["median", "min"] = "median"
+    # 非空时覆盖内置 judge prompt 模板（须含 {conversation}/{rubric_text}/{tool_context}）。
+    prompt_template: str = ""
 
 
 class JudgesCfg(_Strict):

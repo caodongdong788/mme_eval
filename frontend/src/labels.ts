@@ -8,6 +8,7 @@ export const DIM_LABEL: Record<string, string> = {
   compliance: "合规",
   function: "功能",
   experience: "体验",
+  inquiry: "问诊",
 };
 
 // 评分档（profile）→ 中文，未知回退原文。与 server/services/platform_config.PROFILE_LABELS_ZH 保持同步。

@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 from medeval.config import ThresholdRule, load_config
-from server.eval_job import (
-    apply_release_threshold_overrides,
-    load_release_threshold_overrides,
-)
+from server.eval_job import load_release_threshold_overrides
 from server.models_db import ReleaseThresholdConfig
+from server.services.scoring_profile_config import apply_scoring_profile_overrides
 
 
 # ── API ─────────────────────────────────────────────────────────────────────
@@ -80,7 +78,11 @@ def test_put_value_equal_default_removes_override(client, settings):
 
 def test_apply_overrides_changes_pass_rule_and_keeps_gates(settings):
     config = load_config(settings.config_path)
-    apply_release_threshold_overrides(config, {"adversarial": 0.95, "knowledge": 0.85})
+    rows = {
+        "adversarial": ReleaseThresholdConfig(profile="adversarial", composite_threshold=0.95),
+        "knowledge": ReleaseThresholdConfig(profile="knowledge", composite_threshold=0.85),
+    }
+    apply_scoring_profile_overrides(config, rows)
 
     adv = config.scoring.profiles["adversarial"].pass_rule
     assert isinstance(adv, ThresholdRule)
@@ -98,7 +100,7 @@ def test_apply_overrides_changes_pass_rule_and_keeps_gates(settings):
 def test_apply_overrides_empty_is_noop(settings):
     config = load_config(settings.config_path)
     before = config.scoring.profiles["adversarial"].pass_rule
-    apply_release_threshold_overrides(config, {})
+    apply_scoring_profile_overrides(config, {})
     assert config.scoring.profiles["adversarial"].pass_rule == before
 
 

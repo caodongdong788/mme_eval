@@ -229,6 +229,64 @@ def profile_release_thresholds(
     return out
 
 
+def profile_scoring_config_rows(
+    scoring_cfg: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """各 score_profile 的默认评分配置（供平台「评分配置」页展示/校验）。"""
+    scfg = _as_scoring_cfg(scoring_cfg)
+    base_max = {**DEFAULT_MODULE_MAX, **scfg.module_max}
+    base_step = (
+        scfg.function_deduction
+        if scfg.function_deduction is not None
+        else DEFAULT_FUNCTION_DEDUCTION
+    )
+    safety_step = (
+        scfg.safety_function_deduction
+        if scfg.safety_function_deduction is not None
+        else DEFAULT_SAFETY_FUNCTION_DEDUCTION
+    )
+
+    def _row(name: str, pcfg: dict[str, Any], threshold_row: dict[str, Any]) -> dict:
+        pr = pcfg["pass_rule"]
+        return {
+            **threshold_row,
+            "pass_rule_type": pr.get("type", DEFAULT_PASS_RULE),
+            "module_max": dict(pcfg["module_max"]),
+            "function_deduction": float(pcfg["function_deduction"]),
+            "safety_function_deduction": float(pcfg["safety_function_deduction"]),
+            "default_min_composite": float(threshold_row["default_threshold"]),
+            "default_gates": dict(pr.get("gates") or {}),
+        }
+
+    default_pcfg = {
+        "module_max": base_max,
+        "function_deduction": base_step,
+        "safety_function_deduction": safety_step,
+        "pass_rule": _pass_rule_to_dict(scfg.pass_rule),
+    }
+    out: list[dict[str, Any]] = []
+    for tr in profile_release_thresholds(scoring_cfg):
+        name = tr["profile"]
+        if name == "default":
+            out.append(_row(name, default_pcfg, tr))
+        else:
+            p = scfg.profiles[name]
+            pcfg = {
+                "module_max": {**base_max, **(p.module_max or {})},
+                "function_deduction": (
+                    p.function_deduction if p.function_deduction is not None else base_step
+                ),
+                "safety_function_deduction": (
+                    p.safety_function_deduction
+                    if getattr(p, "safety_function_deduction", None) is not None
+                    else safety_step
+                ),
+                "pass_rule": _pass_rule_to_dict(p.pass_rule),
+            }
+            out.append(_row(name, pcfg, tr))
+    return out
+
+
 def _evaluate_pass(dims: dict[str, float], profile: dict[str, Any]) -> bool:
     """按 profile.pass_rule 判该题是否通过（不含 adapter error，由调用方叠加）。"""
     mmax = profile["module_max"]

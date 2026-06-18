@@ -1,6 +1,6 @@
 """LLMJudge prompt 多轮渲染单测。
 
-确保 ``_PROMPT_TEMPLATE`` 与 ``_format_conversation`` 满足
+确保 ``DEFAULT_PROMPT_TEMPLATE`` 与 ``_format_conversation`` 满足
 ``judging-pipeline`` spec 中"LLMJudge 必须以完整对话历史为判分输入"约束的所有场景：
 
   * 多轮用例的对话整段进入 prompt（含 turn 编号递增）
@@ -11,7 +11,8 @@
 
 from __future__ import annotations
 
-from medeval.judges.llm import _PROMPT_TEMPLATE, _format_conversation
+from medeval.judges.llm import _format_conversation
+from medeval.judges.prompt_template import DEFAULT_PROMPT_TEMPLATE
 from medeval.models import ChatMessage, ConversationTrace
 
 
@@ -98,7 +99,7 @@ def test_single_turn_backward_compat():
 
 
 def test_prompt_template_uses_conversation_placeholder():
-    rendered = _PROMPT_TEMPLATE.format(
+    rendered = DEFAULT_PROMPT_TEMPLATE.format(
         conversation="[turn 1 · 用户] x\n[turn 1 · bot] y",
         rubric_text="- empathy (0~2)",
         tool_context="",

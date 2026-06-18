@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..config import LLMJudgeCfg
-from ..judges.llm_backend import LLMBackend
+from ..judges.llm_backend import backend_from_llm_cfg
 from ..models import FailureTag
 from .sheet_parse import RawRow, parse_scoring_points
 
@@ -121,18 +121,6 @@ _PROMPT_SUPPLEMENT = """\
 """
 
 
-def _backend_from_cfg(cfg: LLMJudgeCfg) -> LLMBackend:
-    return LLMBackend(
-        provider=cfg.provider,
-        api_key=cfg.api_key,
-        api_key_env=cfg.api_key_env,
-        base_url=cfg.base_url or None,
-        api_version=cfg.api_version,
-        default_headers=cfg.default_headers,
-        owner="FeishuImport",
-    )
-
-
 def _filter_failure_tags(raw: list[Any]) -> list[str]:
     allowed = {t.value for t in FailureTag}
     out: list[str] = []
@@ -199,7 +187,7 @@ async def enrich_case_fields_async(
         )
         mode = "llm_full"
 
-    backend = _backend_from_cfg(llm_cfg)
+    backend = backend_from_llm_cfg(llm_cfg, owner="FeishuImport")
     data = await backend.chat_json(
         model=llm_cfg.model,
         prompt=prompt,

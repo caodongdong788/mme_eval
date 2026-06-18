@@ -107,19 +107,5 @@ export function buildCaseColumns(runId: number, tagLabel: (k: string) => string)
         );
       },
     },
-    {
-      title: "追踪链路",
-      dataIndex: "langfuse_trace_url",
-      render: (url?: string | null) =>
-        url ? (
-          <Tooltip title="在 Langfuse 打开该用例的完整流程追踪">
-            <a href={url} target="_blank" rel="noreferrer" className="dash-table__link">
-              查看链路
-            </a>
-          </Tooltip>
-        ) : (
-          <Typography.Text type="secondary">-</Typography.Text>
-        ),
-    },
   ];
 }

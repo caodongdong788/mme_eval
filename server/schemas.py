@@ -139,6 +139,17 @@ class CaseBrief(BaseModel):
     score_profile: str = "default"
 
 
+class BenchmarkCaseYamlOut(BaseModel):
+    benchmark_id: int
+    sample_id: str
+    case_file: str = ""
+    yaml_text: str
+
+
+class BenchmarkCaseYamlIn(BaseModel):
+    yaml_text: str = Field(min_length=1)
+
+
 # ---------------------------------------------------------------------------
 # 发起评测
 
@@ -154,6 +165,7 @@ class JudgeOverride(BaseModel):
     api_key_env: Optional[str] = None
     api_key: Optional[str] = None
     temperature: Optional[float] = None
+    prompt_template: Optional[str] = None
 
     def public_dict(self) -> dict[str, Any]:
         """入库用：剔除 api_key 的非空字段。"""
@@ -209,6 +221,7 @@ class JudgeModelOut(BaseModel):
     api_version: str
     temperature: Optional[float] = None
     pairwise_concurrency: int = 4
+    prompt_template: Optional[str] = None
     has_api_key: bool
     created_by: Optional[str] = None
     created_at: Optional[ApiDateTime] = None
@@ -222,6 +235,7 @@ class JudgeModelCreate(BaseModel):
     api_version: Optional[str] = None
     temperature: Optional[float] = None
     pairwise_concurrency: int = Field(default=4, ge=1)
+    prompt_template: Optional[str] = None
     api_key: Optional[str] = None
 
 
@@ -235,7 +249,20 @@ class JudgeModelUpdate(BaseModel):
     api_version: Optional[str] = None
     temperature: Optional[float] = None
     pairwise_concurrency: Optional[int] = Field(default=None, ge=1)
+    prompt_template: Optional[str] = None
     api_key: Optional[str] = None
+
+
+class OptimizeJudgePromptIn(BaseModel):
+    prompt: str = Field(min_length=1)
+
+
+class OptimizeJudgePromptOut(BaseModel):
+    optimized_prompt: str
+
+
+class DefaultJudgePromptOut(BaseModel):
+    prompt_template: str
 
 
 class RejudgeRequest(BaseModel):
@@ -503,4 +530,37 @@ class ReleaseThresholdUpdateRequest(BaseModel):
     """按 profile 设置综合分上线阈值；值为 None 或等于默认 → 删除覆盖（恢复默认）。"""
 
     overrides: dict[str, Optional[float]]
+
+
+class ScoringProfileSnapshotOut(BaseModel):
+    module_max: dict[str, float]
+    function_deduction: float
+    safety_function_deduction: float
+    min_composite: float
+    gates: dict[str, Any] = Field(default_factory=dict)
+    max_total: float
+    pass_rule_type: str
+
+
+class ScoringProfileOverrideIn(BaseModel):
+    module_max: Optional[dict[str, float]] = None
+    function_deduction: Optional[float] = None
+    safety_function_deduction: Optional[float] = None
+    min_composite: Optional[float] = None
+    gates: Optional[dict[str, Any]] = None
+
+
+class ScoringProfileItemOut(BaseModel):
+    profile: str
+    label: str
+    coverage: ProfileCoverageOut = Field(default_factory=ProfileCoverageOut)
+    defaults: ScoringProfileSnapshotOut
+    override: Optional[dict[str, Any]] = None
+    effective: ScoringProfileSnapshotOut
+
+
+class ScoringProfileUpdateRequest(BaseModel):
+    """按 profile 设置评分覆盖；profile 值为 null → 清除该场景全部覆盖。"""
+
+    overrides: dict[str, Optional[ScoringProfileOverrideIn]]
 

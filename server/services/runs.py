@@ -115,6 +115,7 @@ def prepare_create_run(session: Session, payload: RunCreate) -> CreateRunPlan:
             api_version=jm.api_version or None,
             api_key=jm.api_key or None,
             temperature=jm.temperature,
+            prompt_template=jm.prompt_template or None,
         )
     has_judge = payload.judge is not None or payload.judge_model_id is not None
     judge_public = judge_ov.public_dict() if has_judge else {}

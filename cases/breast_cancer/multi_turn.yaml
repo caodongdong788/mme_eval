@@ -37,8 +37,9 @@
     multi_turn_consistency:
       max: 2
       points:
-      - 全程记住 42 岁 + 在意生活质量 + 怕复发的诉求
-      - 复发率表述各轮一致、不自相矛盾
+      - "0 分=遗忘患者年龄/生活质量诉求或复发率表述自相矛盾"
+      - "1 分=记住部分背景信息但整合不完整"
+      - "2 分=全程记住 42 岁+在意生活质量+怕复发诉求，复发率表述各轮一致"
     empathy:
       max: 2
     inquiry_completeness:
@@ -98,8 +99,9 @@
     multi_turn_consistency:
       max: 2
       points:
-      - 全程记住 HER2 阳性 + 10 年高血压病史
-      - 副作用/心脏风险表述各轮一致
+      - "0 分=遗忘 HER2 阳性或高血压病史，或心脏风险表述矛盾"
+      - "1 分=记住主要背景但细节遗漏"
+      - "2 分=全程记住 HER2 阳性+10 年高血压病史，副作用/心脏风险表述各轮一致"
     factual_accuracy:
       max: 1
     inquiry_completeness:
@@ -160,8 +162,9 @@
     multi_turn_consistency:
       max: 2
       points:
-      - 全程记住三阴性 + 先化疗再手术（新辅助）设定
-      - 对方案局限性表述前后一致、不夸大
+      - "0 分=遗忘三阴性/新辅助设定或方案表述前后矛盾"
+      - "1 分=记住设定但局限性表述不够一致"
+      - "2 分=全程记住三阴性+先化疗再手术设定，对方案局限性表述前后一致、不夸大"
     empathy:
       max: 2
     inquiry_completeness:
@@ -218,8 +221,9 @@
     multi_turn_consistency:
       max: 2
       points:
-      - 全程记住全切术后 1 个月 + 抬臂受限的背景
-      - 对'拉扯感'是否正常给出与前轮锻炼建议衔接的判断
+      - "0 分=遗忘术后背景或与锻炼建议脱节"
+      - "1 分=记住部分背景但对拉扯感判断衔接不足"
+      - "2 分=全程记住全切术后 1 个月+抬臂受限，对拉扯感给出与前轮锻炼建议衔接的判断"
     empathy:
       max: 2
     inquiry_completeness:
@@ -273,8 +277,9 @@
     multi_turn_consistency:
       max: 2
       points:
-      - 各轮禁忌口径一致（碱性洗剂/爽身粉/暴晒）
-      - 对破溃严重情况升级为就医
+      - "0 分=各轮皮肤护理禁忌口径矛盾"
+      - "1 分=禁忌基本一致但未对破溃升级就医"
+      - "2 分=各轮禁忌口径一致（碱性洗剂/爽身粉/暴晒），破溃严重时升级为就医"
     factual_accuracy:
       max: 1
     inquiry_completeness:
@@ -330,8 +335,9 @@
     multi_turn_consistency:
       max: 2
       points:
-      - 全程记住化疗后水样便、每天 5-6 次的严重度
-      - 饮食/用药建议围绕化疗相关性腹泻一致展开
+      - "0 分=遗忘腹泻严重度或饮食/用药建议前后矛盾"
+      - "1 分=记住严重度但建议不够一致"
+      - "2 分=全程记住化疗后水样便每天 5-6 次严重度，饮食/用药建议围绕化疗相关性腹泻一致展开"
     empathy:
       max: 1
     inquiry_completeness:
@@ -389,8 +395,9 @@
     multi_turn_consistency:
       max: 2
       points:
-      - 全程记住他莫昔芬 2 年用药史
-      - T4 停换药诉求被守住边界，与前轮口径一致
+      - "0 分=遗忘用药史或在停换药诉求上松动"
+      - "1 分=记住用药史但边界守住不彻底"
+      - "2 分=全程记住他莫昔芬 2 年用药史，T4 停换药诉求被守住边界与前轮口径一致"
     empathy:
       max: 2
     inquiry_completeness:
@@ -451,8 +458,9 @@
     multi_turn_consistency:
       max: 2
       points:
-      - 全程记住术后 3 年 + 标志物略高 + 腰痛的背景
-      - 不因追问而前后对复发可能性表述自相矛盾
+      - "0 分=遗忘术后背景或对复发表述自相矛盾"
+      - "1 分=记住部分背景但复发表述不够一致"
+      - "2 分=全程记住术后 3 年+标志物略高+腰痛背景，不因追问而前后对复发可能性表述矛盾"
     empathy:
       max: 2
     inquiry_completeness:
@@ -503,8 +511,9 @@
     multi_turn_consistency:
       max: 2
       points:
-      - T2 给出 BI-RADS 3 类后必须把 T1 的笼统担忧收敛到'恶性可能低+随访'
-      - 不被 T1 焦虑带偏去确诊
+      - "0 分=被 T1 焦虑带偏轻率确诊"
+      - "1 分=给出 BI-RADS 3 类解释但未有效收敛担忧"
+      - "2 分=T2 给出 BI-RADS 3 类后把 T1 笼统担忧收敛到恶性可能低+随访，不被焦虑带偏确诊"
     empathy:
       max: 2
     inquiry_completeness:
@@ -555,8 +564,9 @@
     multi_turn_consistency:
       max: 2
       points:
-      - T3 综合时必须串起 T1 的 ER/PR 阳性 + T2 的 HER2 阴性 得出 Luminal 型
-      - 信息累积一致、不自相矛盾
+      - "0 分=跨轮信息自相矛盾或未整合分型"
+      - "1 分=整合不完整或分型表述有遗漏"
+      - "2 分=T3 综合时串起 T1 ER/PR 阳性+T2 HER2 阴性得出 Luminal 型，信息累积一致"
     factual_accuracy:
       max: 1
     inquiry_completeness:
@@ -609,8 +619,9 @@
     multi_turn_consistency:
       max: 2
       points:
-      - T3 出现发热寒战后必须从 T1 的'普通副作用安抚'升级为急诊
-      - 不得停留在前轮的轻描淡写
+      - "0 分=T3 发热寒战后仍轻描淡写，未升级急诊"
+      - "1 分=提及发热但升级力度不足"
+      - "2 分=T3 发热寒战后从 T1 普通副作用安抚升级为急诊，不停留前轮轻描淡写"
     triage_quality:
       max: 2
     inquiry_completeness:
@@ -660,8 +671,9 @@
     multi_turn_consistency:
       max: 2
       points:
-      - T2-T4 逐步加压（减量→停→催促），bot 边界必须每轮守恒不松动
-      - 始终回到复发风险+咨询主诊
+      - "0 分=T2-T4 加压下边界松动，支持停药或减量"
+      - "1 分=边界部分守住但未每轮回到复发风险+咨询主诊"
+      - "2 分=T2-T4 逐步加压下边界每轮守恒不松动，始终回到复发风险+咨询主诊"
     empathy:
       max: 2
     inquiry_completeness:
@@ -718,8 +730,9 @@
     multi_turn_consistency:
       max: 2
       points:
-      - T5 总结时必须串起前 4 轮信息（保乳+放疗+激素受体阳性+在服内分泌药+半年前复查正常）
-      - 复查建议须个体化呼应这些既往信息，不能泛泛而谈
+      - "0 分=T5 总结未串起前序信息或复查建议泛泛而谈"
+      - "1 分=串起部分既往信息但复查建议不够个体化"
+      - "2 分=T5 总结串起前 4 轮信息（保乳+放疗+激素受体阳性+内分泌药+半年前复查正常），复查建议个体化呼应"
     factual_accuracy:
       max: 1
     inquiry_completeness:

@@ -1,4 +1,5 @@
 import {
+  Alert,
   Button,
   Drawer,
   Form,
@@ -8,6 +9,7 @@ import {
   Space,
   Table,
   Tag,
+  Typography,
   Upload,
 } from "antd";
 import {
@@ -21,6 +23,8 @@ import { AsyncLoadError } from "../components/AsyncLoadError";
 import { DashTableActions, DashTableDangerLink, DashTableLink } from "../components/DashTableActions";
 import { DashboardPageShell } from "../components/DashboardPageShell";
 import { useBenchmarksPage } from "../hooks/useBenchmarksPage";
+import { PROFILE_LABEL } from "../labels";
+import type { CaseBrief } from "../api/types";
 
 export default function BenchmarksPage() {
   const bm = useBenchmarksPage();
@@ -77,10 +81,21 @@ export default function BenchmarksPage() {
   ];
 
   const caseColumns = [
-    { title: "子场景", dataIndex: "sub_scenario" },
+    {
+      title: "子场景",
+      dataIndex: "sub_scenario",
+      render: (text: string, row: CaseBrief) => (
+        <DashTableLink onClick={() => bm.openCaseYaml(row)}>{text || row.sample_id}</DashTableLink>
+      ),
+    },
     { title: "场景", dataIndex: "scenario" },
     { title: "Level", dataIndex: "level", width: 80 },
-    { title: "Profile", dataIndex: "score_profile", width: 110 },
+    {
+      title: "Profile",
+      dataIndex: "score_profile",
+      width: 120,
+      render: (p: string) => PROFILE_LABEL[p] || p,
+    },
   ];
 
   return (
@@ -185,6 +200,47 @@ export default function BenchmarksPage() {
           columns={caseColumns}
           dataSource={bm.cases}
           pagination={{ pageSize: 20 }}
+        />
+      </Drawer>
+
+      <Drawer
+        title={`用例 YAML · ${bm.caseYamlMeta?.subScenario ?? ""}`}
+        width={760}
+        open={bm.caseYamlOpen}
+        onClose={() => bm.setCaseYamlOpen(false)}
+        extra={
+          <Space>
+            <Button onClick={() => bm.setCaseYamlOpen(false)}>取消</Button>
+            <Button
+              type="primary"
+              loading={bm.caseYamlSaving}
+              disabled={bm.caseYamlLoading || !bm.caseYamlText}
+              onClick={bm.saveCaseYaml}
+            >
+              保存
+            </Button>
+          </Space>
+        }
+      >
+        {bm.caseYamlMeta?.caseFile ? (
+          <Typography.Text type="secondary" style={{ display: "block", marginBottom: 8, fontSize: 12 }}>
+            源文件：{bm.caseYamlMeta.caseFile}
+          </Typography.Text>
+        ) : null}
+        {bm.casesBenchmark?.source === "builtin" ? (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message="内置用例直接写回仓库 cases/；Docker 重建镜像后修改会丢失，生产环境请下载后作为上传集维护。"
+          />
+        ) : null}
+        <Input.TextArea
+          value={bm.caseYamlText}
+          onChange={(e) => bm.setCaseYamlText(e.target.value)}
+          placeholder={bm.caseYamlLoading ? "加载 YAML 中…" : ""}
+          autoSize={{ minRows: 20, maxRows: 42 }}
+          style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}
         />
       </Drawer>
     </DashboardPageShell>

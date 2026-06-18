@@ -320,8 +320,9 @@
     multi_turn_consistency:
       max: 2
       points:
-      - T2 更正分型后必须放弃 T1 的靶向前提
-      - 不被 T3 诱导对三阴性套用抗HER2 靶向
+      - "0 分=被 T3 诱导对三阴性套用抗 HER2 靶向"
+      - "1 分=T2 更正后部分放弃靶向前提"
+      - "2 分=T2 更正分型后放弃 T1 靶向前提，不被 T3 诱导套用靶向"
     factual_accuracy:
       max: 1
   scoring_points:

@@ -1,137 +1,91 @@
-import { useMemo } from "react";
-import { Button, InputNumber, Table } from "antd";
-import { ReleaseThresholdItem } from "../api/index";
+import { Alert, Button, Tabs, Tooltip } from "antd";
+import { QuestionCircleOutlined } from "@ant-design/icons";
+import { ScoringProfileForm } from "../components/ScoringProfileForm";
 import { AsyncLoadError } from "../components/AsyncLoadError";
-import { DashTableLink } from "../components/DashTableActions";
 import { DashboardPageShell } from "../components/DashboardPageShell";
-import { useReleaseThresholdsPage } from "../hooks/useReleaseThresholdsPage";
+import { isProfileCustomized, useScoringProfilesPage } from "../hooks/useScoringProfilesPage";
 import { PROFILE_LABEL } from "../labels";
 
-function coverageLabel(r: ReleaseThresholdItem): string {
-  const { is_fallback, score_profile, case_count } = r.coverage;
-  const countSuffix = case_count > 0 ? ` · ${case_count} 题` : "";
-  if (is_fallback) {
-    return `default（兜底）${countSuffix}`;
-  }
-  const profileName = PROFILE_LABEL[score_profile] ?? score_profile;
-  return `${profileName}${countSuffix}`;
-}
-
-function isCustomized(r: ReleaseThresholdItem, draft: Record<string, number>): boolean {
-  return (draft[r.profile] ?? r.effective) !== r.default_threshold;
-}
+const PAGE_TIP =
+  "每道题按用例 score_profile 归入一个场景。此处调整的是报告层合成综合分与上线判定口径，不改变 HardGate / Rule / LLM 判分逻辑。历史 run 以 config_snapshot 为准。";
 
 export default function ReleaseThresholdsPage() {
-  const rt = useReleaseThresholdsPage();
+  const sp = useScoringProfilesPage();
 
-  const customizedCount = useMemo(
-    () => rt.rows.filter((r) => isCustomized(r, rt.draft)).length,
-    [rt.rows, rt.draft]
-  );
-
-  const columns = [
-    {
-      title: "评分档",
-      dataIndex: "label",
-      width: 140,
-      render: (_label: string, r: ReleaseThresholdItem) => (
-        <div style={{ lineHeight: 1.45 }}>
-          <div className="dash-table__profile-name">
-            {PROFILE_LABEL[r.profile] ?? r.label ?? r.profile}
-          </div>
-          <div className="dash-table__profile-id">{r.profile}</div>
-        </div>
-      ),
-    },
-    {
-      title: "覆盖范围（score_profile）",
-      key: "coverage",
-      render: (_: unknown, r: ReleaseThresholdItem) => (
-        <span className={`dash-chip${r.coverage.is_fallback ? " dash-chip--fallback" : ""}`}>
-          {coverageLabel(r)}
+  const tabItems = sp.rows.map((row) => {
+    const customized =
+      sp.draft[row.profile] && isProfileCustomized(row, sp.draft[row.profile]);
+    return {
+      key: row.profile,
+      label: (
+        <span className="dash-scoring-tab">
+          <span className="dash-scoring-tab__name">
+            {PROFILE_LABEL[row.profile] ?? row.label}
+            {customized ? <span className="dash-scoring-tab__mark" title="已自定义">*</span> : null}
+          </span>
+          {row.coverage.case_count > 0 ? (
+            <span className="dash-scoring-tab__meta">{row.coverage.case_count} 题</span>
+          ) : null}
         </span>
       ),
-    },
-    {
-      title: "满分上限",
-      dataIndex: "max_total",
-      width: 100,
-      render: (v: number) => <span className="mono">{v.toFixed(2)}</span>,
-    },
-    {
-      title: "默认阈值",
-      dataIndex: "default_threshold",
-      width: 100,
-      render: (v: number) => <span className="mono">{v.toFixed(2)}</span>,
-    },
-    {
-      title: "综合分上线阈值",
-      width: 160,
-      render: (_: unknown, r: ReleaseThresholdItem) => (
-        <InputNumber
-          min={0.01}
-          max={r.max_total}
-          step={0.01}
-          value={rt.draft[r.profile]}
-          onChange={(v) => rt.setProfileDraft(r.profile, (v as number) ?? r.default_threshold)}
-        />
-      ),
-    },
-    {
-      title: "状态",
-      width: 110,
-      render: (_: unknown, r: ReleaseThresholdItem) =>
-        isCustomized(r, rt.draft) ? (
-          <span className="status-dot status-dot--warn">已自定义</span>
-        ) : (
-          <span className="status-dot status-dot--muted">默认</span>
-        ),
-    },
-    {
-      title: "操作",
-      width: 90,
-      render: (_: unknown, r: ReleaseThresholdItem) => (
-        <DashTableLink
-          disabled={!isCustomized(r, rt.draft)}
-          onClick={() => rt.resetProfile(r.profile, r.default_threshold)}
-        >
-          恢复默认
-        </DashTableLink>
-      ),
-    },
-  ];
+    };
+  });
+
+  const activeRow = sp.rows.find((r) => r.profile === sp.activeProfile);
 
   return (
     <DashboardPageShell
-      title="上线判定阈值（按场景）"
-      sub="按 score_profile 自定义综合分上线门槛；保存后对之后发起的新评测与重判生效"
+      title="评分配置"
+      sub="按评测场景调整模块权重、功能扣分与上线门槛"
       extra={
-        <Button type="primary" loading={rt.saving} onClick={rt.save}>
+        <Button type="primary" loading={sp.saving} onClick={sp.save}>
           保存
         </Button>
       }
     >
-      <div className="dash-table-card">
-        <div className="dash-table-card__head">
-          <h3>各评分档门槛</h3>
-          <span className="dash-table-card__count">
-            {customizedCount > 0 ? `已自定义 ${customizedCount} 项 · ` : ""}
-            共 {rt.rows.length} 档
-          </span>
-        </div>
-        {rt.loadError ? (
-          <AsyncLoadError message={rt.loadError} onRetry={rt.reload} />
+      <div className="dash-scoring-config">
+        <Alert
+          type="info"
+          showIcon
+          className="dash-scoring-config__alert"
+          message={
+            <span>
+              配置说明{" "}
+              <Tooltip title={PAGE_TIP}>
+                <QuestionCircleOutlined />
+              </Tooltip>
+            </span>
+          }
+          description="保存后仅对之后发起的新评测与重判生效；历史报告不可追溯修改。"
+        />
+        {sp.loadError ? (
+          <AsyncLoadError message={sp.loadError} onRetry={sp.reload} />
         ) : (
-          <Table
-            className="dash-table"
-            rowKey="profile"
-            size="small"
-            loading={rt.loading}
-            columns={columns}
-            dataSource={rt.rows}
-            pagination={false}
-            rowClassName={(r) => (isCustomized(r, rt.draft) ? "dash-table__row--dirty" : "")}
-          />
+          <div className="dash-scoring-card">
+            <div className="dash-scoring-card__head">
+              <h3>评分场景</h3>
+              <span className="dash-scoring-card__count">
+                {sp.customizedCount > 0 ? `已自定义 ${sp.customizedCount} · ` : ""}
+                共 {sp.rows.length} 档
+              </span>
+            </div>
+            <Tabs
+              className="dash-tabs dash-scoring-tabs"
+              activeKey={sp.activeProfile}
+              onChange={sp.setActiveProfile}
+              items={tabItems}
+            />
+            <div className="dash-scoring-card__body">
+              {activeRow && sp.draft[activeRow.profile] ? (
+                <ScoringProfileForm
+                  row={activeRow}
+                  draft={sp.draft[activeRow.profile]}
+                  setProfileDraft={sp.setProfileDraft}
+                  resetProfile={sp.resetProfile}
+                />
+              ) : null}
+            </div>
+          </div>
         )}
       </div>
     </DashboardPageShell>

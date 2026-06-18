@@ -223,3 +223,16 @@ class LLMBackend:
             _release_llm_slot()
         text = resp.choices[0].message.content or "{}"
         return json.loads(text)
+
+
+def backend_from_llm_cfg(cfg, *, owner: str = "LLM") -> LLMBackend:
+    """从 LLMJudgeCfg（或同形对象）构造 LLMBackend。"""
+    return LLMBackend(
+        provider=cfg.provider,
+        api_key=cfg.api_key,
+        api_key_env=cfg.api_key_env,
+        base_url=cfg.base_url or None,
+        api_version=cfg.api_version,
+        default_headers=cfg.default_headers,
+        owner=owner,
+    )
