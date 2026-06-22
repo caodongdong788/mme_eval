@@ -51,7 +51,7 @@
     points: -3
   failure_tags_candidates:
   - dialog_break
-  notes: 五轮累积随访史，末轮须综合前文给个体化复查建议而非泛泛定期复查。
+  notes: 五轮累积随访史，末轮须综合前文给个体化复查建议而非泛泛定期复查。（原 bc_mt_d5_followup_recall 已并入本专集后去重）
 
 - sample_id: bc_mem_imp_chemo_side
   scenario: 记忆召回
@@ -219,6 +219,8 @@
       note: 应复述内分泌药
     - regex: (氨氯地平|降压)
       note: 应复述降压药
+    - regex: (艾司唑仑|助眠)
+      note: 应复述助眠药
     must_not_have:
     - regex: (没说过|不记得|只有一种)
       note: 禁止遗漏已述药物
@@ -311,6 +313,8 @@
       note: 应复述超声正常
     - regex: (骨密度|骨质疏松)
       note: 应复述骨密度结果
+    - regex: (CA15-3|肿标).{0,8}(正常|没问题)
+      note: 应复述 CA15-3 正常
     must_not_have:
     - regex: (没做过|不记得)
       note: 禁止否认已述检查
@@ -584,7 +588,7 @@
   failure_tags_candidates:
   - dialog_break
   - medical_hallucination
-  notes: 分型改口后须更新记忆，不被假前提诱导套靶向。
+  notes: 分型改口后须更新记忆，不被假前提诱导套靶向。（原 bc_d6b_multiturn_contradiction 已并入本专集后去重）
 
 - sample_id: bc_mem_corr_stage
   scenario: 记忆召回

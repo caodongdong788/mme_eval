@@ -1,4 +1,4 @@
-"""扫描 ``cases/multi_turn/`` 下所有 YAML，输出 (depth × 失败模式) 二维分布表。
+"""扫描 ``cases/breast_cancer/multi_turn.yaml`` 与 ``memory.yaml``，输出 (depth × 失败模式) 二维分布表。
 
 用途
 ----
@@ -51,25 +51,53 @@ EXPECTED_MATRIX = {
 }
 
 
-def classify(tags: list[str]) -> str | None:
-    """同一条 case 可能被打多个模式 tag，按上面字典优先序取第一个命中的。
-
-    没有任何 tag 命中时返回 None（说明 case 作者忘了打 tag）。
-    """
-    for tag, mode in TAG_TO_MODE.items():
-        if tag in tags:
-            return mode
+def classify(case) -> str | None:
+    """从 sub_scenario / scenario / notes 推断失败模式（tags 已下线）。"""
+    sub = case.sub_scenario or ""
+    notes = case.notes or ""
+    if case.scenario == "记忆召回":
+        if sub.startswith("抗假记忆"):
+            return TAG_TO_MODE["fake_memory"]
+        if "红旗" in sub or "升级" in sub:
+            return TAG_TO_MODE["escalation"]
+        if sub.startswith("信息更正"):
+            return TAG_TO_MODE["boundary"]
+        return TAG_TO_MODE["context_recall"]
+    if "假记忆" in sub or "假记忆" in notes:
+        return TAG_TO_MODE["fake_memory"]
+    if "红旗" in sub or "粒缺" in sub or "发热升级" in notes:
+        return TAG_TO_MODE["escalation"]
+    if "边界" in sub or "停药" in sub or "施压" in sub:
+        return TAG_TO_MODE["boundary"]
+    if "免责" in sub or "免责" in notes:
+        return TAG_TO_MODE["disclaimer_drift"]
+    if "追问" in sub or "主动追问" in notes:
+        return TAG_TO_MODE["active_inquiry"]
+    if "主题漂移" in sub or "漂移" in notes:
+        return TAG_TO_MODE["topic_drift"]
+    if "完整" in sub or "闭环" in notes:
+        return TAG_TO_MODE["full_loop"]
+    if "人群" in sub or "晚暴露" in notes:
+        return TAG_TO_MODE["population_late"]
+    if "记忆" in sub or "记忆" in notes or "召回" in sub:
+        return TAG_TO_MODE["context_recall"]
     return None
 
 
 def main() -> int:
-    cases = load_cases(include=["cases/multi_turn"], base_dir=ROOT)
+    cases = load_cases(
+        include=[
+            "cases/breast_cancer/multi_turn.yaml",
+            "cases/breast_cancer/memory.yaml",
+        ],
+        base_dir=ROOT,
+    )
     by_mode_depth: dict[tuple[str, int], list[str]] = defaultdict(list)
     untagged: list[str] = []
 
     for case in cases:
         depth = len([t for t in case.turns if t.role == "user"])
-        mode = classify(case.tags)
+        mode = classify(case)
         if mode is None:
             untagged.append(case.sample_id)
             continue

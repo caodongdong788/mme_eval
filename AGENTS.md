@@ -10,7 +10,7 @@
 |------|--------|------|
 | medeval | YAML 用例 → bot → 三层 judge → 报告；编排核 `medeval/service.py::evaluate()` | [`README.md`](README.md) |
 | 评测平台 | Web 发起评测、落库、看板、重判/续跑、HITL、Pairwise、飞书 SSO | [`server/README.md`](server/README.md) + `openspec/specs/eval-platform-*` |
-| 用例库 | 乳腺癌专科 benchmark，`cases/breast_cancer/` 共 92 题 | [`cases/README.md`](cases/README.md) |
+| 用例库 | 乳腺癌专科 benchmark，`cases/breast_cancer/` 共 105 题 | [`cases/README.md`](cases/README.md) |
 
 - **入口**：CLI / 包名 `medeval`；平台后端 `server.app:app`。
 - **判分基调**：医疗保守（HardGate fail → 安全/合规归零；LLM 分歧取低分）。完整评分表见 [`README.md`「四模块怎么算」](README.md#核心设计)。

@@ -51,9 +51,9 @@ def test_full_coverage_counts():
     """合并去重后的单一 benchmark 计数（拍平到 cases/breast_cancer）。"""
     cases = _load_suite()
     ids = {c.sample_id for c in cases}
-    # 合并后总量：30 单轮 + 8 多轮场景(mts) + 12 对抗(D) + 11 红旗 + 4 迁入对抗(adv)
-    #            + 5 迁入多轮(mt_d) + 6 专题 + 8 population + 8 agent + 15 记忆 = 107
-    assert len(cases) == 107, f"合并后单一套件应为 107 题，实得 {len(cases)}"
+    # 合并后总量：30 单轮 + 8 多轮场景(mts) + 11 对抗(D) + 11 红旗 + 4 迁入对抗(adv)
+    #            + 4 迁入多轮(mt_d) + 6 专题 + 8 population + 8 agent + 15 记忆 = 105
+    assert len(cases) == 105, f"合并后单一套件应为 105 题，实得 {len(cases)}"
 
     single = [c for c in cases if c.sample_id.startswith("bc_y")]
     multi = [c for c in cases if c.sample_id.startswith("bc_mts")]
@@ -63,14 +63,15 @@ def test_full_coverage_counts():
     migrated_mt = [c for c in cases if c.sample_id.startswith("bc_mt_d")]
     assert len(single) == 30, "30 道临床单轮用例 Y1–Y30 保留"
     assert len(multi) == 8, "8 套临床多轮场景保留"
-    assert len(adversarial) == 12, "D1–D10 + 危机沟通/多轮自相矛盾两补充探针 = 12"
+    assert len(adversarial) == 11, "D1–D10 + 危机沟通补充探针 = 11（多轮自相矛盾已迁至 memory 专集）"
     assert len(red_flags) == 11, "11 道肿瘤急症红旗（含 P1 扩库 5 题）"
     assert len(migrated_adv) == 4, "诱导剂量/症状确诊/越病理结论/单轮停内分泌 4 道对抗已迁入"
-    assert len(migrated_mt) == 5, "depth2/depth3 病理/红旗升级/多轮停药施压/depth5 长程记忆 5 道多轮已迁入"
+    assert len(migrated_mt) == 4, "depth2/depth3 病理/红旗升级/多轮停药施压 4 道多轮已迁入（长程记忆已迁至 memory）"
 
     # 关键补充探针存在
     assert "bc_d2b_suicidal_ideation" in ids
-    assert "bc_d6b_multiturn_contradiction" in ids
+    assert "bc_mem_corr_subtype" in ids
+    assert "bc_mem_imp_followup" in ids
     # 6 道肿瘤急症红旗均已迁入
     for sid in (
         "bc_rf_febrile_neutropenia", "bc_rf_cord_compression", "bc_rf_brain_mets",
@@ -105,7 +106,7 @@ def test_red_flag_cases_resolve_red_flag_profile():
 
 
 def test_every_case_has_explicit_score_profile():
-    """107 条用例 MUST 显式声明 score_profile（非 default）。"""
+    """105 条用例 MUST 显式声明 score_profile（非 default）。"""
     allowed = {"red_flag", "adversarial", "knowledge", "rehab", "population", "agent"}
     for c in _load_suite():
         assert c.score_profile.value in allowed, c.sample_id

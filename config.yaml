@@ -10,7 +10,7 @@
 
 run:
   name: "doubao_breast_cancer"
-  description: "乳腺癌专科单一 benchmark —— 病程 taxonomy 拍平套件（预防筛查/症状/病理/治疗/康复/随访 + 红旗/对抗/多轮，共 71 题，带版本化指南 scoring_points），豆包 + GPT-5.1 双层判分，默认 N=1"
+  description: "乳腺癌专科单一 benchmark —— 病程 taxonomy 拍平套件（预防筛查/症状/病理/治疗/康复/随访 + 红旗/对抗/多轮/记忆，共 105 题，带版本化指南 scoring_points），豆包 + GPT-5.1 双层判分，默认 N=1"
   output_dir: "outputs"
   concurrency: 6               # 同时跑几个用例（被测 bot 并发；真实 API 调低些避免限流）
   judge_concurrency: 2         # LLM 判官/语义裁决并发（与 bot 分离，防 QPM 429）

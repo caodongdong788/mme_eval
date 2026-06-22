@@ -2,7 +2,7 @@
 
 > **读者**：要写 / 改评测用例的人。  
 > **权威 schema**：`medeval/models.py` → `TestCase`（加载报错以它为准）。  
-> **本库**：`cases/breast_cancer/` 共 **107** 条。  
+> **本库**：`cases/breast_cancer/` 共 **105** 条。  
 > ⚠️ 用例均为非临床专业人员构造的 **框架测试 fixture**，上线前须临床专家复核（见根目录 `README.md`）。
 
 ---
@@ -30,7 +30,7 @@
 
 ### 1.1 各文件测试重点
 
-`cases/breast_cancer/` 共 **107** 题，按**患者病程 + 专项能力**拆成 12 个 YAML 文件。医学背景速查另见 [`docs/breast-cancer-primer.md`](../docs/breast-cancer-primer.md)。
+`cases/breast_cancer/` 共 **105** 题，按**患者病程 + 专项能力**拆成 12 个 YAML 文件。医学背景速查另见 [`docs/breast-cancer-primer.md`](../docs/breast-cancer-primer.md)。
 
 #### 病程单轮题（按就医阶段）
 
@@ -85,7 +85,7 @@
 - **profile**：`red_flag`（安全权重最高，**非满分即失败**）
 - **核心**：识别危险 + 明确急诊/转诊，禁止「在家观察就好」。
 
-**`adversarial.yaml`（16 题）· 对抗/红队**
+**`adversarial.yaml`（15 题）· 对抗/红队**
 
 - **测什么**：用户故意施压、诱导 bot 越界。
 - **重点**：保健品治愈、偏方/停药、诱导化疗剂量、症状/病理代替医生确诊、自伤危机、低俗内容、假信息、生存期施压、被指「骗人」等。
@@ -107,10 +107,10 @@
 
 #### 多轮与记忆
 
-**`multi_turn.yaml`（13 题）· 多轮对话一致性**
+**`multi_turn.yaml`（12 题）· 多轮对话一致性**
 
 - **测什么**：跨轮上下文保持、信息累积、边界抗压。
-- **覆盖**：治疗咨询多轮（保乳/HER2/三阴性）、康复护理多轮、随访、筛查焦虑信息浮出、病理分段解读、红旗逐步升级（化疗后发热）、停药施压、长程记忆等。
+- **覆盖**：治疗咨询多轮（保乳/HER2/三阴性）、康复护理多轮、随访、筛查焦虑信息浮出、病理分段解读、红旗逐步升级（化疗后发热）、停药施压等（长程记忆见 `memory.yaml`）。
 - **profile**：多为 `knowledge` / `rehab`，红旗题为 `red_flag`
 - **核心**：`multi_turn_consistency`——记住前文、随新信息升级、多轮施压下守住边界。
 
@@ -120,6 +120,7 @@
 - **五种题型**：隐式综合 / 显式召回 / 干扰召回 / 信息更正 / 抗假记忆（见 `scenario: 记忆召回` 与 `sub_scenario` 前缀）。
 - **profile**：按临床主题分散在 `knowledge` / `rehab` / `red_flag` / `adversarial` / `agent`
 - **核心**：`scoring_points` checklist 看「召回了哪些事实」+ `multi_turn_consistency` 防断片/被诱导。
+- **去重**：`bc_mem_imp_followup` / `bc_mem_corr_subtype` 分别替代原 `bc_mt_d5_followup_recall` / `bc_d6b_multiturn_contradiction`。
 
 #### 总览表
 
@@ -132,10 +133,10 @@
 | `rehab.yaml` | 8 | 康复期 | 副作用、心理、生活 |
 | `followup.yaml` | 6 | 随访期 | 复查、复发监测 |
 | `red_flags.yaml` | 11 | 全程急症 | 分诊升级急诊 |
-| `adversarial.yaml` | 16 | 红队 | 越界诱导下的边界 |
+| `adversarial.yaml` | 15 | 红队 | 越界诱导下的边界 |
 | `population.yaml` | 8 | 特殊人群 | 人群盲区 |
 | `agent.yaml` | 8 | 问诊 | 主动追问完整性 |
-| `multi_turn.yaml` | 13 | 多轮 | 一致性 + 红旗升级 |
+| `multi_turn.yaml` | 12 | 多轮 | 一致性 + 红旗升级 |
 | `memory.yaml` | 15 | 记忆 | 上下文召回与抗诱导 |
 
 **读题三问**：① 安全（红旗/越界/危险安抚）② 功能（`must_have` / `scoring_points`）③ 体验/问诊（`agent` 的 inquiry、`multi_turn`/`memory` 的 consistency）。
@@ -209,7 +210,7 @@
 |--|--|
 | **类型** | 枚举 `ScoreProfile` |
 | **必填** | 否（默认 `default`） |
-| **含义** | **判分路由**：决定四（五）模块权重、功能扣分步长、合格规则 `pass_rule`。本 benchmark 107 题均显式写了下面六种之一（无题用 `default`） |
+| **含义** | **判分路由**：决定四（五）模块权重、功能扣分步长、合格规则 `pass_rule`。本 benchmark 105 题均显式写了下面六种之一（无题用 `default`） |
 
 **合法取值**
 
@@ -245,7 +246,7 @@ medeval run --config config.yaml --score-profile adversarial,red_flag
 
 | 值 | 含义 |
 |----|------|
-| `offline` | 人工构造或离线整理（当前 107 题均为此项） |
+| `offline` | 人工构造或离线整理（当前 105 题均为此项） |
 | `online` | 来自线上真实流量或日志脱敏 |
 
 ---
