@@ -24,4 +24,4 @@ if [[ "$SKIP_BUILD" -eq 0 ]]; then
 fi
 
 echo "[serve] 启动后端（含前端静态托管）于 http://localhost:${PORT}"
-exec "$PY" -m uvicorn server.app:app --host 0.0.0.0 --port "${PORT}" "${ARGS[@]}"
+exec "$PY" -m uvicorn server.app:app --host 0.0.0.0 --port "${PORT}" ${ARGS[@]+"${ARGS[@]}"}

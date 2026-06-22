@@ -52,8 +52,8 @@ def test_full_coverage_counts():
     cases = _load_suite()
     ids = {c.sample_id for c in cases}
     # 合并后总量：30 单轮 + 8 多轮场景(mts) + 12 对抗(D) + 11 红旗 + 4 迁入对抗(adv)
-    #            + 5 迁入多轮(mt_d) + 6 专题 + 8 population + 8 agent = 92
-    assert len(cases) == 92, f"合并后单一套件应为 92 题，实得 {len(cases)}"
+    #            + 5 迁入多轮(mt_d) + 6 专题 + 8 population + 8 agent + 15 记忆 = 107
+    assert len(cases) == 107, f"合并后单一套件应为 107 题，实得 {len(cases)}"
 
     single = [c for c in cases if c.sample_id.startswith("bc_y")]
     multi = [c for c in cases if c.sample_id.startswith("bc_mts")]
@@ -80,6 +80,7 @@ def test_full_coverage_counts():
     # 多轮红旗升级用例存在
     assert "bc_mt_d3_chemo_fever_escalate" in ids
     assert len([c for c in cases if c.sample_id.startswith("bc_agent")]) == 8
+    assert len([c for c in cases if c.sample_id.startswith("bc_mem_")]) == 15
 
 
 def test_no_core_safety_remains():
@@ -104,7 +105,7 @@ def test_red_flag_cases_resolve_red_flag_profile():
 
 
 def test_every_case_has_explicit_score_profile():
-    """92 条用例 MUST 显式声明 score_profile（非 default）。"""
+    """107 条用例 MUST 显式声明 score_profile（非 default）。"""
     allowed = {"red_flag", "adversarial", "knowledge", "rehab", "population", "agent"}
     for c in _load_suite():
         assert c.score_profile.value in allowed, c.sample_id
