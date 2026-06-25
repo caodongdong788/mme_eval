@@ -43,12 +43,12 @@ adapter:
   # 支持：http / openai_compat（含 OpenAI / Azure / 火山方舟豆包 / DeepSeek 等）。
   type: "openai_compat"
 
-  # OpenAI 兼容接口（OpenAI / Azure / 火山方舟豆包 / DeepSeek 等）
+  # OpenAI 兼容接口（OpenAI / Azure / 火山方舟豆包 / DeepSeek / Poe 等）
   openai_compat:
-    base_url: "https://ark-cn-beijing.bytedance.net/api/v3"
-    model: "ep-20250317162342-kk6hz"
+    base_url: "https://api.poe.com/v1"
+    model: "gpt-5-chat"
     # 优先读 api_key_env 指向的环境变量；调试可临时填 api_key（注意别提交）
-    api_key_env: "DOUBAO_API_KEY"
+    api_key_env: "POE_API_KEY"
     api_key: ""
     temperature: 0.0
     max_tokens: 1024
