@@ -189,3 +189,120 @@ turns:
     )
     with pytest.raises(Exception):
         load_cases(include=["cases"], base_dir=tmp_path)
+
+
+# ── 文件级 defaults 继承（defaults: + cases:）────────────────────────────
+
+
+def test_defaults_merge_applies_to_each_case(tmp_path: Path) -> None:
+    """defaults 逐条注入；case 未声明的字段从 defaults 继承。"""
+    case_dir = tmp_path / "cases"
+    case_dir.mkdir()
+    (case_dir / "k.yaml").write_text(
+        """
+defaults:
+  scenario: 症状识别
+  level: L2
+  score_profile: knowledge
+  source: offline
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+cases:
+- sample_id: k1
+  sub_scenario: a
+  turns:
+    - role: user
+      content: hi
+- sample_id: k2
+  sub_scenario: b
+  turns:
+    - role: user
+      content: hi
+""".strip(),
+        encoding="utf-8",
+    )
+    cases = {c.sample_id: c for c in load_cases(include=["cases"], base_dir=tmp_path)}
+    assert len(cases) == 2
+    for c in cases.values():
+        assert c.scenario == "症状识别"
+        assert c.score_profile == ScoreProfile.knowledge
+        assert c.hard_gates.no_prescription is True
+        assert c.hard_gates.require_disclaimer is True
+
+
+def test_defaults_case_override_wins_and_deep_merges(tmp_path: Path) -> None:
+    """case 侧字段覆盖 defaults；dict 深合并、list 整体替换。"""
+    case_dir = tmp_path / "cases"
+    case_dir.mkdir()
+    (case_dir / "k.yaml").write_text(
+        """
+defaults:
+  scenario: 预防筛查
+  level: L1
+  score_profile: knowledge
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+cases:
+- sample_id: c1
+  turns:
+    - role: user
+      content: hi
+- sample_id: c2
+  scenario: 遗传高危
+  level: L2
+  hard_gates:
+    require_disclaimer: false
+  turns:
+    - role: user
+      content: hi
+""".strip(),
+        encoding="utf-8",
+    )
+    cases = {c.sample_id: c for c in load_cases(include=["cases"], base_dir=tmp_path)}
+    # c1 全继承
+    assert cases["c1"].scenario == "预防筛查"
+    assert cases["c1"].level.value == "L1"
+    # c2 覆盖 scenario/level，hard_gates 深合并：no_prescription 继承、require_disclaimer 覆盖
+    assert cases["c2"].scenario == "遗传高危"
+    assert cases["c2"].level.value == "L2"
+    assert cases["c2"].hard_gates.no_prescription is True
+    assert cases["c2"].hard_gates.require_disclaimer is False
+
+
+def test_defaults_missing_cases_key_raises(tmp_path: Path) -> None:
+    """顶层 mapping 含 defaults 但 cases 不是数组 → 报错。"""
+    case_dir = tmp_path / "cases"
+    case_dir.mkdir()
+    (case_dir / "bad.yaml").write_text(
+        """
+defaults:
+  level: L1
+cases:
+  sample_id: t1
+""".strip(),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError):
+        load_cases(include=["cases"], base_dir=tmp_path)
+
+
+def test_array_form_still_supported(tmp_path: Path) -> None:
+    """历史数组顶层格式不受 defaults 改造影响。"""
+    case_dir = tmp_path / "cases"
+    case_dir.mkdir()
+    (case_dir / "arr.yaml").write_text(
+        """
+- sample_id: a1
+  scenario: s
+  level: L1
+  turns:
+    - role: user
+      content: hi
+""".strip(),
+        encoding="utf-8",
+    )
+    cases = load_cases(include=["cases"], base_dir=tmp_path)
+    assert len(cases) == 1
+    assert cases[0].sample_id == "a1"

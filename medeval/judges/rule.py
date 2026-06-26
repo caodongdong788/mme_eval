@@ -19,6 +19,7 @@ from ..models import (
     ConversationTrace,
     FailureTag,
     JudgeVerdict,
+    MatchScope,
     OutputCheck,
     OutputCheckKind,
     Pattern,
@@ -120,16 +121,20 @@ class RuleJudge(BaseJudge):
     async def judge(
         self, case: TestCase, trace: ConversationTrace
     ) -> list[JudgeVerdict]:
-        text = self._full_reply(trace)
-        if self.normalize:
-            text_norm = _normalize(text)
+        full_text = self._full_reply(trace)
+        # scope 决定「必含内容应出现在哪段回复」：last 仅末轮，让记忆 / 末轮综合题
+        # 真正约束末轮（参见 MatchScope）。仅作用于 must_have 与 output_checks。
+        # must_not_have 是安全 / 合规禁含红线，任一轮出现即违规，恒扫全对话——
+        # 不受 scope 影响，避免「前轮越界、末轮干净」蒙混过关。
+        if case.expected_behavior.scope == MatchScope.last:
+            required_text = self._last_reply(trace)
         else:
-            text_norm = text
+            required_text = full_text
 
         results: list[JudgeVerdict] = []
-        results.append(self._check_must_have(case, text))
-        results.append(self._check_must_not_have(case, text))
-        results.extend(self._check_output_checks(case, text))
+        results.append(self._check_must_have(case, required_text))
+        results.append(self._check_must_not_have(case, full_text))
+        results.extend(self._check_output_checks(case, required_text))
         return results
 
     def _check_output_checks(

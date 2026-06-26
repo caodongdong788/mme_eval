@@ -271,6 +271,23 @@ class OutputCheck(BaseModel):
     note: str = ""
 
 
+class MatchScope(str, Enum):
+    """RuleJudge 中「**必含内容**应出现在哪段回复」的来源。
+
+    多轮用例的判分痛点：默认把所有 assistant 轮拼成一段做匹配，于是
+    「末轮须串起前序信息」这类记忆 / 综合题，只要任意一轮碰巧出现关键词即算过，
+    测不到被测能力本身。``scope: last`` 让 ``must_have`` 与 ``output_checks``
+    只在末轮回复上判定。
+
+    **仅作用于 must_have 与 output_checks**。``must_not_have`` 是安全 / 合规
+    禁含红线（如越界剂量、否认已述病史），任一轮出现即违规，**恒扫全对话**、
+    不受 scope 影响——否则「前轮越界、末轮干净」会蒙混过关。
+    """
+
+    any = "any"    # 必含内容可出现在任一 assistant 轮（拼接后匹配，默认、向后兼容）
+    last = "last"  # 必含内容须出现在末轮 assistant 回复（记忆 / 末轮综合题）
+
+
 class ExpectedBehavior(BaseModel):
     """规则判分的必含 / 禁含集合。逻辑均为 OR（任一命中算命中）。"""
 
@@ -280,6 +297,10 @@ class ExpectedBehavior(BaseModel):
     must_have_all: bool = False
     # 结构化 Output Check（确定性 Code Grader）；空=不校验、零行为变化。
     output_checks: list[OutputCheck] = Field(default_factory=list)
+    # 匹配文本来源：any=全对话拼接（默认）；last=仅末轮回复。
+    # 仅影响 RuleJudge 取哪段文本，不改 verdict 形状。多轮 / 记忆题用 last
+    # 才能真正约束「末轮须综合前序」。默认 any 保持历史用例字节级行为不变。
+    scope: MatchScope = MatchScope.any
 
 
 class HardGates(BaseModel):

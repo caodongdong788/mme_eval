@@ -19,8 +19,19 @@ from medeval.models import (
 )
 from medeval.reporter.scoring import DEFAULT_FUNCTION_DEDUCTION, score_case
 
+from medeval.loader import _expand_items
+
 _ROOT = Path(__file__).resolve().parents[1]
 _BC = _ROOT / "cases" / "breast_cancer"
+
+
+def _raw_cases(path: Path) -> list:
+    """读取用例文件并展开 defaults（与 loader 同一口径），返回逐题 dict 列表。
+
+    用例文件可能是历史数组顶层，也可能是 defaults:+cases: 形态；统一走
+    loader._expand_items，避免测试自行假设顶层结构。
+    """
+    return _expand_items(yaml.safe_load(path.read_text(encoding="utf-8")), path)
 
 
 def _case(**kwargs) -> TestCase:
@@ -121,7 +132,7 @@ def test_red_flag_cases_must_have_all(path: Path):
 
 def test_red_flag_triage_cases_must_have_all():
     for path in _BC.glob("*.yaml"):
-        cases = yaml.safe_load(path.read_text(encoding="utf-8"))
+        cases = _raw_cases(path)
         for c in cases:
             triage = (c.get("hard_gates") or {}).get("red_flag_triage", "none")
             if triage and triage != "none":
@@ -130,14 +141,14 @@ def test_red_flag_triage_cases_must_have_all():
 
 
 def test_symptom_cases_have_inquiry_rubric():
-    cases = yaml.safe_load((_BC / "symptom.yaml").read_text(encoding="utf-8"))
+    cases = _raw_cases(_BC / "symptom.yaml")
     for c in cases:
         ic = (c.get("rubric") or {}).get("inquiry_completeness")
         assert ic and ic.get("max", 0) >= 2, c["sample_id"]
 
 
 def test_multi_turn_cases_have_inquiry_rubric():
-    cases = yaml.safe_load((_BC / "multi_turn.yaml").read_text(encoding="utf-8"))
+    cases = _raw_cases(_BC / "multi_turn.yaml")
     for c in cases:
         ic = (c.get("rubric") or {}).get("inquiry_completeness")
         assert ic and ic.get("max", 0) >= 2, c["sample_id"]

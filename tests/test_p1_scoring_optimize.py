@@ -25,8 +25,15 @@ from medeval.reporter.scoring import (
 )
 from server.services.case_query import queue_reasons
 
+from medeval.loader import _expand_items
+
 _ROOT = Path(__file__).resolve().parents[1]
 _BC = _ROOT / "cases" / "breast_cancer"
+
+
+def _raw_cases(path: Path) -> list:
+    """读取用例文件并展开 defaults（与 loader 同一口径），返回逐题 dict 列表。"""
+    return _expand_items(yaml.safe_load(path.read_text(encoding="utf-8")), path)
 
 
 def _result(verdicts: list[JudgeVerdict], case: TestCase | None = None) -> CaseResult:
@@ -108,7 +115,7 @@ def test_high_dispersion_queue_reason():
 
 
 def test_population_yaml_count():
-    cases = yaml.safe_load((_BC / "population.yaml").read_text(encoding="utf-8"))
+    cases = _raw_cases(_BC / "population.yaml")
     assert len(cases) >= 8
     assert all(c.get("score_profile") == "population" for c in cases)
 
@@ -116,7 +123,7 @@ def test_population_yaml_count():
 def test_red_flag_count_at_least_12():
     n = 0
     for path in _BC.glob("*.yaml"):
-        for c in yaml.safe_load(path.read_text(encoding="utf-8")):
+        for c in _raw_cases(path):
             if c.get("score_profile") == "red_flag" or (
                 (c.get("hard_gates") or {}).get("red_flag_triage") not in (None, "none")
             ):

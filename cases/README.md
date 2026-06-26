@@ -22,11 +22,41 @@
 
 | 项 | 说明 |
 |----|------|
-| **文件格式** | 顶层是 **数组**：`- sample_id: ...`，一个文件可含多题 |
+| **文件格式** | 顶层二选一：① **数组** `- sample_id: ...`；② **`defaults:` + `cases:`** mapping（见下「文件级 defaults」） |
 | **存放目录** | `cases/breast_cancer/*.yaml`，按病程 taxonomy 分文件 |
 | **ID 规则** | `sample_id` 全局唯一，乳腺癌统一 **`bc_` 前缀** |
 | **自动注入** | `case_file` 由 loader 写入来源文件名，**不要手写** |
 | **已废弃** | `tags`（加载报错）→ 改用 `score_profile`；`case_version` / `population` / `difficulty` 会被静默丢弃 |
+
+### 文件级 defaults（消除跨题 boilerplate）
+
+同一文件多题常重复 `score_profile` / `source` / `hard_gates` / `scenario` 等。可改用 `defaults:` + `cases:` 形态，loader 把 `defaults` **逐条深合并**进每个 case：
+
+```yaml
+defaults:
+  scenario: 症状识别
+  level: L2
+  score_profile: knowledge
+  source: offline
+  hard_gates:
+    no_prescription: true
+    require_disclaimer: true
+cases:
+- sample_id: bc_y6_painless_lump
+  sub_scenario: 无痛性肿块就医路径   # case 未声明的字段从 defaults 继承
+  turns: [...]
+- sample_id: bc_genetic_family_history
+  scenario: 遗传高危               # case 侧覆盖 defaults
+  level: L2
+  turns: [...]
+```
+
+合并规则（实现见 `medeval/loader.py::_deep_merge`）：
+
+- **case 侧优先**：同名键 case 覆盖 defaults。
+- **dict 深合并**：如 `hard_gates` 只写要改的子键，其余从 defaults 继承。
+- **list 整体替换**：`must_have` 等列表**不拼接**，case 写了就整段替换（避免 defaults 列表悄悄混入）。
+- 数组顶层格式仍完全兼容；`rubric` 各题不同则留在 case 内，不要硬塞进 defaults。
 
 ### 1.1 各文件测试重点
 
@@ -337,6 +367,19 @@ medeval run --config config.yaml --score-profile adversarial,red_flag
 ### `expected_behavior`
 
 规则判分输入，由 **RuleJudge** 消费 → 计入 **功能** 模块。
+
+> **三层分工约定（避免冗余漂移）**：`expected_behavior` 只承载**确定性**判定——`must_not_have` 的硬禁词、`output_checks` 的结构断言，以及确实稳定的 `must_have` 关键词。**医学语义要点**应放 `scoring_points`（LLM grader 判语义，不靠脆正则），**软维度**放 `rubric`。同一意图不要在 `must_have`（脆正则）+ `scoring_point`（criterion）里写两遍——会双重维护、易漂移。冗余排查：`python scripts/audit_case_redundancy.py`。
+
+#### `expected_behavior.scope`
+
+| | |
+|--|--|
+| **类型** | enum：`any`（默认） / `last` |
+| **作用对象** | **仅** `must_have` 与 `output_checks`（决定在哪段回复上判定） |
+| **`any`** | 所有 assistant 轮拼接后匹配（向后兼容，历史用例行为不变） |
+| **`last`** | 仅**末轮** assistant 回复匹配——记忆 / 末轮综合题用它，否则前轮碰巧出现关键词即蒙混过关 |
+
+> `must_not_have` 是安全 / 合规禁含红线，**恒扫全对话、不受 scope 影响**：禁词出现在任一轮都算违规，避免「前轮越界、末轮干净」蒙混。记忆题（`memory.yaml`）统一 `scope: last`；多轮题（`multi_turn.yaml`）的 must_have 分布在各轮，**不要**用 `last`。
 
 #### `expected_behavior.must_have`
 
