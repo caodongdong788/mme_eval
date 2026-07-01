@@ -6,6 +6,7 @@ import {
   Input,
   Modal,
   Popconfirm,
+  Segmented,
   Space,
   Table,
   Tag,
@@ -22,12 +23,26 @@ import { api } from "../api/index";
 import { AsyncLoadError } from "../components/AsyncLoadError";
 import { DashTableActions, DashTableDangerLink, DashTableLink } from "../components/DashTableActions";
 import { DashboardPageShell } from "../components/DashboardPageShell";
+import { OnlineCasePreview } from "../components/OnlineCasePreview";
 import { useBenchmarksPage } from "../hooks/useBenchmarksPage";
 import { PROFILE_LABEL } from "../labels";
 import type { CaseBrief } from "../api/types";
 
+function benchmarkSourceLabel(source: string) {
+  if (source === "builtin") return "内置";
+  if (source === "online") return "线上";
+  return "线下";
+}
+
+function benchmarkSourceColor(source: string) {
+  if (source === "builtin") return "blue";
+  if (source === "online") return "purple";
+  return "green";
+}
+
 export default function BenchmarksPage() {
   const bm = useBenchmarksPage();
+  const isOnlineCase = bm.casesBenchmark?.source === "online";
 
   const columns = [
     { title: "ID", dataIndex: "id", width: 60 },
@@ -37,7 +52,7 @@ export default function BenchmarksPage() {
       dataIndex: "source",
       width: 90,
       render: (s: string) =>
-        s === "builtin" ? <Tag color="blue">内置</Tag> : <Tag color="green">上传</Tag>,
+        <Tag color={benchmarkSourceColor(s)}>{benchmarkSourceLabel(s)}</Tag>,
     },
     { title: "用例数", dataIndex: "case_count", width: 80 },
     {
@@ -135,11 +150,7 @@ export default function BenchmarksPage() {
       </div>
 
       <Modal
-        title={
-          bm.replaceId != null
-            ? `覆盖 benchmark #${bm.replaceId}`
-            : "上传 benchmark（YAML 用例集，格式同 cases/）"
-        }
+        title={bm.replaceId != null ? `覆盖 benchmark #${bm.replaceId}` : "上传 benchmark"}
         open={bm.modalOpen}
         onOk={bm.submit}
         onCancel={() => bm.setModalOpen(false)}
@@ -157,9 +168,33 @@ export default function BenchmarksPage() {
               </Form.Item>
             </>
           )}
-          <Form.Item label="用例文件 (.yaml)">
+          <Form.Item name="source" label="来源" initialValue="offline">
+            <Segmented
+              onChange={() => {
+                bm.setFileList([]);
+                bm.form.setFieldValue("source_url", "");
+              }}
+              options={[
+                { label: "线下", value: "offline" },
+                { label: "线上", value: "online" },
+              ]}
+            />
+          </Form.Item>
+          {bm.sourceMode === "online" ? (
+            <Form.Item name="source_url" label="飞书 URL（Base / Sheet / Wiki，可替代文件上传）">
+              <Input placeholder="粘贴 https://*.feishu.cn/base、/sheets 或 /wiki 链接" />
+            </Form.Item>
+          ) : null}
+          <Form.Item
+            label={bm.sourceMode === "online" ? "线上对话来源（JSONL / 飞书 URL）" : "用例文件 (.yaml)"}
+            extra={
+              bm.sourceMode === "online"
+                ? "支持粘贴飞书 Base、Sheet、Wiki 表格 URL，或上传 JSONL；上传后会转换为保留多轮对话的线上 benchmark。"
+                : "线下 benchmark 使用标准 YAML 用例集，格式同 cases/。"
+            }
+          >
             <Upload.Dragger
-              accept=".yaml,.yml"
+              accept={bm.sourceMode === "online" ? ".jsonl,.json" : ".yaml,.yml"}
               maxCount={1}
               fileList={bm.fileList}
               beforeUpload={() => false}
@@ -168,7 +203,11 @@ export default function BenchmarksPage() {
               <p className="ant-upload-drag-icon">
                 <InboxOutlined />
               </p>
-              <p>点击或拖拽 YAML 文件到此处</p>
+              <p>
+                {bm.sourceMode === "online"
+                  ? "点击或拖拽 JSONL 文件，或直接使用上方飞书 URL"
+                  : "点击或拖拽 YAML 用例文件到此处"}
+              </p>
             </Upload.Dragger>
           </Form.Item>
         </Form>
@@ -204,22 +243,26 @@ export default function BenchmarksPage() {
       </Drawer>
 
       <Drawer
-        title={`用例 YAML · ${bm.caseYamlMeta?.subScenario ?? ""}`}
+        title={`${isOnlineCase ? "线上对话" : "用例 YAML"} · ${bm.caseYamlMeta?.subScenario ?? ""}`}
         width={760}
         open={bm.caseYamlOpen}
         onClose={() => bm.setCaseYamlOpen(false)}
         extra={
-          <Space>
-            <Button onClick={() => bm.setCaseYamlOpen(false)}>取消</Button>
-            <Button
-              type="primary"
-              loading={bm.caseYamlSaving}
-              disabled={bm.caseYamlLoading || !bm.caseYamlText}
-              onClick={bm.saveCaseYaml}
-            >
-              保存
-            </Button>
-          </Space>
+          isOnlineCase ? (
+            <Button onClick={() => bm.setCaseYamlOpen(false)}>关闭</Button>
+          ) : (
+            <Space>
+              <Button onClick={() => bm.setCaseYamlOpen(false)}>取消</Button>
+              <Button
+                type="primary"
+                loading={bm.caseYamlSaving}
+                disabled={bm.caseYamlLoading || !bm.caseYamlText}
+                onClick={bm.saveCaseYaml}
+              >
+                保存
+              </Button>
+            </Space>
+          )
         }
       >
         {bm.caseYamlMeta?.caseFile ? (
@@ -235,13 +278,17 @@ export default function BenchmarksPage() {
             message="内置用例直接写回仓库 cases/；Docker 重建镜像后修改会丢失，生产环境请下载后作为上传集维护。"
           />
         ) : null}
-        <Input.TextArea
-          value={bm.caseYamlText}
-          onChange={(e) => bm.setCaseYamlText(e.target.value)}
-          placeholder={bm.caseYamlLoading ? "加载 YAML 中…" : ""}
-          autoSize={{ minRows: 20, maxRows: 42 }}
-          style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}
-        />
+        {isOnlineCase ? (
+          <OnlineCasePreview yamlText={bm.caseYamlText} />
+        ) : (
+          <Input.TextArea
+            value={bm.caseYamlText}
+            onChange={(e) => bm.setCaseYamlText(e.target.value)}
+            placeholder={bm.caseYamlLoading ? "加载 YAML 中…" : ""}
+            autoSize={{ minRows: 20, maxRows: 42 }}
+            style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}
+          />
+        )}
       </Drawer>
     </DashboardPageShell>
   );

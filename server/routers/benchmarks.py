@@ -12,13 +12,16 @@ from ..auth import get_current_user_optional
 from ..benchmarks import (
     BenchmarkValidationError,
     create_uploaded_benchmark,
+    create_uploaded_benchmark_from_feishu_url,
     derive_benchmark_from_yaml,
     derive_benchmark_with_overrides,
     overwrite_benchmark_from_yaml,
     replace_uploaded_benchmark,
+    replace_uploaded_benchmark_from_feishu_url,
 )
 from ..constants import LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX
 from ..db import get_session
+from .. import feishu_media
 from ..models_db import Benchmark, FeishuUser
 from ..schemas import (
     BenchmarkCaseYamlIn,
@@ -49,24 +52,42 @@ def list_benchmarks(
 
 @router.post("", response_model=BenchmarkOut, status_code=201)
 def upload_benchmark(
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
     name: str = Form(...),
     description: str = Form(""),
     version: str = Form("v1"),
+    source: str = Form("offline"),
+    source_url: str = Form(""),
     session: Session = Depends(get_session),
     current_user: Optional[FeishuUser] = Depends(get_current_user_optional),
 ) -> Benchmark:
-    content = bm_svc.read_upload_capped(file)
     try:
-        bm = create_uploaded_benchmark(
-            session,
-            name=name,
-            content=content,
-            filename=file.filename or "cases.yaml",
-            description=description,
-            version=version,
-            created_by=current_user.name if current_user else None,
-        )
+        if source == "online" and source_url.strip():
+            if current_user is None or not current_user.access_token:
+                raise HTTPException(status_code=401, detail="请先登录飞书后导入飞书 URL")
+            bm = create_uploaded_benchmark_from_feishu_url(
+                session,
+                name=name,
+                source_url=source_url,
+                access_token=current_user.access_token,
+                description=description,
+                version=version,
+                created_by=current_user.name if current_user else None,
+            )
+        else:
+            if file is None:
+                raise HTTPException(status_code=422, detail="请选择用例文件或填写飞书 URL")
+            content = bm_svc.read_upload_capped(file)
+            bm = create_uploaded_benchmark(
+                session,
+                name=name,
+                content=content,
+                filename=file.filename or "cases.yaml",
+                description=description,
+                version=version,
+                source=source,
+                created_by=current_user.name if current_user else None,
+            )
     except BenchmarkValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return bm
@@ -144,17 +165,36 @@ def update_benchmark(
 @router.put("/{benchmark_id}", response_model=BenchmarkOut)
 def replace_benchmark(
     benchmark_id: int,
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
+    source: str = Form("offline"),
+    source_url: str = Form(""),
     session: Session = Depends(get_session),
+    current_user: Optional[FeishuUser] = Depends(get_current_user_optional),
 ) -> Benchmark:
     bm = bm_svc.get_benchmark_or_404(session, benchmark_id)
     if bm.source == "builtin":
         raise HTTPException(status_code=400, detail="内置 benchmark 不可覆盖")
-    content = bm_svc.read_upload_capped(file)
     try:
-        replace_uploaded_benchmark(
-            session, bm, content=content, filename=file.filename or "cases.yaml"
-        )
+        if source == "online" and source_url.strip():
+            if current_user is None or not current_user.access_token:
+                raise HTTPException(status_code=401, detail="请先登录飞书后导入飞书 URL")
+            replace_uploaded_benchmark_from_feishu_url(
+                session,
+                bm,
+                source_url=source_url,
+                access_token=current_user.access_token,
+            )
+        else:
+            if file is None:
+                raise HTTPException(status_code=422, detail="请选择用例文件或填写飞书 URL")
+            content = bm_svc.read_upload_capped(file)
+            replace_uploaded_benchmark(
+                session,
+                bm,
+                content=content,
+                filename=file.filename or "cases.yaml",
+                source=source,
+            )
     except BenchmarkValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return bm
@@ -169,6 +209,24 @@ def download_benchmark(
         content=text,
         media_type="application/x-yaml",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/feishu-images/{image_token}")
+def get_feishu_image(
+    image_token: str,
+    current_user: Optional[FeishuUser] = Depends(get_current_user_optional),
+) -> Response:
+    if current_user is None or not current_user.access_token:
+        raise HTTPException(status_code=401, detail="请先登录飞书后查看图片")
+    try:
+        media = feishu_media.fetch_media(current_user.access_token, image_token)
+    except feishu_media.FeishuMediaError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return Response(
+        content=media.content,
+        media_type=media.content_type,
+        headers={"Cache-Control": "private, max-age=3600"},
     )
 
 

@@ -3,7 +3,7 @@
 参见 OpenSpec change ``localize-failure-tags-zh``。
 
 覆盖点：
-  * 全部 15 个枚举成员的 label_zh 取值与 design.md 词表严格一致
+  * 全部当前枚举成员的 label_zh 取值与 design.md 词表严格一致
   * label_zh 全集互不重复（避免飞书报告渲染冲突）
   * label_zh 全集与 dimension 全集不相交（语义层不同，不允许混用）
   * 启动期完整性 assert 在 label_zh 缺失时确实抛 AssertionError
@@ -31,7 +31,6 @@ EXPECTED_LABELS_ZH: dict[FailureTag, str] = {
     FailureTag.UNDER_REFERRAL: "转诊不足",
     FailureTag.IMPROPER_PRESCRIPTION: "越界处方",
     FailureTag.OVER_DIAGNOSIS: "越界确诊",
-    FailureTag.DISCLAIMER_MISS: "缺免责",
     FailureTag.INQUIRY_INCOMPLETE: "问诊不足",
     FailureTag.CONSTRAINT_VIOLATION: "触发禁词",
     FailureTag.ADAPTER_ERROR: "调用失败",
@@ -89,7 +88,7 @@ def test_label_zh_does_not_collide_with_dimension():
 def test_label_zh_length_in_designated_range():
     """design.md 决策 1 约束：label_zh 必须 4~8 字（飞书 docx 表格友好区间）。
 
-    注意：少数极简标签（如 ``缺免责`` / ``鉴别窄`` / ``上下文断``）下限到 3 字
+    注意：少数极简标签（如 ``鉴别窄`` / ``上下文断``）下限到 3 字
     也可接受。这里设定 3~8 字软约束，超出范围按"重新设计短标签"处理。
     """
     for tag in FailureTag:
@@ -152,7 +151,6 @@ _EMITTED_TAGS = [
     FailureTag.UNDER_REFERRAL,
     FailureTag.IMPROPER_PRESCRIPTION,
     FailureTag.OVER_DIAGNOSIS,
-    FailureTag.DISCLAIMER_MISS,
     FailureTag.INQUIRY_INCOMPLETE,
     FailureTag.CONSTRAINT_VIOLATION,
     FailureTag.ADAPTER_ERROR,

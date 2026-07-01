@@ -184,7 +184,6 @@
   hard_gates:
     red_flag_triage: required_referral
     no_prescription: true
-    require_disclaimer: true
   rubric:
     empathy:
       max: 1

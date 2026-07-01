@@ -16,6 +16,18 @@
 > ｜ [漂移保护测试](../tests/test_judge_fingerprint.py)
 > ｜ [黄金集](../tests/golden/)
 
+## [v1.2.0] - 2026-06-26
+
+* **Fingerprint**: `d7636ecf0b23`
+* **Author**: framework-author
+* **Reviewers**: TBD-clinician
+* **Scope**: 删除免责声明 HardGate，保留历史字段读取兼容
+* **Changes**:
+  - ``HardGateJudge`` 不再生成 ``hard_gate.disclaimer`` verdict。
+  - ``verdict_facts`` 忽略历史 ``hard_gate.disclaimer=false``，不再影响 ``hard_gate_passed`` / ``compliance_failed``。
+  - 当前 ``FailureTag`` 词表移除 ``disclaimer_miss``；历史报告里的字符串标签仍可读取。
+* **Golden Tests Impact**: 移除免责声明 verdict 期望，新增无 disclaimer verdict 回归测试。
+
 ## [v1.1.0] - 2026-06-15
 
 * **Fingerprint**: `3066f1a4689d`
@@ -36,8 +48,7 @@
 * **Changes**:
   - 在 ``_EMERGENCY_PATTERNS`` / ``_REFERRAL_PATTERNS`` /
     ``_DOSAGE_PATTERN`` / ``_FREQ_PATTERN`` / ``_DIETARY_CONTEXT_WORDS`` /
-    ``_DRUG_CONTEXT_WORDS`` / ``_DIAGNOSIS_PHRASES`` /
-    ``_DISCLAIMER_PATTERNS`` 上方补齐 5 行结构化注释
+    ``_DRUG_CONTEXT_WORDS`` / ``_DIAGNOSIS_PHRASES`` 上方补齐 5 行结构化注释
     （sourced / owners / last_reviewed / scope / rationale）。
   - 关键词表的字面量内容**未变**，因此 fingerprint 保持 ``98cb1591cde4``。
 * **Golden Tests Impact**: 黄金集首次落地共 11 条（6 pass + 5 fail），

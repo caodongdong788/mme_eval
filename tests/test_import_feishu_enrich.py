@@ -34,24 +34,26 @@ def test_enrich_full_when_no_scoring_points():
             "must_not_have": [],
             "output_checks": [],
         },
-        "hard_gates": {"red_flag_triage": "none", "no_prescription": True},
+        "hard_gates": {
+            "red_flag_triage": "none",
+            "no_prescription": True,
+            "require_disclaimer": True,
+        },
         "rubric": {},
         "scoring_points": [{"criterion": "否定治愈", "points": 3}],
         "failure_tags_candidates": ["medical_hallucination"],
         "notes": "摘要",
     }
     cfg = LLMJudgeCfg(enabled=True, provider="openai", model="gpt-test")
+    backend = type("FakeBackend", (), {"chat_json": AsyncMock(return_value=fake)})()
 
-    with patch(
-        "medeval.import_feishu.case_enrich.LLMBackend.chat_json",
-        new_callable=AsyncMock,
-        return_value=fake,
-    ):
+    with patch("medeval.import_feishu.case_enrich.backend_from_llm_cfg", return_value=backend):
         result = enrich_case_fields(row, llm_cfg=cfg, id_prefix="imp_")
 
     assert result.mode == "llm_full"
     assert result.sample_id == "imp_supplement"
     assert result.scoring_points[0]["criterion"] == "否定治愈"
+    assert "require_disclaimer" not in result.hard_gates
 
 
 def test_enrich_supplement_when_scoring_points_in_sheet():
@@ -81,12 +83,9 @@ def test_enrich_supplement_when_scoring_points_in_sheet():
         "notes": "",
     }
     cfg = LLMJudgeCfg(enabled=True, provider="openai", model="gpt-test")
+    backend = type("FakeBackend", (), {"chat_json": AsyncMock(return_value=fake)})()
 
-    with patch(
-        "medeval.import_feishu.case_enrich.LLMBackend.chat_json",
-        new_callable=AsyncMock,
-        return_value=fake,
-    ):
+    with patch("medeval.import_feishu.case_enrich.backend_from_llm_cfg", return_value=backend):
         result = enrich_case_fields(row, llm_cfg=cfg, id_prefix="imp_")
 
     assert result.mode == "llm_supplement"

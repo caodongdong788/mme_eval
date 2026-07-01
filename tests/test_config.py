@@ -31,15 +31,28 @@ def _minimal() -> dict:
     }
 
 
+def _minimal_cx_agent() -> dict:
+    return {
+        "adapter": {
+            "type": "cx_agent",
+            "cx_agent": {},
+        }
+    }
+
+
 # --- 合法路径 --------------------------------------------------------------
 
 
 def test_real_config_yaml_is_valid():
     cfg = load_config(REPO_ROOT / "config.yaml")
     assert isinstance(cfg, Config)
-    assert cfg.adapter.type == "openai_compat"
+    assert cfg.adapter.type == "cx_agent"
+    assert cfg.adapter.cx_agent.base_url == "http://localhost:3000"
+    assert cfg.reporter.lark.enabled is False
     assert cfg.judges.llm.enabled is True
-    assert cfg.judges.llm.provider == "azure"
+    assert cfg.judges.llm.provider == "openai"
+    assert cfg.judges.llm.model == "gpt-5.4-pro"
+    assert cfg.judges.llm.api_key_env == "POE_API_KEY"
     assert cfg.scoring.profiles  # 有 profile 配置
 
 
@@ -52,6 +65,13 @@ def test_minimal_config_fills_defaults():
     assert cfg.judges.rule.normalize is True
     # scoring 数值默认不在此层（归 scoring.py），这里为空容器
     assert cfg.scoring.module_max == {}
+
+
+def test_cx_agent_config_is_valid():
+    cfg = parse_config(_minimal_cx_agent())
+    assert cfg.adapter.type == "cx_agent"
+    assert cfg.adapter.cx_agent.base_url == "http://localhost:3000"
+    assert cfg.adapter.cx_agent.test_token_env == "CX_AGENT_TEST_TOKEN"
 
 
 # --- forbid 抓拼错 ---------------------------------------------------------
@@ -172,6 +192,13 @@ def test_adapter_type_subblock_mismatch_rejected():
     assert "http" in str(ei.value)
 
 
+def test_cx_agent_subblock_required():
+    raw = {"adapter": {"type": "cx_agent"}}
+    with pytest.raises(ConfigError) as ei:
+        parse_config(raw)
+    assert "cx_agent" in str(ei.value)
+
+
 def test_adapter_type_required():
     with pytest.raises(ConfigError):
         parse_config({"run": {"name": "x"}})  # 缺 adapter
@@ -232,6 +259,6 @@ def test_model_dump_roundtrips_to_dict():
     cfg = load_config(REPO_ROOT / "config.yaml")
     dumped = cfg.model_dump(mode="json")
     assert isinstance(dumped, dict)
-    assert dumped["adapter"]["type"] == "openai_compat"
+    assert dumped["adapter"]["type"] == "cx_agent"
     # 重新校验 dump 结果应仍然合法（幂等）
     assert isinstance(parse_config(copy.deepcopy(dumped)), Config)

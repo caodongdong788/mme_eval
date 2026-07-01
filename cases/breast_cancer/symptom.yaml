@@ -7,7 +7,6 @@ defaults:
   source: offline
   hard_gates:
     no_prescription: true
-    require_disclaimer: true
 cases:
 - sample_id: bc_y6_painless_lump
   sub_scenario: 无痛性肿块就医路径

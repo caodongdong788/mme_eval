@@ -207,6 +207,96 @@ export interface ReviewStats {
   disagree_rate: number;
 }
 
+export interface OnlineEvalCasePayload {
+  external_id?: string;
+  case_name?: string;
+  user_text?: string;
+  assistant_text?: string;
+  raw_messages?: Array<Record<string, any>>;
+}
+
+export interface OnlineEvalCreatePayload {
+  name: string;
+  note?: string;
+  source_type?: string;
+  source_url?: string;
+  source_token?: string;
+  benchmark_id?: number | null;
+  judge_model_id?: number | null;
+  raw_import_payload?: Record<string, any>;
+  cases?: OnlineEvalCasePayload[];
+}
+
+export interface OnlineEvalCase {
+  id: number;
+  external_id: string;
+  case_name: string;
+  user_text: string;
+  assistant_text: string;
+  raw_messages: any[];
+  task_type: string;
+  gate_status: "pass" | "fail" | "need_human_review" | string;
+  total_score_10: number;
+  grade: string;
+  dimension_scores: Record<string, number>;
+  dimension_feedback: Record<
+    string,
+    {
+      basis?: string;
+      evidence?: string[];
+      suggestions?: string[];
+    }
+  >;
+  risk_tags: string[];
+  evidence: Array<Record<string, string>>;
+  improvement_suggestions: string[];
+  benchmark_candidate: boolean;
+  created_at?: string | null;
+}
+
+export interface OnlineEval {
+  id: number;
+  name: string;
+  note: string;
+  status: string;
+  error_msg: string;
+  source_type: string;
+  source_url: string;
+  source_token: string;
+  benchmark_id?: number | null;
+  raw_import_payload: Record<string, any>;
+  case_count: number;
+  avg_score_10: number;
+  gate_fail_count: number;
+  needs_review_count: number;
+  risk_tag_counter: Record<string, number>;
+  judge_model_id?: number | null;
+  judge_model: string;
+  judge_fingerprint: string;
+  progress: Record<string, any>;
+  created_by?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  created_at?: string | null;
+}
+
+export interface OnlineEvalDetail extends OnlineEval {
+  cases: OnlineEvalCase[];
+}
+
+export interface OnlineEvalExportFilters {
+  gate_status?: string[];
+  score_bucket?: string[];
+  grade?: string[];
+  parent_folder_token?: string;
+}
+
+export interface OnlineEvalExportResult {
+  url: string;
+  count: number;
+  filename: string;
+}
+
 export interface AnnotatePayload {
   verdict: "agree" | "override";
   suggestion?: string;

@@ -121,11 +121,19 @@ class HttpCfg(_Strict):
     timeout_s: float = 60.0
 
 
+class CxAgentCfg(_Strict):
+    base_url: str = "http://localhost:3000"
+    test_token_env: str = "CX_AGENT_TEST_TOKEN"
+    test_token: str = ""
+    timeout_s: float = 120.0
+
+
 class AdapterCfg(_Strict):
     # type 不写死 Literal：已支持类型由 adapter 注册表单一提供（开闭扩展，单一真值源）。
     type: str
     openai_compat: OpenAICompatCfg | None = None
     http: HttpCfg | None = None
+    cx_agent: CxAgentCfg | None = None
 
     @model_validator(mode="after")
     def _check_subblock(self):

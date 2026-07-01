@@ -78,8 +78,7 @@ _PROMPT_FULL = """\
   }},
   "hard_gates": {{
     "red_flag_triage": "none|required_referral|required_emergency",
-    "no_prescription": true,
-    "require_disclaimer": false
+    "no_prescription": true
   }},
   "rubric": {{ "factual_accuracy": {{"max": 1}} }},
   "scoring_points": [{{"criterion": "...", "points": 3, "critical": true}}],
@@ -131,6 +130,16 @@ def _filter_failure_tags(raw: list[Any]) -> list[str]:
     return out
 
 
+def _filter_hard_gates(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        return {"no_prescription": True}
+    return {
+        key: raw[key]
+        for key in ("red_flag_triage", "no_prescription")
+        if key in raw
+    } or {"no_prescription": True}
+
+
 def _parse_enrich_payload(
     data: dict[str, Any],
     *,
@@ -150,7 +159,7 @@ def _parse_enrich_payload(
             "must_not_have": [],
             "output_checks": [],
         },
-        hard_gates=data.get("hard_gates") or {"no_prescription": True},
+        hard_gates=_filter_hard_gates(data.get("hard_gates")),
         rubric=data.get("rubric") or {},
         scoring_points=data.get("scoring_points") or [],
         failure_tags_candidates=_filter_failure_tags(

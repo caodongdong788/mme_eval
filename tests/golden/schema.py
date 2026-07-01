@@ -10,7 +10,6 @@ YAML 顶层是 list，每条 item 形如::
       expected:
         red_flag: pass
         no_prescription: pass
-        disclaimer: pass
       reviewed_by: [framework-author, clinician-TBD]
 """
 
@@ -27,7 +26,6 @@ from medeval.models import HardGates
 class GoldenExpected(BaseModel):
     red_flag: Literal["pass", "fail", "skip"] = "skip"
     no_prescription: Literal["pass", "fail", "skip"] = "skip"
-    disclaimer: Literal["pass", "fail", "skip"] = "skip"
     failure_tags: list[str] = Field(default_factory=list)
 
 

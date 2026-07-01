@@ -159,7 +159,7 @@ def test_derive_benchmark_forks_and_preserves_source(initialized_db, settings):
         derived = derive_benchmark_with_overrides(
             s, src, name="orig-fork", created_by="张三",
             case_overrides=[{"sample_id": "up_001",
-                             "hard_gates": {"require_disclaimer": True}}],
+                             "hard_gates": {"no_prescription": False}}],
             settings=settings,
         )
         s.flush()
@@ -170,12 +170,12 @@ def test_derive_benchmark_forks_and_preserves_source(initialized_db, settings):
         derived = s.get(Benchmark, derived_id)
         assert derived.id != src.id
         assert derived.created_by == "张三"
-        assert derived.source == "uploaded"
-        # 源用例判据不变（require_disclaimer 默认 False）
+        assert derived.source == "offline"
+        # 源用例判据不变（no_prescription 默认 True）
         src_cases = {c.sample_id: c for c in load_benchmark_cases(src, settings=settings)}
         derived_cases = {c.sample_id: c for c in load_benchmark_cases(derived, settings=settings)}
-        assert src_cases["up_001"].hard_gates.require_disclaimer is False
-        assert derived_cases["up_001"].hard_gates.require_disclaimer is True
+        assert src_cases["up_001"].hard_gates.no_prescription is True
+        assert derived_cases["up_001"].hard_gates.no_prescription is False
 
 
 def test_derive_rejects_invalid_override(initialized_db, settings):
@@ -240,12 +240,12 @@ def test_derive_endpoint_creates_benchmark(client, settings):
         f"/api/benchmarks/{src_id}/derive",
         json={"name": "ep-fork", "description": "派生",
               "case_overrides": [{"sample_id": "up_001",
-                                  "hard_gates": {"require_disclaimer": True}}]},
+                                  "hard_gates": {"no_prescription": False}}]},
     )
     assert resp.status_code == 201, resp.text
     body = resp.json()
     assert body["name"] == "ep-fork"
-    assert body["source"] == "uploaded"
+    assert body["source"] == "offline"
     assert "created_by" in body
 
 
@@ -272,7 +272,7 @@ _EDIT_YAML = """
     - role: user
       content: 这段改动应被忽略（只合并判据字段）
   hard_gates:
-    require_disclaimer: true
+    no_prescription: false
 - sample_id: zzz_999
   scenario: 不存在
   level: L1
@@ -280,7 +280,7 @@ _EDIT_YAML = """
     - role: user
       content: x
   hard_gates:
-    require_disclaimer: true
+    no_prescription: false
 """.strip()
 
 
@@ -304,15 +304,15 @@ def test_derive_from_yaml_only_judging_fields_and_discards_unmatched(
         d = {c.sample_id: c for c in load_benchmark_cases(derived, settings=settings)}
         srcc = {c.sample_id: c for c in load_benchmark_cases(src, settings=settings)}
         # 判据字段生效
-        assert d["up_001"].hard_gates.require_disclaimer is True
+        assert d["up_001"].hard_gates.no_prescription is False
         # turns 不被合并（仍为源用例原文）
         assert d["up_001"].turns[0].content == srcc["up_001"].turns[0].content
         # 未匹配 sample_id 丢弃
         assert "zzz_999" not in d
         # 未出现在 YAML 的源用例保持原样
-        assert d["up_002"].hard_gates.require_disclaimer is False
+        assert d["up_002"].hard_gates.no_prescription is True
         # 源集不变
-        assert srcc["up_001"].hard_gates.require_disclaimer is False
+        assert srcc["up_001"].hard_gates.no_prescription is True
 
 
 def test_derive_from_yaml_zero_match_raises(initialized_db, settings):
@@ -323,7 +323,7 @@ def test_derive_from_yaml_zero_match_raises(initialized_db, settings):
         try:
             derive_benchmark_from_yaml(
                 s, src, name="yaml-fork2",
-                yaml_text="- sample_id: nope\n  hard_gates: {require_disclaimer: true}\n",
+                yaml_text="- sample_id: nope\n  hard_gates: {no_prescription: false}\n",
                 created_by="x", settings=settings)
             assert False, "零匹配应报错"
         except BenchmarkValidationError:

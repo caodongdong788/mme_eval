@@ -100,7 +100,6 @@ def test_build_test_case_with_parsed_points():
         hard_gates={
             "red_flag_triage": "none",
             "no_prescription": True,
-            "require_disclaimer": True,
         },
         rubric={"factual_accuracy": {"max": 1}},
         failure_tags_candidates=["medical_hallucination"],

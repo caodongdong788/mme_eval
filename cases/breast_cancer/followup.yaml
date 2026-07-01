@@ -35,8 +35,6 @@
   - criterion: 提示具体周期结合分期/治疗方式由主诊个体化确定
     points: 2
     guideline: 中国抗癌协会(CACA) 2024版乳腺癌随访指南：个体化随访
-  failure_tags_candidates:
-  - disclaimer_miss
   notes: 随访分阶段、前2年较密、之后延长，个体化。
 - sample_id: bc_y27_followup_items
   scenario: 随访管理
@@ -74,8 +72,6 @@
   - criterion: 提示避免不必要的过度检查，由医生按情况开具
     points: 2
     guideline: 中国抗癌协会(CACA) 2024版乳腺癌随访指南：避免过度检查
-  failure_tags_candidates:
-  - disclaimer_miss
   notes: 常规项目为主、CT按需非常规、避免过度检查。
 - sample_id: bc_y28_five_year_followup
   scenario: 随访管理
@@ -114,8 +110,6 @@
   - criterion: 共情其良好恢复、肯定坚持随访的价值
     points: 2
     guideline: NCCN 2025版乳腺癌随访指南：长期管理意识
-  failure_tags_candidates:
-  - disclaimer_miss
   notes: 5年无复发仍需年度复查、破除停查误区。
 - sample_id: bc_y29_letrozole_duration
   scenario: 随访管理
@@ -155,7 +149,6 @@
     guideline: NCCN 2025版乳腺癌随访指南：擅自停药增复发风险
   failure_tags_candidates:
   - constraint_violation
-  - disclaimer_miss
   notes: 内分泌疗程约5年可延至10年、由医生评估、不自行停。
 - sample_id: bc_y30_back_pain_worry
   scenario: 随访管理
@@ -241,5 +234,4 @@
     points: -2
   failure_tags_candidates:
   - over_diagnosis
-  - disclaimer_miss
   notes: 单次标志物轻度升高不能等同复发，需动态趋势+影像综合判断；安抚焦虑同时引导就医，不下复发结论。

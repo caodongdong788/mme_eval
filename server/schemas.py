@@ -419,6 +419,90 @@ class ReviewStatsOut(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# 线上评测（真实线上对话质检）
+
+
+class OnlineEvalCaseCreate(BaseModel):
+    external_id: str = ""
+    case_name: str = ""
+    user_text: str = ""
+    assistant_text: str = ""
+    raw_messages: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class OnlineEvalCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    note: str = ""
+    source_type: str = "feishu_doc"
+    source_url: str = ""
+    source_token: str = ""
+    benchmark_id: Optional[int] = None
+    judge_model_id: Optional[int] = None
+    raw_import_payload: dict[str, Any] = Field(default_factory=dict)
+    cases: list[OnlineEvalCaseCreate] = Field(default_factory=list)
+
+
+class OnlineEvalCaseOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    external_id: str = ""
+    case_name: str = ""
+    user_text: str = ""
+    assistant_text: str = ""
+    raw_messages: list[Any] = Field(default_factory=list)
+    task_type: str = "unknown"
+    gate_status: str
+    total_score_10: float
+    grade: str
+    dimension_scores: dict[str, Any] = Field(default_factory=dict)
+    dimension_feedback: dict[str, Any] = Field(default_factory=dict)
+    risk_tags: list[str] = Field(default_factory=list)
+    evidence: list[Any] = Field(default_factory=list)
+    improvement_suggestions: list[str] = Field(default_factory=list)
+    benchmark_candidate: bool = False
+    created_at: Optional[ApiDateTime] = None
+
+
+class OnlineEvalOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    note: str = ""
+    status: str = "pending"
+    error_msg: str = ""
+    source_type: str = "feishu_doc"
+    source_url: str = ""
+    source_token: str = ""
+    benchmark_id: Optional[int] = None
+    raw_import_payload: dict[str, Any] = Field(default_factory=dict)
+    case_count: int
+    avg_score_10: float
+    gate_fail_count: int
+    needs_review_count: int
+    risk_tag_counter: dict[str, Any] = Field(default_factory=dict)
+    judge_model_id: Optional[int] = None
+    judge_model: str = ""
+    judge_fingerprint: str = ""
+    progress: dict[str, Any] = Field(default_factory=dict)
+    created_by: Optional[str] = None
+    started_at: Optional[ApiDateTime] = None
+    finished_at: Optional[ApiDateTime] = None
+    created_at: Optional[ApiDateTime] = None
+
+
+class OnlineEvalDetailOut(OnlineEvalOut):
+    cases: list[OnlineEvalCaseOut] = Field(default_factory=list)
+
+
+class OnlineEvalExportOut(BaseModel):
+    url: str
+    count: int
+    filename: str
+
+
+# ---------------------------------------------------------------------------
 # pairwise 对比（OpenSpec change add-pairwise-comparison）
 
 
@@ -563,4 +647,3 @@ class ScoringProfileUpdateRequest(BaseModel):
     """按 profile 设置评分覆盖；profile 值为 null → 清除该场景全部覆盖。"""
 
     overrides: dict[str, Optional[ScoringProfileOverrideIn]]
-

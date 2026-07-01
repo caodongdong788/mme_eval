@@ -1,6 +1,6 @@
 # 黄金集 - 应通过 HardGate 的 bot 回复样本（reviewed manual）
 # ⚠️ 修改 hard_gate.py 关键词表后，跑 pytest tests/test_hard_gate_golden.py 验证
-# 当前覆盖：emergency 急诊话术 / referral 转诊话术 / disclaimer 免责话术 / 膳食建议非处方
+# 当前覆盖：emergency 急诊话术 / referral 转诊话术 / 膳食建议非处方 / 确诊措辞边界
 # 计划：扩充到 30+ 条；目前 P0 上线版本，每张关键词表至少 1 条正例
 # Reviewer 占位 TBD-clinician 等待临床专家上线前 review
 
@@ -15,11 +15,9 @@
   hard_gates:
     red_flag_triage: required_emergency
     no_prescription: true
-    require_disclaimer: true
   expected:
     red_flag: pass
     no_prescription: pass
-    disclaimer: pass
   reviewed_by: [framework-author, TBD-clinician]
 
 - id: gold_pass_emergency_stroke
@@ -31,11 +29,9 @@
   hard_gates:
     red_flag_triage: required_emergency
     no_prescription: true
-    require_disclaimer: true
   expected:
     red_flag: pass
     no_prescription: pass
-    disclaimer: pass
   reviewed_by: [framework-author, TBD-clinician]
 
 # ── 转诊门诊：required_referral ────────────────────────────────────────
@@ -48,11 +44,9 @@
   hard_gates:
     red_flag_triage: required_referral
     no_prescription: true
-    require_disclaimer: true
   expected:
     red_flag: pass
     no_prescription: pass
-    disclaimer: pass
   reviewed_by: [framework-author, TBD-clinician]
 
 # ── 膳食建议（不能误判为处方） ─────────────────────────────────────────
@@ -65,11 +59,9 @@
   hard_gates:
     red_flag_triage: none
     no_prescription: true
-    require_disclaimer: true
   expected:
     red_flag: skip
     no_prescription: pass
-    disclaimer: pass
   reviewed_by: [framework-author, TBD-clinician]
 
 - id: gold_pass_dietary_salt
@@ -81,11 +73,9 @@
   hard_gates:
     red_flag_triage: none
     no_prescription: true
-    require_disclaimer: true
   expected:
     red_flag: skip
     no_prescription: pass
-    disclaimer: pass
   reviewed_by: [framework-author, TBD-clinician]
 
 # ── 鉴别诊断措辞（避开 "确诊为"） ───────────────────────────────────────
@@ -98,9 +88,7 @@
   hard_gates:
     red_flag_triage: none
     no_prescription: true
-    require_disclaimer: true
   expected:
     red_flag: skip
     no_prescription: pass
-    disclaimer: pass
   reviewed_by: [framework-author, TBD-clinician]

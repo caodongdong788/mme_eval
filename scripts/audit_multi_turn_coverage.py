@@ -4,8 +4,8 @@
 ----
 落地 ``add-multi-turn-evaluation`` 提案 design.md 决策 2：每个深度的 10 条
 case 必须按预先矩阵分布失败模式（① 上下文记忆 / ② 红旗逐步浮出 / ③ 人群晚
-暴露 / ④ 边界塌方 / ⑤ 免责漂移 / ⑥ 主动追问 / ⑦ 假记忆诱导 / ⑧ 主题漂移 /
-⑨ 完整问诊闭环）。本脚本把"实际分布"打出来，供作者与设计矩阵 diff。
+暴露 / ④ 边界塌方 / ⑤ 主动追问 / ⑥ 假记忆诱导 / ⑦ 主题漂移 /
+⑧ 完整问诊闭环）。本脚本把"实际分布"打出来，供作者与设计矩阵 diff。
 
 运行
 ----
@@ -31,11 +31,10 @@ TAG_TO_MODE = {
     "escalation": "② 红旗逐步浮出",
     "population_late": "③ 人群晚暴露",
     "boundary": "④ 边界塌方",
-    "disclaimer_drift": "⑤ 免责漂移",
-    "active_inquiry": "⑥ 主动追问",
-    "fake_memory": "⑦ 假记忆诱导",
-    "topic_drift": "⑧ 主题漂移",
-    "full_loop": "⑨ 完整问诊闭环",
+    "active_inquiry": "⑤ 主动追问",
+    "fake_memory": "⑥ 假记忆诱导",
+    "topic_drift": "⑦ 主题漂移",
+    "full_loop": "⑧ 完整问诊闭环",
 }
 
 EXPECTED_MATRIX = {
@@ -43,11 +42,10 @@ EXPECTED_MATRIX = {
     "② 红旗逐步浮出":   {2: 2, 3: 2, 4: 1, 5: 1},
     "③ 人群晚暴露":     {2: 1, 3: 1, 4: 1, 5: 1},
     "④ 边界塌方":       {2: 1, 3: 1, 4: 2, 5: 2},
-    "⑤ 免责漂移":       {2: 1, 3: 2, 4: 1, 5: 1},
-    "⑥ 主动追问":       {2: 1, 3: 1, 4: 0, 5: 0},
-    "⑦ 假记忆诱导":     {2: 2, 3: 1, 4: 1, 5: 1},
-    "⑧ 主题漂移":       {2: 0, 3: 0, 4: 0, 5: 1},
-    "⑨ 完整问诊闭环":   {2: 0, 3: 1, 4: 3, 5: 2},
+    "⑤ 主动追问":       {2: 1, 3: 1, 4: 0, 5: 0},
+    "⑥ 假记忆诱导":     {2: 2, 3: 1, 4: 1, 5: 1},
+    "⑦ 主题漂移":       {2: 0, 3: 0, 4: 0, 5: 1},
+    "⑧ 完整问诊闭环":   {2: 0, 3: 1, 4: 3, 5: 2},
 }
 
 
@@ -69,8 +67,6 @@ def classify(case) -> str | None:
         return TAG_TO_MODE["escalation"]
     if "边界" in sub or "停药" in sub or "施压" in sub:
         return TAG_TO_MODE["boundary"]
-    if "免责" in sub or "免责" in notes:
-        return TAG_TO_MODE["disclaimer_drift"]
     if "追问" in sub or "主动追问" in notes:
         return TAG_TO_MODE["active_inquiry"]
     if "主题漂移" in sub or "漂移" in notes:

@@ -17,7 +17,6 @@ from medeval.models import FailureTag, _TAG_META  # noqa: PLC2701
 _DIM_TITLE: dict[str, str] = {
     "red_flag": "红旗症状 / 分诊",
     "prescription": "处方边界",
-    "compliance": "免责合规",
     "communication": "问诊 / 沟通 / 鉴别",
     "system": "系统 / 框架",
 }

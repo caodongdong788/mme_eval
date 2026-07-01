@@ -26,7 +26,6 @@ VERDICT_PREFIX_LABELS: dict[str, str] = {
 VERDICT_SUFFIX_LABELS: dict[str, str] = {
     "red_flag": "红旗分诊",
     "no_prescription": "处方边界",
-    "disclaimer": "免责声明",
     "must_have": "必含要点",
     "must_not_have": "禁含要点",
     "empathy": "共情",
@@ -47,11 +46,17 @@ VERDICT_SUFFIX_LABELS: dict[str, str] = {
     "summary": "汇总",
 }
 
+LEGACY_VERDICT_LABELS: dict[str, str] = {
+    "hard_gate.disclaimer": "硬门槛·免责声明（历史报告）",
+}
+
 
 def judge_verdict_label(name: str | None) -> str:
     """verdict 全名 → 中文标签；未知回退原名（与前端 fallback 一致）。"""
     if not name:
         return "-"
+    if name in LEGACY_VERDICT_LABELS:
+        return LEGACY_VERDICT_LABELS[name]
     idx = name.find(".")
     if idx < 0:
         return VERDICT_PREFIX_LABELS.get(name, name)
@@ -67,7 +72,7 @@ def judge_verdict_label(name: str | None) -> str:
 
 
 def judge_verdict_label_map() -> dict[str, str]:
-    """预置 verdict 名 → 标签表，供 API 与前端缓存。"""
+    """当前 verdict 名 → 标签表，供 API 与前端缓存；历史 verdict 不下发。"""
     out: dict[str, str] = {}
     for prefix in VERDICT_PREFIX_LABELS:
         out[prefix] = judge_verdict_label(prefix)

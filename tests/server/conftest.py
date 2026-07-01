@@ -15,6 +15,7 @@ def settings(tmp_path, monkeypatch):
     monkeypatch.setenv("MEDEVAL_DATABASE_URL", f"sqlite:///{db_path}")
     monkeypatch.setenv("MEDEVAL_UPLOADS_DIR", str(tmp_path / "uploads"))
     monkeypatch.setenv("MEDEVAL_OUTPUTS_DIR", str(tmp_path / "outputs"))
+    monkeypatch.setenv("CX_AGENT_TEST_TOKEN", "test-token")
     # 默认测试保持匿名态（不受本地 .env 注入的飞书密钥影响）。
     monkeypatch.delenv("FEISHU_APP_ID", raising=False)
     monkeypatch.delenv("FEISHU_APP_SECRET", raising=False)
@@ -51,9 +52,12 @@ def client(initialized_db):
 
     from server.app import create_app
     from server.jobs import reset_job_runner_for_tests
+    from server.online_eval_job import reset_online_eval_job_runner_for_tests
 
     reset_job_runner_for_tests()
+    reset_online_eval_job_runner_for_tests()
     app = create_app()
     with TestClient(app) as c:
         yield c
     reset_job_runner_for_tests()
+    reset_online_eval_job_runner_for_tests()

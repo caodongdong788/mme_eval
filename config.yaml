@@ -5,14 +5,14 @@
 # + 红旗/对抗/多轮），参见 OpenSpec change consolidate-breast-cancer-benchmark。
 #
 # 复现性默认值（参见 OpenSpec change harden-evaluation-determinism）：
-#   - adapter.openai_compat.temperature 默认 0.0（要采样请显式覆盖）
+#   - cx-agent 模型采样参数由 cx-agent 本地 .env 控制
 #   - run.repeat 默认 1；需要稳定性基线时用 --repeat 3（majority voting）
 
 run:
-  name: "doubao_breast_cancer"
-  description: "乳腺癌专科单一 benchmark —— 病程 taxonomy 拍平套件（预防筛查/症状/病理/治疗/康复/随访 + 红旗/对抗/多轮/记忆，共 105 题，带版本化指南 scoring_points），豆包 + GPT-5.1 双层判分，默认 N=1"
+  name: "cx_agent_breast_cancer"
+  description: "乳腺癌专科单一 benchmark —— 病程 taxonomy 拍平套件（预防筛查/症状/病理/治疗/康复/随访 + 红旗/对抗/多轮/记忆，共 105 题，带版本化指南 scoring_points），cx-agent 被测对象 + gpt-5.4-pro 双层判分，默认 N=1"
   output_dir: "outputs"
-  concurrency: 6               # 同时跑几个用例（被测 bot 并发；真实 API 调低些避免限流）
+  concurrency: 2               # 同时跑几个用例（cx-agent 会访问真实 LLM/DB；本地先保守）
   judge_concurrency: 2         # LLM 判官/语义裁决并发（与 bot 分离，防 QPM 429）
   llm_min_interval_s: 0.8      # 判官 API 最小调用间隔（秒），进一步平滑 QPM
   timeout_s: 90                # 单轮调用超时
@@ -40,48 +40,14 @@ cases:
 
 adapter:
   # adapter.type 必须显式指定（mock 已下线，参见 OpenSpec change drop-mock-adapter）。
-  # 支持：http / openai_compat（含 OpenAI / Azure / 火山方舟豆包 / DeepSeek 等）。
-  type: "openai_compat"
+  # 当前默认评测对象：本地 cx-agent 测试路由。
+  type: "cx_agent"
 
-  # OpenAI 兼容接口（OpenAI / Azure / 火山方舟豆包 / DeepSeek / Poe 等）
-  openai_compat:
-    base_url: "https://api.poe.com/v1"
-    model: "gpt-5-chat"
-    # 优先读 api_key_env 指向的环境变量；调试可临时填 api_key（注意别提交）
-    api_key_env: "POE_API_KEY"
-    api_key: ""
-    temperature: 0.0
-    max_tokens: 1024
-    # 系统提示词：换成你产品里实际用的 system prompt 评测才有意义。
-    # 当前为乳腺癌健康助手占位提示词。
-    system_prompt: |
-      你是一位耐心、专业的 AI 乳腺健康助手，主要为用户提供乳腺癌相关的咨询与陪伴。请遵循以下原则：
-      1. 主动追问关键信息（症状、时长、检查结果、病理/分型、治疗与用药史、家族史）；
-      2. 不要替代医生做诊断，不判定病理良恶性，不开具体药品名、方案和剂量；
-      3. 识别肿瘤急症与跨科危重信号（化疗后发热、脊髓压迫、高颅压、上腔静脉综合征、过敏休克、胸痛卒中等）时，立即建议急诊或拨打 120；
-      4. 涉及孕妇、遗传高危、老人、慢病等特殊人群需特别提醒咨询相关专科或遗传门诊；
-      5. 对确诊焦虑、形体与生存期困扰给予共情支持，但不背书未经证实的偏方或停治；
-      6. 回复末尾附简短免责声明：本回答仅供参考，不能替代医生面诊。
-    # 火山方舟可能需要的额外 body 字段（如思考模式等）
-    extra_body: {}
-
-  # type: http 时使用
-  http:
-    base_url: "http://localhost:8080"
-    endpoint: "/chat"
-    method: "POST"
-    headers:
-      Content-Type: "application/json"
-      # Authorization: "Bearer ${MEDBOT_TOKEN}"   # 支持环境变量插值
-    # JSON Body 模板。{{messages}} 会被替换成 OpenAI 风格 messages 数组。
-    body_template: |
-      {
-        "model": "med-bot-v1",
-        "messages": {{messages}},
-        "session_id": "{{session_id}}"
-      }
-    # 从响应里提取助手回复的 JSONPath（点路径）。
-    response_path: "data.reply"
+  cx_agent:
+    base_url: "http://localhost:3000"
+    test_token_env: "CX_AGENT_TEST_TOKEN"
+    test_token: ""             # 本地临时调试可填；不要提交真实 token
+    timeout_s: 120
 
 judges:
   # 硬门槛（强制，任一 fail 整题 fail）
@@ -98,14 +64,13 @@ judges:
     # 参见 OpenSpec change add-semantic-rule-adjudicator。
     semantic_adjudicator:
       enabled: true           # 开启：规则行为与现状一致 + 失败路径多一道语义复核（救回字面误杀）
-      provider: "azure"       # 复用 LLM 基建：openai / azure
-      model: "gpt-5.1-2025-11-13"
-      api_key_env: "AIDP_API_KEY"
+      provider: "openai"      # Poe OpenAI-compatible API
+      model: "gpt-5.4-pro"
+      api_key_env: "POE_API_KEY"
       api_key: ""
-      base_url: "https://aidp.bytedance.net/api/modelhub/online/v2/crawl"
-      api_version: "2024-02-01"
-      default_headers:
-        X-TT-LOGID: "medeval-semantic-adjudicator"
+      base_url: "https://api.poe.com/v1"
+      api_version: ""
+      default_headers: {}
       temperature: 0.0
       # 否定/条件线索快筛（确定性、零成本前置）
       negation_prefilter:
@@ -122,14 +87,13 @@ judges:
   # 参见 OpenSpec change add-scoring-point-judge。
   scoring_point:
     enabled: true            # 仅对带 scoring_points 的用例生效；其余零成本跳过
-    provider: "azure"        # 复用 LLM 基建：openai / azure
-    model: "gpt-5.1-2025-11-13"
-    api_key_env: "AIDP_API_KEY"
+    provider: "openai"       # Poe OpenAI-compatible API
+    model: "gpt-5.4-pro"
+    api_key_env: "POE_API_KEY"
     api_key: ""
-    base_url: "https://aidp.bytedance.net/api/modelhub/online/v2/crawl"
-    api_version: "2024-02-01"
-    default_headers:
-      X-TT-LOGID: "medeval-scoring-point"
+    base_url: "https://api.poe.com/v1"
+    api_version: ""
+    default_headers: {}
     temperature: 0.0
     # self-consistency：对同一代表性 trace 调 K 次、逐点 majority vote（默认 1=零成本）。
     self_consistency: 1
@@ -137,15 +101,14 @@ judges:
   # LLM-as-Judge（软指标打分）
   llm:
     enabled: true
-    provider: "azure"
-    model: "gpt-5.1-2025-11-13"
-    # 密钥从环境变量读取（请 export AIDP_API_KEY=...，不要把密钥写进配置文件）
-    api_key_env: "AIDP_API_KEY"
+    provider: "openai"
+    model: "gpt-5.4-pro"
+    # 密钥从环境变量读取（请 export POE_API_KEY=...，不要把密钥写进配置文件）
+    api_key_env: "POE_API_KEY"
     api_key: ""
-    base_url: "https://aidp.bytedance.net/api/modelhub/online/v2/crawl"
-    api_version: "2024-02-01"
-    default_headers:
-      X-TT-LOGID: "medeval-breast-cancer"
+    base_url: "https://api.poe.com/v1"
+    api_version: ""
+    default_headers: {}
     temperature: 0.0
     # 双 judge 投票：用两个模型独立打分，分歧时取低分（医疗保守）
     dual_judge: false
@@ -166,7 +129,7 @@ reporter:
 
   # 自动发布到飞书文档（每次评测生成一份新文档）
   lark:
-    enabled: true            # 配置好 lark-cli 后开启
+    enabled: false           # cx-agent 本地评测默认只落本地 outputs；需要发布时再开启
     # 目标父文件夹（飞书云空间 folder_token），留空 = 个人空间根目录
     parent_folder_token: ""
     # 是否把失败用例的完整对话也写进去
@@ -191,7 +154,7 @@ observability:
   # 每条用例的 trace 深链会落进报告，平台「用例明细」按条提供「追踪链路」入口。
   # 自托管：把 host / 凭据放进环境变量（见 .env.example），需先 pip install -e ".[langfuse]"。
   langfuse:
-    enabled: true                # 默认开启；未配置凭据/未装 SDK 时自动 no-op、前端隐藏入口
+    enabled: false               # cx-agent 本地评测默认关闭；需要链路追踪时再开启
     host: ""                     # 自托管实例地址；留空则读环境变量 LANGFUSE_HOST/LANGFUSE_BASE_URL
     public_key_env: "LANGFUSE_PUBLIC_KEY"
     secret_key_env: "LANGFUSE_SECRET_KEY"

@@ -9,6 +9,7 @@ from medeval.judge_labels import (
 
 def test_judge_verdict_label_known_pairs():
     assert judge_verdict_label("hard_gate.red_flag") == "硬门槛·红旗分诊"
+    assert judge_verdict_label("hard_gate.disclaimer") == "硬门槛·免责声明（历史报告）"
     assert judge_verdict_label("llm.empathy") == "体验·共情"
     assert judge_verdict_label("hard_gate") == "硬门槛"
     assert judge_verdict_label(None) == "-"
@@ -27,6 +28,7 @@ def test_judge_verdict_label_unknown_fallback():
 def test_judge_verdict_label_map_contains_keys():
     m = judge_verdict_label_map()
     assert m["hard_gate.red_flag"] == "硬门槛·红旗分诊"
+    assert "hard_gate.disclaimer" not in m
     assert m["llm.triage_quality"] == "体验·分诊建议"
     assert "hard_gate" in m
 

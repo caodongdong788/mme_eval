@@ -4,6 +4,7 @@ import { configApi } from "./config";
 import { dashboardApi } from "./dashboard";
 import { FEISHU_LOGIN_URL } from "./client";
 import { judgeModelsApi } from "./judgeModels";
+import { onlineEvalsApi } from "./onlineEvals";
 import { pairwiseApi } from "./pairwise";
 import { runsApi } from "./runs";
 
@@ -15,6 +16,7 @@ export const api = {
   ...benchmarksApi,
   ...configApi,
   ...judgeModelsApi,
+  ...onlineEvalsApi,
   ...runsApi,
   ...pairwiseApi,
   ...dashboardApi,

@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from medeval.models import FailureTag, TestCase, _TAG_META, _TAG_META as _META_DICT  # noqa: PLC2701
 
 
-_ALLOWED_DIMENSIONS = {"red_flag", "prescription", "compliance", "communication", "system"}
+_ALLOWED_DIMENSIONS = {"red_flag", "prescription", "communication", "system"}
 
 
 def test_every_member_has_meta():
@@ -82,19 +82,19 @@ def test_testcase_default_is_empty_list():
 
 
 def test_emit_categories_present():
-    """已 emit 的 8 个标签必须都存在（防回退）。"""
+    """已 emit 的当前标签必须都存在（防回退）。"""
     expected_emit = {
         "missed_red_flag",
         "under_referral",
         "improper_prescription",
         "over_diagnosis",
-        "disclaimer_miss",
         "inquiry_incomplete",
         "constraint_violation",
         "adapter_error",
     }
     actual = {t.value for t in FailureTag}
     assert expected_emit <= actual, f"丢失已 emit 的标签：{expected_emit - actual}"
+    assert "disclaimer_miss" not in actual
 
 
 def test_reserved_members_present():

@@ -26,7 +26,6 @@ _TABLES = [
     "_DIETARY_CONTEXT_WORDS",
     "_DRUG_CONTEXT_WORDS",
     "_DIAGNOSIS_PHRASES",
-    "_DISCLAIMER_PATTERNS",
 ]
 
 _REQUIRED_FIELDS = ("sourced:", "owners:", "last_reviewed:", "scope:", "rationale:")

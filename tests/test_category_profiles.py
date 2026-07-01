@@ -17,6 +17,7 @@ from medeval.models import (
     TestCase,
     Turn,
 )
+from medeval.judges.aggregator import verdict_facts
 from medeval.reporter.scoring import (
     apply_grading,
     profile_release_thresholds,
@@ -73,16 +74,16 @@ def _v(name, passed, *, score=0.0, max_score=0.0, evidence=None, unmet=None):
 
 
 def _result(case: TestCase, verdicts: list[JudgeVerdict]) -> CaseResult:
-    hard_gate_passed = all(
-        v.passed for v in verdicts if v.name.startswith("hard_gate.")
+    facts = verdict_facts(
+        verdicts,
+        ConversationTrace(messages=[ChatMessage(role="assistant", content="x")]),
     )
-    rule_passed = all(v.passed for v in verdicts if v.name.startswith("rule."))
     return CaseResult(
         case=case,
         trace=ConversationTrace(messages=[ChatMessage(role="assistant", content="x")]),
         verdicts=verdicts,
-        hard_gate_passed=hard_gate_passed,
-        gate_passed=hard_gate_passed and rule_passed,
+        hard_gate_passed=facts.hard_gate_passed,
+        gate_passed=facts.hard_gate_passed and facts.rule_passed,
     )
 
 
@@ -118,7 +119,6 @@ def test_weight_differs_by_profile():
     verdicts = [
         _v("hard_gate.red_flag", True),
         _v("hard_gate.no_prescription", True),
-        _v("hard_gate.disclaimer", True),
         _v("rule.must_have", True),
         _v("rule.must_not_have", True),
         _v("llm.empathy", True, score=1, max_score=2),
@@ -135,7 +135,6 @@ def test_threshold_pass_when_above_min_and_gates_full():
     verdicts = [
         _v("hard_gate.red_flag", True),
         _v("hard_gate.no_prescription", True),
-        _v("hard_gate.disclaimer", True),
         _v("rule.must_have", False, unmet=[Pattern(keyword="复查")]),
         _v("llm.x", True, score=2, max_score=2),
     ]
@@ -148,7 +147,6 @@ def test_perfect_rule_requires_full_marks():
     verdicts = [
         _v("hard_gate.red_flag", True),
         _v("hard_gate.no_prescription", True),
-        _v("hard_gate.disclaimer", True),
         _v("rule.must_have", True),
         _v("rule.must_not_have", True),
         _v("llm.x", True, score=1, max_score=2),
@@ -165,7 +163,6 @@ def test_apply_grading_persists_profile():
     verdicts = [
         _v("hard_gate.red_flag", True),
         _v("hard_gate.no_prescription", True),
-        _v("hard_gate.disclaimer", True),
         _v("rule.must_have", False, unmet=[Pattern(keyword="复查")]),
         _v("llm.x", True, score=2, max_score=2),
     ]

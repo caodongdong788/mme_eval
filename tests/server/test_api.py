@@ -47,7 +47,7 @@ def test_upload_benchmark_via_api(client, settings):
     resp = client.post("/api/benchmarks", data={"name": "上传集"}, files=files)
     assert resp.status_code == 201, resp.text
     body = resp.json()
-    assert body["source"] == "uploaded"
+    assert body["source"] == "offline"
     assert body["case_count"] == 2
 
     assert set(body["levels"]) == {"L1", "L3"}

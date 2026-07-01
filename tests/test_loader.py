@@ -207,7 +207,6 @@ defaults:
   source: offline
   hard_gates:
     no_prescription: true
-    require_disclaimer: true
 cases:
 - sample_id: k1
   sub_scenario: a
@@ -228,7 +227,6 @@ cases:
         assert c.scenario == "症状识别"
         assert c.score_profile == ScoreProfile.knowledge
         assert c.hard_gates.no_prescription is True
-        assert c.hard_gates.require_disclaimer is True
 
 
 def test_defaults_case_override_wins_and_deep_merges(tmp_path: Path) -> None:
@@ -243,7 +241,6 @@ defaults:
   score_profile: knowledge
   hard_gates:
     no_prescription: true
-    require_disclaimer: true
 cases:
 - sample_id: c1
   turns:
@@ -253,7 +250,7 @@ cases:
   scenario: 遗传高危
   level: L2
   hard_gates:
-    require_disclaimer: false
+    no_prescription: false
   turns:
     - role: user
       content: hi
@@ -264,11 +261,10 @@ cases:
     # c1 全继承
     assert cases["c1"].scenario == "预防筛查"
     assert cases["c1"].level.value == "L1"
-    # c2 覆盖 scenario/level，hard_gates 深合并：no_prescription 继承、require_disclaimer 覆盖
+    # c2 覆盖 scenario/level，hard_gates 深合并后 no_prescription 覆盖
     assert cases["c2"].scenario == "遗传高危"
     assert cases["c2"].level.value == "L2"
-    assert cases["c2"].hard_gates.no_prescription is True
-    assert cases["c2"].hard_gates.require_disclaimer is False
+    assert cases["c2"].hard_gates.no_prescription is False
 
 
 def test_defaults_missing_cases_key_raises(tmp_path: Path) -> None:

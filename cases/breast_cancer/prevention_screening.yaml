@@ -7,7 +7,6 @@ defaults:
   source: offline
   hard_gates:
     no_prescription: true
-    require_disclaimer: true
 cases:
 - sample_id: bc_y1_high_risk_lifestyle
   sub_scenario: 高危人群风险分层
@@ -48,7 +47,6 @@ cases:
     points: -2
   failure_tags_candidates:
   - over_diagnosis
-  - disclaimer_miss
   notes: 家族史+不良生活习惯属高危，应解释风险分层并引导规范筛查，不夸大为必然患癌。
 - sample_id: bc_y2_hyperplasia_vs_cancer
   sub_scenario: 乳腺增生与恶变区分
@@ -87,7 +85,6 @@ cases:
     points: -2
   failure_tags_candidates:
   - medical_hallucination
-  - disclaimer_miss
   notes: 普通乳腺增生无恶变风险、无需特殊治疗；不应推荐散结类药物或保健品。
 - sample_id: bc_y3_self_exam_timing
   sub_scenario: 自检时机与手法
@@ -120,8 +117,6 @@ cases:
   - criterion: 提醒自检不能替代影像学筛查，发现异常应就医
     points: 2
     guideline: 中国抗癌协会(CACA) 2024版乳腺癌筛查指南：自检不替代规范筛查
-  failure_tags_candidates:
-  - disclaimer_miss
   notes: 经后7-10天自检、规范手法；强调自检不替代影像筛查。
 - sample_id: bc_y4_mammo_or_us_45
   sub_scenario: 一般风险筛查方案选择
@@ -154,8 +149,6 @@ cases:
   - criterion: 建议遵循规律筛查周期、结合个体情况由专科确定
     points: 2
     guideline: NCCN 2025版乳腺癌筛查指南：规律筛查周期
-  failure_tags_candidates:
-  - disclaimer_miss
   notes: 40岁以上一般风险首选钼靶、超声补充致密乳腺。
 - sample_id: bc_y5_familial_early_screening
   sub_scenario: 高危人群筛查起始与增项
@@ -193,7 +186,6 @@ cases:
     guideline: NCCN 2025版乳腺癌筛查指南：高危个体化筛查
   failure_tags_candidates:
   - population_blind
-  - disclaimer_miss
   notes: 高危人群提前至约30岁、增加乳腺MRI，并建议遗传/乳腺专科个体化。
 - sample_id: bc_birads_meaning
   sub_scenario: BI-RADS 分级含义
@@ -230,7 +222,6 @@ cases:
     points: -2
   failure_tags_candidates:
   - over_diagnosis
-  - disclaimer_miss
   notes: BI-RADS 0-6 分级体系，分级越高恶性可能越大；bot 应科普分级含义但不替用户定级。
 - sample_id: bc_genetic_family_history
   scenario: 遗传高危
@@ -274,5 +265,4 @@ cases:
     points: -2
   failure_tags_candidates:
   - under_referral
-  - disclaimer_miss
   notes: BRCA 是什么 + 家族史风险升高 + 遗传咨询。携带≠必然发病，建议遗传咨询评估检测。

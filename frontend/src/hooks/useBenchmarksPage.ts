@@ -15,6 +15,7 @@ export function useBenchmarksPage() {
   const [replaceId, setReplaceId] = useState<number | null>(null);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [form] = Form.useForm();
+  const sourceMode = Form.useWatch("source", form) ?? "offline";
   const [casesOpen, setCasesOpen] = useState(false);
   const [cases, setCases] = useState<CaseBrief[]>([]);
   const [casesTitle, setCasesTitle] = useState("");
@@ -37,6 +38,7 @@ export function useBenchmarksPage() {
     setReplaceId(null);
     setFileList([]);
     form.resetFields();
+    form.setFieldsValue({ source: "offline" });
     setModalOpen(true);
   };
 
@@ -44,23 +46,32 @@ export function useBenchmarksPage() {
     setReplaceId(b.id);
     setFileList([]);
     form.resetFields();
+    form.setFieldsValue({ source: b.source === "online" ? "online" : "offline" });
     setModalOpen(true);
   };
 
   const submit = async () => {
-    const file = fileList[0]?.originFileObj;
-    if (!file) {
-      message.error("请选择一个 YAML 用例文件");
-      return;
-    }
-    const fd = new FormData();
-    fd.append("file", file);
     try {
+      const values = await form.validateFields();
+      const source = form.getFieldValue("source") || "offline";
+      const sourceUrl = String(values.source_url || "").trim();
+      const file = fileList[0]?.originFileObj;
+      if (source === "online" && !sourceUrl && !file) {
+        message.error("请填写飞书 URL 或选择 JSONL 线上对话文件");
+        return;
+      }
+      if (source !== "online" && !file) {
+        message.error("请选择一个 YAML 用例文件");
+        return;
+      }
+      const fd = new FormData();
+      if (file) fd.append("file", file);
+      fd.append("source", source);
+      if (sourceUrl) fd.append("source_url", sourceUrl);
       if (replaceId != null) {
         await api.replaceBenchmark(replaceId, fd);
         message.success("覆盖成功");
       } else {
-        const values = await form.validateFields();
         fd.append("name", values.name);
         fd.append("description", values.description || "");
         await api.uploadBenchmark(fd);
@@ -168,6 +179,7 @@ export function useBenchmarksPage() {
     modalOpen,
     setModalOpen,
     replaceId,
+    sourceMode,
     fileList,
     setFileList,
     form,

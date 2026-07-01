@@ -9,9 +9,12 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from medeval.adapter import (
+    CxAgentAdapter,
     HttpAdapter,
     OpenAICompatAdapter,
     build_adapter,
@@ -23,7 +26,7 @@ from medeval.adapter import (
 
 def test_registry_contains_builtin_types():
     types = supported_adapter_types()
-    for t in ("http", "openai_compat", "openai", "doubao", "ark"):
+    for t in ("http", "openai_compat", "openai", "doubao", "ark", "cx_agent"):
         assert t in types
     # 排序返回
     assert types == sorted(types)
@@ -31,6 +34,7 @@ def test_registry_contains_builtin_types():
 
 def test_config_key_for():
     assert config_key_for("http") == "http"
+    assert config_key_for("cx_agent") == "cx_agent"
     assert config_key_for("doubao") == "openai_compat"
     assert config_key_for("openai_compat") == "openai_compat"
     assert config_key_for("nonexistent") is None
@@ -39,6 +43,14 @@ def test_config_key_for():
 def test_build_adapter_http():
     a = build_adapter("http", {"http": {"base_url": "http://x"}})
     assert isinstance(a, HttpAdapter)
+
+
+def test_build_adapter_cx_agent(monkeypatch):
+    monkeypatch.setenv("CX_AGENT_TEST_TOKEN", "token-1")
+    a = build_adapter("cx_agent", {"cx_agent": {"base_url": "http://cx.local"}})
+    assert isinstance(a, CxAgentAdapter)
+    assert a.base_url == "http://cx.local"
+    asyncio.run(a.close())
 
 
 def test_build_adapter_alias_resolves_to_openai_compat():

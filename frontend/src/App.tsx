@@ -3,6 +3,7 @@ import { Avatar, Breadcrumb, Dropdown, Layout, Menu, Spin } from "antd";
 import {
   DatabaseOutlined,
   ExperimentOutlined,
+  FileSearchOutlined,
   HeartFilled,
   LineChartOutlined,
   LogoutOutlined,
@@ -28,6 +29,7 @@ const RunDashboardPage = lazy(() => import("./pages/RunDashboardPage"));
 const CaseDetailPage = lazy(() => import("./pages/CaseDetailPage"));
 const PairwisePage = lazy(() => import("./pages/PairwisePage"));
 const PairwiseDetailPage = lazy(() => import("./pages/PairwiseDetailPage"));
+const OnlineEvalsPage = lazy(() => import("./pages/OnlineEvalsPage"));
 const TrendsPage = lazy(() => import("./pages/TrendsPage"));
 
 const { Sider, Content } = Layout;
@@ -38,6 +40,7 @@ const MENU = [
     label: "评测",
     children: [
       { key: "/runs", icon: <UnorderedListOutlined />, label: <Link to="/runs">评测列表</Link> },
+      { key: "/online-evals", icon: <FileSearchOutlined />, label: <Link to="/online-evals">线上评测</Link> },
       { key: "/trends", icon: <LineChartOutlined />, label: <Link to="/trends">趋势看板</Link> },
       { key: "/pairwise", icon: <SwapOutlined />, label: <Link to="/pairwise">Pairwise 对比</Link> },
     ],
@@ -62,6 +65,7 @@ const MENU = [
 
 const SECTION_LABEL: Record<string, string> = {
   runs: "评测列表",
+  "online-evals": "线上评测",
   trends: "趋势看板",
   benchmarks: "Benchmark 库",
   "judge-models": "判分模型",
@@ -159,6 +163,7 @@ function MainLayout() {
               <Route path="/runs" element={<RunsPage />} />
               <Route path="/runs/:runId" element={<RunDashboardPage />} />
               <Route path="/runs/:runId/cases/:sampleId" element={<CaseDetailPage />} />
+              <Route path="/online-evals" element={<OnlineEvalsPage />} />
               <Route path="/pairwise" element={<PairwisePage />} />
               <Route path="/pairwise/:comparisonId" element={<PairwiseDetailPage />} />
               <Route path="/launch" element={<LaunchPage />} />

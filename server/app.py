@@ -46,19 +46,28 @@ async def _lifespan(app: FastAPI):
     init_db()
     # 回收孤儿任务：进程重启后内存任务态丢失，DB 中残留的 running/pending 置为 failed。
     from .jobs import reconcile_orphaned_runs
+    from .online_eval_job import reconcile_orphaned_online_evals
     from .pairwise_job import reconcile_orphaned_pairwise
 
     n_runs = reconcile_orphaned_runs()
     n_pair = reconcile_orphaned_pairwise()
-    logger.info("启动完成：回收孤儿评测 %s 条、孤儿对战 %s 条", n_runs, n_pair)
+    n_online = reconcile_orphaned_online_evals()
+    logger.info(
+        "启动完成：回收孤儿评测 %s 条、孤儿对战 %s 条、孤儿线上评测 %s 条",
+        n_runs,
+        n_pair,
+        n_online,
+    )
     try:
         yield
     finally:
         # 优雅关闭：取消在跑评测任务，等待其结束（残留状态由下次启动 reconcile 回收）。
         from .jobs import get_job_runner
+        from .online_eval_job import get_online_eval_job_runner
 
         try:
             await get_job_runner().shutdown()
+            await get_online_eval_job_runner().shutdown()
             logger.info("已优雅关闭：在跑评测任务已取消")
         except Exception:  # noqa: BLE001 —— 关闭阶段不再抛出
             logger.warning("关闭阶段取消任务出错", exc_info=True)
@@ -124,6 +133,7 @@ def create_app() -> FastAPI:
         config,
         dashboard,
         judge_models,
+        online_evals,
         runs,
     )
 
@@ -134,6 +144,7 @@ def create_app() -> FastAPI:
     app.include_router(dashboard.router)
     app.include_router(config.router)
     app.include_router(judge_models.router)
+    app.include_router(online_evals.router)
     app.include_router(compare.router)
 
     # 生产：托管前端构建产物（frontend/dist）。开发时不存在则跳过。

@@ -35,8 +35,8 @@ class Benchmark(Base):
     name: Mapped[str] = mapped_column(String(200), index=True)
     description: Mapped[str] = mapped_column(Text, default="")
     version: Mapped[str] = mapped_column(String(50), default="v1")
-    # builtin（指向仓库 cases/） | uploaded（存 uploads/benchmarks/<id>/）
-    source: Mapped[str] = mapped_column(String(20), default="uploaded", index=True)
+    # builtin（指向仓库 cases/） | online（线上真实流量） | offline（线下构造/上传）
+    source: Mapped[str] = mapped_column(String(20), default="offline", index=True)
     case_count: Mapped[int] = mapped_column(Integer, default=0)
     tags: Mapped[list[str]] = mapped_column(JSON, default=list)
     # 该 benchmark 用例覆盖的 level 列表（如 ["L1","L3"]），用于库列表展示与筛选。
@@ -258,6 +258,76 @@ class CaseAnnotation(Base):
     suggestion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class OnlineEval(Base):
+    """一次真实线上对话质检批次，与 benchmark EvalRun 独立。"""
+
+    __tablename__ = "online_eval"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(200), index=True)
+    note: Mapped[str] = mapped_column(Text, default="")
+    # pending | running | success | failed
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    error_msg: Mapped[str] = mapped_column(Text, default="")
+    source_type: Mapped[str] = mapped_column(String(40), default="feishu_doc")
+    source_url: Mapped[str] = mapped_column(Text, default="")
+    source_token: Mapped[str] = mapped_column(String(300), default="")
+    benchmark_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("benchmark.id"), index=True, nullable=True
+    )
+    raw_import_payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+    case_count: Mapped[int] = mapped_column(Integer, default=0)
+    avg_score_10: Mapped[float] = mapped_column(Float, default=0.0)
+    gate_fail_count: Mapped[int] = mapped_column(Integer, default=0)
+    needs_review_count: Mapped[int] = mapped_column(Integer, default=0)
+    risk_tag_counter: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    judge_model_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    judge_model: Mapped[str] = mapped_column(String(120), default="")
+    judge_fingerprint: Mapped[str] = mapped_column(String(40), default="")
+    progress: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+    created_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    cases: Mapped[list["OnlineEvalCase"]] = relationship(
+        back_populates="online_eval", cascade="all, delete-orphan"
+    )
+
+
+class OnlineEvalCase(Base):
+    """线上评测中的一条真实对话质检结果。"""
+
+    __tablename__ = "online_eval_case"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    online_eval_id: Mapped[int] = mapped_column(
+        ForeignKey("online_eval.id"), index=True, nullable=False
+    )
+    online_eval: Mapped["OnlineEval"] = relationship(back_populates="cases")
+
+    external_id: Mapped[str] = mapped_column(String(200), default="")
+    case_name: Mapped[str] = mapped_column(Text, default="")
+    user_text: Mapped[str] = mapped_column(Text, default="")
+    assistant_text: Mapped[str] = mapped_column(Text, default="")
+    raw_messages: Mapped[list[Any]] = mapped_column(JSON, default=list)
+
+    task_type: Mapped[str] = mapped_column(String(60), default="unknown")
+    gate_status: Mapped[str] = mapped_column(String(30), default="pass")
+    total_score_10: Mapped[float] = mapped_column(Float, default=0.0)
+    grade: Mapped[str] = mapped_column(String(30), default="")
+    dimension_scores: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    dimension_feedback: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    risk_tags: Mapped[list[str]] = mapped_column(JSON, default=list)
+    evidence: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    improvement_suggestions: Mapped[list[str]] = mapped_column(JSON, default=list)
+    benchmark_candidate: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
 class JudgeModelConfig(Base):

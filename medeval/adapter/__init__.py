@@ -6,6 +6,7 @@
 """
 
 from .base import BaseAdapter, ChatRequest, ChatResponse
+from .cx_agent import CxAgentAdapter
 from .http import HttpAdapter
 from .openai_compat import OpenAICompatAdapter
 from .registry import (
@@ -19,6 +20,7 @@ __all__ = [
     "BaseAdapter",
     "ChatRequest",
     "ChatResponse",
+    "CxAgentAdapter",
     "HttpAdapter",
     "OpenAICompatAdapter",
     "build_adapter",

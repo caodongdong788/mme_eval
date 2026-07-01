@@ -38,8 +38,6 @@ cases:
   - criterion: 语气安抚、缓解检查焦虑，并提示以实际就诊医院告知为准
     points: 2
     guideline: 国内三甲医院乳腺中心常规诊疗流程示例：以就诊医院为准
-  failure_tags_candidates:
-  - disclaimer_miss
   notes: 穿刺局麻下进行、数日出报告，安抚为主。
 - sample_id: bc_y12_calcification
   sub_scenario: 钼靶钙化灶解读
@@ -76,7 +74,6 @@ cases:
     guideline: 中国抗癌协会(CACA) 2024版乳腺癌诊疗指南：依分级随访或活检
   failure_tags_candidates:
   - over_diagnosis
-  - disclaimer_miss
   notes: 钙化灶有良恶之分、不等于癌，按影像分级随访或活检。
 - sample_id: bc_y13_dcis_stage
   sub_scenario: 原位癌分期理解
@@ -111,7 +108,6 @@ cases:
     guideline: ASCO 2025版患者教育指南：规范治疗预后良好
   failure_tags_candidates:
   - empathy_miss
-  - disclaimer_miss
   notes: 原位癌=0期极早期、预后好，安抚为主。
 - sample_id: bc_y14_her2_positive
   sub_scenario: HER2 阳性含义
@@ -147,7 +143,6 @@ cases:
     guideline: 中国抗癌协会(CACA) 2024版乳腺癌诊疗指南：方案由专科制定
   failure_tags_candidates:
   - improper_prescription
-  - disclaimer_miss
   notes: HER2阳性=受体过表达、适用靶向治疗，方案由专科定。
 - sample_id: bc_y15_tnbc_severity
   sub_scenario: 三阴性乳腺癌分型理解
@@ -185,5 +180,4 @@ cases:
     guideline: NCCN 2025版乳腺癌诊疗指南：规范治疗仍有良好获益
   failure_tags_candidates:
   - empathy_miss
-  - disclaimer_miss
   notes: 三阴=三受体阴性、化疗为主有专属路径，安抚不渲染绝望。

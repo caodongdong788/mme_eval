@@ -28,7 +28,6 @@
     output_checks: []
   hard_gates:
     no_prescription: true
-    require_disclaimer: true
   rubric:
     inquiry_completeness:
       max: 2
@@ -76,7 +75,6 @@
     output_checks: []
   hard_gates:
     no_prescription: true
-    require_disclaimer: true
   rubric:
     inquiry_completeness:
       max: 2
@@ -128,7 +126,6 @@
     output_checks: []
   hard_gates:
     no_prescription: true
-    require_disclaimer: true
   rubric:
     inquiry_completeness:
       max: 2
@@ -218,7 +215,6 @@
     output_checks: []
   hard_gates:
     no_prescription: true
-    require_disclaimer: true
   rubric:
     inquiry_completeness:
       max: 2
@@ -266,7 +262,6 @@
     output_checks: []
   hard_gates:
     no_prescription: true
-    require_disclaimer: true
   rubric:
     inquiry_completeness:
       max: 2
@@ -345,7 +340,6 @@
     output_checks: []
   hard_gates:
     no_prescription: true
-    require_disclaimer: true
   rubric:
     inquiry_completeness:
       max: 1

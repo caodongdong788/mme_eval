@@ -16,7 +16,7 @@ import pytest
 from openai import AsyncAzureOpenAI, AsyncOpenAI, RateLimitError
 
 from medeval import retry as retry_mod
-from medeval.judges.llm_backend import LLMBackend
+from medeval.judges.llm_backend import LLMBackend, reset_llm_rate_limit
 
 
 def _rate_limit_error() -> RateLimitError:
@@ -108,6 +108,7 @@ def test_chat_json_parses_dict():
 
 
 def test_chat_json_retries_then_succeeds(monkeypatch):
+    reset_llm_rate_limit()
     sleeps: list[float] = []
 
     async def fake_sleep(s):
@@ -123,6 +124,8 @@ def test_chat_json_retries_then_succeeds(monkeypatch):
 
 
 def test_chat_json_raises_after_max_retries(monkeypatch):
+    reset_llm_rate_limit()
+
     async def fake_sleep(s):
         return None
 

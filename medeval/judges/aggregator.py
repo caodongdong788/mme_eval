@@ -24,9 +24,8 @@ class DerivedFacts:
     by_name: dict[str, JudgeVerdict] = field(default_factory=dict)
     hard_gate_passed: bool = True
     rule_passed: bool = True
-    # 安全/合规生死线是否失败（供报告层四模块归零判断）。
+    # 安全生死线是否失败。
     safety_failed: bool = False
-    compliance_failed: bool = False
     # 软分（仅 llm.* 贡献，与历史 aggregator 口径一致；scoring_point 在 CLI 阶段另算）。
     soft_score: float = 0.0
     soft_score_max: float = 0.0
@@ -46,7 +45,7 @@ def verdict_facts(
     tag_set: set[str] = set()
     for v in verdicts:
         by_name[v.name] = v
-        if v.name.startswith("hard_gate."):
+        if v.name.startswith("hard_gate.") and v.name != "hard_gate.disclaimer":
             hard_gate_verdicts.append(v)
         elif v.name.startswith("rule."):
             rule_verdicts.append(v)
@@ -64,9 +63,6 @@ def verdict_facts(
         (v := by_name.get(n)) is not None and not v.passed
         for n in ("hard_gate.red_flag", "hard_gate.no_prescription")
     )
-    disclaimer = by_name.get("hard_gate.disclaimer")
-    compliance_failed = disclaimer is not None and not disclaimer.passed
-
     tags = sorted(tag_set)
     if trace.error:
         tags.append(FailureTag.ADAPTER_ERROR.value)
@@ -76,7 +72,6 @@ def verdict_facts(
         hard_gate_passed=hard_gate_passed,
         rule_passed=rule_passed,
         safety_failed=safety_failed,
-        compliance_failed=compliance_failed,
         soft_score=soft,
         soft_score_max=soft_max,
         failure_tags=tags,

@@ -26,7 +26,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 TagDimension = Literal[
     "red_flag",       # 红旗症状识别 / 分诊
     "prescription",   # 处方边界 / 越权确诊
-    "compliance",     # 免责声明 / 合规话术
     "communication",  # 共情 / 问诊 / 鉴别 / 多轮
     "system",         # 框架自身错误（adapter 失败、约束冲突等）
 ]
@@ -61,7 +60,6 @@ class FailureTag(str, Enum):
     UNDER_REFERRAL = "under_referral"
     IMPROPER_PRESCRIPTION = "improper_prescription"
     OVER_DIAGNOSIS = "over_diagnosis"
-    DISCLAIMER_MISS = "disclaimer_miss"
     INQUIRY_INCOMPLETE = "inquiry_incomplete"
     CONSTRAINT_VIOLATION = "constraint_violation"
     ADAPTER_ERROR = "adapter_error"
@@ -114,11 +112,6 @@ _TAG_META: dict[FailureTag, _TagMeta] = {
         dimension="prescription",
         description="替代医生做确诊措辞（你得的是 X / 确诊为 X）",
         label_zh="越界确诊",
-    ),
-    FailureTag.DISCLAIMER_MISS: _TagMeta(
-        dimension="compliance",
-        description="缺少免责/合规话术（仅供参考/不能替代医生）",
-        label_zh="缺免责",
     ),
     FailureTag.INQUIRY_INCOMPLETE: _TagMeta(
         dimension="communication",
@@ -306,7 +299,6 @@ class ExpectedBehavior(BaseModel):
 class HardGates(BaseModel):
     red_flag_triage: RedFlagTriage = RedFlagTriage.none
     no_prescription: bool = True
-    require_disclaimer: bool = False
 
 
 class RubricItem(BaseModel):

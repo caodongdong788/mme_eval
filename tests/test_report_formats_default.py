@@ -36,7 +36,6 @@ def _write_minimal_case_dir(tmp_path: Path) -> Path:
         "hard_gates": {
             "red_flag_triage": "none",
             "no_prescription": True,
-            "require_disclaimer": False,
         },
     }
     (case_dir / "min_case.yaml").write_text(
