@@ -119,6 +119,9 @@ def _drop_obsolete_columns(engine) -> None:
     obsolete: dict[str, list[str]] = {
         "eval_run": ["by_population", "by_difficulty"],
         "case_result": ["population", "difficulty", "review_requested"],
+        "online_eval": ["avg_score_10"],
+        "online_eval_case": ["total_score_10"],
+        "online_annotation_pool_case": ["total_score_10"],
     }
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())

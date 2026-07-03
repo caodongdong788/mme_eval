@@ -61,15 +61,21 @@ export default function RunsPage() {
   };
 
   const nowrap = { onCell: () => ({ style: { whiteSpace: "nowrap" as const } }) };
+  const wrapCell = {
+    onCell: () => ({
+      style: { whiteSpace: "normal" as const, wordBreak: "break-word" as const },
+    }),
+  };
 
   const columns = [
-    { title: "ID", dataIndex: "id", ...nowrap, className: "runs-table__mono" },
+    { title: "ID", dataIndex: "id", width: "7%", ...nowrap, className: "runs-table__mono" },
     {
       title: "名称",
       dataIndex: "name",
-      ...nowrap,
+      width: "24%",
+      ...wrapCell,
       render: (name: string, r: RunSummary) => (
-        <Space size={4}>
+        <Space size={4} wrap>
           <DashTableNavLink to={`/runs/${r.id}`}>
             {name || r.run_slug}
           </DashTableNavLink>
@@ -80,6 +86,7 @@ export default function RunsPage() {
     {
       title: "状态",
       dataIndex: "status",
+      width: "14%",
       render: (s: string, r: RunSummary) => {
         if (s === "running" || s === "pending") {
           const p = progress[r.id]?.progress;
@@ -107,6 +114,7 @@ export default function RunsPage() {
     {
       title: "通过率",
       dataIndex: "pass_rate",
+      width: "14%",
       ...nowrap,
       render: (v: number, r: RunSummary) =>
         r.status === "success" ? (
@@ -120,6 +128,7 @@ export default function RunsPage() {
     {
       title: "HardGate",
       dataIndex: "hard_gate_failed",
+      width: "10%",
       ...nowrap,
       render: (v: number, r: RunSummary) =>
         r.status === "success" ? (
@@ -128,16 +137,18 @@ export default function RunsPage() {
           "—"
         ),
     },
-    { title: "N", dataIndex: "n_runs", ...nowrap },
+    { title: "N", dataIndex: "n_runs", width: "6%", ...nowrap },
     {
       title: "创建时间",
       dataIndex: "created_at",
+      width: "14%",
       ...nowrap,
       render: (v?: string) => formatApiDateTime(v),
     },
     {
       title: "操作",
-      ...nowrap,
+      width: "11%",
+      ...wrapCell,
       render: (_: unknown, r: RunSummary) => {
         const busy = r.status === "running" || r.status === "pending";
         return (
@@ -169,7 +180,7 @@ export default function RunsPage() {
           <h1 className="runs-page__title">评测列表</h1>
           <p className="runs-page__sub">乳腺癌专科 benchmark · 全量历史记录</p>
         </div>
-        <Space>
+        <Space wrap className="runs-page__actions">
           <Button className="runs-page__btn" icon={<ReloadOutlined />} onClick={() => reload()}>
             刷新
           </Button>
@@ -208,6 +219,7 @@ export default function RunsPage() {
           dataSource={displayRuns}
           pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 条` }}
           className="runs-table"
+          tableLayout="fixed"
         />
       </div>
     </div>

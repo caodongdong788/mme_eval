@@ -1,41 +1,49 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState, type Key } from "react";
 import {
-  Button,
   Descriptions,
   Drawer,
-  Modal,
+  Popconfirm,
+  Select,
   Space,
   Table,
   Typography,
 } from "antd";
-import { DownloadOutlined, FileSearchOutlined } from "@ant-design/icons";
+import { DeleteOutlined, FileSearchOutlined, ReloadOutlined } from "@ant-design/icons";
 import type { ColumnsType, TableProps } from "antd/es/table";
 import type { FilterValue } from "antd/es/table/interface";
-import type { OnlineEvalDetail, OnlineEvalCase } from "../api/index";
+import type { OnlineAnnotationPoolPath, OnlineEvalDetail, OnlineEvalCase } from "../api/index";
+import {
+  DashTableActions,
+  DashTableDangerLink,
+  DashTableLink,
+} from "./DashTableActions";
 import {
   AverageScoreText,
   DimensionBars,
   DimensionFeedback,
   GateTag,
   GradeText,
-  RiskTags,
   StatusTag,
   TaskTypeText,
 } from "./OnlineEvalDisplay";
+import { OnlineEvalConversation } from "./OnlineEvalConversation";
 import {
   ONLINE_EVAL_GATE_FILTERS,
   ONLINE_EVAL_GRADE_FILTERS,
+  ONLINE_EVAL_ROLE_SCORE_FILTERS,
   ONLINE_EVAL_SCORE_FILTERS,
-  type OnlineEvalCaseExportFilters,
-  filterOnlineEvalCasesBySelection,
   matchesOnlineEvalGateFilter,
   matchesOnlineEvalGradeFilter,
+  matchesOnlineEvalRoleScoreFilter,
   matchesOnlineEvalScoreFilter,
 } from "../utils/onlineEvalCaseFilters";
 
 interface OnlineEvalCaseTableFilters {
   gate_status?: FilterValue | null;
-  total_score_10?: FilterValue | null;
+  total_score?: FilterValue | null;
+  doctor_score?: FilterValue | null;
+  nurse_score?: FilterValue | null;
+  patient_score?: FilterValue | null;
   grade?: FilterValue | null;
 }
 
@@ -43,42 +51,64 @@ interface OnlineEvalDetailDrawerProps {
   detail: OnlineEvalDetail | null;
   detailLoading: boolean;
   benchmarkNameById: Record<number, string>;
-  exporting: boolean;
+  poolPaths: OnlineAnnotationPoolPath[];
+  poolAddingCaseId: number | null;
+  deletingCaseId: number | null;
+  rescoringCaseId: number | null;
   onClose: () => void;
-  onExport: (filters: OnlineEvalCaseExportFilters) => Promise<boolean>;
-}
-
-function filterValues(value?: FilterValue | null): string[] {
-  return (value ?? []).map(String);
+  onAddCaseToPool: (caseId: number, pathId: number) => Promise<void>;
+  onDeleteCase: (evalId: number, caseId: number) => Promise<void>;
+  onRescoreCase: (evalId: number, caseId: number) => Promise<void>;
 }
 
 export function OnlineEvalDetailDrawer({
   detail,
   detailLoading,
   benchmarkNameById,
-  exporting,
+  poolPaths,
+  poolAddingCaseId,
+  deletingCaseId,
+  rescoringCaseId,
   onClose,
-  onExport,
+  onAddCaseToPool,
+  onDeleteCase,
+  onRescoreCase,
 }: OnlineEvalDetailDrawerProps) {
   const [caseFilters, setCaseFilters] = useState<OnlineEvalCaseTableFilters>({});
-  const [exportOpen, setExportOpen] = useState(false);
 
   useEffect(() => {
     setCaseFilters({});
-    setExportOpen(false);
   }, [detail?.id]);
 
-  const exportFilters = useMemo<OnlineEvalCaseExportFilters>(
-    () => ({
-      gate_status: filterValues(caseFilters.gate_status),
-      score_bucket: filterValues(caseFilters.total_score_10),
-      grade: filterValues(caseFilters.grade),
-    }),
-    [caseFilters]
-  );
-  const filteredCases = useMemo(
-    () => filterOnlineEvalCasesBySelection(detail?.cases ?? [], exportFilters),
-    [detail?.cases, exportFilters]
+  const renderRoleScore = (
+    row: OnlineEvalCase,
+    key: "doctor_score" | "nurse_score" | "patient_score"
+  ) => {
+    const value = row.score_breakdown?.[key];
+    return <span className="mono">{typeof value === "number" ? value.toFixed(1) : "-"}</span>;
+  };
+
+  const roleScoreFilter = (key: "doctor_score" | "nurse_score" | "patient_score") => (
+    value: boolean | Key,
+    row: OnlineEvalCase
+  ) => matchesOnlineEvalRoleScoreFilter(value, row, key);
+
+  const renderPoolSelect = (row: OnlineEvalCase) => (
+    <div className="online-eval-pool-select">
+      <Select
+        size="small"
+        style={{ width: "100%" }}
+        placeholder={poolPaths.length ? "加入标注集" : "先建标注集"}
+        disabled={poolPaths.length === 0}
+        loading={poolAddingCaseId === row.id}
+        value={undefined}
+        options={poolPaths.map((item) => ({
+          value: item.id,
+          label: item.path,
+        }))}
+        onChange={(pathId: number) => void onAddCaseToPool(row.id, pathId)}
+      />
+    </div>
   );
 
   const caseColumns: ColumnsType<OnlineEvalCase> = [
@@ -106,12 +136,39 @@ export function OnlineEvalDetailDrawer({
     },
     {
       title: "分数",
-      dataIndex: "total_score_10",
+      dataIndex: "total_score",
       width: 100,
       filters: ONLINE_EVAL_SCORE_FILTERS,
-      filteredValue: caseFilters.total_score_10 ?? null,
+      filteredValue: caseFilters.total_score ?? null,
       onFilter: matchesOnlineEvalScoreFilter,
       render: (v: number) => <span className="mono">{v.toFixed(1)}</span>,
+    },
+    {
+      title: "医生端",
+      key: "doctor_score",
+      width: 110,
+      filters: ONLINE_EVAL_ROLE_SCORE_FILTERS,
+      filteredValue: caseFilters.doctor_score ?? null,
+      onFilter: roleScoreFilter("doctor_score"),
+      render: (_, row) => renderRoleScore(row, "doctor_score"),
+    },
+    {
+      title: "护士端",
+      key: "nurse_score",
+      width: 110,
+      filters: ONLINE_EVAL_ROLE_SCORE_FILTERS,
+      filteredValue: caseFilters.nurse_score ?? null,
+      onFilter: roleScoreFilter("nurse_score"),
+      render: (_, row) => renderRoleScore(row, "nurse_score"),
+    },
+    {
+      title: "患者端",
+      key: "patient_score",
+      width: 110,
+      filters: ONLINE_EVAL_ROLE_SCORE_FILTERS,
+      filteredValue: caseFilters.patient_score ?? null,
+      onFilter: roleScoreFilter("patient_score"),
+      render: (_, row) => renderRoleScore(row, "patient_score"),
     },
     {
       title: "评级",
@@ -123,9 +180,52 @@ export function OnlineEvalDetailDrawer({
       render: (v: string) => <GradeText value={v} />,
     },
     {
-      title: "风险点",
-      dataIndex: "risk_tags",
-      render: (tags: string[]) => <RiskTags tags={tags} />,
+      title: "操作",
+      key: "actions",
+      width: 320,
+      fixed: "right",
+      render: (_, row) => {
+        const busy = detail?.status === "pending" || detail?.status === "running";
+        const deleting = deletingCaseId === row.id;
+        const rescoring = rescoringCaseId === row.id;
+        const actionDisabled = busy || deletingCaseId !== null || rescoringCaseId !== null;
+        return (
+          <DashTableActions>
+            {renderPoolSelect(row)}
+            {rescoring ? (
+              <div
+                className="online-eval-rescore-progress"
+                role="progressbar"
+                aria-label="正在重新评测"
+                aria-busy="true"
+              >
+                <span className="online-eval-rescore-progress__track" />
+                <span className="online-eval-rescore-progress__text">重新评测中</span>
+              </div>
+            ) : (
+              <DashTableLink
+                disabled={actionDisabled}
+                onClick={() => detail && void onRescoreCase(detail.id, row.id)}
+              >
+                <ReloadOutlined /> 重新评测
+              </DashTableLink>
+            )}
+            <Popconfirm
+              title="确认删除该 case？"
+              description="删除后会从当前线上评测详情和汇总中移除，且不可恢复。"
+              okText="删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+              disabled={actionDisabled}
+              onConfirm={() => detail && void onDeleteCase(detail.id, row.id)}
+            >
+              <DashTableDangerLink disabled={actionDisabled}>
+                <DeleteOutlined /> {deleting ? "删除中" : "删除"}
+              </DashTableDangerLink>
+            </Popconfirm>
+          </DashTableActions>
+        );
+      },
     },
   ];
 
@@ -135,52 +235,35 @@ export function OnlineEvalDetailDrawer({
   ) => {
     setCaseFilters({
       gate_status: filters.gate_status ?? null,
-      total_score_10: filters.total_score_10 ?? null,
+      total_score: filters.total_score ?? null,
+      doctor_score: filters.doctor_score ?? null,
+      nurse_score: filters.nurse_score ?? null,
+      patient_score: filters.patient_score ?? null,
       grade: filters.grade ?? null,
     });
   };
 
   const handleClose = () => {
     setCaseFilters({});
-    setExportOpen(false);
     onClose();
   };
 
-  const handleExport = async () => {
-    const ok = await onExport(exportFilters);
-    if (ok) setExportOpen(false);
-  };
-
   return (
-    <>
-      <Drawer
-        title={detail ? `线上评测 #${detail.id} · ${detail.name}` : "线上评测详情"}
-        width={920}
-        open={Boolean(detail) || detailLoading}
-        onClose={handleClose}
-        extra={
-          detail ? (
-            <Button
-              type="primary"
-              icon={<DownloadOutlined />}
-              loading={exporting}
-              disabled={detail.cases.length === 0}
-              onClick={() => setExportOpen(true)}
-            >
-              导出清单(飞书)
-            </Button>
-          ) : null
-        }
-      >
+    <Drawer
+      title={detail ? `线上评测 #${detail.id} · ${detail.name}` : "线上评测详情"}
+      width={1020}
+      open={Boolean(detail) || detailLoading}
+      onClose={handleClose}
+    >
         {detail ? (
           <Space direction="vertical" size={18} style={{ width: "100%" }}>
             <Descriptions bordered size="small" column={4}>
               <Descriptions.Item label="状态"><StatusTag value={detail.status} /></Descriptions.Item>
               <Descriptions.Item label="平均分">
                 <AverageScoreText
-                  value={detail.avg_score_10}
+                  value={detail.avg_score}
                   cases={detail.cases}
-                  ready={detail.status === "success" || detail.avg_score_10 > 0}
+                  ready={detail.status === "success" || detail.avg_score > 0}
                 />
               </Descriptions.Item>
               <Descriptions.Item label="Case">{detail.case_count}</Descriptions.Item>
@@ -194,36 +277,42 @@ export function OnlineEvalDetailDrawer({
               <Descriptions.Item label="Judge">{detail.judge_model || "默认"}</Descriptions.Item>
             </Descriptions>
             <Table
-              className="dash-table"
+              className="dash-table online-eval-case-table"
               rowKey="id"
               columns={caseColumns}
               dataSource={detail.cases}
               onChange={handleCaseTableChange}
+              tableLayout="fixed"
+              scroll={{ x: 1430 }}
               expandable={{
                 expandedRowRender: (row) => (
-                  <Space direction="vertical" size={14} style={{ width: "100%" }}>
-                    <Typography.Text strong>用户原文</Typography.Text>
-                    <Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>
-                      {row.user_text || "-"}
-                    </Typography.Paragraph>
-                    <Typography.Text strong>Bot 回复</Typography.Text>
-                    <Typography.Paragraph style={{ whiteSpace: "pre-wrap" }}>
-                      {row.assistant_text || "-"}
-                    </Typography.Paragraph>
-                    <Typography.Text strong>维度分</Typography.Text>
-                    <DimensionBars scores={row.dimension_scores} />
-                    <Typography.Text strong>各维度依据、证据与建议</Typography.Text>
-                    <DimensionFeedback row={row} />
-                    <Typography.Text strong>全局证据与建议</Typography.Text>
-                    <ul>
-                      {row.evidence.map((e, idx) => (
-                        <li key={`${e.tag}-${idx}`}>{e.text}</li>
-                      ))}
-                      {row.improvement_suggestions.map((s, idx) => (
-                        <li key={`suggestion-${idx}`}>{s}</li>
-                      ))}
-                    </ul>
-                  </Space>
+                  <div className="online-eval-case-detail-window">
+                    <div className="online-eval-case-detail-inner">
+                      <Space direction="vertical" size={14} style={{ width: "100%" }}>
+                        <Typography.Text strong>对话内容</Typography.Text>
+                        <OnlineEvalConversation row={row} />
+                        {row.gate_status !== "fail" && (
+                          <>
+                            <Typography.Text strong>维度分</Typography.Text>
+                            <DimensionBars scores={row.dimension_scores} breakdown={row.score_breakdown} />
+                            <Typography.Text strong>各维度依据、证据与建议</Typography.Text>
+                            <DimensionFeedback row={row} />
+                          </>
+                        )}
+                        <Typography.Text strong>
+                          {row.gate_status === "fail" ? "Gate 失败证据与建议" : "全局证据与建议"}
+                        </Typography.Text>
+                        <ul>
+                          {(row.evidence.length ? row.evidence : [{ tag: "empty", text: "暂无全局证据" }]).map((e, idx) => (
+                            <li key={`${e.tag}-${idx}`}>{e.text}</li>
+                          ))}
+                          {(row.improvement_suggestions.length ? row.improvement_suggestions : ["暂无建议"]).map((s, idx) => (
+                            <li key={`suggestion-${idx}`}>{s}</li>
+                          ))}
+                        </ul>
+                      </Space>
+                    </div>
+                  </div>
                 ),
               }}
             />
@@ -231,21 +320,6 @@ export function OnlineEvalDetailDrawer({
         ) : (
           <FileSearchOutlined />
         )}
-      </Drawer>
-      <Modal
-        title="导出评测清单到飞书"
-        open={exportOpen}
-        okText="导出"
-        cancelText="取消"
-        confirmLoading={exporting}
-        okButtonProps={{ disabled: filteredCases.length === 0 }}
-        onOk={() => void handleExport()}
-        onCancel={() => setExportOpen(false)}
-      >
-        <p style={{ marginBottom: 0 }}>
-          将按当前筛选条件导出 {filteredCases.length} 条线上对话，每条对话一行，多轮内容按第几轮展开为用户输入和 Cx 输出。
-        </p>
-      </Modal>
-    </>
+    </Drawer>
   );
 }

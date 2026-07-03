@@ -75,6 +75,8 @@ def upload_benchmark(
                 created_by=current_user.name if current_user else None,
             )
         else:
+            if source == "online":
+                raise HTTPException(status_code=422, detail="线上 benchmark 请通过飞书 Base URL 导入")
             if file is None:
                 raise HTTPException(status_code=422, detail="请选择用例文件或填写飞书 URL")
             content = bm_svc.read_upload_capped(file)
@@ -185,6 +187,8 @@ def replace_benchmark(
                 access_token=current_user.access_token,
             )
         else:
+            if source == "online":
+                raise HTTPException(status_code=422, detail="线上 benchmark 请通过飞书 Base URL 覆盖")
             if file is None:
                 raise HTTPException(status_code=422, detail="请选择用例文件或填写飞书 URL")
             content = bm_svc.read_upload_capped(file)
@@ -259,6 +263,15 @@ def save_benchmark_case_yaml(
     session: Session = Depends(get_session),
 ) -> BenchmarkCaseYamlOut:
     return bm_svc.save_benchmark_case_yaml(session, benchmark_id, sample_id, payload)
+
+
+@router.delete("/{benchmark_id}/cases/{sample_id}", status_code=204)
+def delete_benchmark_case(
+    benchmark_id: int,
+    sample_id: str,
+    session: Session = Depends(get_session),
+) -> None:
+    bm_svc.delete_benchmark_case(session, benchmark_id, sample_id)
 
 
 @router.delete("/{benchmark_id}", status_code=204)

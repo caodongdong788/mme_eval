@@ -22,7 +22,7 @@ MME · Agent 评测平台的后端服务能力：在判分内核 medeval 之上�
 
 系统 SHALL 提供 benchmark 库：支持上传与 `cases/` 同格式的 YAML 用例集，上传时 MUST 用现有 `loader` 校验，校验失败 MUST 拒绝并返回错误；合法 benchmark 保存元数据（name/version/case_count/source）供重复选用。内置 `cases/breast_cancer` MUST 作为 `source=builtin` 的 benchmark 可见。
 
-当上传请求的 `source=online` 时，系统 MUST 复用同一个 `POST /api/benchmarks` 入口支持两类输入：JSONL 文件或 `source_url` 飞书 Base URL。若提供 `source_url`，系统 MUST 使用当前登录用户的 `user_access_token` 调用飞书多维表格 OpenAPI 读取记录；若未提供 `source_url`，系统 MUST 沿用线上 JSONL 文件解析。飞书 Base 记录转 benchmark 时 MUST 把每条记录的每轮用户输入与 Cx 输出按顺序写入 `turns`，不得只保留第一轮。
+当上传请求的 `source=online` 时，系统 MUST 通过 `source_url` 飞书 Base/Sheet/Wiki URL 导入，**不再支持文件（含 JSONL）上传**：缺少 `source_url` 的线上上传 MUST 返回 422。系统 MUST 使用当前登录用户的 `user_access_token` 调用飞书多维表格 OpenAPI 读取记录；未登录或无权限 MUST 拒绝。飞书 Base 记录转 benchmark 时 MUST 把每条记录的每轮用户输入与 Cx 输出按顺序写入 `turns`，不得只保留第一轮。`source=offline` 时经 `POST /api/benchmarks` 上传标准 YAML 用例集。
 
 #### Scenario: 上传合法 benchmark
 

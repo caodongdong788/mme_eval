@@ -1,4 +1,4 @@
-"""线上评测路由：真实线上对话的 10 分制质检。"""
+"""线上评测路由：真实线上对话的三角色 45 分制质检。"""
 
 from __future__ import annotations
 
@@ -88,3 +88,22 @@ def export_online_eval_cases_route(
 def delete_online_eval(eval_id: int, session: Session = Depends(get_session)) -> Response:
     svc.delete_online_eval(session, eval_id)
     return Response(status_code=204)
+
+
+@router.delete("/{eval_id}/cases/{case_id}", status_code=204)
+def delete_online_eval_case(
+    eval_id: int,
+    case_id: int,
+    session: Session = Depends(get_session),
+) -> Response:
+    svc.delete_online_eval_case(session, eval_id, case_id)
+    return Response(status_code=204)
+
+
+@router.post("/{eval_id}/cases/{case_id}/rescore", response_model=OnlineEvalDetailOut)
+async def rescore_online_eval_case(
+    eval_id: int,
+    case_id: int,
+    session: Session = Depends(get_session),
+) -> OnlineEval:
+    return await svc.rescore_online_eval_case(session, eval_id, case_id)

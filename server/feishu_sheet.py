@@ -116,8 +116,48 @@ def _invoke_read(
     return _check(payload, f"调用飞书 Sheet 工具 {tool_name}")
 
 
-def fetch_sheet_cells(access_token: str, url: str) -> dict[str, Any]:
-    """读取 URL 指定 Wiki/Sheet 的第一张可见工作表单元格。"""
+def _read_sheet(
+    client: httpx.Client,
+    access_token: str,
+    spreadsheet_token: str,
+    sheet: dict[str, Any],
+) -> dict[str, Any] | None:
+    """读取单个工作表单元格；无 sheet_id 或无数据时返回 None（容错跳过）。"""
+    sheet_id = str(sheet.get("sheet_id") or "").strip()
+    if not sheet_id:
+        return None
+    sheet_name = str(sheet.get("title") or sheet.get("sheet_name") or sheet_id)
+    row_count = max(1, int(sheet.get("row_count") or 1))
+    col_count = max(1, int(sheet.get("column_count") or 1))
+    end_col = _col_name(min(col_count, 52))
+    read_range = f"A1:{end_col}{row_count}"
+
+    cell_data = _invoke_read(
+        client,
+        access_token,
+        spreadsheet_token,
+        "get_cell_ranges",
+        {
+            "cell_limit": 1_000_000_000,
+            "excel_id": spreadsheet_token,
+            "include_styles": False,
+            "max_chars": _MAX_CHARS,
+            "ranges": [read_range],
+            "sheet_id": sheet_id,
+        },
+    )
+    ranges = cell_data.get("ranges") or []
+    if not ranges or not isinstance(ranges[0], dict):
+        return None
+    result = dict(ranges[0])
+    result["spreadsheet_token"] = spreadsheet_token
+    result["sheet_id"] = sheet_id
+    result["sheet_name"] = sheet_name
+    return result
+
+
+def fetch_sheet_cells(access_token: str, url: str) -> list[dict[str, Any]]:
+    """读取 URL 指定 Wiki/Sheet 的所有可见工作表单元格（每个 tab 一个 dict）。"""
     coords = parse_sheet_url(url)
     if not access_token:
         raise FeishuSheetError("缺少飞书 user_access_token")
@@ -131,38 +171,21 @@ def fetch_sheet_cells(access_token: str, url: str) -> dict[str, Any]:
             {"excel_id": coords.spreadsheet_token},
         )
         sheets = workbook.get("sheets") or []
-        sheet = next((item for item in sheets if not item.get("is_hidden")), None)
-        if not isinstance(sheet, dict):
+        visible = [
+            item
+            for item in sheets
+            if isinstance(item, dict) and not item.get("is_hidden")
+        ]
+        if not visible:
             raise FeishuSheetError("飞书 Sheet 中没有可读取的工作表")
 
-        sheet_id = str(sheet.get("sheet_id") or "").strip()
-        if not sheet_id:
-            raise FeishuSheetError("飞书 Sheet 工作表缺少 sheet_id")
-        sheet_name = str(sheet.get("title") or sheet.get("sheet_name") or sheet_id)
-        row_count = max(1, int(sheet.get("row_count") or 1))
-        col_count = max(1, int(sheet.get("column_count") or 1))
-        end_col = _col_name(min(col_count, 52))
-        read_range = f"A1:{end_col}{row_count}"
-
-        cell_data = _invoke_read(
-            client,
-            access_token,
-            coords.spreadsheet_token,
-            "get_cell_ranges",
-            {
-                "cell_limit": 1_000_000_000,
-                "excel_id": coords.spreadsheet_token,
-                "include_styles": False,
-                "max_chars": _MAX_CHARS,
-                "ranges": [read_range],
-                "sheet_id": sheet_id,
-            },
-        )
-        ranges = cell_data.get("ranges") or []
-        if not ranges or not isinstance(ranges[0], dict):
+        # 逐个可见 tab 读取；空表（如"说明"页）跳过，不影响其余 tab。
+        results = [
+            data
+            for sheet in visible
+            if (data := _read_sheet(client, access_token, coords.spreadsheet_token, sheet))
+            is not None
+        ]
+        if not results:
             raise FeishuSheetError("飞书 Sheet 中没有可读取的单元格数据")
-        result = dict(ranges[0])
-        result["spreadsheet_token"] = coords.spreadsheet_token
-        result["sheet_id"] = sheet_id
-        result["sheet_name"] = sheet_name
-        return result
+        return results

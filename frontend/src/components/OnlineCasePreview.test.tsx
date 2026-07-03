@@ -95,4 +95,36 @@ describe("OnlineCasePreview", () => {
     expect(screen.getByText("这是报告解读。")).toBeInTheDocument();
     expect(container.textContent).not.toContain("notes:");
   });
+
+  it("renders user profile from online benchmark notes", () => {
+    const { container } = renderWithProviders(
+      <OnlineCasePreview
+        yamlText={`
+- sample_id: online_profile
+  turns:
+  - role: user
+    content: 第一问
+  - role: assistant
+    content: 第一答
+  notes: |-
+    用户档案：
+    性别:女
+    关注:尚不确定/了解中
+    用药:依西美坦、其他
+
+    第一轮用户输入(图片)：配料表.png
+`}
+      />
+    );
+
+    expect(screen.getByText("用户档案")).toBeInTheDocument();
+    expect(screen.getByText("性别")).toBeInTheDocument();
+    expect(screen.getByText("女")).toBeInTheDocument();
+    expect(screen.getByText("关注")).toBeInTheDocument();
+    expect(screen.getByText("尚不确定/了解中")).toBeInTheDocument();
+    expect(screen.getByText("用药")).toBeInTheDocument();
+    expect(screen.getByText("依西美坦、其他")).toBeInTheDocument();
+    expect(within(container).getByText("第一问")).toBeInTheDocument();
+    expect(container.textContent).not.toContain("配料表.png");
+  });
 });

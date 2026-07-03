@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import yaml
+
 from server.benchmarks import create_uploaded_benchmark
 from server.auth import get_current_user_optional
 from server.db import session_scope
@@ -56,10 +58,10 @@ def test_patch_unknown_404(client, settings):
     assert client.patch("/api/benchmarks/99999", json={"name": "x"}).status_code == 404
 
 
-def test_upload_online_jsonl_api(client):
+def test_upload_online_file_rejected_api(client):
+    # 线上 benchmark 不再支持文件上传（含旧 JSONL），必须走飞书 Base URL。
     content = (
-        '{"序号":"28","会话标题":"线上问题","用户输入内容":"治疗期间怎么运动？",'
-        '"Cx输出内容":"可以先从低强度抗阻训练开始。","是否点踩":"Y"}\n'
+        '{"序号":"28","用户输入内容":"治疗期间怎么运动？","Cx输出内容":"从低强度抗阻开始。"}\n'
     ).encode("utf-8")
     resp = client.post(
         "/api/benchmarks",
@@ -67,14 +69,8 @@ def test_upload_online_jsonl_api(client):
         files={"file": ("20260629.jsonl", content, "application/jsonl")},
     )
 
-    assert resp.status_code == 201, resp.text
-    body = resp.json()
-    assert body["source"] == "online"
-    assert body["case_count"] == 1
-
-    cases = client.get(f"/api/benchmarks/{body['id']}/cases")
-    assert cases.status_code == 200
-    assert cases.json()[0]["sample_id"] == "online_28"
+    assert resp.status_code == 422, resp.text
+    assert "飞书" in resp.json()["detail"]
 
 
 def test_upload_online_feishu_url_api(client, monkeypatch):
@@ -120,6 +116,7 @@ def test_upload_online_feishu_url_api(client, monkeypatch):
 
     cases = client.get(f"/api/benchmarks/{body['id']}/cases").json()
     assert cases[0]["sample_id"] == "online_rec_url"
+    assert cases[0]["sub_scenario"] == "第一问"
 
 
 def test_upload_online_feishu_wiki_sheet_url_api(client, monkeypatch):
@@ -128,28 +125,30 @@ def test_upload_online_feishu_wiki_sheet_url_api(client, monkeypatch):
     def fake_fetch(access_token: str, source_url: str):
         assert access_token == "u-token"
         assert source_url == "https://example.feishu.cn/wiki/sht_token"
-        return {
-            "sheet_id": "bdbf75",
-            "sheet_name": "20260629",
-            "row_indices": [1, 9],
-            "cells": [
-                [{"value": "会话标题"}, {"value": "第一轮用户输入"}, {"value": "第一轮Cx输出"}],
-                [
-                    {"value": "图片咨询"},
-                    {
-                        "rich_text": [
-                            {
-                                "type": "embed-image",
-                                "image_token": "RKuObri3Wob9j5x8Nk4cHEk1nOh",
-                                "image_width": 739,
-                                "image_height": 1600,
-                            }
-                        ]
-                    },
-                    {"value": "报告解读"},
+        return [
+            {
+                "sheet_id": "bdbf75",
+                "sheet_name": "20260629",
+                "row_indices": [1, 9],
+                "cells": [
+                    [{"value": "会话标题"}, {"value": "第一轮用户输入"}, {"value": "第一轮Cx输出"}],
+                    [
+                        {"value": "图片咨询"},
+                        {
+                            "rich_text": [
+                                {
+                                    "type": "embed-image",
+                                    "image_token": "RKuObri3Wob9j5x8Nk4cHEk1nOh",
+                                    "image_width": 739,
+                                    "image_height": 1600,
+                                }
+                            ]
+                        },
+                        {"value": "报告解读"},
+                    ],
                 ],
-            ],
-        }
+            }
+        ]
 
     monkeypatch.setattr(feishu_sheet, "fetch_sheet_cells", fake_fetch)
     client.app.dependency_overrides[get_current_user_optional] = lambda: FeishuUser(
@@ -175,6 +174,62 @@ def test_upload_online_feishu_wiki_sheet_url_api(client, monkeypatch):
 
     yaml_resp = client.get(f"/api/benchmarks/{body['id']}/cases/online_20260629_9/yaml")
     assert "image_token=RKuObri3Wob9j5x8Nk4cHEk1nOh" in yaml_resp.json()["yaml_text"]
+
+
+def test_online_case_list_uses_first_user_turn_and_case_can_be_deleted(client, settings):
+    content = yaml.safe_dump(
+        [
+            {
+                "sample_id": "online_a",
+                "scenario": "线上真实对话",
+                "sub_scenario": "online_a",
+                "level": "L2",
+                "score_profile": "default",
+                "source": "online",
+                "turns": [
+                    {"role": "user", "content": "第一句用户输入"},
+                    {"role": "assistant", "content": "第一答"},
+                ],
+                "notes": "用户档案：\n女，32岁",
+            },
+            {
+                "sample_id": "online_b",
+                "scenario": "线上真实对话",
+                "sub_scenario": "online_b",
+                "level": "L2",
+                "score_profile": "default",
+                "source": "online",
+                "turns": [
+                    {"role": "user", "content": "第二个 case 问题"},
+                    {"role": "assistant", "content": "第二答"},
+                ],
+            },
+        ],
+        allow_unicode=True,
+        sort_keys=False,
+    ).encode("utf-8")
+    with session_scope() as s:
+        bm = create_uploaded_benchmark(
+            s,
+            name="线上删除样本",
+            content=content,
+            filename="online.yaml",
+            source="offline",
+            settings=settings,
+        )
+        bm.source = "online"
+        s.flush()
+        bid = bm.id
+
+    cases = client.get(f"/api/benchmarks/{bid}/cases").json()
+    assert [case["sub_scenario"] for case in cases] == ["第一句用户输入", "第二个 case 问题"]
+
+    resp = client.delete(f"/api/benchmarks/{bid}/cases/online_a")
+    assert resp.status_code == 204, resp.text
+    remaining = client.get(f"/api/benchmarks/{bid}/cases").json()
+    assert [case["sample_id"] for case in remaining] == ["online_b"]
+    benchmark = client.get(f"/api/benchmarks/{bid}").json()
+    assert benchmark["case_count"] == 1
 
 
 def test_upload_online_feishu_url_requires_login(client):

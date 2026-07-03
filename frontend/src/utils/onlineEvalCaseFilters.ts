@@ -5,25 +5,31 @@ export const ONLINE_EVAL_GATE_FILTERS = [
 ];
 
 export const ONLINE_EVAL_SCORE_FILTERS = [
-  { text: "≥ 9.0", value: "gte9" },
-  { text: "8.0 - 8.9", value: "8to9" },
-  { text: "7.0 - 7.9", value: "7to8" },
-  { text: "6.0 - 6.9", value: "6to7" },
-  { text: "< 6.0", value: "lt6" },
+  { text: "≥ 40.5", value: "gte40_5" },
+  { text: "36 - 40.4", value: "36to40_5" },
+  { text: "27 - 35.9", value: "27to36" },
+  { text: "< 27", value: "lt27" },
+];
+
+export const ONLINE_EVAL_ROLE_SCORE_FILTERS = [
+  { text: "≥ 13.5", value: "gte13_5" },
+  { text: "12 - 13.4", value: "12to13_5" },
+  { text: "9 - 11.9", value: "9to12" },
+  { text: "< 9", value: "lt9" },
 ];
 
 export const ONLINE_EVAL_GRADE_FILTERS = [
   { text: "优秀", value: "excellent" },
-  { text: "可上线优质", value: "high_quality" },
-  { text: "可接受", value: "acceptable" },
-  { text: "风险样本", value: "risky" },
-  { text: "不合格", value: "fail" },
+  { text: "良好", value: "good" },
+  { text: "合格", value: "qualified" },
+  { text: "不合格", value: "unqualified" },
 ];
 
 interface OnlineEvalCaseFilterTarget {
   gate_status?: string;
-  total_score_10?: number | null;
+  total_score?: number | null;
   grade?: string;
+  score_breakdown?: Record<string, number | undefined> | null;
 }
 
 export interface OnlineEvalCaseExportFilters {
@@ -41,23 +47,46 @@ export function matchesOnlineEvalGradeFilter(value: unknown, row: OnlineEvalCase
 }
 
 export function matchesOnlineEvalScoreFilter(value: unknown, row: OnlineEvalCaseFilterTarget): boolean {
-  const score = row.total_score_10;
+  const score = row.total_score;
   if (typeof score !== "number" || !Number.isFinite(score)) return false;
 
   switch (String(value)) {
-    case "gte9":
-      return score >= 9;
-    case "8to9":
-      return score >= 8 && score < 9;
-    case "7to8":
-      return score >= 7 && score < 8;
-    case "6to7":
-      return score >= 6 && score < 7;
-    case "lt6":
-      return score < 6;
+    case "gte40_5":
+      return score >= 40.5;
+    case "36to40_5":
+      return score >= 36 && score < 40.5;
+    case "27to36":
+      return score >= 27 && score < 36;
+    case "lt27":
+      return score < 27;
     default:
       return false;
   }
+}
+
+function matchesRoleScoreBucket(score: number, bucket: string): boolean {
+  switch (bucket) {
+    case "gte13_5":
+      return score >= 13.5;
+    case "12to13_5":
+      return score >= 12 && score < 13.5;
+    case "9to12":
+      return score >= 9 && score < 12;
+    case "lt9":
+      return score < 9;
+    default:
+      return false;
+  }
+}
+
+export function matchesOnlineEvalRoleScoreFilter(
+  value: unknown,
+  row: OnlineEvalCaseFilterTarget,
+  key: "doctor_score" | "nurse_score" | "patient_score"
+): boolean {
+  const score = row.score_breakdown?.[key];
+  if (typeof score !== "number" || !Number.isFinite(score)) return false;
+  return matchesRoleScoreBucket(score, String(value));
 }
 
 export function filterOnlineEvalCasesBySelection<T extends OnlineEvalCaseFilterTarget>(

@@ -72,15 +72,76 @@ def test_fetch_sheet_cells_uses_sheet_ai_tools(monkeypatch):
         fs, "_client", lambda: httpx.Client(transport=httpx.MockTransport(handler))
     )
 
-    sheet = fs.fetch_sheet_cells(
+    sheets = fs.fetch_sheet_cells(
         "u-token",
         "https://p130box8iy5.feishu.cn/wiki/NZTtwSw0zilkcwkxDgMcuOmynye",
     )
 
     assert [item["tool_name"] for item in seen] == ["get_workbook_structure", "get_cell_ranges"]
+    assert isinstance(sheets, list) and len(sheets) == 1
+    sheet = sheets[0]
     assert sheet["sheet_id"] == "bdbf75"
     assert sheet["sheet_name"] == "20260629"
     assert sheet["cells"][1][0]["value"] == "图片咨询"
+
+
+def test_fetch_sheet_cells_reads_all_visible_tabs(monkeypatch):
+    seen: list[dict[str, object]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content.decode())
+        tool_input = json.loads(str(body["input"]))
+        seen.append({"tool_name": body["tool_name"], "input": tool_input})
+        if body["tool_name"] == "get_workbook_structure":
+            return httpx.Response(
+                200,
+                json={
+                    "code": 0,
+                    "data": {
+                        "output": json.dumps({
+                            "sheets": [
+                                {"sheet_id": "tab1", "sheet_name": "第一天", "row_count": 5, "column_count": 3, "is_hidden": False},
+                                {"sheet_id": "tab2", "sheet_name": "第二天", "row_count": 8, "column_count": 3, "is_hidden": False},
+                                {"sheet_id": "hidden", "sheet_name": "隐藏页", "row_count": 5, "column_count": 3, "is_hidden": True},
+                            ]
+                        })
+                    },
+                },
+            )
+        assert body["tool_name"] == "get_cell_ranges"
+        sheet_id = tool_input["sheet_id"]
+        return httpx.Response(
+            200,
+            json={
+                "code": 0,
+                "data": {
+                    "output": {
+                        "ranges": [
+                            {
+                                "cells": [[{"value": sheet_id}]],
+                                "row_indices": [1],
+                                "col_indices": ["A"],
+                            }
+                        ]
+                    }
+                },
+            },
+        )
+
+    monkeypatch.setattr(
+        fs, "_client", lambda: httpx.Client(transport=httpx.MockTransport(handler))
+    )
+
+    sheets = fs.fetch_sheet_cells(
+        "u-token",
+        "https://p130box8iy5.feishu.cn/wiki/NZTtwSw0zilkcwkxDgMcuOmynye",
+    )
+
+    # 隐藏页不读；两张可见表各读一次 get_cell_ranges。
+    read_ids = [item["input"].get("sheet_id") for item in seen if item["tool_name"] == "get_cell_ranges"]
+    assert read_ids == ["tab1", "tab2"]
+    assert [s["sheet_id"] for s in sheets] == ["tab1", "tab2"]
+    assert [s["sheet_name"] for s in sheets] == ["第一天", "第二天"]
 
 
 def test_fetch_sheet_cells_wraps_tool_error(monkeypatch):

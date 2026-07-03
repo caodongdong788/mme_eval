@@ -1,5 +1,11 @@
 import { http } from "./client";
 import type {
+  OnlineAnnotationPoolCase,
+  OnlineAnnotationPoolCaseAddPayload,
+  OnlineAnnotationPoolFeishuImportPayload,
+  OnlineAnnotationPoolPath,
+  OnlineAnnotationPoolPathCreatePayload,
+  OnlineAnnotationPoolPathUpdatePayload,
   OnlineEval,
   OnlineEvalCreatePayload,
   OnlineEvalDetail,
@@ -33,4 +39,40 @@ export const onlineEvalsApi = {
       .then((r) => r.data),
   deleteOnlineEval: (id: number) =>
     http.delete(`/online-evals/${id}`).then((r) => r.data),
+  deleteOnlineEvalCase: (evalId: number, caseId: number) =>
+    http.delete(`/online-evals/${evalId}/cases/${caseId}`).then((r) => r.data),
+  rescoreOnlineEvalCase: (evalId: number, caseId: number) =>
+    http
+      .post<OnlineEvalDetail>(`/online-evals/${evalId}/cases/${caseId}/rescore`)
+      .then((r) => r.data),
+  listOnlineAnnotationPoolPaths: () =>
+    http.get<OnlineAnnotationPoolPath[]>("/online-annotation-pool/paths").then((r) => r.data),
+  createOnlineAnnotationPoolPath: (payload: OnlineAnnotationPoolPathCreatePayload) =>
+    http.post<OnlineAnnotationPoolPath>("/online-annotation-pool/paths", payload).then((r) => r.data),
+  importOnlineAnnotationPoolFromFeishu: (payload: OnlineAnnotationPoolFeishuImportPayload) =>
+    http
+      .post<OnlineAnnotationPoolPath>("/online-annotation-pool/paths/import-feishu", payload)
+      .then((r) => r.data),
+  updateOnlineAnnotationPoolPath: (pathId: number, payload: OnlineAnnotationPoolPathUpdatePayload) =>
+    http
+      .patch<OnlineAnnotationPoolPath>(`/online-annotation-pool/paths/${pathId}`, payload)
+      .then((r) => r.data),
+  deleteOnlineAnnotationPoolPath: (pathId: number) =>
+    http.delete(`/online-annotation-pool/paths/${pathId}`).then((r) => r.data),
+  addOnlineAnnotationPoolCase: (pathId: number, payload: OnlineAnnotationPoolCaseAddPayload) =>
+    http
+      .post<OnlineAnnotationPoolCase>(`/online-annotation-pool/paths/${pathId}/cases`, payload)
+      .then((r) => r.data),
+  listOnlineAnnotationPoolCases: (pathId: number) =>
+    http
+      .get<OnlineAnnotationPoolCase[]>(`/online-annotation-pool/paths/${pathId}/cases`)
+      .then((r) => r.data),
+  deleteOnlineAnnotationPoolCase: (pathId: number, caseId: number) =>
+    http.delete(`/online-annotation-pool/paths/${pathId}/cases/${caseId}`).then((r) => r.data),
+  exportOnlineAnnotationPoolPath: (pathId: number, parent_folder_token = "") =>
+    http
+      .post<OnlineEvalExportResult>(`/online-annotation-pool/paths/${pathId}/export-cases`, null, {
+        params: { parent_folder_token },
+      })
+      .then((r) => r.data),
 };

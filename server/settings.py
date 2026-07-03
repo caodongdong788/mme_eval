@@ -77,6 +77,20 @@ class Settings:
     online_eval_case_concurrency: int = field(
         default_factory=lambda: int(os.environ.get("MEDEVAL_ONLINE_EVAL_CASE_CONCURRENCY", "4"))
     )
+    # 单条线上 case 通过医学安全 Gate 后，医生/护士/患者 judge 的模型调用并发上限。
+    online_eval_role_concurrency: int = field(
+        default_factory=lambda: int(os.environ.get("MEDEVAL_ONLINE_EVAL_ROLE_CONCURRENCY", "12"))
+    )
+    # 单条线上 case 调 judge 的总尝试次数；用于兜住偶发 429/5xx/JSON 解析抖动。
+    online_eval_judge_max_attempts: int = field(
+        default_factory=lambda: int(os.environ.get("MEDEVAL_ONLINE_EVAL_JUDGE_MAX_ATTEMPTS", "3"))
+    )
+    # judge 重试基础等待秒数；实际等待按 0.8, 1.6, 3.2... 指数退避并封顶。
+    online_eval_judge_retry_base_delay_seconds: float = field(
+        default_factory=lambda: float(
+            os.environ.get("MEDEVAL_ONLINE_EVAL_JUDGE_RETRY_BASE_DELAY_SECONDS", "0.8")
+        )
+    )
 
     # --- 飞书 OAuth2 / 会话（per-user SSO 登录） ---
     # 自建应用凭证；未配置 app_id 时整套登录门禁关闭（dev 兜底，避免本地自锁）。

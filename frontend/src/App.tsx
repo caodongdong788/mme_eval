@@ -130,8 +130,8 @@ function MainLayout() {
   const selected = "/" + (location.pathname.split("/")[1] || "runs");
   const crumbs = useBreadcrumb();
   return (
-    <Layout className="app-shell" style={{ minHeight: "100vh" }}>
-      <Sider theme="light" width={236} breakpoint="lg" collapsedWidth="0" className="app-sider">
+    <Layout className="app-shell">
+      <Sider theme="light" width={236} className="app-sider">
         <div className="app-brand">
           <span className="app-brand-mark">
             <HeartFilled />
@@ -143,8 +143,8 @@ function MainLayout() {
         </div>
         <Menu mode="inline" selectedKeys={[selected]} items={MENU} style={{ borderInlineEnd: "none" }} />
       </Sider>
-      <Layout>
-        <Layout.Header style={{ paddingInline: 36 }}>
+      <Layout className="app-main-layout">
+        <Layout.Header className="app-header">
           <div className="app-content-head">
             <Breadcrumb items={crumbs} />
             <UserBar />

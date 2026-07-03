@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 import shutil
 from pathlib import Path
@@ -34,7 +33,14 @@ class _LiteralString(str):
     """YAML 输出时强制用块文本，提升线上长回复可读性。"""
 
 
+class _RepeatedCells(list):
+    """同名表头下的多个单元格，和单元格内部 rich_text list 区分开。"""
+
+
 _FEISHU_ROUND_LABELS = ("第一", "第二", "第三", "第四", "第五")
+_IMAGE_PLACEHOLDER_RE = re.compile(
+    r"\[图片[：:]\s*image_token=[A-Za-z0-9_-]+(?:[，,]\s*尺寸=\d+x\d+)?\]"
+)
 
 
 def _literal_representer(dumper: yaml.SafeDumper, data: _LiteralString):
@@ -51,19 +57,21 @@ def _literal_multiline(value: str) -> str:
 def _literalize_turn_content(case: dict[str, Any]) -> dict[str, Any]:
     item = dict(case)
     turns = item.get("turns")
-    if not isinstance(turns, list):
-        return item
-    literal_turns: list[Any] = []
-    for turn in turns:
-        if not isinstance(turn, dict):
-            literal_turns.append(turn)
-            continue
-        literal_turn = dict(turn)
-        content = literal_turn.get("content")
-        if isinstance(content, str):
-            literal_turn["content"] = _literal_multiline(content)
-        literal_turns.append(literal_turn)
-    item["turns"] = literal_turns
+    if isinstance(turns, list):
+        literal_turns: list[Any] = []
+        for turn in turns:
+            if not isinstance(turn, dict):
+                literal_turns.append(turn)
+                continue
+            literal_turn = dict(turn)
+            content = literal_turn.get("content")
+            if isinstance(content, str):
+                literal_turn["content"] = _literal_multiline(content)
+            literal_turns.append(literal_turn)
+        item["turns"] = literal_turns
+    notes = item.get("notes")
+    if isinstance(notes, str):
+        item["notes"] = _literal_multiline(notes)
     return item
 
 
@@ -121,6 +129,148 @@ def _cell_text(value: Any) -> str:
         separator = "" if all(isinstance(item, dict) for item in value) else "\n"
         return separator.join(part for part in parts if part).strip()
     return str(value).strip()
+
+
+def _cell_image_text(value: Any) -> str:
+    """只提取单元格里的真实图片占位；图片列误填普通文字时返回空。"""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return "\n".join(_IMAGE_PLACEHOLDER_RE.findall(value)).strip()
+    if isinstance(value, dict):
+        if value.get("type") == "embed-image" and value.get("image_token"):
+            return _cell_text(value)
+        if "value" in value:
+            return _cell_image_text(value.get("value"))
+        if "rich_text" in value:
+            return _cell_image_text(value.get("rich_text") or [])
+        return ""
+    if isinstance(value, list):
+        parts = [_cell_image_text(item) for item in value]
+        return "\n".join(part for part in parts if part).strip()
+    return ""
+
+
+def _normalise_feishu_header(value: str) -> str:
+    return re.sub(r"[\s()（）]+", "", (value or "").strip().lower())
+
+
+def _as_cell_list(value: Any) -> list[Any]:
+    if isinstance(value, _RepeatedCells):
+        return value
+    if value is None:
+        return []
+    return [value]
+
+
+def _field_values_by_alias(fields: dict[str, Any], aliases: list[str]) -> list[Any]:
+    values: list[Any] = []
+    alias_keys = {_normalise_feishu_header(alias) for alias in aliases}
+    for key, value in fields.items():
+        if key in aliases or _normalise_feishu_header(key) in alias_keys:
+            values.extend(_as_cell_list(value))
+    return values
+
+
+def _field_by_alias(fields: dict[str, Any], aliases: list[str]) -> Any:
+    for value in _field_values_by_alias(fields, aliases):
+        if _cell_text(value) or _cell_image_text(value):
+            return value
+    return None
+
+
+def _round_user_aliases(round_number: int, round_label: str) -> list[str]:
+    prefixes = (round_label, f"第{round_number}")
+    suffixes = ("用户输入", "用户文字", "用户输入文字", "用户输入内容")
+    return [f"{prefix}轮{suffix}" for prefix in prefixes for suffix in suffixes]
+
+
+def _round_user_image_aliases(round_number: int, round_label: str) -> list[str]:
+    prefixes = (round_label, f"第{round_number}")
+    return [
+        f"{prefix}轮用户输入图片"
+        for prefix in prefixes
+    ] + [
+        f"{prefix}轮用户输入(图片)"
+        for prefix in prefixes
+    ] + [
+        f"{prefix}轮用户输入（图片）"
+        for prefix in prefixes
+    ]
+
+
+def _round_assistant_aliases(round_number: int, round_label: str) -> list[str]:
+    prefixes = (round_label, f"第{round_number}")
+    suffixes = ("Cx输出", "Cx回复", "CX输出", "CX回复")
+    return [f"{prefix}轮{suffix}" for prefix in prefixes for suffix in suffixes]
+
+
+def _round_user_content(fields: dict[str, Any], round_number: int, round_label: str) -> str:
+    text_parts = [
+        _cell_text(value)
+        for value in _field_values_by_alias(fields, _round_user_aliases(round_number, round_label))
+    ]
+    image_parts = [
+        _cell_image_text(value)
+        for value in _field_values_by_alias(fields, _round_user_image_aliases(round_number, round_label))
+    ]
+    return "\n".join(part for part in [*text_parts, *image_parts] if part).strip()
+
+
+def _round_assistant_content(fields: dict[str, Any], round_number: int, round_label: str) -> str:
+    parts = [
+        _cell_text(value)
+        for value in _field_values_by_alias(fields, _round_assistant_aliases(round_number, round_label))
+    ]
+    return "\n".join(part for part in parts if part).strip()
+
+
+def _feishu_row_turns(fields: dict[str, Any]) -> list[dict[str, str]]:
+    turns: list[dict[str, str]] = []
+    for round_number, round_label in enumerate(_FEISHU_ROUND_LABELS, start=1):
+        user = _round_user_content(fields, round_number, round_label)
+        assistant = _round_assistant_content(fields, round_number, round_label)
+        if user:
+            turns.append({"role": "user", "content": _literal_multiline(user)})
+        if assistant:
+            turns.append({"role": "assistant", "content": _literal_multiline(assistant)})
+    return turns
+
+
+def first_user_turn_content(turns: list[Any]) -> str:
+    """返回第一轮用户输入，供线上 case 列表和 sub_scenario 展示。"""
+    for turn in turns:
+        if isinstance(turn, dict):
+            role = turn.get("role")
+            content = turn.get("content")
+        else:
+            role = getattr(turn, "role", "")
+            content = getattr(turn, "content", "")
+        if getattr(role, "value", role) == "user":
+            return " ".join(str(content or "").split()).strip()
+    return ""
+
+
+def _sheet_row_fields(headers: list[str], row: list[Any]) -> dict[str, Any]:
+    fields: dict[str, Any] = {}
+    for col_index, cell in enumerate(row):
+        if col_index >= len(headers) or not headers[col_index]:
+            continue
+        fields.setdefault(headers[col_index], _RepeatedCells()).append(cell)
+    return fields
+
+
+def _user_profile_text(fields: dict[str, Any]) -> str:
+    return _cell_text(_field_by_alias(fields, ["用户档案", "用户画像", "用户信息"]))
+
+
+def _case_notes(*, user_profile: str = "", attachment_notes: str = "") -> str:
+    parts: list[str] = []
+    if user_profile.strip():
+        parts.append(f"用户档案：\n{user_profile.strip()}")
+    if attachment_notes.strip():
+        parts.append(attachment_notes.strip())
+    return _literal_multiline("\n\n".join(parts)) if parts else ""
 
 
 def _attachment_notes(value: Any) -> str:
@@ -212,59 +362,6 @@ def _create_uploaded_benchmark_from_yaml_bytes(
     return row
 
 
-def online_jsonl_to_yaml_bytes(content: bytes) -> bytes:
-    """把线上真实对话 JSONL 转为标准 benchmark YAML。
-
-    线上文件每行是一条 Q&A，核心字段为「用户输入内容」和「Cx输出内容」。
-    转换后仍复用 TestCase schema：user/assistant 两轮作为一条完整 Q&A 留存，
-    `source=online` 便于列表和后续评测链路区分真实流量。
-    """
-    try:
-        text = content.decode("utf-8-sig")
-    except UnicodeDecodeError as exc:
-        raise BenchmarkValidationError(f"文件不是合法 UTF-8 文本：{exc}") from exc
-
-    cases: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for line_no, raw_line in enumerate(text.splitlines(), start=1):
-        line = raw_line.strip()
-        if not line:
-            continue
-        try:
-            row = json.loads(line)
-        except json.JSONDecodeError as exc:
-            raise BenchmarkValidationError(f"JSONL 第 {line_no} 行解析失败：{exc}") from exc
-        if not isinstance(row, dict):
-            raise BenchmarkValidationError(f"JSONL 第 {line_no} 行须为对象")
-
-        question = str(row.get("用户输入内容") or "").strip()
-        answer = str(row.get("Cx输出内容") or "").strip()
-        if not question or not answer:
-            raise BenchmarkValidationError(
-                f"JSONL 第 {line_no} 行缺少「用户输入内容」或「Cx输出内容」"
-            )
-
-        sample_id = _unique_online_sample_id(seen, row.get("序号"), line_no)
-
-        title = str(row.get("会话标题") or "").strip()
-        cases.append({
-            "sample_id": sample_id,
-            "scenario": "线上真实对话",
-            "sub_scenario": title or sample_id,
-            "level": "L2",
-            "score_profile": "default",
-            "source": "online",
-            "turns": [
-                {"role": "user", "content": _literal_multiline(question)},
-                {"role": "assistant", "content": _literal_multiline(answer)},
-            ],
-        })
-
-    if not cases:
-        raise BenchmarkValidationError("JSONL 中没有可转换的线上 Q&A")
-    return yaml.safe_dump(cases, allow_unicode=True, sort_keys=False).encode("utf-8")
-
-
 def feishu_base_records_to_yaml_bytes(records: list[dict[str, Any]]) -> bytes:
     """把飞书 Base 记录转为线上 benchmark YAML，完整保留每轮对话。"""
     cases: list[dict[str, Any]] = []
@@ -273,20 +370,13 @@ def feishu_base_records_to_yaml_bytes(records: list[dict[str, Any]]) -> bytes:
         fields = record.get("fields") if isinstance(record, dict) else {}
         if not isinstance(fields, dict):
             continue
-        turns: list[dict[str, str]] = []
-        for round_label in _FEISHU_ROUND_LABELS:
-            user = _cell_text(fields.get(f"{round_label}轮用户输入"))
-            assistant = _cell_text(fields.get(f"{round_label}轮Cx输出"))
-            if user:
-                turns.append({"role": "user", "content": _literal_multiline(user)})
-            if assistant:
-                turns.append({"role": "assistant", "content": _literal_multiline(assistant)})
+        turns = _feishu_row_turns(fields)
         if not turns:
             continue
 
         sample_id = _unique_online_sample_id(seen, record.get("record_id"), index)
 
-        title = _cell_text(fields.get("会话标题"))
+        title = first_user_turn_content(turns) or _cell_text(fields.get("会话标题"))
         case: dict[str, Any] = {
             "sample_id": sample_id,
             "scenario": "线上真实对话",
@@ -297,8 +387,12 @@ def feishu_base_records_to_yaml_bytes(records: list[dict[str, Any]]) -> bytes:
             "turns": turns,
         }
         image_notes = _attachment_notes(fields.get("第一轮用户输入(图片)"))
-        if image_notes:
-            case["notes"] = f"第一轮用户输入(图片)：{image_notes}"
+        notes = _case_notes(
+            user_profile=_user_profile_text(fields),
+            attachment_notes=f"第一轮用户输入(图片)：{image_notes}" if image_notes else "",
+        )
+        if notes:
+            case["notes"] = notes
         cases.append(case)
 
     if not cases:
@@ -306,41 +400,27 @@ def feishu_base_records_to_yaml_bytes(records: list[dict[str, Any]]) -> bytes:
     return yaml.safe_dump(cases, allow_unicode=True, sort_keys=False).encode("utf-8")
 
 
-def feishu_sheet_cells_to_yaml_bytes(sheet: dict[str, Any]) -> bytes:
-    """把飞书 Sheet 单元格转为线上 benchmark YAML，保留多轮文本与图片 token。"""
+def _sheet_to_cases(sheet: dict[str, Any], seen: set[str]) -> list[dict[str, Any]]:
+    """把单个飞书工作表单元格转为线上对话用例；共用 seen 保证 sample_id 全局唯一。"""
     cells = sheet.get("cells") or []
     row_indices = sheet.get("row_indices") or []
     if not cells or not isinstance(cells, list):
-        raise BenchmarkValidationError("飞书 Sheet 中没有可转换的线上对话")
+        return []
 
     headers = [_cell_text(cell) for cell in cells[0]]
     cases: list[dict[str, Any]] = []
-    seen: set[str] = set()
     for index, row in enumerate(cells[1:], start=1):
         if not isinstance(row, list):
             continue
-        fields = {
-            headers[col_index]: cell
-            for col_index, cell in enumerate(row)
-            if col_index < len(headers) and headers[col_index]
-        }
-        turns: list[dict[str, str]] = []
-        for round_label in _FEISHU_ROUND_LABELS:
-            user_cell = fields.get(f"{round_label}轮用户输入")
-            assistant_cell = fields.get(f"{round_label}轮Cx输出")
-            user = _cell_text(user_cell)
-            assistant = _cell_text(assistant_cell)
-            if user:
-                turns.append({"role": "user", "content": _literal_multiline(user)})
-            if assistant:
-                turns.append({"role": "assistant", "content": _literal_multiline(assistant)})
+        fields = _sheet_row_fields(headers, row)
+        turns = _feishu_row_turns(fields)
         if not turns:
             continue
 
         row_number = row_indices[index] if index < len(row_indices) else index + 1
         raw_id = f"{sheet.get('sheet_name') or sheet.get('sheet_id') or 'sheet'}_{row_number}"
         sample_id = _unique_online_sample_id(seen, raw_id, index)
-        title = _cell_text(fields.get("会话标题"))
+        title = first_user_turn_content(turns) or _cell_text(fields.get("会话标题"))
         case: dict[str, Any] = {
             "sample_id": sample_id,
             "scenario": "线上真实对话",
@@ -350,7 +430,19 @@ def feishu_sheet_cells_to_yaml_bytes(sheet: dict[str, Any]) -> bytes:
             "source": "online",
             "turns": turns,
         }
+        notes = _case_notes(user_profile=_user_profile_text(fields))
+        if notes:
+            case["notes"] = notes
         cases.append(case)
+    return cases
+
+
+def feishu_sheet_cells_to_yaml_bytes(sheets: list[dict[str, Any]]) -> bytes:
+    """把飞书 Sheet 多个工作表单元格汇总为线上 benchmark YAML，保留多轮文本与图片 token。"""
+    cases: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for sheet in sheets:
+        cases.extend(_sheet_to_cases(sheet, seen))
 
     if not cases:
         raise BenchmarkValidationError("飞书 Sheet 中没有可转换的线上对话")
@@ -366,10 +458,10 @@ def feishu_url_to_yaml_bytes(access_token: str, source_url: str) -> bytes:
         return feishu_base_records_to_yaml_bytes(records)
     if feishu_sheet.is_sheet_url(source_url):
         try:
-            sheet = feishu_sheet.fetch_sheet_cells(access_token, source_url)
+            sheets = feishu_sheet.fetch_sheet_cells(access_token, source_url)
         except feishu_sheet.FeishuSheetError as exc:
             raise BenchmarkValidationError(str(exc)) from exc
-        return feishu_sheet_cells_to_yaml_bytes(sheet)
+        return feishu_sheet_cells_to_yaml_bytes(sheets)
     raise BenchmarkValidationError("飞书 URL 需为 Base、Sheet 或 Wiki Sheet 链接")
 
 
@@ -502,12 +594,15 @@ def create_uploaded_benchmark(
     settings = settings or get_settings()
     name = (name or "").strip() or "未命名 benchmark"
     source = source if source in {"online", "offline"} else "offline"
-    yaml_content = online_jsonl_to_yaml_bytes(content) if source == "online" else content
+    # 线上 benchmark 只能通过飞书 Base URL 导入（见 create_uploaded_benchmark_from_feishu_url）；
+    # 文件上传仅支持 offline YAML，不再解析线上 JSONL。
+    if source == "online":
+        raise BenchmarkValidationError("线上 benchmark 只能通过飞书 Base URL 导入，不支持文件上传")
     return _create_uploaded_benchmark_from_yaml_bytes(
         session,
         name=name,
-        yaml_content=yaml_content,
-        filename=filename if source == "offline" else f"{name}.yaml",
+        yaml_content=content,
+        filename=filename,
         description=description,
         version=version or "v1",
         source=source,
@@ -733,12 +828,14 @@ def replace_uploaded_benchmark(
         raise BenchmarkValidationError("内置 benchmark 不可覆盖")
     next_source = source if source in {"online", "offline"} else benchmark.source
     next_source = next_source if next_source in {"online", "offline"} else "offline"
-    yaml_content = online_jsonl_to_yaml_bytes(content) if next_source == "online" else content
+    # 线上 benchmark 只能通过飞书 Base URL 覆盖（见 replace_uploaded_benchmark_from_feishu_url）。
+    if next_source == "online":
+        raise BenchmarkValidationError("线上 benchmark 只能通过飞书 Base URL 覆盖，不支持文件上传")
     return _replace_uploaded_benchmark_with_yaml_bytes(
         session,
         benchmark,
-        yaml_content=yaml_content,
-        filename=filename if next_source == "offline" else f"{benchmark.name}.yaml",
+        yaml_content=content,
+        filename=filename,
         source=next_source,
         settings=settings,
     )
@@ -929,3 +1026,35 @@ def save_case_yaml(
     )
     _invalidate_cases_cache(benchmark.storage_path)
     return case
+
+
+def delete_case(
+    benchmark: Benchmark,
+    sample_id: str,
+    *,
+    settings: Settings | None = None,
+) -> list[TestCase]:
+    """从上传 benchmark 的源 YAML 中删除单条 case，并返回剩余用例。"""
+    settings = settings or get_settings()
+    if benchmark.source == "builtin":
+        raise BenchmarkValidationError("内置 benchmark 不可删除单个用例")
+    path = _locate_case_file(benchmark, sample_id, settings)
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, list):
+        raise BenchmarkValidationError("源 YAML 须为用例列表")
+
+    updated: list[Any] = []
+    found = False
+    for entry in raw:
+        if isinstance(entry, dict) and entry.get("sample_id") == sample_id:
+            found = True
+            continue
+        updated.append(entry)
+    if not found:
+        raise BenchmarkValidationError(f"源文件中未找到用例 {sample_id}")
+
+    path.write_text(
+        yaml.safe_dump(updated, allow_unicode=True, sort_keys=False), encoding="utf-8"
+    )
+    _invalidate_cases_cache(benchmark.storage_path)
+    return load_benchmark_cases(benchmark, settings=settings)

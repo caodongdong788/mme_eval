@@ -428,6 +428,7 @@ class OnlineEvalCaseCreate(BaseModel):
     user_text: str = ""
     assistant_text: str = ""
     raw_messages: list[dict[str, Any]] = Field(default_factory=list)
+    user_profile: str = ""
 
 
 class OnlineEvalCreate(BaseModel):
@@ -451,10 +452,12 @@ class OnlineEvalCaseOut(BaseModel):
     user_text: str = ""
     assistant_text: str = ""
     raw_messages: list[Any] = Field(default_factory=list)
+    user_profile: str = ""
     task_type: str = "unknown"
     gate_status: str
-    total_score_10: float
+    total_score: float
     grade: str
+    score_breakdown: dict[str, Any] = Field(default_factory=dict)
     dimension_scores: dict[str, Any] = Field(default_factory=dict)
     dimension_feedback: dict[str, Any] = Field(default_factory=dict)
     risk_tags: list[str] = Field(default_factory=list)
@@ -478,7 +481,7 @@ class OnlineEvalOut(BaseModel):
     benchmark_id: Optional[int] = None
     raw_import_payload: dict[str, Any] = Field(default_factory=dict)
     case_count: int
-    avg_score_10: float
+    avg_score: float
     gate_fail_count: int
     needs_review_count: int
     risk_tag_counter: dict[str, Any] = Field(default_factory=dict)
@@ -500,6 +503,66 @@ class OnlineEvalExportOut(BaseModel):
     url: str
     count: int
     filename: str
+
+
+class OnlineAnnotationPoolPathCreate(BaseModel):
+    path: str = Field(min_length=1, max_length=300)
+    description: str = ""
+
+
+class OnlineAnnotationPoolPathUpdate(BaseModel):
+    path: str = Field(min_length=1, max_length=300)
+    description: str = ""
+
+
+class OnlineAnnotationPoolFeishuImport(BaseModel):
+    path: str = Field(min_length=1, max_length=300)
+    description: str = ""
+    source_url: str = Field(min_length=1, max_length=1000)
+
+
+class OnlineAnnotationPoolPathOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    path: str
+    description: str = ""
+    case_count: int = 0
+    created_by: Optional[str] = None
+    created_at: Optional[ApiDateTime] = None
+
+
+class OnlineAnnotationPoolCaseAdd(BaseModel):
+    online_eval_case_id: int
+
+
+class OnlineAnnotationPoolCaseOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    path_id: int
+    source_eval_id: int
+    source_case_id: int
+    external_id: str = ""
+    case_name: str = ""
+    user_text: str = ""
+    assistant_text: str = ""
+    raw_messages: list[Any] = Field(default_factory=list)
+    user_profile: str = ""
+    task_type: str = "unknown"
+    review_role: str = ""
+    gate_status: str = "pass"
+    total_score: float = 0.0
+    grade: str = ""
+    score_breakdown: dict[str, Any] = Field(default_factory=dict)
+    dimension_scores: dict[str, Any] = Field(default_factory=dict)
+    dimension_feedback: dict[str, Any] = Field(default_factory=dict)
+    risk_tags: list[str] = Field(default_factory=list)
+    evidence: list[Any] = Field(default_factory=list)
+    improvement_suggestions: list[str] = Field(default_factory=list)
+    benchmark_candidate: bool = False
+    created_by: Optional[str] = None
+    created_at: Optional[ApiDateTime] = None
 
 
 # ---------------------------------------------------------------------------

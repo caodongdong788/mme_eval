@@ -19,6 +19,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -280,7 +281,7 @@ class OnlineEval(Base):
     raw_import_payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
     case_count: Mapped[int] = mapped_column(Integer, default=0)
-    avg_score_10: Mapped[float] = mapped_column(Float, default=0.0)
+    avg_score: Mapped[float] = mapped_column(Float, default=0.0)
     gate_fail_count: Mapped[int] = mapped_column(Integer, default=0)
     needs_review_count: Mapped[int] = mapped_column(Integer, default=0)
     risk_tag_counter: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
@@ -315,11 +316,15 @@ class OnlineEvalCase(Base):
     user_text: Mapped[str] = mapped_column(Text, default="")
     assistant_text: Mapped[str] = mapped_column(Text, default="")
     raw_messages: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    user_profile: Mapped[str] = mapped_column(Text, default="")
 
     task_type: Mapped[str] = mapped_column(String(60), default="unknown")
+    # 导出飞书清单时按医生/护士/患者分 sheet 的复核角色；空=未分类。
+    review_role: Mapped[str] = mapped_column(String(20), default="")
     gate_status: Mapped[str] = mapped_column(String(30), default="pass")
-    total_score_10: Mapped[float] = mapped_column(Float, default=0.0)
+    total_score: Mapped[float] = mapped_column(Float, default=0.0)
     grade: Mapped[str] = mapped_column(String(30), default="")
+    score_breakdown: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     dimension_scores: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     dimension_feedback: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     risk_tags: Mapped[list[str]] = mapped_column(JSON, default=list)
@@ -327,6 +332,63 @@ class OnlineEvalCase(Base):
     improvement_suggestions: Mapped[list[str]] = mapped_column(JSON, default=list)
     benchmark_candidate: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class OnlineAnnotationPoolPath(Base):
+    """线上标注池路径：用于收集满意 case，并按路径导出清单。"""
+
+    __tablename__ = "online_annotation_pool_path"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    path: Mapped[str] = mapped_column(String(300), unique=True, index=True)
+    description: Mapped[str] = mapped_column(Text, default="")
+    created_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    cases: Mapped[list["OnlineAnnotationPoolCase"]] = relationship(
+        back_populates="pool_path", cascade="all, delete-orphan"
+    )
+
+
+class OnlineAnnotationPoolCase(Base):
+    """标注池中的线上 case 快照。"""
+
+    __tablename__ = "online_annotation_pool_case"
+    __table_args__ = (
+        UniqueConstraint("path_id", "source_case_id", name="uq_annotation_pool_path_case"),
+        Index("ix_annotation_pool_case_path_created", "path_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    path_id: Mapped[int] = mapped_column(
+        ForeignKey("online_annotation_pool_path.id"), index=True, nullable=False
+    )
+    pool_path: Mapped["OnlineAnnotationPoolPath"] = relationship(back_populates="cases")
+
+    source_eval_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    source_case_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    external_id: Mapped[str] = mapped_column(String(200), default="")
+    case_name: Mapped[str] = mapped_column(Text, default="")
+    user_text: Mapped[str] = mapped_column(Text, default="")
+    assistant_text: Mapped[str] = mapped_column(Text, default="")
+    raw_messages: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    user_profile: Mapped[str] = mapped_column(Text, default="")
+
+    task_type: Mapped[str] = mapped_column(String(60), default="unknown")
+    review_role: Mapped[str] = mapped_column(String(20), default="")
+    gate_status: Mapped[str] = mapped_column(String(30), default="pass")
+    total_score: Mapped[float] = mapped_column(Float, default=0.0)
+    grade: Mapped[str] = mapped_column(String(30), default="")
+    score_breakdown: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    dimension_scores: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    dimension_feedback: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    risk_tags: Mapped[list[str]] = mapped_column(JSON, default=list)
+    evidence: Mapped[list[Any]] = mapped_column(JSON, default=list)
+    improvement_suggestions: Mapped[list[str]] = mapped_column(JSON, default=list)
+    benchmark_candidate: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    created_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 

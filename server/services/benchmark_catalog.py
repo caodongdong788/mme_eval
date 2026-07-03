@@ -80,7 +80,11 @@ def list_benchmark_case_briefs(session: Session, benchmark_id: int) -> list[Case
         CaseBrief(
             sample_id=c.sample_id,
             scenario=c.scenario,
-            sub_scenario=c.sub_scenario,
+            sub_scenario=(
+                bm_domain.first_user_turn_content(c.turns)
+                if bm.source == "online"
+                else c.sub_scenario
+            ) or c.sub_scenario or c.sample_id,
             level=getattr(c.level, "value", c.level),
             score_profile=getattr(c.score_profile, "value", c.score_profile),
         )
@@ -119,6 +123,17 @@ def save_benchmark_case_yaml(
         case_file=case_file,
         yaml_text=text,
     )
+
+
+def delete_benchmark_case(session: Session, benchmark_id: int, sample_id: str) -> None:
+    bm = get_benchmark_or_404(session, benchmark_id)
+    try:
+        cases = bm_domain.delete_case(bm, sample_id)
+    except bm_domain.BenchmarkValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    bm.case_count = len(cases)
+    bm.tags = bm_domain._collect_score_profiles(cases) if cases else []
+    bm.levels = bm_domain._collect_levels(cases) if cases else []
 
 
 def export_download(benchmark_id: int, session: Session) -> tuple[str, str]:

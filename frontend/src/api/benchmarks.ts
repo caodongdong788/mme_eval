@@ -24,6 +24,8 @@ export const benchmarksApi = {
         yaml_text,
       })
       .then((r) => r.data),
+  deleteBenchmarkCase: (benchmarkId: number, sampleId: string) =>
+    http.delete(`/benchmarks/${benchmarkId}/cases/${sampleId}`),
   uploadBenchmark: (form: FormData) =>
     http.post<Benchmark>("/benchmarks", form).then((r) => r.data),
   replaceBenchmark: (id: number, form: FormData) =>

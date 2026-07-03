@@ -213,6 +213,7 @@ export interface OnlineEvalCasePayload {
   user_text?: string;
   assistant_text?: string;
   raw_messages?: Array<Record<string, any>>;
+  user_profile?: string;
 }
 
 export interface OnlineEvalCreatePayload {
@@ -234,10 +235,12 @@ export interface OnlineEvalCase {
   user_text: string;
   assistant_text: string;
   raw_messages: any[];
+  user_profile?: string;
   task_type: string;
   gate_status: "pass" | "fail" | "need_human_review" | string;
-  total_score_10: number;
+  total_score: number;
   grade: string;
+  score_breakdown?: Record<string, number>;
   dimension_scores: Record<string, number>;
   dimension_feedback: Record<
     string,
@@ -266,7 +269,7 @@ export interface OnlineEval {
   benchmark_id?: number | null;
   raw_import_payload: Record<string, any>;
   case_count: number;
-  avg_score_10: number;
+  avg_score: number;
   gate_fail_count: number;
   needs_review_count: number;
   risk_tag_counter: Record<string, number>;
@@ -295,6 +298,43 @@ export interface OnlineEvalExportResult {
   url: string;
   count: number;
   filename: string;
+}
+
+export interface OnlineAnnotationPoolPath {
+  id: number;
+  path: string;
+  description: string;
+  case_count: number;
+  created_by?: string | null;
+  created_at?: string | null;
+}
+
+export interface OnlineAnnotationPoolPathCreatePayload {
+  path: string;
+  description?: string;
+}
+
+export interface OnlineAnnotationPoolPathUpdatePayload {
+  path: string;
+  description?: string;
+}
+
+export interface OnlineAnnotationPoolFeishuImportPayload {
+  path: string;
+  description?: string;
+  source_url: string;
+}
+
+export interface OnlineAnnotationPoolCaseAddPayload {
+  online_eval_case_id: number;
+}
+
+export interface OnlineAnnotationPoolCase extends OnlineEvalCase {
+  path_id: number;
+  source_eval_id: number;
+  source_case_id: number;
+  review_role: string;
+  created_by?: string | null;
 }
 
 export interface AnnotatePayload {

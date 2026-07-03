@@ -10,7 +10,6 @@ import {
   Space,
   Table,
   Tag,
-  Typography,
   Upload,
 } from "antd";
 import {
@@ -23,10 +22,9 @@ import { api } from "../api/index";
 import { AsyncLoadError } from "../components/AsyncLoadError";
 import { DashTableActions, DashTableDangerLink, DashTableLink } from "../components/DashTableActions";
 import { DashboardPageShell } from "../components/DashboardPageShell";
+import { createBenchmarkCaseColumns } from "../components/BenchmarkCaseColumns";
 import { OnlineCasePreview } from "../components/OnlineCasePreview";
 import { useBenchmarksPage } from "../hooks/useBenchmarksPage";
-import { PROFILE_LABEL } from "../labels";
-import type { CaseBrief } from "../api/types";
 
 function benchmarkSourceLabel(source: string) {
   if (source === "builtin") return "内置";
@@ -95,23 +93,12 @@ export default function BenchmarksPage() {
     },
   ];
 
-  const caseColumns = [
-    {
-      title: "子场景",
-      dataIndex: "sub_scenario",
-      render: (text: string, row: CaseBrief) => (
-        <DashTableLink onClick={() => bm.openCaseYaml(row)}>{text || row.sample_id}</DashTableLink>
-      ),
-    },
-    { title: "场景", dataIndex: "scenario" },
-    { title: "Level", dataIndex: "level", width: 80 },
-    {
-      title: "Profile",
-      dataIndex: "score_profile",
-      width: 120,
-      render: (p: string) => PROFILE_LABEL[p] || p,
-    },
-  ];
+  const caseColumns = createBenchmarkCaseColumns({
+    isOnlineCase,
+    isBuiltin: bm.casesBenchmark?.source === "builtin",
+    onOpenCase: bm.openCaseYaml,
+    onDeleteCase: bm.deleteCase,
+  });
 
   return (
     <DashboardPageShell
@@ -181,35 +168,33 @@ export default function BenchmarksPage() {
             />
           </Form.Item>
           {bm.sourceMode === "online" ? (
-            <Form.Item name="source_url" label="飞书 URL（Base / Sheet / Wiki，可替代文件上传）">
+            <Form.Item
+              name="source_url"
+              label="飞书 URL（Base / Sheet / Wiki）"
+              rules={[{ required: true, message: "请粘贴飞书 Base / Sheet / Wiki 链接" }]}
+              extra="线上 benchmark 通过飞书表格导入，完整保留多轮对话；不支持文件上传。"
+            >
               <Input placeholder="粘贴 https://*.feishu.cn/base、/sheets 或 /wiki 链接" />
             </Form.Item>
-          ) : null}
-          <Form.Item
-            label={bm.sourceMode === "online" ? "线上对话来源（JSONL / 飞书 URL）" : "用例文件 (.yaml)"}
-            extra={
-              bm.sourceMode === "online"
-                ? "支持粘贴飞书 Base、Sheet、Wiki 表格 URL，或上传 JSONL；上传后会转换为保留多轮对话的线上 benchmark。"
-                : "线下 benchmark 使用标准 YAML 用例集，格式同 cases/。"
-            }
-          >
-            <Upload.Dragger
-              accept={bm.sourceMode === "online" ? ".jsonl,.json" : ".yaml,.yml"}
-              maxCount={1}
-              fileList={bm.fileList}
-              beforeUpload={() => false}
-              onChange={({ fileList }) => bm.setFileList(fileList)}
+          ) : (
+            <Form.Item
+              label="用例文件 (.yaml)"
+              extra="线下 benchmark 使用标准 YAML 用例集，格式同 cases/。"
             >
-              <p className="ant-upload-drag-icon">
-                <InboxOutlined />
-              </p>
-              <p>
-                {bm.sourceMode === "online"
-                  ? "点击或拖拽 JSONL 文件，或直接使用上方飞书 URL"
-                  : "点击或拖拽 YAML 用例文件到此处"}
-              </p>
-            </Upload.Dragger>
-          </Form.Item>
+              <Upload.Dragger
+                accept=".yaml,.yml"
+                maxCount={1}
+                fileList={bm.fileList}
+                beforeUpload={() => false}
+                onChange={({ fileList }) => bm.setFileList(fileList)}
+              >
+                <p className="ant-upload-drag-icon">
+                  <InboxOutlined />
+                </p>
+                <p>点击或拖拽 YAML 用例文件到此处</p>
+              </Upload.Dragger>
+            </Form.Item>
+          )}
         </Form>
       </Modal>
 
@@ -265,11 +250,6 @@ export default function BenchmarksPage() {
           )
         }
       >
-        {bm.caseYamlMeta?.caseFile ? (
-          <Typography.Text type="secondary" style={{ display: "block", marginBottom: 8, fontSize: 12 }}>
-            源文件：{bm.caseYamlMeta.caseFile}
-          </Typography.Text>
-        ) : null}
         {bm.casesBenchmark?.source === "builtin" ? (
           <Alert
             type="warning"

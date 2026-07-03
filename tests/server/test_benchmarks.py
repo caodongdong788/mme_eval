@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import json
-
 import yaml
 import pytest
 
 from server.benchmarks import (
     BenchmarkValidationError,
+    _create_uploaded_benchmark_from_yaml_bytes,
     create_uploaded_benchmark,
     create_uploaded_benchmark_from_feishu_base,
     create_uploaded_benchmark_from_feishu_url,
@@ -17,7 +16,6 @@ from server.benchmarks import (
     feishu_base_records_to_yaml_bytes,
     feishu_sheet_cells_to_yaml_bytes,
     load_benchmark_cases,
-    online_jsonl_to_yaml_bytes,
     overwrite_benchmark_from_yaml,
     export_case_yaml,
     replace_uploaded_benchmark,
@@ -86,48 +84,21 @@ def test_export_and_replace_benchmark(session, settings):
     assert {c.sample_id for c in cases} == {"rep_1"}
 
 
-ONLINE_JSONL = (
-    '{"序号":"28","会话标题":"内分泌治疗骨密度检查频率","对话链接":"https://cx.senzco.com/s/demo",'
-    '"用户发送时间":"2026-06-29 06:25:24","Cx回复时间":"2026-06-29 06:25:35",'
-    '"用户输入内容":"内分泌治疗期间骨密度检查一般多久做一次？",'
-    '"Cx输出内容":"骨密度检查频率主要看骨量基线情况和用药方案。","是否点踩":"Y"}\n'
-    '{"序号":"99","会话标题":"抗阻运动与瑜伽对比","用户输入内容":"抗阻运动好还是做瑜伽好",'
-    '"Cx输出内容":"两种运动各有侧重，建议从轻量开始。","是否点踩":"N"}\n'
-).encode("utf-8")
+def _online_yaml_bytes(cases: list[dict]) -> bytes:
+    return yaml.safe_dump(cases, allow_unicode=True, sort_keys=False).encode("utf-8")
 
 
-def test_online_jsonl_converts_to_qa_yaml():
-    data = yaml.safe_load(online_jsonl_to_yaml_bytes(ONLINE_JSONL).decode("utf-8"))
-
-    assert len(data) == 2
-    assert data[0]["sample_id"] == "online_28"
-    assert data[0]["source"] == "online"
-    assert data[0]["turns"] == [
-        {"role": "user", "content": "内分泌治疗期间骨密度检查一般多久做一次？"},
-        {"role": "assistant", "content": "骨密度检查频率主要看骨量基线情况和用药方案。"},
-    ]
-    assert set(data[0]) == {
-        "sample_id",
-        "scenario",
-        "sub_scenario",
-        "level",
-        "score_profile",
-        "source",
-        "turns",
-    }
-
-
-def test_online_jsonl_deduplicates_colliding_sample_ids():
-    rows = [
-        {"序号": "a!", "用户输入内容": "第一问", "Cx输出内容": "第一答"},
-        {"序号": "a?", "用户输入内容": "第二问", "Cx输出内容": "第二答"},
-        {"序号": "a_2", "用户输入内容": "第三问", "Cx输出内容": "第三答"},
-    ]
-    content = "\n".join(json.dumps(row, ensure_ascii=False) for row in rows).encode("utf-8")
-
-    data = yaml.safe_load(online_jsonl_to_yaml_bytes(content).decode("utf-8"))
-
-    assert [item["sample_id"] for item in data] == ["online_a", "online_a_2", "online_a_2_2"]
+def test_upload_online_file_rejected(session, settings):
+    # 线上 benchmark 只能经飞书 Base URL 导入；文件上传（含旧 JSONL）一律拒绝。
+    with pytest.raises(BenchmarkValidationError):
+        create_uploaded_benchmark(
+            session,
+            name="线上文件",
+            content='{"用户输入内容":"x","Cx输出内容":"y"}\n'.encode("utf-8"),
+            filename="x.jsonl",
+            source="online",
+            settings=settings,
+        )
 
 
 def test_feishu_base_records_convert_to_multiturn_online_yaml():
@@ -150,7 +121,7 @@ def test_feishu_base_records_convert_to_multiturn_online_yaml():
     data = yaml.safe_load(feishu_base_records_to_yaml_bytes(records).decode("utf-8"))
 
     assert data[0]["sample_id"] == "online_rec_a"
-    assert data[0]["sub_scenario"] == "乳腺癌内分泌期能否吃糖"
+    assert data[0]["sub_scenario"] == "能吃糖吗"
     assert data[0]["source"] == "online"
     assert data[0]["turns"] == [
         {"role": "user", "content": "能吃糖吗"},
@@ -222,7 +193,7 @@ def test_feishu_sheet_cells_convert_multiturn_images_to_online_yaml():
         ],
     }
 
-    data = yaml.safe_load(feishu_sheet_cells_to_yaml_bytes(sheet).decode("utf-8"))
+    data = yaml.safe_load(feishu_sheet_cells_to_yaml_bytes([sheet]).decode("utf-8"))
 
     assert data[0]["sample_id"] == "online_20260629_55"
     assert data[0]["source"] == "online"
@@ -241,6 +212,184 @@ def test_feishu_sheet_cells_convert_multiturn_images_to_online_yaml():
         {"role": "assistant", "content": "第五答"},
     ]
     assert "notes" not in data[0]
+
+
+def test_feishu_sheet_cells_merge_text_and_image_columns_per_turn():
+    sheet = {
+        "sheet_id": "7bafeb",
+        "sheet_name": "Sheet1",
+        "row_indices": [1, 2],
+        "cells": [
+            [
+                {"value": "序号"},
+                {"value": "用户档案"},
+                {"value": "第1轮用户输入"},
+                {"value": "第1轮用户输入图片"},
+                {"value": "第1轮Cx回复"},
+                {"value": "第2轮用户输入"},
+                {"value": "第2轮用户输入图片"},
+                {"value": "第2轮Cx回复"},
+            ],
+            [
+                {"value": "1"},
+                {"value": "性别:女"},
+                {"value": "这两份茶可以喝吗"},
+                {
+                    "rich_text": [
+                        {
+                            "type": "embed-image",
+                            "image_token": "TeaImageToken",
+                            "image_width": 800,
+                            "image_height": 600,
+                        }
+                    ]
+                },
+                {"value": "第一答"},
+                {"value": "普洱呢"},
+                {"value": "这里误填了一段文字，不应该进入用户输入"},
+                {"value": "第二答"},
+            ],
+        ],
+    }
+
+    data = yaml.safe_load(feishu_sheet_cells_to_yaml_bytes([sheet]).decode("utf-8"))
+
+    assert data[0]["sample_id"] == "online_Sheet1_2"
+    assert data[0]["sub_scenario"] == (
+        "这两份茶可以喝吗 [图片：image_token=TeaImageToken，尺寸=800x600]"
+    )
+    assert data[0]["turns"] == [
+        {
+            "role": "user",
+            "content": "这两份茶可以喝吗\n[图片：image_token=TeaImageToken，尺寸=800x600]",
+        },
+        {"role": "assistant", "content": "第一答"},
+        {"role": "user", "content": "普洱呢"},
+        {"role": "assistant", "content": "第二答"},
+    ]
+
+
+def test_feishu_sheet_cells_imports_new_text_and_image_split_tabs_with_profile():
+    text_sheet = {
+        "sheet_id": "0kRFoB",
+        "sheet_name": "纯文字",
+        "row_indices": [1, 2],
+        "cells": [
+            [
+                {"value": "序号"},
+                {"value": "用户档案"},
+                {"value": "第1轮用户文字"},
+                {"value": "第1轮cx输出"},
+                {"value": "第2轮用户文字"},
+                {"value": "第2轮cx输出"},
+            ],
+            [
+                {"value": "1"},
+                {"value": "女，32岁，内分泌治疗中"},
+                {"value": "纯文字第一问"},
+                {"value": "纯文字第一答"},
+                {"value": "纯文字第二问"},
+                {"value": "纯文字第二答"},
+            ],
+        ],
+    }
+    image_sheet = {
+        "sheet_id": "ubK3kj",
+        "sheet_name": "含图片",
+        "row_indices": [1, 3],
+        "cells": [
+            [
+                {"value": "用户档案"},
+                {"value": "第一轮用户输入"},
+                {"value": "第一轮Cx输出"},
+                {"value": "第二轮用户输入"},
+                {"value": "第二轮用户输入"},
+                {"value": "第二轮用户输入"},
+                {"value": "第二轮用户输入"},
+                {"value": "第二轮Cx输出"},
+            ],
+            [
+                {"value": "男，45岁，术后复查"},
+                {"value": "第一轮文字"},
+                {"value": "第一轮回答"},
+                {"value": "第二轮补充文字"},
+                {
+                    "rich_text": [
+                        {
+                            "type": "embed-image",
+                            "image_token": "ImageTokenA",
+                            "image_width": 1000,
+                            "image_height": 800,
+                        }
+                    ]
+                },
+                {
+                    "rich_text": [
+                        {
+                            "type": "embed-image",
+                            "image_token": "ImageTokenB",
+                            "image_width": 600,
+                            "image_height": 400,
+                        }
+                    ]
+                },
+                {"value": "第二轮另一段文字"},
+                {"value": "第二轮回答"},
+            ],
+        ],
+    }
+
+    data = yaml.safe_load(
+        feishu_sheet_cells_to_yaml_bytes([text_sheet, image_sheet]).decode("utf-8")
+    )
+
+    assert len(data) == 2
+    assert data[0]["turns"] == [
+        {"role": "user", "content": "纯文字第一问"},
+        {"role": "assistant", "content": "纯文字第一答"},
+        {"role": "user", "content": "纯文字第二问"},
+        {"role": "assistant", "content": "纯文字第二答"},
+    ]
+    assert data[0]["sub_scenario"] == "纯文字第一问"
+    assert data[1]["sub_scenario"] == "第一轮文字"
+    assert data[0]["notes"] == "用户档案：\n女，32岁，内分泌治疗中"
+    assert data[1]["turns"] == [
+        {"role": "user", "content": "第一轮文字"},
+        {"role": "assistant", "content": "第一轮回答"},
+        {
+            "role": "user",
+            "content": (
+                "第二轮补充文字\n"
+                "[图片：image_token=ImageTokenA，尺寸=1000x800]\n"
+                "[图片：image_token=ImageTokenB，尺寸=600x400]\n"
+                "第二轮另一段文字"
+            ),
+        },
+        {"role": "assistant", "content": "第二轮回答"},
+    ]
+    assert data[1]["notes"] == "用户档案：\n男，45岁，术后复查"
+
+
+def test_feishu_sheet_cells_aggregate_multiple_tabs():
+    def _tab(name: str, question: str) -> dict:
+        return {
+            "sheet_id": name,
+            "sheet_name": name,
+            "row_indices": [1, 2],
+            "cells": [
+                [{"value": "会话标题"}, {"value": "第一轮用户输入"}, {"value": "第一轮Cx输出"}],
+                [{"value": f"{name}标题"}, {"value": question}, {"value": "答"}],
+            ],
+        }
+
+    sheets = [_tab("day1", "问A"), _tab("day2", "问B")]
+    data = yaml.safe_load(feishu_sheet_cells_to_yaml_bytes(sheets).decode("utf-8"))
+
+    # 两张表各产出一条用例，sample_id 跨表唯一（tab 名进 sample_id 前缀）。
+    assert len(data) == 2
+    assert [c["sample_id"] for c in data] == ["online_day1_2", "online_day2_2"]
+    assert data[0]["turns"][0]["content"] == "问A"
+    assert data[1]["turns"][0]["content"] == "问B"
 
 
 def test_upload_online_feishu_base_benchmark(session, settings, monkeypatch):
@@ -285,28 +434,30 @@ def test_upload_online_feishu_sheet_benchmark(session, settings, monkeypatch):
     def fake_fetch(access_token: str, source_url: str):
         assert access_token == "u-token"
         assert source_url == "https://example.feishu.cn/wiki/sht_token"
-        return {
-            "sheet_id": "bdbf75",
-            "sheet_name": "20260629",
-            "row_indices": [1, 9],
-            "cells": [
-                [{"value": "会话标题"}, {"value": "第一轮用户输入"}, {"value": "第一轮Cx输出"}],
-                [
-                    {"value": "图片咨询"},
-                    {
-                        "rich_text": [
-                            {
-                                "type": "embed-image",
-                                "image_token": "RKuObri3Wob9j5x8Nk4cHEk1nOh",
-                                "image_width": 739,
-                                "image_height": 1600,
-                            }
-                        ]
-                    },
-                    {"value": "报告解读"},
+        return [
+            {
+                "sheet_id": "bdbf75",
+                "sheet_name": "20260629",
+                "row_indices": [1, 9],
+                "cells": [
+                    [{"value": "会话标题"}, {"value": "第一轮用户输入"}, {"value": "第一轮Cx输出"}],
+                    [
+                        {"value": "图片咨询"},
+                        {
+                            "rich_text": [
+                                {
+                                    "type": "embed-image",
+                                    "image_token": "RKuObri3Wob9j5x8Nk4cHEk1nOh",
+                                    "image_width": 739,
+                                    "image_height": 1600,
+                                }
+                            ]
+                        },
+                        {"value": "报告解读"},
+                    ],
                 ],
-            ],
-        }
+            }
+        ]
 
     monkeypatch.setattr(feishu_sheet, "fetch_sheet_cells", fake_fetch)
 
@@ -325,31 +476,25 @@ def test_upload_online_feishu_sheet_benchmark(session, settings, monkeypatch):
     assert "image_token=RKuObri3Wob9j5x8Nk4cHEk1nOh" in cases[0].turns[0].content
 
 
-def test_upload_online_jsonl_benchmark(session, settings):
-    bm = create_uploaded_benchmark(
-        session,
-        name="线上问题集",
-        content=ONLINE_JSONL,
-        filename="20260629.jsonl",
-        source="online",
-        settings=settings,
-    )
-    session.commit()
-
-    assert bm.source == "online"
-    assert bm.case_count == 2
-    cases = load_benchmark_cases(bm, settings=settings)
-    assert [c.sample_id for c in cases] == ["online_28", "online_99"]
-    assert cases[0].turns[0].role == "user"
-    assert cases[0].turns[1].role == "assistant"
-
-
 def test_export_online_case_yaml_keeps_minimal_qa(session, settings):
-    bm = create_uploaded_benchmark(
+    bm = _create_uploaded_benchmark_from_yaml_bytes(
         session,
         name="线上短用例",
-        content=ONLINE_JSONL,
-        filename="20260629.jsonl",
+        yaml_content=_online_yaml_bytes([
+            {
+                "sample_id": "online_28",
+                "scenario": "线上真实对话",
+                "sub_scenario": "内分泌治疗骨密度检查频率",
+                "level": "L2",
+                "score_profile": "default",
+                "source": "online",
+                "turns": [
+                    {"role": "user", "content": "内分泌治疗期间骨密度检查一般多久做一次？"},
+                    {"role": "assistant", "content": "骨密度检查频率主要看骨量基线情况和用药方案。"},
+                ],
+            }
+        ]),
+        filename="online.yaml",
         source="online",
         settings=settings,
     )
@@ -371,17 +516,25 @@ def test_export_online_case_yaml_keeps_minimal_qa(session, settings):
 
 
 def test_export_online_case_yaml_uses_block_content_for_multiline(session, settings):
-    row = {
-        "序号": "28",
-        "会话标题": "内分泌治疗骨密度检查频率",
-        "用户输入内容": "内分泌治疗期间骨密度检查一般多久做一次？",
-        "Cx输出内容": "骨密度检查主要看骨量基线情况和用药方案。\n\n- 基线评估：开始时做一次\n- 常规随访：通常每 1-2 年复查一次",
-    }
-    bm = create_uploaded_benchmark(
+    answer = "骨密度检查主要看骨量基线情况和用药方案。\n\n- 基线评估：开始时做一次\n- 常规随访：通常每 1-2 年复查一次"
+    bm = _create_uploaded_benchmark_from_yaml_bytes(
         session,
         name="线上长回复",
-        content=(json.dumps(row, ensure_ascii=False) + "\n").encode("utf-8"),
-        filename="20260629.jsonl",
+        yaml_content=_online_yaml_bytes([
+            {
+                "sample_id": "online_28",
+                "scenario": "线上真实对话",
+                "sub_scenario": "内分泌治疗骨密度检查频率",
+                "level": "L2",
+                "score_profile": "default",
+                "source": "online",
+                "turns": [
+                    {"role": "user", "content": "内分泌治疗期间骨密度检查一般多久做一次？"},
+                    {"role": "assistant", "content": answer},
+                ],
+            }
+        ]),
+        filename="online.yaml",
         source="online",
         settings=settings,
     )
@@ -392,7 +545,39 @@ def test_export_online_case_yaml_uses_block_content_for_multiline(session, setti
 
     assert "content: |" in text
     assert "content: '" not in text
-    assert data[0]["turns"][1]["content"] == row["Cx输出内容"]
+    assert data[0]["turns"][1]["content"] == answer
+
+
+def test_export_online_case_yaml_uses_block_notes_for_user_profile(session, settings):
+    bm = _create_uploaded_benchmark_from_yaml_bytes(
+        session,
+        name="线上用户档案",
+        yaml_content=_online_yaml_bytes([
+            {
+                "sample_id": "online_profile",
+                "scenario": "线上真实对话",
+                "sub_scenario": "第一问",
+                "level": "L2",
+                "score_profile": "default",
+                "source": "online",
+                "turns": [
+                    {"role": "user", "content": "第一问"},
+                    {"role": "assistant", "content": "第一答"},
+                ],
+                "notes": "用户档案：\n女，32岁\n用药：依西美坦",
+            }
+        ]),
+        filename="online.yaml",
+        source="online",
+        settings=settings,
+    )
+    session.commit()
+
+    _, text = export_case_yaml(bm, "online_profile", settings=settings)
+    data = yaml.safe_load(text)
+
+    assert "notes: |" in text
+    assert data[0]["notes"] == "用户档案：\n女，32岁\n用药：依西美坦"
 
 
 def test_replace_builtin_rejected(session, settings):

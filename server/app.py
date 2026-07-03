@@ -133,6 +133,7 @@ def create_app() -> FastAPI:
         config,
         dashboard,
         judge_models,
+        online_annotation_pool,
         online_evals,
         runs,
     )
@@ -144,6 +145,7 @@ def create_app() -> FastAPI:
     app.include_router(dashboard.router)
     app.include_router(config.router)
     app.include_router(judge_models.router)
+    app.include_router(online_annotation_pool.router)
     app.include_router(online_evals.router)
     app.include_router(compare.router)
 

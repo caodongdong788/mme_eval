@@ -56,16 +56,18 @@ export function useBenchmarksPage() {
       const source = form.getFieldValue("source") || "offline";
       const sourceUrl = String(values.source_url || "").trim();
       const file = fileList[0]?.originFileObj;
-      if (source === "online" && !sourceUrl && !file) {
-        message.error("请填写飞书 URL 或选择 JSONL 线上对话文件");
-        return;
-      }
-      if (source !== "online" && !file) {
+      if (source === "online") {
+        if (!sourceUrl) {
+          message.error("请填写飞书 Base / Sheet / Wiki URL");
+          return;
+        }
+      } else if (!file) {
         message.error("请选择一个 YAML 用例文件");
         return;
       }
       const fd = new FormData();
-      if (file) fd.append("file", file);
+      // 线上只走飞书 URL，不再上传文件；线下才带 YAML 文件。
+      if (source !== "online" && file) fd.append("file", file);
       fd.append("source", source);
       if (sourceUrl) fd.append("source_url", sourceUrl);
       if (replaceId != null) {
@@ -135,13 +137,34 @@ export function useBenchmarksPage() {
       setCaseYamlText(res.yaml_text);
       setCaseYamlMeta((m) => (m ? { ...m, caseFile: res.case_file } : m));
       message.success("用例已保存");
-      setCases(await api.getBenchmarkCases(casesBenchmark.id));
+      const nextCases = await api.getBenchmarkCases(casesBenchmark.id);
+      setCases(nextCases);
+      setCasesTitle(`${casesBenchmark.name}（${nextCases.length} 条用例）`);
       reload();
       setCaseYamlOpen(false);
     } catch (e: unknown) {
       message.error(formatApiError(e, "保存失败"));
     } finally {
       setCaseYamlSaving(false);
+    }
+  };
+
+  const deleteCase = async (row: CaseBrief) => {
+    if (!casesBenchmark) return;
+    try {
+      await api.deleteBenchmarkCase(casesBenchmark.id, row.sample_id);
+      message.success("用例已删除");
+      const nextCases = await api.getBenchmarkCases(casesBenchmark.id);
+      setCases(nextCases);
+      setCasesTitle(`${casesBenchmark.name}（${nextCases.length} 条用例）`);
+      if (caseYamlMeta?.sampleId === row.sample_id) {
+        setCaseYamlOpen(false);
+        setCaseYamlText("");
+        setCaseYamlMeta(null);
+      }
+      reload();
+    } catch (e: unknown) {
+      message.error(formatApiError(e, "删除用例失败"));
     }
   };
 
@@ -197,6 +220,7 @@ export function useBenchmarksPage() {
     caseYamlMeta,
     openCaseYaml,
     saveCaseYaml,
+    deleteCase,
     editForm: editModal.form,
     editOpen: editModal.open,
     setEditOpen: editModal.setOpen,

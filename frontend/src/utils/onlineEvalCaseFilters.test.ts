@@ -3,6 +3,7 @@ import {
   filterOnlineEvalCasesBySelection,
   matchesOnlineEvalGateFilter,
   matchesOnlineEvalGradeFilter,
+  matchesOnlineEvalRoleScoreFilter,
   matchesOnlineEvalScoreFilter,
 } from "./onlineEvalCaseFilters";
 
@@ -13,39 +14,69 @@ describe("onlineEvalCaseFilters", () => {
   });
 
   it("matches grade exactly", () => {
-    expect(matchesOnlineEvalGradeFilter("high_quality", { grade: "high_quality" })).toBe(true);
-    expect(matchesOnlineEvalGradeFilter("fail", { grade: "acceptable" })).toBe(false);
+    expect(matchesOnlineEvalGradeFilter("good", { grade: "good" })).toBe(true);
+    expect(matchesOnlineEvalGradeFilter("unqualified", { grade: "qualified" })).toBe(false);
   });
 
   it("matches score buckets with inclusive lower bounds", () => {
-    expect(matchesOnlineEvalScoreFilter("gte9", { total_score_10: 9 })).toBe(true);
-    expect(matchesOnlineEvalScoreFilter("gte9", { total_score_10: 8.9 })).toBe(false);
-    expect(matchesOnlineEvalScoreFilter("8to9", { total_score_10: 8 })).toBe(true);
-    expect(matchesOnlineEvalScoreFilter("8to9", { total_score_10: 9 })).toBe(false);
-    expect(matchesOnlineEvalScoreFilter("7to8", { total_score_10: 7.9 })).toBe(true);
-    expect(matchesOnlineEvalScoreFilter("6to7", { total_score_10: 6 })).toBe(true);
-    expect(matchesOnlineEvalScoreFilter("lt6", { total_score_10: 5.9 })).toBe(true);
-    expect(matchesOnlineEvalScoreFilter("lt6", { total_score_10: 6 })).toBe(false);
+    expect(matchesOnlineEvalScoreFilter("gte40_5", { total_score: 40.5 })).toBe(true);
+    expect(matchesOnlineEvalScoreFilter("gte40_5", { total_score: 40.4 })).toBe(false);
+    expect(matchesOnlineEvalScoreFilter("36to40_5", { total_score: 36 })).toBe(true);
+    expect(matchesOnlineEvalScoreFilter("36to40_5", { total_score: 40.5 })).toBe(false);
+    expect(matchesOnlineEvalScoreFilter("27to36", { total_score: 35.9 })).toBe(true);
+    expect(matchesOnlineEvalScoreFilter("lt27", { total_score: 26.9 })).toBe(true);
+    expect(matchesOnlineEvalScoreFilter("lt27", { total_score: 27 })).toBe(false);
+  });
+
+  it("matches role score buckets on 15-point subtotals", () => {
+    expect(
+      matchesOnlineEvalRoleScoreFilter(
+        "gte13_5",
+        { score_breakdown: { doctor_score: 13.5 } },
+        "doctor_score"
+      )
+    ).toBe(true);
+    expect(
+      matchesOnlineEvalRoleScoreFilter(
+        "12to13_5",
+        { score_breakdown: { nurse_score: 13.5 } },
+        "nurse_score"
+      )
+    ).toBe(false);
+    expect(
+      matchesOnlineEvalRoleScoreFilter(
+        "9to12",
+        { score_breakdown: { patient_score: 11.9 } },
+        "patient_score"
+      )
+    ).toBe(true);
+    expect(
+      matchesOnlineEvalRoleScoreFilter(
+        "lt9",
+        { score_breakdown: { doctor_score: 9 } },
+        "doctor_score"
+      )
+    ).toBe(false);
   });
 
   it("filters cases with AND across columns and OR inside a column", () => {
     const rows = [
-      { gate_status: "pass", total_score_10: 9.1, grade: "excellent" },
-      { gate_status: "pass", total_score_10: 8.4, grade: "high_quality" },
-      { gate_status: "fail", total_score_10: 9.3, grade: "fail" },
+      { gate_status: "pass", total_score: 42, grade: "excellent" },
+      { gate_status: "pass", total_score: 39, grade: "good" },
+      { gate_status: "fail", total_score: 0, grade: "unqualified" },
     ];
     expect(
       filterOnlineEvalCasesBySelection(rows, {
         gate_status: ["pass"],
-        score_bucket: ["gte9", "8to9"],
-        grade: ["excellent", "high_quality"],
+        score_bucket: ["gte40_5", "36to40_5"],
+        grade: ["excellent", "good"],
       })
     ).toHaveLength(2);
     expect(
       filterOnlineEvalCasesBySelection(rows, {
         gate_status: ["pass"],
-        score_bucket: ["gte9"],
-        grade: ["high_quality"],
+        score_bucket: ["gte40_5"],
+        grade: ["good"],
       })
     ).toHaveLength(0);
   });
