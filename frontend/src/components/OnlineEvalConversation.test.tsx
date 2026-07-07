@@ -16,7 +16,16 @@ const baseCase: OnlineEvalCase = {
     { role: "assistant", content: "第一答" },
     {
       role: "user",
-      content: "第二问 [图片：image_token=Rhb9bkUUfoA7rSxq4YzcVTT8nAs，尺寸=1200x1600]",
+      content: "第二问",
+      rich_text: [
+        { type: "text", text: "第二问" },
+        {
+          type: "embed-image",
+          image_token: "Rhb9bkUUfoA7rSxq4YzcVTT8nAs",
+          image_width: 1200,
+          image_height: 1600,
+        },
+      ],
     },
     { role: "assistant", content: "第二答" },
   ],

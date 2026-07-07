@@ -7,11 +7,14 @@ export interface OnlineEvalConversationSource {
 export interface OnlineEvalConversationMessage {
   role: string;
   content: string;
+  richText?: unknown[];
 }
 
 export interface OnlineEvalConversationRound {
   user?: string;
+  userRichText?: unknown[];
   assistant?: string;
+  assistantRichText?: unknown[];
   extras: OnlineEvalConversationMessage[];
 }
 
@@ -27,17 +30,27 @@ function appendText(current: string | undefined, content: string) {
   return current ? `${current}\n\n${content}` : content;
 }
 
+function appendRichText(current: unknown[] | undefined, richText: unknown[] | undefined) {
+  if (!richText?.length) return current;
+  if (!current?.length) return richText;
+  return [...current, { type: "text", text: "\n\n" }, ...richText];
+}
+
 export function normaliseOnlineEvalMessages(
   source: OnlineEvalConversationSource
 ): OnlineEvalConversationMessage[] {
   if (Array.isArray(source.raw_messages)) {
     const messages = source.raw_messages
       .filter(isRecord)
-      .map((message) => ({
-        role: textValue(message.role).toLowerCase(),
-        content: textValue(message.content),
-      }))
-      .filter((message) => message.content);
+      .map((message) => {
+        const richText = Array.isArray(message.rich_text) ? message.rich_text : undefined;
+        return {
+          role: textValue(message.role).toLowerCase(),
+          content: textValue(message.content),
+          ...(richText?.length ? { richText } : {}),
+        };
+      })
+      .filter((message) => message.content || message.richText?.length);
     if (messages.length) return messages;
   }
 
@@ -61,8 +74,10 @@ export function buildOnlineEvalConversationRounds(
     const current = rounds[rounds.length - 1];
     if (message.role === "user") {
       current.user = appendText(current.user, message.content);
+      current.userRichText = appendRichText(current.userRichText, message.richText);
     } else if (message.role === "assistant") {
       current.assistant = appendText(current.assistant, message.content);
+      current.assistantRichText = appendRichText(current.assistantRichText, message.richText);
     } else {
       current.extras.push(message);
     }

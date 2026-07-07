@@ -213,6 +213,7 @@ export interface OnlineEvalCasePayload {
   user_text?: string;
   assistant_text?: string;
   raw_messages?: Array<Record<string, any>>;
+  rich_messages?: Array<Record<string, any>>;
   user_profile?: string;
 }
 
@@ -235,6 +236,7 @@ export interface OnlineEvalCase {
   user_text: string;
   assistant_text: string;
   raw_messages: any[];
+  rich_messages?: any[];
   user_profile?: string;
   task_type: string;
   gate_status: "pass" | "fail" | "need_human_review" | string;

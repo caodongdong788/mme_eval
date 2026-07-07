@@ -366,6 +366,7 @@ class TestCase(BaseModel):
 
     # 元数据
     notes: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
     # 来源 YAML 文件名（仅 loader 注入，用例作者不必写）；供报告定位用例
     case_file: str = ""
 

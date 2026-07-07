@@ -12,7 +12,13 @@ from sqlalchemy.orm import Session
 
 from .. import feishu_sheet
 from ..auth import SessionExpired, ensure_fresh_token
-from ..benchmarks import _cell_text, _feishu_row_turns, _sheet_row_fields, _user_profile_text
+from ..benchmarks import (
+    _cell_text,
+    _feishu_row_rich_messages,
+    _feishu_row_turns,
+    _sheet_row_fields,
+    _user_profile_text,
+)
 from ..feishu_drive import FeishuDriveError
 from ..models_db import (
     FeishuUser,
@@ -24,6 +30,7 @@ from ..paths import safe_join
 from ..settings import Settings, get_settings
 from .online_eval_export import (
     _build_image_fetcher,
+    _cleanup_export_file,
     _write_cases_xlsx,
     import_xlsx_as_sheet,
     publish_xlsx_to_lark,
@@ -129,13 +136,17 @@ def _cases_from_feishu_sheets(
             if not isinstance(row, list):
                 continue
             fields = _sheet_row_fields(headers, row)
-            raw_messages: list[dict[str, str]] = []
+            rich_messages = _feishu_row_rich_messages(fields)
+            raw_messages: list[dict[str, Any]] = []
             user_parts: list[str] = []
             assistant_parts: list[str] = []
-            for turn in _feishu_row_turns(fields):
+            for index, turn in enumerate(_feishu_row_turns(fields)):
                 role = turn["role"]
                 content = str(turn["content"])
-                raw_messages.append({"role": role, "content": content})
+                message: dict[str, Any] = {"role": role, "content": content}
+                if index < len(rich_messages) and rich_messages[index].get("rich_text"):
+                    message["rich_text"] = rich_messages[index].get("rich_text")
+                raw_messages.append(message)
                 if role == "user":
                     user_parts.append(content)
                 elif role == "assistant":
@@ -419,23 +430,28 @@ def export_path_cases(
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     filename_prefix = _safe_filename(pool_path.path)
     xlsx_path = out_dir / f"{filename_prefix}_{timestamp}.xlsx"
-    _write_cases_xlsx(cases, xlsx_path, image_fetcher)
 
     token = "" if parent_folder_token is None else parent_folder_token
     title = f"{pool_path.path.replace('/', '_')}_标注池清单"
-    if current_user is not None:
-        try:
-            url = import_xlsx_as_sheet(
-                current_user.access_token,
-                xlsx_path,
-                folder_token=token,
-                title=title,
-            )
-        except FeishuDriveError as exc:
-            raise HTTPException(status_code=502, detail=f"飞书导出失败：{exc}")
-        return {"url": url, "count": len(cases), "filename": xlsx_path.name}
+    filename = xlsx_path.name
 
-    url = publish_xlsx_to_lark(xlsx_path, parent_folder_token=token, title=title)
-    if not url:
-        raise HTTPException(status_code=502, detail="飞书发布失败，请先登录飞书后重试")
-    return {"url": url, "count": len(cases), "filename": xlsx_path.name}
+    try:
+        _write_cases_xlsx(cases, xlsx_path, image_fetcher)
+        if current_user is not None:
+            try:
+                url = import_xlsx_as_sheet(
+                    current_user.access_token,
+                    xlsx_path,
+                    folder_token=token,
+                    title=title,
+                )
+            except FeishuDriveError as exc:
+                raise HTTPException(status_code=502, detail=f"飞书导出失败：{exc}")
+            return {"url": url, "count": len(cases), "filename": filename}
+
+        url = publish_xlsx_to_lark(xlsx_path, parent_folder_token=token, title=title)
+        if not url:
+            raise HTTPException(status_code=502, detail="飞书发布失败，请先登录飞书后重试")
+        return {"url": url, "count": len(cases), "filename": filename}
+    finally:
+        _cleanup_export_file(xlsx_path)

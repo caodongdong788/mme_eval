@@ -38,7 +38,7 @@ server = [
     "sqlalchemy>=2.0",
     "python-multipart>=0.0.9",
     "httpx>=0.27",
-    # 导出飞书清单时把飞书图片嵌入 xlsx（下载 + 多图竖直拼接）需要 Pillow。
+    # 导出飞书清单时把飞书图片嵌入 xlsx（下载 + 多图横向拼接）需要 Pillow。
     "Pillow>=10",
 ]
 # Docker Compose 默认 Postgres；裸机 SQLite 无需安装。

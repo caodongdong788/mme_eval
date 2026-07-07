@@ -56,6 +56,14 @@ interface FeishuImagePreview {
   title: string;
 }
 
+function isRecord(value: unknown): value is Record<string, any> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function feishuImageSrc(token: string) {
+  return `/api/benchmarks/feishu-images/${encodeURIComponent(token)}`;
+}
+
 function normalizeMarkdownText(text: string) {
   return text
     .replace(/\r\n?/g, "\n")
@@ -115,7 +123,7 @@ function renderInlineMarkdown(
     const token = match[1];
     const width = match[2];
     const height = match[3];
-    const src = `/api/benchmarks/feishu-images/${encodeURIComponent(token)}`;
+    const src = feishuImageSrc(token);
     const title = width && height ? `${width}x${height}` : token;
     nodes.push(
       <span key={`image-${token}-${index}`} style={imageWrapStyle}>
@@ -134,6 +142,81 @@ function renderInlineMarkdown(
   const rest = text.slice(lastIndex);
   if (rest) nodes.push(...renderBoldText(rest, "text-rest"));
   return nodes.length ? nodes : renderBoldText(text, "text");
+}
+
+function richTextStyle(node: Record<string, any>): CSSProperties | undefined {
+  const style = node.text_element_style || node.style || {};
+  const css: CSSProperties = {};
+  if (style.bold || style.is_bold) css.fontWeight = 700;
+  if (style.italic || style.is_italic) css.fontStyle = "italic";
+  if (style.strikethrough || style.is_strikethrough) css.textDecoration = "line-through";
+  if (style.underline || style.is_underline) css.textDecoration = "underline";
+  if (style.text_color) css.color = String(style.text_color);
+  return Object.keys(css).length ? css : undefined;
+}
+
+function renderTextWithBreaks(text: string, keyPrefix: string, style?: CSSProperties): ReactNode[] {
+  const parts = text.split("\n");
+  return parts.flatMap((part, index) => {
+    const nodes: ReactNode[] = [];
+    if (index > 0) nodes.push(<br key={`${keyPrefix}-br-${index}`} />);
+    if (part) {
+      nodes.push(
+        <span key={`${keyPrefix}-text-${index}`} style={style}>
+          {part}
+        </span>
+      );
+    }
+    return nodes;
+  });
+}
+
+function renderRichTextNodes(
+  richText: unknown[],
+  onPreviewImage: (preview: FeishuImagePreview) => void
+) {
+  const nodes: ReactNode[] = [];
+  richText.forEach((raw, index) => {
+    if (!isRecord(raw)) return;
+    const type = String(raw.type || "text");
+    if (type === "embed-image" && raw.image_token) {
+      const token = String(raw.image_token);
+      const width = raw.image_width || raw.width;
+      const height = raw.image_height || raw.height;
+      const title = width && height ? `${width}x${height}` : token;
+      const src = feishuImageSrc(token);
+      nodes.push(
+        <span key={`rich-image-${token}-${index}`} style={imageWrapStyle}>
+          <img
+            data-testid="online-case-image"
+            src={src}
+            alt="飞书图片"
+            title={title}
+            onDoubleClick={() => onPreviewImage({ src, title })}
+            style={imageStyle}
+          />
+        </span>
+      );
+      return;
+    }
+
+    const text = String(raw.text || "");
+    if (!text) return;
+    const style = richTextStyle(raw);
+    if (type === "link" && (raw.link || raw.url)) {
+      const href = String(raw.link || raw.url);
+      nodes.push(
+        <a key={`rich-link-${index}`} href={href} target="_blank" rel="noreferrer" style={style}>
+          {text || href}
+        </a>
+      );
+      return;
+    }
+    nodes.push(...renderTextWithBreaks(text, `rich-${index}`, style));
+  });
+
+  if (!nodes.length) return <Typography.Text type="secondary">-</Typography.Text>;
+  return <p data-testid="online-case-paragraph" style={paragraphStyle}>{nodes}</p>;
 }
 
 function renderMarkdownBlocks(text: string, onPreviewImage: (preview: FeishuImagePreview) => void) {
@@ -162,12 +245,14 @@ function renderMarkdownBlocks(text: string, onPreviewImage: (preview: FeishuImag
   });
 }
 
-export function FeishuRichText({ text }: { text: string }) {
+export function FeishuRichText({ text, richText }: { text: string; richText?: unknown[] }) {
   const [preview, setPreview] = useState<FeishuImagePreview | null>(null);
 
   return (
     <>
-      <div style={markdownRootStyle}>{renderMarkdownBlocks(text, setPreview)}</div>
+      <div style={markdownRootStyle}>
+        {richText?.length ? renderRichTextNodes(richText, setPreview) : renderMarkdownBlocks(text, setPreview)}
+      </div>
       <Modal
         centered
         footer={null}

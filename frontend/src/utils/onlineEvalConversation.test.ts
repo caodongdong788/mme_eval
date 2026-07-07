@@ -35,4 +35,21 @@ describe("onlineEvalConversation", () => {
       { role: "assistant", content: "Bot 回复" },
     ]);
   });
+
+  it("preserves rich_text nodes for detail rendering", () => {
+    const richText = [
+      { type: "text", text: "第二问" },
+      { type: "embed-image", image_token: "IMG2", image_width: 1200, image_height: 1600 },
+    ];
+
+    const rounds = buildOnlineEvalConversationRounds({
+      raw_messages: [
+        { role: "user", content: "第二问 [图片：image_token=IMG2]", rich_text: richText },
+        { role: "assistant", content: "第二答", rich_text: [{ type: "text", text: "第二答" }] },
+      ],
+    });
+
+    expect(rounds[0].userRichText).toEqual(richText);
+    expect(rounds[0].assistantRichText).toEqual([{ type: "text", text: "第二答" }]);
+  });
 });

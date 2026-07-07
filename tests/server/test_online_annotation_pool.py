@@ -189,12 +189,16 @@ def test_online_annotation_pool_imports_all_feishu_sheet_tabs(initialized_db, mo
     assert pool_path.case_count == 2
     assert [case.review_role for case in cases] == ["doctor", "nurse"]
     assert cases[0].user_text == "医生首问"
-    assert cases[1].raw_messages == [
+    assert [
+        {key: message[key] for key in ("role", "content")}
+        for message in cases[1].raw_messages
+    ] == [
         {"role": "user", "content": "护士首问"},
         {"role": "assistant", "content": "护士首答"},
         {"role": "user", "content": "护士追问"},
         {"role": "assistant", "content": "护士追答"},
     ]
+    assert cases[1].raw_messages[0]["rich_text"] == [{"type": "text", "text": "护士首问"}]
     assert cases[0].source_case_id < 0
     assert cases[1].source_case_id < 0
 
@@ -265,6 +269,7 @@ def test_online_annotation_pool_exports_path_cases(client, monkeypatch):
     def fake_publish(xlsx_path, *, parent_folder_token, title):
         wb = load_workbook(xlsx_path)
         ws = wb["患者"]
+        captured["path"] = xlsx_path
         captured["title"] = title
         captured["rows"] = [tuple(row) for row in ws.iter_rows(values_only=True)]
         return "https://feishu.example/sheets/pool"
@@ -285,3 +290,5 @@ def test_online_annotation_pool_exports_path_cases(client, monkeypatch):
     assert captured["title"] == "导出路径_标注池清单"
     assert captured["rows"][0] == ("第一轮用户输入", "第一轮Cx输出")
     assert captured["rows"][1] == ("第一问", "第一答")
+    assert not captured["path"].exists()
+    assert not captured["path"].parent.exists()

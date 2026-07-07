@@ -37,7 +37,7 @@ _IMAGE_RE = re.compile(r"\[图片[：:]\s*image_token=([A-Za-z0-9_-]+)(?:[，,]\
 _IMAGE_DISPLAY_MAX_WIDTH = 360  # 展示宽度上限；原图数据不降采样，避免飞书内放大后发糊
 _IMAGE_DISPLAY_MAX_HEIGHT = 560
 _IMAGE_EXPORT_SCALE = 3  # 多图拼接时的导出倍率，显示 360px 时实际保留约 1080px
-_IMAGE_GAP = 12  # 同格多图竖直堆叠间距（展示像素）
+_IMAGE_GAP = 12  # 同格多图横向拼接间距（展示像素）
 _TEXT_LINE_PX = 22
 _TEXT_ROW_PADDING_PX = 14
 _MAX_TEXT_ROW_HEIGHT_PT = 300
@@ -278,8 +278,22 @@ def _prepare_single_image(blob: bytes) -> _PreparedImage:
     return _PreparedImage(blob, display_width, display_height)
 
 
+def _scale_image_for_export(frame: PILImage.Image) -> tuple[PILImage.Image, int, int]:
+    display_width, display_height = _fit_image_display(frame.width, frame.height)
+    scale = min(
+        1.0,
+        max(1, display_width * _IMAGE_EXPORT_SCALE) / frame.width,
+        max(1, display_height * _IMAGE_EXPORT_SCALE) / frame.height,
+    )
+    export_width = max(1, round(frame.width * scale))
+    export_height = max(1, round(frame.height * scale))
+    if frame.width != export_width or frame.height != export_height:
+        frame = frame.resize((export_width, export_height), PILImage.Resampling.LANCZOS)
+    return frame, display_width, display_height
+
+
 def _stack_images(blobs: list[bytes]) -> _PreparedImage:
-    """多图拼接成一张高分辨率 PNG；返回数据与展示尺寸。"""
+    """多图左右拼接成一张高分辨率 PNG；返回数据与展示尺寸。"""
     frames: list[PILImage.Image] = []
     for blob in blobs:
         img = PILImage.open(BytesIO(blob))
@@ -288,33 +302,30 @@ def _stack_images(blobs: list[bytes]) -> _PreparedImage:
             img = img.convert("RGB")
         frames.append(img)
 
-    max_width = max((frame.width for frame in frames), default=_IMAGE_DISPLAY_MAX_WIDTH)
-    max_height = max((frame.height for frame in frames), default=_IMAGE_DISPLAY_MAX_WIDTH)
-    display_width, _display_height = _fit_image_display(max_width, max_height)
-    export_width = min(max_width, max(1, display_width * _IMAGE_EXPORT_SCALE))
-    scale = export_width / display_width if display_width else 1
-    export_gap = max(1, round(_IMAGE_GAP * scale))
-
     resized: list[PILImage.Image] = []
+    display_sizes: list[tuple[int, int]] = []
     for frame in frames:
-        if frame.width != export_width:
-            new_h = max(1, round(frame.height * export_width / frame.width))
-            frame = frame.resize((export_width, new_h), PILImage.Resampling.LANCZOS)
+        frame, display_width, display_height = _scale_image_for_export(frame)
         resized.append(frame)
+        display_sizes.append((display_width, display_height))
 
-    total_h = sum(f.height for f in resized) + export_gap * (len(resized) - 1)
-    canvas = PILImage.new("RGB", (export_width, total_h), "white")
+    export_gap = max(1, round(_IMAGE_GAP * _IMAGE_EXPORT_SCALE))
+    total_w = sum(f.width for f in resized) + export_gap * (len(resized) - 1)
+    max_h = max((f.height for f in resized), default=_IMAGE_DISPLAY_MAX_HEIGHT)
+    canvas = PILImage.new("RGB", (total_w, max_h), "white")
     offset = 0
     for frame in resized:
-        canvas.paste(frame, (0, offset), frame if frame.mode == "RGBA" else None)
-        offset += frame.height + export_gap
+        top = max(0, (max_h - frame.height) // 2)
+        canvas.paste(frame, (offset, top), frame if frame.mode == "RGBA" else None)
+        offset += frame.width + export_gap
 
     buffer = BytesIO()
     canvas.save(buffer, format="PNG")
     return _PreparedImage(
         data=buffer.getvalue(),
-        display_width=display_width,
-        display_height=max(1, round(total_h / scale)),
+        display_width=sum(width for width, _height in display_sizes)
+        + _IMAGE_GAP * (len(display_sizes) - 1),
+        display_height=max((height for _width, height in display_sizes), default=1),
     )
 
 
@@ -503,6 +514,19 @@ def _write_cases_xlsx(
     wb.save(xlsx_path)
 
 
+def _cleanup_export_file(path: Path) -> None:
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as exc:
+        log.warning("删除导出临时文件失败 path=%s：%s", path, exc)
+    try:
+        path.parent.rmdir()
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        log.debug("导出临时目录非空或删除失败 path=%s：%s", path.parent, exc)
+
+
 def _ensure_review_roles(
     session: Session,
     row: OnlineEval,
@@ -560,35 +584,39 @@ def export_online_eval_cases(
         raise HTTPException(status_code=400, detail="非法的导出目录") from exc
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     xlsx_path = out_dir / f"online_eval_{eval_id}_cases_{timestamp}.xlsx"
-    _write_cases_xlsx(cases, xlsx_path, image_fetcher)
 
     token = "" if parent_folder_token is None else parent_folder_token
     title = f"{row.name or f'线上评测_{eval_id}'}_评测清单"
+    filename = xlsx_path.name
 
-    if current_user is not None:
-        try:
-            url = import_xlsx_as_sheet(
-                current_user.access_token,
-                xlsx_path,
-                folder_token=token,
-                title=title,
-            )
-        except FeishuDriveError as exc:
+    try:
+        _write_cases_xlsx(cases, xlsx_path, image_fetcher)
+        if current_user is not None:
+            try:
+                url = import_xlsx_as_sheet(
+                    current_user.access_token,
+                    xlsx_path,
+                    folder_token=token,
+                    title=title,
+                )
+            except FeishuDriveError as exc:
+                raise HTTPException(
+                    status_code=502,
+                    detail=(
+                        f"飞书导出失败：{exc}。请确认：①已开通 drive:drive 权限；"
+                        "②当前账号对目标文件夹有写权限；③可留空 token 改为个人根目录。"
+                    ),
+                )
+            return {"url": url, "count": len(cases), "filename": filename}
+
+        url = publish_xlsx_to_lark(xlsx_path, parent_folder_token=token, title=title)
+        if not url:
             raise HTTPException(
                 status_code=502,
                 detail=(
-                    f"飞书导出失败：{exc}。请确认：①已开通 drive:drive 权限；"
-                    "②当前账号对目标文件夹有写权限；③可留空 token 改为个人根目录。"
+                    "飞书发布失败。请确认已安装并登录 lark-cli，或先用飞书账号登录平台后重试。"
                 ),
             )
-        return {"url": url, "count": len(cases), "filename": xlsx_path.name}
-
-    url = publish_xlsx_to_lark(xlsx_path, parent_folder_token=token, title=title)
-    if not url:
-        raise HTTPException(
-            status_code=502,
-            detail=(
-                "飞书发布失败。请确认已安装并登录 lark-cli，或先用飞书账号登录平台后重试。"
-            ),
-        )
-    return {"url": url, "count": len(cases), "filename": xlsx_path.name}
+        return {"url": url, "count": len(cases), "filename": filename}
+    finally:
+        _cleanup_export_file(xlsx_path)

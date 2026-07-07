@@ -96,6 +96,7 @@ def test_online_eval_export_filters_and_writes_multiturn_xlsx(client, monkeypatc
     def fake_publish(xlsx_path, *, parent_folder_token, title):
         captured["folder"] = parent_folder_token
         captured["title"] = title
+        captured["path"] = xlsx_path
         wb = load_workbook(xlsx_path)
         captured["sheetnames"] = wb.sheetnames
         ws = wb.active
@@ -130,6 +131,8 @@ def test_online_eval_export_filters_and_writes_multiturn_xlsx(client, monkeypatc
         "第二轮Cx输出",
     )
     assert captured["rows"][1] == ("第一问", "第一答", "第二问", "第二答")
+    assert not captured["path"].exists()
+    assert not captured["path"].parent.exists()
 
 
 def test_online_eval_export_classifies_missing_roles_and_splits_sheets(client, monkeypatch):
@@ -239,7 +242,7 @@ def test_write_cases_xlsx_embeds_real_image(tmp_path):
     assert ws.row_dimensions[2].height and ws.row_dimensions[2].height > 300  # 行高已撑起
 
 
-def test_write_cases_xlsx_stacks_multiple_images(tmp_path):
+def test_write_cases_xlsx_stacks_multiple_images_horizontally(tmp_path):
     content = "[图片：image_token=TKA，尺寸=100x200][图片：image_token=TKB，尺寸=100x200]"
     case = _img_case("case-multi", content)
     fetcher = lambda token: _png_bytes(1200, 1600)  # noqa: E731
@@ -248,11 +251,27 @@ def test_write_cases_xlsx_stacks_multiple_images(tmp_path):
     export_svc._write_cases_xlsx([case], path, fetcher)
 
     media = _media_names(path)
-    assert len(media) == 1  # 两张图竖直拼接成一张
+    assert len(media) == 1  # 两张图左右拼接成一张
     img = PILImage.open(BytesIO(zipfile.ZipFile(path).read(media[0])))
     # 拼接图按展示尺寸的多倍分辨率导出，明显高于实际展示宽度。
-    assert img.width > 700
-    assert img.height > 2500
+    assert img.width > 2000
+    assert img.height < 1700
+
+
+def test_write_cases_xlsx_keeps_rich_text_placeholders_when_not_logged_in(tmp_path):
+    content = "报告如下\n[图片：image_token=TKA，尺寸=100x200][图片：image_token=TKB，尺寸=300x400]"
+    case = _img_case("case-rich", content)
+    path = tmp_path / "fallback.xlsx"
+
+    export_svc._write_cases_xlsx([case], path, image_fetcher=None)
+
+    assert _media_names(path) == []
+    wb = load_workbook(path)
+    ws = wb["医生"]
+    assert [cell.value for cell in ws[1]] == ["第一轮用户输入", "第一轮用户输入", "第一轮Cx输出"]
+    assert ws["A2"].value == "报告如下"
+    assert ws["B2"].value == "[图片：image_token=TKA，尺寸=100x200]\n[图片：image_token=TKB，尺寸=300x400]"
+    assert ws["C2"].value == "报告解读回复"
 
 
 def test_write_cases_xlsx_splits_mixed_text_and_images_into_duplicate_user_columns(tmp_path):
@@ -272,7 +291,8 @@ def test_write_cases_xlsx_splits_mixed_text_and_images_into_duplicate_user_colum
     media = _media_names(path)
     assert len(media) == 1
     img = PILImage.open(BytesIO(zipfile.ZipFile(path).read(media[0])))
-    assert img.height > 2500
+    assert img.width > 2000
+    assert img.height < 1700
 
 
 def test_write_cases_xlsx_splits_mixed_text_and_image_placeholders_without_fetcher(tmp_path):

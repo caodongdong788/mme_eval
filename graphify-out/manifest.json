@@ -395,8 +395,8 @@
     "semantic_hash": ""
   },
   "frontend/src/api/types.ts": {
-    "mtime": 1783078983.4666555,
-    "ast_hash": "133c3a6b8177dfaee6e4afed2df76635",
+    "mtime": 1783385401.6248147,
+    "ast_hash": "02700cbf271042f763c7f293ff78bb18",
     "semantic_hash": ""
   },
   "frontend/src/auth/AuthContext.tsx": {
@@ -1105,8 +1105,8 @@
     "semantic_hash": ""
   },
   "medeval/models.py": {
-    "mtime": 1782464293.3155885,
-    "ast_hash": "c96ca7919dff639ef259eabb781c5180",
+    "mtime": 1783385297.5688126,
+    "ast_hash": "dd9d2ed61c16b33f8fa6dc04433dabab",
     "semantic_hash": ""
   },
   "medeval/observability/__init__.py": {
@@ -1230,8 +1230,8 @@
     "semantic_hash": ""
   },
   "pyproject.toml": {
-    "mtime": 1782960562.4804728,
-    "ast_hash": "684ed015f6799d9cbd829f8a4bbde8f3",
+    "mtime": 1783384799.3143933,
+    "ast_hash": "20fade7128b6d0d09bb2e30cab2ec72d",
     "semantic_hash": ""
   },
   "scripts/aidp_proxy.py": {
@@ -1320,8 +1320,8 @@
     "semantic_hash": ""
   },
   "server/benchmarks.py": {
-    "mtime": 1783077435.665489,
-    "ast_hash": "48ed02e875934b891fb99352d9023e07",
+    "mtime": 1783385338.0603373,
+    "ast_hash": "906f7ef34fe2cfd89959f25f99c8bdb6",
     "semantic_hash": ""
   },
   "server/compare.py": {
@@ -1650,8 +1650,8 @@
     "semantic_hash": ""
   },
   "tests/server/test_benchmarks.py": {
-    "mtime": 1783077449.9558759,
-    "ast_hash": "dc353d3c85fa5f0ae6f9f462a656411f",
+    "mtime": 1783385480.522973,
+    "ast_hash": "3dfac3dd67498996a769a1f3faced187",
     "semantic_hash": ""
   },
   "tests/server/test_benchmarks_api.py": {
@@ -4960,13 +4960,13 @@
     "semantic_hash": ""
   },
   "server/services/online_evals.py": {
-    "mtime": 1783078955.617683,
-    "ast_hash": "1551815f8b99c685ac805594572dc230",
+    "mtime": 1783385721.1253633,
+    "ast_hash": "64d646741d531d323794fd2b4ca89eb0",
     "semantic_hash": ""
   },
   "tests/server/test_online_evals.py": {
-    "mtime": 1783079056.0748827,
-    "ast_hash": "17008cce58ce679ecb4bfcb3bd323d49",
+    "mtime": 1783385857.4638464,
+    "ast_hash": "3eb14e639a5c682aec2f9fed53879bfa",
     "semantic_hash": ""
   },
   "docs/superpowers/plans/2026-06-29-online-evaluation.md": {
@@ -4985,8 +4985,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/OnlineEvalDisplay.tsx": {
-    "mtime": 1783065878.358705,
-    "ast_hash": "1e5fea6549f880d5fea324c19e6d3d3b",
+    "mtime": 1783082884.1931882,
+    "ast_hash": "07e46d481a06a4fe8bc81e5bca3d0fb7",
     "semantic_hash": ""
   },
   "server/online_eval_job.py": {
@@ -5030,8 +5030,8 @@
     "semantic_hash": ""
   },
   "server/services/online_eval_export.py": {
-    "mtime": 1783082285.3963366,
-    "ast_hash": "da1f75ea5994097992c6fca3b0bb1a46",
+    "mtime": 1783384761.9568467,
+    "ast_hash": "c45a157ef51a229a3c65ca418b20aa9f",
     "semantic_hash": ""
   },
   "tests/server/test_feishu_base.py": {
@@ -5050,8 +5050,8 @@
     "semantic_hash": ""
   },
   "tests/server/test_online_eval_export.py": {
-    "mtime": 1783082089.9585032,
-    "ast_hash": "c3086bd66ec5c828f3f6478e38da43d3",
+    "mtime": 1783384818.2408996,
+    "ast_hash": "a801f6d3874a6ba3c3b2a3d65d18adea",
     "semantic_hash": ""
   },
   "openspec/changes/archive/2026-06-30-import-online-benchmark-from-feishu-base/proposal.md": {
@@ -5085,18 +5085,18 @@
     "semantic_hash": ""
   },
   "frontend/src/components/FeishuRichText.tsx": {
-    "mtime": 1783078423.5360758,
-    "ast_hash": "3e9562b05740f6dc9bafed90c962adef",
+    "mtime": 1783385453.8639395,
+    "ast_hash": "d509bba0ecc3c712733012b96219c042",
     "semantic_hash": ""
   },
   "frontend/src/components/OnlineEvalConversation.test.tsx": {
-    "mtime": 1783079066.5609946,
-    "ast_hash": "a3c937cb4a53e39099704850abbaae94",
+    "mtime": 1783385516.9807875,
+    "ast_hash": "9ed723238a36f1549526557392dc9659",
     "semantic_hash": ""
   },
   "frontend/src/components/OnlineEvalConversation.tsx": {
-    "mtime": 1783079023.5683312,
-    "ast_hash": "da5bfceab7b888acf2d784f0590f09a3",
+    "mtime": 1783385461.4442263,
+    "ast_hash": "ca6d11e5608facaeebf7869eefda709c",
     "semantic_hash": ""
   },
   "frontend/src/pages/OnlineEvalsPage.test.tsx": {
@@ -5105,13 +5105,13 @@
     "semantic_hash": ""
   },
   "frontend/src/utils/onlineEvalConversation.test.ts": {
-    "mtime": 1782971091.017176,
-    "ast_hash": "be67c4d96b1bfaaf2da3e8419bc86ca5",
+    "mtime": 1783385506.76632,
+    "ast_hash": "7c41c2268fbd1ecdf9bc12025884ea7e",
     "semantic_hash": ""
   },
   "frontend/src/utils/onlineEvalConversation.ts": {
-    "mtime": 1782971091.0158217,
-    "ast_hash": "fe7a5a75a12a11d1c9ce3673ee146669",
+    "mtime": 1783385428.9947422,
+    "ast_hash": "1b72e92f7130cf6bf99fcaf0eb18a206",
     "semantic_hash": ""
   },
   "server/routers/online_annotation_pool.py": {
@@ -5120,13 +5120,13 @@
     "semantic_hash": ""
   },
   "server/services/online_annotation_pool.py": {
-    "mtime": 1783080410.5619617,
-    "ast_hash": "29d7623e1980e79f2082ed962138840b",
+    "mtime": 1783385378.944105,
+    "ast_hash": "3990ff69ab2f67cc35a7be5acd8a95ca",
     "semantic_hash": ""
   },
   "tests/server/test_online_annotation_pool.py": {
-    "mtime": 1783080394.287936,
-    "ast_hash": "4ffd4cd264009b384251914dac527f20",
+    "mtime": 1783385555.8823571,
+    "ast_hash": "37b60167dd1553fd2cac872f62007099",
     "semantic_hash": ""
   },
   "docs/human-review-protocol.md": {

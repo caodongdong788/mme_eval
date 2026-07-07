@@ -4,6 +4,9 @@ import asyncio
 import time
 from typing import Any
 
+import yaml
+
+from server.benchmarks import create_uploaded_benchmark
 from server.db import session_scope
 from server.models_db import OnlineEval, OnlineEvalCase
 from server.services import online_evals as svc
@@ -229,6 +232,20 @@ def wait_online_eval(client, eval_id: int, *, timeout: float = 3.0) -> dict:
     raise AssertionError(f"online eval did not finish: {last}")
 
 
+def _create_online_benchmark(session, settings, name: str, cases: list[dict[str, Any]]) -> int:
+    bm = create_uploaded_benchmark(
+        session,
+        name=name,
+        content=yaml.safe_dump(cases, allow_unicode=True, sort_keys=False).encode("utf-8"),
+        filename=f"{name}.yaml",
+        source="offline",
+        settings=settings,
+    )
+    bm.source = "online"
+    session.flush()
+    return bm.id
+
+
 def test_dimension_contract_uses_three_roles_and_45_point_scale():
     assert svc.SCORE_MAX == 45
     assert tuple(svc.DIMENSION_MAX) == (
@@ -287,6 +304,91 @@ def test_online_case_name_uses_first_user_question():
     assert svc._case_name(case, case.user_text) == "第一轮患者问话"
 
 
+def test_online_benchmark_eval_requires_rich_messages(client, settings):
+    with session_scope() as session:
+        benchmark_id = _create_online_benchmark(
+            session,
+            settings,
+            "缺富文本线上集",
+            [
+                {
+                    "sample_id": "online_plain",
+                    "scenario": "线上真实对话",
+                    "sub_scenario": "纯文本旧结构",
+                    "level": "L2",
+                    "score_profile": "default",
+                    "source": "online",
+                    "turns": [
+                        {"role": "user", "content": "第一问"},
+                        {"role": "assistant", "content": "第一答"},
+                    ],
+                }
+            ],
+        )
+
+    resp = client.post(
+        "/api/online-evals",
+        json={"name": "不允许纯文本旧结构", "benchmark_id": benchmark_id},
+    )
+
+    assert resp.status_code == 422
+    assert "metadata.rich_messages" in resp.json()["detail"]
+
+
+def test_online_benchmark_eval_uses_rich_messages(initialized_db):
+    with session_scope() as session:
+        benchmark_id = _create_online_benchmark(
+            session,
+            initialized_db,
+            "富文本线上集",
+            [
+                {
+                    "sample_id": "online_rich",
+                    "scenario": "线上真实对话",
+                    "sub_scenario": "含图",
+                    "level": "L2",
+                    "score_profile": "default",
+                    "source": "online",
+                    "turns": [
+                        {
+                            "role": "user",
+                            "content": "第一问\n[图片：image_token=IMG_A，尺寸=1200x1600]",
+                        },
+                        {"role": "assistant", "content": "第一答"},
+                    ],
+                    "metadata": {
+                        "rich_messages": [
+                            {
+                                "role": "user",
+                                "content": "第一问\n[图片：image_token=IMG_A，尺寸=1200x1600]",
+                                "rich_text": [
+                                    {"type": "text", "text": "第一问"},
+                                    {"type": "text", "text": "\n"},
+                                    {
+                                        "type": "embed-image",
+                                        "image_token": "IMG_A",
+                                        "image_width": 1200,
+                                        "image_height": 1600,
+                                    },
+                                ],
+                            },
+                            {
+                                "role": "assistant",
+                                "content": "第一答",
+                                "rich_text": [{"type": "text", "text": "第一答"}],
+                            },
+                        ]
+                    },
+                }
+            ],
+        )
+        _benchmark, cases, skipped = svc._cases_from_online_benchmark(session, benchmark_id)
+
+    assert skipped == []
+    assert cases[0].raw_messages[0]["rich_text"][2]["image_token"] == "IMG_A"
+    assert cases[0].user_text == "第一问\n[图片：image_token=IMG_A，尺寸=1200x1600]"
+
+
 def test_user_profile_is_included_in_judge_prompts():
     backend = _StubBackend([
         _safety_pass(),
@@ -302,6 +404,49 @@ def test_user_profile_is_included_in_judge_prompts():
     assert all("用户档案" in prompt for prompt in backend.prompts)
     assert all("治疗阶段：内分泌治疗中" in prompt for prompt in backend.prompts)
     assert any("不要把档案内容算作 Bot 已覆盖的信息" in prompt for prompt in backend.prompts)
+
+
+def test_rich_text_is_included_in_judge_prompts():
+    backend = _StubBackend([
+        _safety_pass(),
+        _doctor_score(4, 5),
+        _nurse_score(4, 4),
+        _patient_score(5, 4, 4),
+    ])
+    case = svc.OnlineEvalCaseCreate(
+        external_id="rich-case",
+        user_text="请看报告",
+        assistant_text="报告解读回复",
+        raw_messages=[
+            {
+                "role": "user",
+                "content": "请看报告\n[图片：image_token=IMG_A，尺寸=1200x1600]",
+                "rich_text": [
+                    {"type": "text", "text": "请看报告"},
+                    {"type": "text", "text": "\n"},
+                    {
+                        "type": "embed-image",
+                        "image_token": "IMG_A",
+                        "image_width": 1200,
+                        "image_height": 1600,
+                    },
+                ],
+            },
+            {
+                "role": "assistant",
+                "content": "报告解读回复",
+                "rich_text": [{"type": "text", "text": "报告解读回复"}],
+            },
+        ],
+    )
+
+    asyncio.run(svc.score_online_case(case, _stub_judge(backend)))
+
+    joined = "\n".join(backend.prompts)
+    assert "富文本结构 JSON" in joined
+    assert '"image_token": "IMG_A"' in joined
+    assert "图片、链接、换行、列表、加粗" in joined
+    assert "communication_experience" in joined
 
 
 def test_safety_pass_runs_three_role_judges_and_scores_39_good():

@@ -211,6 +211,22 @@ def test_feishu_sheet_cells_convert_multiturn_images_to_online_yaml():
         {"role": "user", "content": "第五问"},
         {"role": "assistant", "content": "第五答"},
     ]
+    assert data[0]["metadata"]["rich_messages"][0]["rich_text"] == [
+        {
+            "type": "embed-image",
+            "image_token": "NmGAbNRU0oGknQx0YFXcA4jfnjh",
+            "image_width": 1200,
+            "image_height": 1600,
+        }
+    ]
+    assert data[0]["metadata"]["rich_messages"][2]["rich_text"] == [
+        {
+            "type": "embed-image",
+            "image_token": "Rhb9bkUUfoA7rSxq4YzcVTT8nAs",
+            "image_width": 1200,
+            "image_height": 1600,
+        }
+    ]
     assert "notes" not in data[0]
 
 
@@ -366,6 +382,25 @@ def test_feishu_sheet_cells_imports_new_text_and_image_split_tabs_with_profile()
             ),
         },
         {"role": "assistant", "content": "第二轮回答"},
+    ]
+    assert data[1]["metadata"]["rich_messages"][2]["rich_text"] == [
+        {"type": "text", "text": "第二轮补充文字"},
+        {"type": "text", "text": "\n"},
+        {
+            "type": "embed-image",
+            "image_token": "ImageTokenA",
+            "image_width": 1000,
+            "image_height": 800,
+        },
+        {"type": "text", "text": "\n"},
+        {
+            "type": "embed-image",
+            "image_token": "ImageTokenB",
+            "image_width": 600,
+            "image_height": 400,
+        },
+        {"type": "text", "text": "\n"},
+        {"type": "text", "text": "第二轮另一段文字"},
     ]
     assert data[1]["notes"] == "用户档案：\n男，45岁，术后复查"
 
@@ -578,6 +613,45 @@ def test_export_online_case_yaml_uses_block_notes_for_user_profile(session, sett
 
     assert "notes: |" in text
     assert data[0]["notes"] == "用户档案：\n女，32岁\n用药：依西美坦"
+
+
+def test_export_online_case_yaml_keeps_rich_text_case_structure(session, settings):
+    original = {
+        "sample_id": "online_rich",
+        "scenario": "线上真实对话",
+        "sub_scenario": "多图咨询",
+        "level": "L2",
+        "score_profile": "default",
+        "source": "online",
+        "turns": [
+            {
+                "role": "user",
+                "content": (
+                    "第一问\n"
+                    "[图片：image_token=ImageTokenA，尺寸=1000x800]\n"
+                    "[图片：image_token=ImageTokenB，尺寸=600x400]"
+                ),
+            },
+            {"role": "assistant", "content": "第一答\n- 先确认药物\n- 再看症状"},
+            {"role": "user", "content": "第二问"},
+            {"role": "assistant", "content": "第二答"},
+        ],
+        "notes": "用户档案：\n女，32岁\n用药：依西美坦",
+    }
+    bm = _create_uploaded_benchmark_from_yaml_bytes(
+        session,
+        name="线上富文本用例",
+        yaml_content=_online_yaml_bytes([original]),
+        filename="online.yaml",
+        source="online",
+        settings=settings,
+    )
+    session.commit()
+
+    _, text = export_case_yaml(bm, "online_rich", settings=settings)
+    data = yaml.safe_load(text)
+
+    assert data == [original]
 
 
 def test_replace_builtin_rejected(session, settings):

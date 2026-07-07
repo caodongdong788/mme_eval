@@ -74,7 +74,7 @@ ROLE_DIMENSIONS = {
 }
 SCORE_MAX = 45
 NURSE_NORMALIZE_FACTOR = 1.5
-ONLINE_JUDGE_PROMPT_VERSION = "online_eval_judge_v6_doc331"
+ONLINE_JUDGE_PROMPT_VERSION = "online_eval_judge_v7_richtext_format"
 
 # 导出飞书清单时的人工复核角色（见 docs/human-review-protocol.md）。
 ROLE_LABELS = {"doctor": "医生", "nurse": "护士", "patient": "患者"}
@@ -126,6 +126,93 @@ def _conversation_text(case: OnlineEvalCaseCreate) -> tuple[str, str]:
     return user_text, assistant_text
 
 
+def _format_rich_text_for_judge(nodes: Any) -> str:
+    if not isinstance(nodes, list):
+        return ""
+    parts: list[str] = []
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        node_type = str(node.get("type") or "").strip()
+        text = str(node.get("text") or "")
+        if node_type == "embed-image" and node.get("image_token"):
+            width = node.get("image_width")
+            height = node.get("image_height")
+            size = f"，尺寸={width}x{height}" if width and height else ""
+            parts.append(f"[图片：image_token={node.get('image_token')}{size}]")
+        elif node_type == "link":
+            link = str(node.get("link") or node.get("url") or "")
+            parts.append(f"[链接：{text or link} -> {link}]" if link else text)
+        elif node_type in {"text", ""}:
+            parts.append(text)
+        else:
+            parts.append(text or f"[富文本节点：{node_type}]")
+    return "".join(parts).strip()
+
+
+def _rich_messages_for_judge(raw_messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    messages: list[dict[str, Any]] = []
+    for msg in raw_messages or []:
+        rich_text = msg.get("rich_text")
+        if not rich_text:
+            continue
+        messages.append(
+            {
+                "role": msg.get("role"),
+                "content": msg.get("content"),
+                "rich_text": rich_text,
+                "rendered_text": _format_rich_text_for_judge(rich_text),
+            }
+        )
+    return messages
+
+
+def _require_case_rich_messages(case: Any) -> list[dict[str, Any]]:
+    metadata = case.metadata if isinstance(case.metadata, dict) else {}
+    rich_messages = metadata.get("rich_messages")
+    if not isinstance(rich_messages, list) or len(rich_messages) < len(case.turns):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"线上 case {case.sample_id} 缺少 metadata.rich_messages，"
+                "请删除旧数据并重新从飞书导入，确保富文本结构可用于评测。"
+            ),
+        )
+    return rich_messages
+
+
+def _message_from_rich_turn(case: Any, turn_index: int, fallback_role: str) -> dict[str, Any]:
+    rich_messages = _require_case_rich_messages(case)
+    raw = rich_messages[turn_index]
+    if not isinstance(raw, dict) or not isinstance(raw.get("rich_text"), list):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"线上 case {case.sample_id} 的 metadata.rich_messages[{turn_index}] 非法，"
+                "请重新从飞书导入。"
+            ),
+        )
+    role = str(raw.get("role") or fallback_role).strip()
+    if role != fallback_role:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"线上 case {case.sample_id} 的第 {turn_index + 1} 条富文本 role 与 turns 不一致，"
+                "请重新从飞书导入。"
+            ),
+        )
+    content = str(raw.get("content") or "").strip()
+    if not content:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"线上 case {case.sample_id} 的第 {turn_index + 1} 条富文本缺少 content，"
+                "请重新从飞书导入。"
+            ),
+        )
+    return {"role": role, "content": content, "rich_text": raw["rich_text"]}
+
+
 def _first_user_question(raw_messages: list[dict[str, Any]], fallback: str = "") -> str:
     for msg in raw_messages or []:
         if msg.get("role") == "user":
@@ -175,11 +262,9 @@ def _cases_from_online_benchmark(
     skipped: list[str] = []
     for case in cases:
         raw_messages: list[dict[str, Any]] = []
-        for turn in case.turns:
+        for index, turn in enumerate(case.turns):
             role = getattr(turn.role, "value", turn.role)
-            content = str(turn.content or "").strip()
-            if content:
-                raw_messages.append({"role": str(role), "content": content})
+            raw_messages.append(_message_from_rich_turn(case, index, str(role)))
 
         user_text = "\n".join(
             msg["content"] for msg in raw_messages if msg.get("role") == "user"
@@ -650,6 +735,7 @@ def _base_conversation_block(
     assistant_text: str,
 ) -> str:
     raw_messages = case.raw_messages or []
+    rich_messages = _rich_messages_for_judge(raw_messages)
     user_profile = (case.user_profile or "").strip() or "未提供"
     return f"""用户文本：
 {user_text}
@@ -662,6 +748,9 @@ Bot 回复：
 
 原始多轮消息 JSON：
 {json.dumps(raw_messages, ensure_ascii=False)}
+
+富文本结构 JSON（如存在，必须用于判断图片/链接/换行/列表/加粗等内容格式；content 为降级纯文本）：
+{json.dumps(rich_messages, ensure_ascii=False)}
 """
 
 
@@ -727,7 +816,7 @@ def _role_dimension_prompt(
         dimension_text = """
 - understanding_empathy 被理解与共情：0 分=无视情绪、只给结论，或空泛套话安慰；5 分=准确点出并承接用户具体情绪，自然有温度。
 - actionability 可执行性：0 分=看完不知道该干什么；5 分=具体、分步、可直接执行，含就医/复诊/反馈时机。
-- communication_experience 沟通体验与继续意愿：0 分=冗长/重复/机械说教，读不下去；5 分=清晰、简洁、自然，让人愿意继续对话。"""
+- communication_experience 沟通体验与继续意愿：0 分=冗长/重复/机械说教、格式混乱、图片/链接/列表等富文本信息处理不当，读不下去；5 分=清晰、简洁、自然，富文本内容与排版服务于理解，让人愿意继续对话。"""
         example_scores = '"understanding_empathy": 0,\n    "actionability": 0,\n    "communication_experience": 0'
 
     return f"""{role_intro}
@@ -736,6 +825,7 @@ def _role_dimension_prompt(
 - 每个维度只能输出 0 到 5 的整数。
 - 只评 Bot 回复，用户输入不算 Bot 功劳或失误。
 - 用户档案只作为个性化、临床背景和沟通适配的参考，不要把档案内容算作 Bot 已覆盖的信息。
+- 若存在富文本结构 JSON，必须把图片、链接、换行、列表、加粗等内容格式纳入判断；格式影响理解时，应在 communication_experience 或相关维度扣分并给证据。
 - 分数低于 5 必须写扣分理由；分数等于 5 必须写满分理由。
 - 理由必须引用对话中的具体表述作为证据，不能用“还行/不错/一般”等套话。
 

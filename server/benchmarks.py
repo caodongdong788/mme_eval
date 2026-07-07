@@ -131,6 +131,64 @@ def _cell_text(value: Any) -> str:
     return str(value).strip()
 
 
+def _normalise_rich_node(value: dict[str, Any]) -> dict[str, Any] | None:
+    if value.get("type") == "embed-image" and value.get("image_token"):
+        return dict(value)
+    if "text" in value:
+        node = dict(value)
+        node.setdefault("type", "text")
+        node["text"] = str(node.get("text") or "")
+        return node if node["text"] else None
+    if "link" in value:
+        node = dict(value)
+        node.setdefault("type", "link")
+        node["text"] = str(node.get("text") or node.get("link") or "")
+        return node if node["text"] or node.get("link") else None
+    text = _cell_text(value)
+    return {"type": "text", "text": text} if text else None
+
+
+def _cell_rich_text(value: Any) -> list[dict[str, Any]]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        text = value.strip()
+        return [{"type": "text", "text": text}] if text else []
+    if isinstance(value, (int, float, bool)):
+        text = str(value).strip()
+        return [{"type": "text", "text": text}] if text else []
+    if isinstance(value, dict):
+        if "value" in value:
+            return _cell_rich_text(value.get("value"))
+        if "rich_text" in value:
+            nodes: list[dict[str, Any]] = []
+            for item in value.get("rich_text") or []:
+                if isinstance(item, dict):
+                    node = _normalise_rich_node(item)
+                    if node:
+                        nodes.append(node)
+                else:
+                    nodes.extend(_cell_rich_text(item))
+            return nodes
+        node = _normalise_rich_node(value)
+        return [node] if node else []
+    if isinstance(value, list):
+        nodes: list[dict[str, Any]] = []
+        for item in value:
+            nodes.extend(_cell_rich_text(item))
+        return nodes
+    text = str(value).strip()
+    return [{"type": "text", "text": text}] if text else []
+
+
+def _append_rich_segment(target: list[dict[str, Any]], segment: list[dict[str, Any]]) -> None:
+    if not segment:
+        return
+    if target:
+        target.append({"type": "text", "text": "\n"})
+    target.extend(segment)
+
+
 def _cell_image_text(value: Any) -> str:
     """只提取单元格里的真实图片占位；图片列误填普通文字时返回空。"""
     if value is None:
@@ -217,12 +275,32 @@ def _round_user_content(fields: dict[str, Any], round_number: int, round_label: 
     return "\n".join(part for part in [*text_parts, *image_parts] if part).strip()
 
 
+def _round_user_rich_text(
+    fields: dict[str, Any], round_number: int, round_label: str
+) -> list[dict[str, Any]]:
+    nodes: list[dict[str, Any]] = []
+    for value in _field_values_by_alias(fields, _round_user_aliases(round_number, round_label)):
+        _append_rich_segment(nodes, _cell_rich_text(value))
+    for value in _field_values_by_alias(fields, _round_user_image_aliases(round_number, round_label)):
+        _append_rich_segment(nodes, _cell_rich_text(value))
+    return nodes
+
+
 def _round_assistant_content(fields: dict[str, Any], round_number: int, round_label: str) -> str:
     parts = [
         _cell_text(value)
         for value in _field_values_by_alias(fields, _round_assistant_aliases(round_number, round_label))
     ]
     return "\n".join(part for part in parts if part).strip()
+
+
+def _round_assistant_rich_text(
+    fields: dict[str, Any], round_number: int, round_label: str
+) -> list[dict[str, Any]]:
+    nodes: list[dict[str, Any]] = []
+    for value in _field_values_by_alias(fields, _round_assistant_aliases(round_number, round_label)):
+        _append_rich_segment(nodes, _cell_rich_text(value))
+    return nodes
 
 
 def _feishu_row_turns(fields: dict[str, Any]) -> list[dict[str, str]]:
@@ -235,6 +313,22 @@ def _feishu_row_turns(fields: dict[str, Any]) -> list[dict[str, str]]:
         if assistant:
             turns.append({"role": "assistant", "content": _literal_multiline(assistant)})
     return turns
+
+
+def _feishu_row_rich_messages(fields: dict[str, Any]) -> list[dict[str, Any]]:
+    messages: list[dict[str, Any]] = []
+    for round_number, round_label in enumerate(_FEISHU_ROUND_LABELS, start=1):
+        user = _round_user_content(fields, round_number, round_label)
+        user_rich = _round_user_rich_text(fields, round_number, round_label)
+        assistant = _round_assistant_content(fields, round_number, round_label)
+        assistant_rich = _round_assistant_rich_text(fields, round_number, round_label)
+        if user:
+            messages.append({"role": "user", "content": user, "rich_text": user_rich})
+        if assistant:
+            messages.append(
+                {"role": "assistant", "content": assistant, "rich_text": assistant_rich}
+            )
+    return messages
 
 
 def first_user_turn_content(turns: list[Any]) -> str:
@@ -373,6 +467,7 @@ def feishu_base_records_to_yaml_bytes(records: list[dict[str, Any]]) -> bytes:
         turns = _feishu_row_turns(fields)
         if not turns:
             continue
+        rich_messages = _feishu_row_rich_messages(fields)
 
         sample_id = _unique_online_sample_id(seen, record.get("record_id"), index)
 
@@ -393,6 +488,8 @@ def feishu_base_records_to_yaml_bytes(records: list[dict[str, Any]]) -> bytes:
         )
         if notes:
             case["notes"] = notes
+        if rich_messages:
+            case["metadata"] = {"rich_messages": rich_messages}
         cases.append(case)
 
     if not cases:
@@ -416,6 +513,7 @@ def _sheet_to_cases(sheet: dict[str, Any], seen: set[str]) -> list[dict[str, Any
         turns = _feishu_row_turns(fields)
         if not turns:
             continue
+        rich_messages = _feishu_row_rich_messages(fields)
 
         row_number = row_indices[index] if index < len(row_indices) else index + 1
         raw_id = f"{sheet.get('sheet_name') or sheet.get('sheet_id') or 'sheet'}_{row_number}"
@@ -433,6 +531,8 @@ def _sheet_to_cases(sheet: dict[str, Any], seen: set[str]) -> list[dict[str, Any
         notes = _case_notes(user_profile=_user_profile_text(fields))
         if notes:
             case["notes"] = notes
+        if rich_messages:
+            case["metadata"] = {"rich_messages": rich_messages}
         cases.append(case)
     return cases
 
