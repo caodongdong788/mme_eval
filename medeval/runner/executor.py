@@ -85,6 +85,8 @@ async def _run_one(
     turn_latencies_ms: list[float] = []
     turn_token_usage: list[dict[str, int]] = []
     error: str | None = None
+    cx_langfuse_trace_ids: list[str] = []
+    evaluation_identity: dict = {}
 
     start = time.perf_counter()
     # bot 模型名（仅 openai_compat 等有 .model）；用于 Langfuse generation 标注。
@@ -109,7 +111,15 @@ async def _run_one(
                 continue
 
             messages.append({"role": "user", "content": turn.content})
-            req = ChatRequest(messages=list(messages), session_id=session_id)
+            req = ChatRequest(
+                messages=list(messages),
+                session_id=session_id,
+                metadata={
+                    "eval_run_id": run_name,
+                    "sample_id": case.sample_id,
+                    "run_idx": run_idx,
+                },
+            )
 
             last_err: str | None = None
             turn_start = time.perf_counter()
@@ -157,6 +167,25 @@ async def _run_one(
                     messages.append({"role": "assistant", "content": resp.reply})
                     chat_msgs.append(ChatMessage(role="assistant", content=resp.reply))
                     raw_responses.append(resp.raw or {})
+                    if isinstance(resp.raw, dict):
+                        trace_id = resp.raw.get("cx_langfuse_trace_id")
+                        if (
+                            isinstance(trace_id, str)
+                            and trace_id
+                            and trace_id not in cx_langfuse_trace_ids
+                        ):
+                            cx_langfuse_trace_ids.append(trace_id)
+                        account = resp.raw.get("evaluation_account")
+                        context = resp.raw.get("evaluation_context")
+                        if isinstance(account, dict) and not evaluation_identity:
+                            evaluation_identity = dict(account)
+                        if isinstance(context, dict):
+                            profile = context.get("userProfile")
+                            if isinstance(profile, dict):
+                                evaluation_identity.setdefault("user_profile", profile)
+                            cx_session = context.get("sessionId")
+                            if isinstance(cx_session, str):
+                                evaluation_identity["cx_session_id"] = cx_session
                     # token 用量：在裁剪 raw_responses 之前当场抽取，store_raw=on_error 也不丢
                     usage = _extract_token_usage(resp.raw)
                     turn_token_usage.append(usage)
@@ -184,6 +213,8 @@ async def _run_one(
 
     duration_ms = int((time.perf_counter() - start) * 1000)
 
+    await adapter.end_session(session_id)
+
     return ConversationTrace(
         messages=chat_msgs,
         raw_responses=raw_responses,
@@ -192,6 +223,8 @@ async def _run_one(
         turn_token_usage=turn_token_usage,
         error=error,
         langfuse_trace_url=langfuse_trace_url,
+        langfuse_trace_ids=cx_langfuse_trace_ids,
+        evaluation_identity=evaluation_identity,
     )
 
 

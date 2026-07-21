@@ -423,6 +423,12 @@ class ConversationTrace(BaseModel):
     # 追踪关闭/未配置/旧 report.json 时为 None。仅观测、不参与判分。
     # 参见 OpenSpec change add-langfuse-per-case-trace-links。
     langfuse_trace_url: str | None = None
+    # cx-agent 每个 HTTP turn 对应的内部 Langfuse trace id；多轮按首次出现顺序保留。
+    langfuse_trace_ids: list[str] = Field(default_factory=list)
+    # 专用测试账号的领取/重置证据与请求前画像快照。仅观测、不参与判分。
+    evaluation_identity: dict[str, Any] = Field(default_factory=dict)
+    # 从 Langfuse Public API 固化的 Agent/Generation/Tool 调用链快照。
+    agent_chain: dict[str, Any] = Field(default_factory=dict)
 
 
 class JudgeVerdict(BaseModel):

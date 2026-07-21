@@ -8,6 +8,8 @@ import { ConversationThread } from "../components/ConversationThread";
 import { DashPanel } from "../components/DashPanel";
 import { HumanReviewCard } from "../components/HumanReviewCard";
 import { JudgeVerdictTable } from "../components/JudgeVerdictTable";
+import { AgentChainPanel } from "../components/AgentChainPanel";
+import type { AgentChainTrace } from "../components/AgentChainPanel";
 import { ScoringPointsTable } from "../components/ScoringPointsTable";
 import { useFailureTagLabels } from "../hooks/useConfigLabelMap";
 import { useCaseDetail } from "../hooks/useCaseDetail";
@@ -49,7 +51,7 @@ export default function CaseDetailPage() {
     );
   }
 
-  const trace = cd.detail.trace as { messages?: Array<{ role: string; content: string }> } | undefined;
+  const trace = cd.detail.trace as (AgentChainTrace & { messages?: Array<{ role: string; content: string }> }) | undefined;
   const messages = trace?.messages || [];
   const verdicts = (cd.detail.verdicts as CaseVerdict[] | undefined) || [];
   const scoringPoints = verdicts.filter((v) => v.name?.startsWith("scoring_point."));
@@ -81,6 +83,12 @@ export default function CaseDetailPage() {
           />
         </Col>
       </Row>
+
+      <AgentChainPanel
+        trace={trace}
+        syncing={cd.chainSyncing}
+        onSync={cd.syncAgentChain}
+      />
 
       <JudgeVerdictTable verdicts={mainVerdicts} tagLabel={tagLabel} />
       <ScoringPointsTable scoringPoints={scoringPoints} />

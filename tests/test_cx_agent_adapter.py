@@ -157,3 +157,88 @@ def test_cx_agent_adapter_requires_token(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.delenv("CX_AGENT_TEST_TOKEN", raising=False)
     with pytest.raises(RuntimeError, match="CX_AGENT_TEST_TOKEN"):
         CxAgentAdapter(base_url="http://cx.local", test_token_env="CX_AGENT_TEST_TOKEN")
+
+
+def test_cx_agent_adapter_leases_blank_account_and_exposes_trace_context():
+    requests: list[tuple[str, dict]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content.decode())
+        requests.append((request.url.path, body))
+        if request.url.path.endswith("/evaluation/accounts/lease"):
+            return httpx.Response(
+                200,
+                json={
+                    "success": True,
+                    "data": {
+                        "userId": "00000000-0000-0000-0000-000000000101",
+                        "resetAt": "2026-07-21T08:00:00.000Z",
+                        "profile": {},
+                    },
+                },
+            )
+        if request.url.path.endswith("/evaluation/accounts/release"):
+            return httpx.Response(200, json={"success": True})
+        return httpx.Response(
+            200,
+            text=_sse(
+                ("session", {"sessionId": "cx-isolated-1"}),
+                (
+                    "evaluation_context",
+                    {
+                        "traceId": "lf-trace-1",
+                        "sessionId": "cx-isolated-1",
+                        "testUserId": "00000000-0000-0000-0000-000000000101",
+                        "userProfile": {},
+                    },
+                ),
+                ("text_delta", {"content": "已收到"}),
+                ("message_end", {}),
+            ),
+        )
+
+    adapter = CxAgentAdapter(
+        base_url="http://cx.local",
+        test_token="token-1",
+        isolated_accounts=True,
+    )
+    adapter._client = httpx.AsyncClient(transport=httpx.MockTransport(handler), timeout=10)
+    request = ChatRequest(
+        messages=[{"role": "user", "content": "这是全新账户吗"}],
+        session_id="mme-isolated-1",
+        metadata={"eval_run_id": "run-1", "sample_id": "case-1", "run_idx": 0},
+    )
+
+    response = asyncio.run(adapter.chat(request))
+    asyncio.run(adapter.end_session("mme-isolated-1"))
+
+    assert response.reply == "已收到"
+    assert response.raw["cx_langfuse_trace_id"] == "lf-trace-1"
+    assert response.raw["evaluation_account"] == {
+        "test_user_id": "00000000-0000-0000-0000-000000000101",
+        "reset_at": "2026-07-21T08:00:00.000Z",
+        "reset_status": "success",
+        "profile_after_reset": {},
+    }
+    assert requests == [
+        ("/api/test/evaluation/accounts/lease", {"leaseId": "mme-isolated-1"}),
+        (
+            "/api/test/chat/send",
+            {
+                "content": "这是全新账户吗",
+                "testUserId": "00000000-0000-0000-0000-000000000101",
+                "evaluationLeaseId": "mme-isolated-1",
+                "evalRunId": "run-1",
+                "sampleId": "case-1",
+                "runIdx": 0,
+            },
+        ),
+        (
+            "/api/test/evaluation/accounts/release",
+            {
+                "leaseId": "mme-isolated-1",
+                "testUserId": "00000000-0000-0000-0000-000000000101",
+            },
+        ),
+    ]
+    asyncio.run(adapter.close())

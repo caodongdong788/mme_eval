@@ -48,6 +48,7 @@ adapter:
     test_token_env: "CX_AGENT_TEST_TOKEN"
     test_token: ""             # 本地临时调试可填；不要提交真实 token
     timeout_s: 120
+    isolated_accounts: true     # 每个 Case/run 领取并重置独立测试账号，结束后释放
 
 judges:
   # 硬门槛（强制，任一 fail 整题 fail）

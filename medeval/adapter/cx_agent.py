@@ -7,6 +7,7 @@ agentLoop、工具、DB session 与多轮上下文。cx-agent 自己维护历史
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from typing import Any
@@ -18,6 +19,8 @@ from .registry import register_adapter
 
 
 CX_AGENT_CHAT_ENDPOINT = "/api/test/chat/send"
+CX_AGENT_ACCOUNT_LEASE_ENDPOINT = "/api/test/evaluation/accounts/lease"
+CX_AGENT_ACCOUNT_RELEASE_ENDPOINT = "/api/test/evaluation/accounts/release"
 
 
 def _json_or_text(data: str) -> Any:
@@ -111,6 +114,7 @@ class CxAgentAdapter(BaseAdapter):
         test_token_env: str = "CX_AGENT_TEST_TOKEN",
         test_token: str = "",
         timeout_s: float = 120.0,
+        isolated_accounts: bool = False,
     ):
         token = test_token or os.environ.get(test_token_env, "")
         if not token:
@@ -122,6 +126,34 @@ class CxAgentAdapter(BaseAdapter):
         self._test_token = token
         self._client = httpx.AsyncClient(timeout=timeout_s)
         self._sessions: dict[str, str] = {}
+        self._isolated_accounts = isolated_accounts
+        self._leases: dict[str, dict[str, Any]] = {}
+        self._lease_locks: dict[str, asyncio.Lock] = {}
+
+    async def _ensure_lease(self, req: ChatRequest) -> dict[str, Any] | None:
+        if not self._isolated_accounts:
+            return None
+        existing = self._leases.get(req.session_id)
+        if existing is not None:
+            return existing
+
+        lock = self._lease_locks.setdefault(req.session_id, asyncio.Lock())
+        async with lock:
+            existing = self._leases.get(req.session_id)
+            if existing is not None:
+                return existing
+            response = await self._client.post(
+                self.base_url + CX_AGENT_ACCOUNT_LEASE_ENDPOINT,
+                headers={"X-Test-Token": self._test_token},
+                json={"leaseId": req.session_id},
+            )
+            response.raise_for_status()
+            payload = response.json()
+            data = payload.get("data") if isinstance(payload, dict) else None
+            if not isinstance(data, dict) or not isinstance(data.get("userId"), str):
+                raise RuntimeError("cx-agent evaluation account lease returned invalid payload")
+            self._leases[req.session_id] = data
+            return data
 
     async def chat(self, req: ChatRequest) -> ChatResponse:
         latest = req.messages[-1] if req.messages else {}
@@ -142,9 +174,23 @@ class CxAgentAdapter(BaseAdapter):
                 ),
             )
 
-        body = {"content": content}
+        try:
+            lease = await self._ensure_lease(req)
+        except Exception as e:  # noqa: BLE001 - lifecycle failure is per-case evidence
+            return ChatResponse(reply="", error=f"cx_agent account lease error: {e}")
+
+        body: dict[str, Any] = {"content": content}
         if cx_session_id:
             body["sessionId"] = cx_session_id
+        if lease is not None:
+            body["testUserId"] = lease["userId"]
+            body["evaluationLeaseId"] = req.session_id
+        if value := req.metadata.get("eval_run_id"):
+            body["evalRunId"] = value
+        if value := req.metadata.get("sample_id"):
+            body["sampleId"] = value
+        if isinstance(req.metadata.get("run_idx"), int):
+            body["runIdx"] = req.metadata["run_idx"]
 
         try:
             resp = await self._client.post(
@@ -165,6 +211,7 @@ class CxAgentAdapter(BaseAdapter):
         saw_message_end = False
         usage: dict[str, int] = {}
         error: str | None = None
+        evaluation_context: dict[str, Any] = {}
 
         for item in events:
             event = item["event"]
@@ -175,6 +222,8 @@ class CxAgentAdapter(BaseAdapter):
                 if isinstance(session_id, str) and session_id:
                     cx_session_id = session_id
                     self._sessions[req.session_id] = session_id
+            elif event == "evaluation_context" and isinstance(data, dict):
+                evaluation_context = data
             elif event == "text_delta":
                 reply_parts.append(_extract_delta(data))
             elif event == "message_end":
@@ -189,6 +238,18 @@ class CxAgentAdapter(BaseAdapter):
         }
         if usage:
             raw["usage"] = usage
+        if evaluation_context:
+            raw["evaluation_context"] = evaluation_context
+            trace_id = evaluation_context.get("traceId")
+            if isinstance(trace_id, str) and trace_id:
+                raw["cx_langfuse_trace_id"] = trace_id
+        if lease is not None:
+            raw["evaluation_account"] = {
+                "test_user_id": lease.get("userId"),
+                "reset_at": lease.get("resetAt"),
+                "reset_status": "success",
+                "profile_after_reset": lease.get("profile", {}),
+            }
 
         if error:
             return ChatResponse(reply="", raw=raw, error=error)
@@ -197,4 +258,22 @@ class CxAgentAdapter(BaseAdapter):
         return ChatResponse(reply="".join(reply_parts), raw=raw)
 
     async def close(self) -> None:
+        for session_id in list(self._leases):
+            await self.end_session(session_id)
         await self._client.aclose()
+
+    async def end_session(self, session_id: str) -> None:
+        lease = self._leases.pop(session_id, None)
+        self._sessions.pop(session_id, None)
+        self._lease_locks.pop(session_id, None)
+        if lease is None:
+            return
+        try:
+            await self._client.post(
+                self.base_url + CX_AGENT_ACCOUNT_RELEASE_ENDPOINT,
+                headers={"X-Test-Token": self._test_token},
+                json={"leaseId": session_id, "testUserId": lease.get("userId")},
+            )
+        except Exception:
+            # 租约自身有 TTL；释放失败不得覆盖已完成的评测结果。
+            return

@@ -126,6 +126,7 @@ class CxAgentCfg(_Strict):
     test_token_env: str = "CX_AGENT_TEST_TOKEN"
     test_token: str = ""
     timeout_s: float = 120.0
+    isolated_accounts: bool = False
 
 
 class AdapterCfg(_Strict):

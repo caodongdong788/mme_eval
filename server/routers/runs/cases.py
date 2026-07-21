@@ -7,6 +7,8 @@ from typing import Any, Optional
 from fastapi import Depends, Query
 from sqlalchemy.orm import Session
 
+from medeval.models import ConversationTrace
+
 from ...auth import get_current_user_optional
 from ...constants import LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX
 from ...db import get_session
@@ -14,8 +16,11 @@ from ...models_db import CaseResultRow, FeishuUser
 from ...schemas import CaseRowOut, CasesYamlOut
 from ...services.case_export import export_transcripts, get_case_detail_json, get_cases_yaml
 from ...services.case_query import attach_review_summary, filtered_case_rows
+from ...services.case_query import case_row_or_404
+from ...services.langfuse_trace import sync_conversation_trace
 from ...services.review import pending_review_sample_ids
 from ...services.runs import get_run_or_404
+from ...settings import get_settings
 from ._router import router
 
 
@@ -123,3 +128,18 @@ def get_case_detail(
     run_id: int, sample_id: str, session: Session = Depends(get_session)
 ) -> dict[str, Any]:
     return get_case_detail_json(session, run_id, sample_id)
+
+
+@router.post("/{run_id}/cases/{sample_id}/agent-chain/sync")
+async def sync_case_agent_chain(
+    run_id: int, sample_id: str, session: Session = Depends(get_session)
+) -> dict[str, Any]:
+    """重新从 Langfuse 拉取该 Case 的 cx-agent 内部调用链；失败不改评分。"""
+    row = case_row_or_404(session, run_id, sample_id)
+    detail = dict(row.detail_json or {})
+    trace = ConversationTrace.model_validate(detail.get("trace") or {"messages": []})
+    await sync_conversation_trace(trace, get_settings())
+    detail["trace"] = trace.model_dump(mode="json")
+    row.detail_json = detail
+    session.flush()
+    return detail

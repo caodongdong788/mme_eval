@@ -44,3 +44,7 @@ class BaseAdapter(ABC):
     async def close(self) -> None:
         """资源释放钩子，子类可重写。"""
         return None
+
+    async def end_session(self, session_id: str) -> None:
+        """一次 Case/run 结束钩子；有外部会话租约的 adapter 可在此释放。"""
+        return None

@@ -139,6 +139,25 @@ class Settings:
         )
     )
 
+    # cx-agent 内部 Langfuse Trace 只读同步。与 MME 自身是否写 Langfuse 解耦；
+    # 凭据仅在服务端环境变量中使用，不进入 Case 明细或配置快照。
+    langfuse_host: str = field(
+        default_factory=lambda: os.environ.get("LANGFUSE_HOST", "")
+        or os.environ.get("LANGFUSE_BASE_URL", "")
+    )
+    langfuse_public_key: str = field(
+        default_factory=lambda: os.environ.get("LANGFUSE_PUBLIC_KEY", "")
+    )
+    langfuse_secret_key: str = field(
+        default_factory=lambda: os.environ.get("LANGFUSE_SECRET_KEY", "")
+    )
+    langfuse_sync_timeout_seconds: float = field(
+        default_factory=lambda: float(os.environ.get("LANGFUSE_SYNC_TIMEOUT_SECONDS", "8"))
+    )
+    langfuse_sync_attempts: int = field(
+        default_factory=lambda: int(os.environ.get("LANGFUSE_SYNC_ATTEMPTS", "3"))
+    )
+
     @property
     def auth_required(self) -> bool:
         """是否强制登录：仅当配置了飞书应用密钥时开启（否则 dev 放行）。"""

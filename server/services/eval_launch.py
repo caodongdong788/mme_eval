@@ -14,6 +14,7 @@ from ..progress import InMemoryProgress
 from ..settings import Settings, get_settings
 from .eval_artifacts import apply_retention, write_run_plan
 from .eval_stack import build_eval_adapter, build_judge_stack, prepare_run_config
+from .langfuse_trace import enrich_report_agent_chains
 
 
 def build_eval_job(
@@ -77,6 +78,7 @@ def build_eval_job(
             run_name=run_slug,
             out_dir=out_dir,
         )
+        await enrich_report_agent_chains(report, settings)
 
         prev = resolve_diff_target("auto", settings.outputs_dir, out_dir)
         ej._persist_outcome(run_id, report, out_dir, prev_json=prev)

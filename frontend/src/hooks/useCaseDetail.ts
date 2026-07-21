@@ -24,6 +24,7 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
   const [isBuiltin, setIsBuiltin] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [previewResult, setPreviewResult] = useState<PreviewRejudgeResult | null>(null);
+  const [chainSyncing, setChainSyncing] = useState(false);
 
   const {
     yamlOpen,
@@ -103,6 +104,20 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
     }
   };
 
+  const syncAgentChain = async () => {
+    if (!sampleId) return;
+    setChainSyncing(true);
+    try {
+      const next = await api.syncCaseAgentChain(runId, sampleId);
+      setDetail(next);
+      message.success("Agent 链路已同步");
+    } catch (e: unknown) {
+      message.error(formatApiError(e, "Agent 链路同步失败"));
+    } finally {
+      setChainSyncing(false);
+    }
+  };
+
   const saveYamlAsBenchmark = () =>
     yamlActions.saveAsBenchmark({
       name: yamlName,
@@ -154,6 +169,8 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
     setYamlName,
     previewing,
     previewResult,
+    chainSyncing,
+    syncAgentChain,
     openEditor,
     runPreview,
     yamlActions,
