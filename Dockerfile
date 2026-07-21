@@ -4,6 +4,9 @@
 # --- Stage 1: 前端构建 ---
 FROM node:20-alpine AS frontend-build
 WORKDIR /frontend
+# Node 20 镜像自带的 npm 10.8 在该 lockfile 上会异常退出（Exit handler never called）；
+# npm 11 支持 Node 20.17+，可稳定执行严格的 `npm ci`。
+RUN npm install --global npm@11
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
