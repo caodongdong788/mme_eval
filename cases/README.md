@@ -1,5 +1,9 @@
 # Case YAML v2 参考
 
+如果需要把一批人工标注数据交给其他 AI 或脚本批量转换，请先阅读
+[`docs/ai-annotated-case-to-yaml-guide.md`](../docs/ai-annotated-case-to-yaml-guide.md)。该文档包含
+字段映射、生成规则、可直接使用的 AI 提示词、参考 Python 代码和审核清单。
+
 正式 Case 只接受 `schema_version: "2.0"`。历史 Case 已全部删除；当前
 `cases/examples/case_v2.example.yaml` 仅说明结构，不进入正式评测。
 
