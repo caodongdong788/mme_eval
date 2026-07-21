@@ -1,9 +1,10 @@
-import { Dispatch, SetStateAction } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { Button, Space, Table } from "antd";
 import { DownloadOutlined, EditOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { CaseRow, ReviewStats } from "../api/index";
-import { CaseFilters, FilterToolbar } from "./FilterToolbar";
+import type { CaseFilterCondition, CaseFilterValueOptions } from "../utils/caseFilters";
+import { CaseFilterBuilder } from "./CaseFilterBuilder";
 
 export interface RunCaseResultsCardProps {
   benchmarkName?: string;
@@ -11,15 +12,9 @@ export interface RunCaseResultsCardProps {
   cases: CaseRow[];
   shownCases: CaseRow[];
   columns: ColumnsType<CaseRow>;
-  filters: CaseFilters;
-  setFilters: Dispatch<SetStateAction<CaseFilters>>;
-  reviewFilter?: string;
-  setReviewFilter: (value: string | undefined) => void;
-  onlyPending: boolean;
-  setOnlyPending: (checked: boolean) => void;
-  queueIds: Set<string>;
-  hasActiveFilters: boolean;
-  resetFilters: () => void;
+  filterConditions: CaseFilterCondition[];
+  setFilterConditions: Dispatch<SetStateAction<CaseFilterCondition[]>>;
+  filterValueOptions: CaseFilterValueOptions;
   exporting: boolean;
   onOpenYamlEditor: () => void;
   onOpenExport: () => void;
@@ -31,15 +26,9 @@ export function RunCaseResultsCard({
   cases,
   shownCases,
   columns,
-  filters,
-  setFilters,
-  reviewFilter,
-  setReviewFilter,
-  onlyPending,
-  setOnlyPending,
-  queueIds,
-  hasActiveFilters,
-  resetFilters,
+  filterConditions,
+  setFilterConditions,
+  filterValueOptions,
   exporting,
   onOpenYamlEditor,
   onOpenExport,
@@ -48,13 +37,18 @@ export function RunCaseResultsCard({
     <div className="run-detail-page">
       <div className="dash-table-card">
         <div className="dash-table-card__head">
-          <div>
+          <div className="run-case-results__heading">
             <h3>用例结果</h3>
             {benchmarkName && (
-              <span className="dash-table-card__sub">benchmark · {benchmarkName}</span>
+              <span className="dash-table-card__sub">{benchmarkName}</span>
             )}
           </div>
           <Space size={8} wrap>
+            <CaseFilterBuilder
+              conditions={filterConditions}
+              onChange={setFilterConditions}
+              valueOptions={filterValueOptions}
+            />
             {reviewStats && reviewStats.queue_total > 0 && (
               <span className="status-dot status-dot--warn">
                 待审 {reviewStats.pending}/{reviewStats.queue_total}
@@ -79,17 +73,6 @@ export function RunCaseResultsCard({
             </Button>
           </Space>
         </div>
-        <FilterToolbar
-          filters={filters}
-          setFilters={setFilters}
-          reviewFilter={reviewFilter}
-          setReviewFilter={setReviewFilter}
-          onlyPending={onlyPending}
-          setOnlyPending={setOnlyPending}
-          queueIds={queueIds}
-          hasActiveFilters={hasActiveFilters}
-          resetFilters={resetFilters}
-        />
         <Table
           className="dash-table"
           rowKey="id"

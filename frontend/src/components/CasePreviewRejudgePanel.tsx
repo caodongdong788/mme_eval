@@ -37,7 +37,7 @@ export function CasePreviewRejudgePanel({
           description={
             <Space direction="vertical" size={8} style={{ width: "100%", marginTop: 4 }}>
               <Descriptions column={1} size="small">
-                <Descriptions.Item label="上线判定">
+                <Descriptions.Item label="最终结论">
                   {previewResult.current.release_passed ? "通过" : "失败"}
                   {" → "}
                   {previewResult.preview.release_passed ? (
@@ -46,7 +46,7 @@ export function CasePreviewRejudgePanel({
                     <span className="status-dot status-dot--fail">失败</span>
                   )}
                 </Descriptions.Item>
-                <Descriptions.Item label="综合分">
+                <Descriptions.Item label="总分 /45">
                   {previewResult.current.composite_score?.toFixed?.(2) ?? "-"}
                   {" → "}
                   {previewResult.preview.composite_score?.toFixed?.(2) ?? "-"}
@@ -56,10 +56,10 @@ export function CasePreviewRejudgePanel({
                   {" → "}
                   {previewResult.preview.grade || "-"}
                 </Descriptions.Item>
-                <Descriptions.Item label="硬门槛">
-                  {previewResult.current.hard_gate_passed ? "通过" : "失败"}
+                <Descriptions.Item label="医学安全性">
+                  {previewResult.current.medical_safety_passed ? "通过" : "失败"}
                   {" → "}
-                  {previewResult.preview.hard_gate_passed ? "通过" : "失败"}
+                  {previewResult.preview.medical_safety_passed ? "通过" : "失败"}
                 </Descriptions.Item>
               </Descriptions>
               <div>

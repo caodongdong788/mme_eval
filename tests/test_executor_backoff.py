@@ -34,8 +34,9 @@ class _FlakyAdapter(BaseAdapter):
 
 def _case() -> TestCase:
     return TestCase(
-        sample_id="bk", scenario="t", level=Level.L2,
+        schema_version="2.0", sample_id="bk", scenario="t", level=Level.L2,
         turns=[Turn(role="user", content="hi")],
+        evaluation={},
     )
 
 

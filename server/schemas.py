@@ -8,7 +8,9 @@ from __future__ import annotations
 
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from medeval.evaluation import EvaluationDimension
 
 from .datetime_json import ApiDateTime
 
@@ -26,7 +28,7 @@ class BenchmarkOut(BaseModel):
     version: str
     source: str
     case_count: int
-    tags: list[str]  # 该 benchmark 覆盖的 score_profile 列表（DB 列名保留 tags）
+    tags: list[str]
     levels: list[str] = Field(default_factory=list)
     created_by: Optional[str] = None
     created_at: Optional[ApiDateTime] = None
@@ -46,13 +48,10 @@ class RunRenameRequest(BaseModel):
 
 
 class CaseLogicOverride(BaseModel):
-    """单条用例的判据覆盖（派生 benchmark 时按 sample_id 套用）。"""
+    """单条用例的八维关注点与指南覆盖。"""
 
     sample_id: str
-    expected_behavior: Optional[dict[str, Any]] = None
-    hard_gates: Optional[dict[str, Any]] = None
-    rubric: Optional[dict[str, Any]] = None
-    scoring_points: Optional[list[dict[str, Any]]] = None
+    evaluation: Optional[dict[str, Any]] = None
 
 
 class DeriveBenchmarkRequest(BaseModel):
@@ -64,7 +63,7 @@ class DeriveBenchmarkRequest(BaseModel):
 
 
 class DeriveBenchmarkYamlRequest(BaseModel):
-    """从整段用例 YAML 派生新 benchmark（按 sample_id 只合并判据字段，未匹配丢弃）。"""
+    """从整段 V2 YAML 派生新 benchmark。"""
 
     name: str
     description: str = ""
@@ -86,14 +85,7 @@ class CasesYamlOut(BaseModel):
 
 
 class PreviewRejudgeRequest(BaseModel):
-    """单用例 ephemeral 试判预览请求：携带该用例的判据覆盖。
-
-    两种等价入参（优先 ``case_override``）：
-    - ``case_override``：结构化覆盖（仅 4 个判据字段）；
-    - ``yaml_text``：单条/多条用例 YAML（服务端按 sample_id 抽取该条的 4 个判据字段），
-      便于前端直接复用 YAML 编辑器内容、无需客户端解析。
-    二者皆空时按当前判据原样试判（对照）。``sample_id`` 一律以路径为准。
-    """
+    """单用例试判预览，可覆盖 V2 ``evaluation``。"""
 
     case_override: Optional[CaseLogicOverride] = None
     yaml_text: Optional[str] = None
@@ -102,17 +94,17 @@ class PreviewRejudgeRequest(BaseModel):
 class CaseScores(BaseModel):
     """单用例评分快照（用于试判前后对比；仅判分相关字段，不含会话/留痕）。"""
 
-    hard_gate_passed: bool
-    gate_passed: bool
+    medical_safety_passed: bool
     release_passed: bool
     composite_score: Optional[float] = None
     grade: str = ""
     dimension_scores: dict[str, Optional[float]] = Field(default_factory=dict)
     dimension_max: dict[str, float] = Field(default_factory=dict)
-    score_profile: str = ""
+    dimension_raw_scores: dict[str, Optional[float]] = Field(default_factory=dict)
+    end_scores: dict[str, float] = Field(default_factory=dict)
+    guideline_scores: list[dict[str, Any]] = Field(default_factory=list)
     score_deductions: list[str] = Field(default_factory=list)
     failure_tags: list[str] = Field(default_factory=list)
-    needs_human_review: bool = False
     verdicts: list[dict[str, Any]] = Field(default_factory=list)
 
 
@@ -136,7 +128,7 @@ class CaseBrief(BaseModel):
     scenario: str
     sub_scenario: str = ""
     level: str
-    score_profile: str = "default"
+    guideline_count: int = 0
 
 
 class BenchmarkCaseYamlOut(BaseModel):
@@ -165,7 +157,7 @@ class JudgeOverride(BaseModel):
     api_key_env: Optional[str] = None
     api_key: Optional[str] = None
     temperature: Optional[float] = None
-    prompt_template: Optional[str] = None
+    enable_thinking: Optional[bool] = None
 
     def public_dict(self) -> dict[str, Any]:
         """入库用：剔除 api_key 的非空字段。"""
@@ -195,7 +187,6 @@ class RunCreate(BaseModel):
     run_name: Optional[str] = None
     # 按 level 过滤（如 ["L1","L3"]）；为空 = 全部 level。
     levels: list[str] = Field(default_factory=list)
-    score_profiles: list[str] = Field(default_factory=list)
     limit: int = 0
     repeat: Optional[int] = Field(default=None, ge=1)
     judge: Optional[JudgeOverride] = None
@@ -220,8 +211,8 @@ class JudgeModelOut(BaseModel):
     base_url: str
     api_version: str
     temperature: Optional[float] = None
+    enable_thinking: Optional[bool] = None
     pairwise_concurrency: int = 4
-    prompt_template: Optional[str] = None
     has_api_key: bool
     created_by: Optional[str] = None
     created_at: Optional[ApiDateTime] = None
@@ -234,8 +225,8 @@ class JudgeModelCreate(BaseModel):
     base_url: Optional[str] = None
     api_version: Optional[str] = None
     temperature: Optional[float] = None
+    enable_thinking: Optional[bool] = None
     pairwise_concurrency: int = Field(default=4, ge=1)
-    prompt_template: Optional[str] = None
     api_key: Optional[str] = None
 
 
@@ -248,21 +239,9 @@ class JudgeModelUpdate(BaseModel):
     base_url: Optional[str] = None
     api_version: Optional[str] = None
     temperature: Optional[float] = None
+    enable_thinking: Optional[bool] = None
     pairwise_concurrency: Optional[int] = Field(default=None, ge=1)
-    prompt_template: Optional[str] = None
     api_key: Optional[str] = None
-
-
-class OptimizeJudgePromptIn(BaseModel):
-    prompt: str = Field(min_length=1)
-
-
-class OptimizeJudgePromptOut(BaseModel):
-    optimized_prompt: str
-
-
-class DefaultJudgePromptOut(BaseModel):
-    prompt_template: str
 
 
 class RejudgeRequest(BaseModel):
@@ -297,7 +276,7 @@ class RunSummaryOut(BaseModel):
     total: int
     passed: int
     pass_rate: float
-    hard_gate_failed: int
+    medical_safety_failed: int
     n_runs: int
     started_at: Optional[ApiDateTime] = None
     finished_at: Optional[ApiDateTime] = None
@@ -325,6 +304,13 @@ class RunDetailOut(RunSummaryOut):
     by_scenario: dict[str, Any] = Field(default_factory=dict)
     config_snapshot: dict[str, Any] = Field(default_factory=dict)
 
+    @field_validator("config_snapshot", mode="before")
+    @classmethod
+    def _redact_config_snapshot(cls, value: Any) -> dict[str, Any]:
+        from medeval.config import redact_config_secrets
+
+        return redact_config_secrets(value or {})
+
 
 class ProgressOut(BaseModel):
     status: str
@@ -349,18 +335,13 @@ class CaseRowOut(BaseModel):
     scenario: str
     sub_scenario: str
     level: str
-    hard_gate_passed: bool
-    gate_passed: bool
+    medical_safety_passed: bool
     release_passed: bool
     composite_score: Optional[float] = None
     grade: str
-    score_profile: str
     stability: str
-    needs_human_review: bool
-    guideline_match_rate: Optional[float] = None
-    # 指南匹配命中/总数（服务端从 detail_json 派生；无带指南锚点得分点时为 None）。
-    guideline_matched: Optional[int] = None
-    guideline_total: Optional[int] = None
+    guideline_earned: Optional[float] = None
+    guideline_max: Optional[float] = None
     latency_ms: Optional[float] = None
     total_tokens: Optional[int] = None
     cost: Optional[float] = None
@@ -403,7 +384,7 @@ class ReviewQueueItemOut(BaseModel):
     release_passed: bool
     composite_score: Optional[float] = None
     failure_tags: list[str] = Field(default_factory=list)
-    reasons: list[str] = Field(default_factory=list)  # needs_human_review/red_flag_failed/manual
+    reasons: list[str] = Field(default_factory=list)
     reviewed: bool = False
     annotations: list[AnnotationOut] = Field(default_factory=list)
 
@@ -616,11 +597,22 @@ class PairwiseComparisonOut(BaseModel):
 
 
 class PairwiseCalibrateUpdate(BaseModel):
-    """人工校准覆写：结论 A|B|tie、三维度、理由。"""
+    """人工校准覆写：结论 A|B|tie、八维度、理由。"""
 
     winner: Literal["A", "B", "tie"]
     dimension_winners: dict[str, Literal["A", "B", "tie"]] = Field(default_factory=dict)
     reason: str = ""
+
+    @field_validator("dimension_winners")
+    @classmethod
+    def _only_eight_dimensions(
+        cls, value: dict[str, Literal["A", "B", "tie"]]
+    ) -> dict[str, Literal["A", "B", "tie"]]:
+        allowed = {dimension.value for dimension in EvaluationDimension}
+        unknown = sorted(set(value) - allowed)
+        if unknown:
+            raise ValueError(f"未知维度：{', '.join(unknown)}")
+        return value
 
 
 class PairwiseCaseVerdictOut(BaseModel):
@@ -641,7 +633,6 @@ class PairwiseCaseVerdictOut(BaseModel):
     auto_confidence: Optional[str] = None
     auto_dimension_winners: Optional[dict[str, Any]] = None
     auto_reason: Optional[str] = None
-    # 兼容旧字段：机器 confidence 原值
     confidence: str = "low"
 
 
@@ -649,64 +640,3 @@ class PairwiseDetailOut(PairwiseComparisonOut):
     """对比结果详情：汇总 + 逐用例列表。"""
 
     verdicts: list[PairwiseCaseVerdictOut] = Field(default_factory=list)
-
-
-# ---------------------------------------------------------------------------
-# config / release thresholds
-
-
-class ProfileCoverageOut(BaseModel):
-    """该评分档对应的用例 score_profile 映射（用于前端展示覆盖范围）。"""
-
-    is_fallback: bool = False
-    score_profile: str = ""
-    case_count: int = 0
-
-
-class ReleaseThresholdItemOut(BaseModel):
-    profile: str
-    label: str
-    max_total: float
-    default_threshold: float
-    override: Optional[float] = None
-    effective: float
-    coverage: ProfileCoverageOut = Field(default_factory=ProfileCoverageOut)
-
-
-class ReleaseThresholdUpdateRequest(BaseModel):
-    """按 profile 设置综合分上线阈值；值为 None 或等于默认 → 删除覆盖（恢复默认）。"""
-
-    overrides: dict[str, Optional[float]]
-
-
-class ScoringProfileSnapshotOut(BaseModel):
-    module_max: dict[str, float]
-    function_deduction: float
-    safety_function_deduction: float
-    min_composite: float
-    gates: dict[str, Any] = Field(default_factory=dict)
-    max_total: float
-    pass_rule_type: str
-
-
-class ScoringProfileOverrideIn(BaseModel):
-    module_max: Optional[dict[str, float]] = None
-    function_deduction: Optional[float] = None
-    safety_function_deduction: Optional[float] = None
-    min_composite: Optional[float] = None
-    gates: Optional[dict[str, Any]] = None
-
-
-class ScoringProfileItemOut(BaseModel):
-    profile: str
-    label: str
-    coverage: ProfileCoverageOut = Field(default_factory=ProfileCoverageOut)
-    defaults: ScoringProfileSnapshotOut
-    override: Optional[dict[str, Any]] = None
-    effective: ScoringProfileSnapshotOut
-
-
-class ScoringProfileUpdateRequest(BaseModel):
-    """按 profile 设置评分覆盖；profile 值为 null → 清除该场景全部覆盖。"""
-
-    overrides: dict[str, Optional[ScoringProfileOverrideIn]]

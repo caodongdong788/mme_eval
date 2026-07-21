@@ -70,7 +70,7 @@ export default function JudgeModelsPage() {
   return (
     <DashboardPageShell
       title="判分模型（LLM-as-Judge）"
-      sub="在此一次配好打分模型的连接信息与 Judge Prompt（含 API Key，仅写入、不回显），发起评测时直接下拉选用。"
+      sub="在此配置八维与指南判分模型的连接信息（API Key 仅写入、不回显）。评分 Prompt 由内核固定管理。"
       extra={
         <Button type="primary" icon={<PlusOutlined />} onClick={jm.openCreate}>
           新增判分模型
@@ -96,11 +96,9 @@ export default function JudgeModelsPage() {
         open={jm.open}
         editId={jm.editId}
         saving={jm.saving}
-        optimizing={jm.optimizing}
         form={jm.form}
         onCancel={() => jm.setOpen(false)}
         onSubmit={jm.submit}
-        onOptimizePrompt={jm.optimizePrompt}
       />
     </DashboardPageShell>
   );

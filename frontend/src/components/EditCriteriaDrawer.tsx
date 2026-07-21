@@ -82,7 +82,7 @@ export function EditCriteriaDrawer({
           type="info"
           showIcon
           style={{ marginBottom: 12 }}
-          message="按当前过滤命中的用例完整 YAML。保存时按 sample_id 只合并判据字段（expected_behavior/hard_gates/rubric/scoring_points），turns 等不动；YAML 里 sample_id 在源集找不到的会被丢弃，未编辑的源用例原样保留。「另存」生成新 benchmark；「覆盖」就地更新原 benchmark（内置不可覆盖），仅更新判据源、不改当前 run 已存分。两者都不触发重判——要让某个 run 反映新判据需另行「重判」。"
+          message="按当前过滤导出完整 V2 YAML。保存时按 sample_id 更新 evaluation.dimension_criteria 和 evaluation.guidelines；不修改已产生的 run 分数，需另行重判。"
         />
       )}
       {slot ? <div style={{ marginBottom: 12 }}>{slot}</div> : null}

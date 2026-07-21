@@ -6,9 +6,11 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import {
   checkNoScatteredHex,
+  checkDimensionLabelsSync,
   checkPagesLayer,
   checkTokenMirror,
   normalizeColor,
+  parsePythonEnumDict,
   parseTsRecord,
 } from "./check-standards.mjs";
 
@@ -52,14 +54,32 @@ test("checkPagesLayer allows downloadBenchmarkUrl", () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-test("parseTsRecord reads PROFILE_LABEL shape", () => {
-  const src = `export const PROFILE_LABEL: Record<string, string> = {
-  default: "默认（兜底）",
-  agent: "Agent 问诊",
+test("parseTsRecord reads DIM_LABEL shape", () => {
+  const src = `export const DIM_LABEL: Record<string, string> = {
+  medical_safety: "医学安全性",
+  empathy: "被理解与共情",
 }`;
-  const rec = parseTsRecord(src, "PROFILE_LABEL");
-  assert.equal(rec.default, "默认（兜底）");
-  assert.equal(rec.agent, "Agent 问诊");
+  const rec = parseTsRecord(src, "DIM_LABEL");
+  assert.equal(rec.medical_safety, "医学安全性");
+  assert.equal(rec.empathy, "被理解与共情");
+});
+
+test("parsePythonEnumDict reads enum-keyed label mapping", () => {
+  const src = `DIMENSION_LABELS: dict[EvaluationDimension, str] = {
+    EvaluationDimension.medical_safety: "医学安全性",
+    EvaluationDimension.empathy: "被理解与共情",
+}`;
+  const rec = parsePythonEnumDict(src, "DIMENSION_LABELS", "EvaluationDimension");
+  assert.equal(rec.medical_safety, "医学安全性");
+  assert.equal(rec.empathy, "被理解与共情");
+});
+
+test("dimension labels stay synchronized across frontend and backend", () => {
+  const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const labels = readFileSync(join(root, "frontend/src/labels.ts"), "utf8");
+  const evaluation = readFileSync(join(root, "medeval/evaluation.py"), "utf8");
+  const errors = checkDimensionLabelsSync(labels, evaluation);
+  assert.equal(errors.length, 0, errors.join("; "));
 });
 
 test("checkTokenMirror passes on repo styles/theme", () => {

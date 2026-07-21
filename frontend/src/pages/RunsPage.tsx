@@ -126,8 +126,8 @@ export default function RunsPage() {
         ),
     },
     {
-      title: "HardGate",
-      dataIndex: "hard_gate_failed",
+      title: "安全失败",
+      dataIndex: "medical_safety_failed",
       width: "10%",
       ...nowrap,
       render: (v: number, r: RunSummary) =>

@@ -12,6 +12,7 @@ import httpx
 from medeval.models import ConversationTrace, RunReport
 
 from ..settings import Settings
+from .agent_chain_summary import summarize_agent_chain
 
 
 _FIELDS = "core,basic,time,io,metadata,model,usage,prompt,metrics,trace_context"
@@ -233,6 +234,7 @@ async def sync_conversation_trace(
                 for item in traces
             ],
             "nodes": nodes,
+            "summary": summarize_agent_chain(nodes),
             "error": "；".join(errors) if errors else None,
         }
         trace.agent_chain = snapshot

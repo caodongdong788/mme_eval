@@ -170,7 +170,7 @@ export default function LaunchPage() {
                 <div>
                   <div className="dash-toggle-card__title">启用 LLM 打分</div>
                   <div className="dash-toggle-card__desc">
-                    开启后将对 bot 回复跑 HardGate + 规则 + LLM 判分链路。
+                    开启后将对 bot 回复运行固定八维评分和 Case 指南覆盖评分。
                   </div>
                 </div>
                 <Form.Item name="judge_enabled" valuePropName="checked" noStyle>

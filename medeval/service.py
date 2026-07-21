@@ -4,11 +4,11 @@
 
 分层：
   * **功能核** ``evaluate``：纯编排，唯一副作用是 adapter 网络调用；输入校验后的
-    ``Config`` + 用例 + 注入的 adapter/judges/adjudicator，输出 ``RunReport``。
+    ``Config`` + 用例 + 注入的 adapter/judges，输出 ``RunReport``。
     不依赖 click / console / sys.exit / 文件写盘；进度经注入式 ``ProgressObserver`` 上报。
   * **持久化层** ``resolve_diff_target`` / ``write_core_artifacts``：文件副作用集中，
     可在临时目录、无网络、无 console 地被测。
-  * **构造器** ``build_judges`` / ``build_adjudicator``：从 typed config 装配判官。
+  * **构造器** ``build_judges``：从 typed config 装配八维和指南判官。
 
 CLI（``medeval/cli.py``）作为命令式外壳，注入 rich 进度实现、负责飞书发布、终端总览与退出码。
 """
@@ -24,18 +24,15 @@ from typing import Protocol
 from . import trace_store
 from .config import Config, JudgesCfg
 from .judges import (
-    HardGateJudge,
-    LLMJudge,
-    RuleJudge,
-    ScoringPointJudge,
-    SemanticRuleAdjudicator,
-    compute_guideline_match_rate,
+    EightDimensionJudge,
+    GuidelineJudge,
     judge_all,
 )
 from .models import CaseResult, ConversationTrace, RunReport, TestCase
 from .observability import langfuse_tracing as lf
 from .observability.tracing import configure_tracing, span
 from .reporter import build_report, diff_runs, write_json, write_transcripts_xlsx
+from .reporter.scoring import apply_grading
 from .run_slug import make_run_slug
 from .runner import fold_n_runs, run_cases
 
@@ -73,84 +70,30 @@ class NullProgress:
 
 def build_judges(jcfg: JudgesCfg) -> list:
     judges: list = []
-    if jcfg.hard_gates.enabled:
-        judges.append(HardGateJudge())
-    if jcfg.rule.enabled:
-        judges.append(RuleJudge(normalize=jcfg.rule.normalize))
-    llm = jcfg.llm
-    if llm.enabled:
-        judges.append(
-            LLMJudge(
-                enabled=True,
-                provider=llm.provider,
-                model=llm.model,
-                api_key_env=llm.api_key_env,
-                api_key=llm.api_key,
-                base_url=llm.base_url,
-                temperature=llm.temperature,
-                dual_judge=llm.dual_judge,
-                second_model=llm.second_model,
-                api_version=llm.api_version,
-                default_headers=llm.default_headers,
-                self_consistency=llm.self_consistency,
-                aggregate=llm.aggregate,
-                prompt_template=llm.prompt_template,
+    for cfg, judge_type in (
+        (jcfg.eight_dimension, EightDimensionJudge),
+        (jcfg.guideline, GuidelineJudge),
+    ):
+        if cfg.enabled:
+            judges.append(
+                judge_type(
+                    enabled=True,
+                    provider=cfg.provider,
+                    model=cfg.model,
+                    api_key_env=cfg.api_key_env,
+                    api_key=cfg.api_key,
+                    base_url=cfg.base_url,
+                    temperature=cfg.temperature,
+                    api_version=cfg.api_version,
+                    default_headers=cfg.default_headers,
+                    enable_thinking=cfg.enable_thinking,
+                )
             )
-        )
-    sp = jcfg.scoring_point
-    if sp.enabled:
-        judges.append(
-            ScoringPointJudge(
-                enabled=True,
-                provider=sp.provider,
-                model=sp.model,
-                api_key_env=sp.api_key_env,
-                api_key=sp.api_key,
-                base_url=sp.base_url,
-                temperature=sp.temperature,
-                api_version=sp.api_version,
-                default_headers=sp.default_headers,
-                self_consistency=sp.self_consistency,
-            )
-        )
     return judges
-
-
-def build_adjudicator(jcfg: JudgesCfg) -> SemanticRuleAdjudicator | None:
-    """构造语义裁决器（独立角色，不进 judge_all 列表）。未启用时返回 None。"""
-    sa = jcfg.rule.semantic_adjudicator
-    if not sa.enabled:
-        return None
-    return SemanticRuleAdjudicator(
-        enabled=True,
-        provider=sa.provider,
-        model=sa.model,
-        api_key_env=sa.api_key_env,
-        api_key=sa.api_key,
-        base_url=sa.base_url,
-        temperature=sa.temperature,
-        api_version=sa.api_version,
-        default_headers=sa.default_headers,
-        negation_prefilter_enabled=sa.negation_prefilter.enabled,
-        negation_cues=sa.negation_prefilter.cues or None,
-        cache_enabled=sa.cache.enabled,
-    )
 
 
 # ---------------------------------------------------------------------------
 # 功能核：跑评测 → 判分 → 折叠 → RunReport（唯一副作用 = adapter 网络调用）。
-
-
-def _split_judges(judges: list):
-    """从 judge 列表拆出确定性 judge 与 LLM 类 judge（llm / scoring_point）。
-
-    LLM 类 judge 在 majority 之后只对代表性 trace 各跑一次（控成本），故需单列。
-    """
-    llm_like = {"llm", "scoring_point"}
-    deterministic = [j for j in judges if j.name not in llm_like]
-    llm_judge = next((j for j in judges if j.name == "llm"), None)
-    scoring_judge = next((j for j in judges if j.name == "scoring_point"), None)
-    return deterministic, llm_judge, scoring_judge
 
 
 def run_phase_plan(n_cases: int, n_runs: int) -> list[tuple[str, str, int]]:
@@ -161,16 +104,15 @@ def run_phase_plan(n_cases: int, n_runs: int) -> list[tuple[str, str, int]]:
 def judge_phase_plan(
     n_cases: int, n_runs: int, judges: list
 ) -> list[tuple[str, str, int]]:
-    """judge 阶段的进度 plan（确定性 + 可选 llm / 得分点）。"""
-    _, llm_judge, scoring_judge = _split_judges(judges)
-    plan: list[tuple[str, str, int]] = [
-        ("judge_det", "Judge 判分 (确定性)", n_cases * n_runs),
+    """judge 阶段的进度 plan。"""
+    return [
+        (
+            f"judge_{judge.name}",
+            "Judge 判分 (八维)" if judge.name == "dimension" else "Judge 判分 (指南)",
+            n_cases * n_runs,
+        )
+        for judge in judges
     ]
-    if llm_judge is not None:
-        plan.append(("judge_llm", "Judge 判分 (LLM)", n_cases))
-    if scoring_judge is not None:
-        plan.append(("judge_sp", "Judge 判分 (得分点)", n_cases))
-    return plan
 
 
 async def run_traces(
@@ -275,14 +217,13 @@ async def judge_traces(
     cases: list[TestCase],
     per_case_traces: list[list[ConversationTrace]],
     judges: list,
-    adjudicator,
     *,
     progress: ProgressObserver | None = None,
     started_at: datetime | None = None,
     run_name: str | None = None,
     declare_plan: bool = True,
 ) -> RunReport:
-    """judge 阶段：对（冻结的）会话留痕判分→fold→llm→sp→软分→build_report。
+    """judge 阶段：对每次冻结会话运行八维和指南判分，再折叠多次结果。
 
     **纯判分、零 adapter 调用**——是离线重判（``medeval rejudge``）的根本前提。
     ``declare_plan=True``（rejudge 独立调用）时自行声明 judge-only plan；
@@ -291,34 +232,35 @@ async def judge_traces(
     progress = progress or NullProgress()
     started_at = started_at or datetime.utcnow()
     n_runs = config.run.repeat
-    concurrency = config.run.concurrency
     judge_concurrency = config.run.judge_concurrency
     from .judges.llm_backend import configure_llm_rate_limit
 
     configure_llm_rate_limit(judge_concurrency, config.run.llm_min_interval_s)
-    deterministic_judges, llm_judge, scoring_judge = _split_judges(judges)
-
     if declare_plan:
         progress.plan_phases(judge_phase_plan(len(cases), n_runs, judges))
 
-    progress.start_phase("judge_det", "Judge 判分 (确定性)", len(cases) * n_runs)
-    # 每次 (case, run) 跑确定性 judge —— 跨 case 并发（同一 case 内逐 run 顺序，
-    # 保证 stability 口径一致；adjudicator 在 majority 之前逐 run 介入）。
+    for judge in judges:
+        progress.start_phase(
+            f"judge_{judge.name}",
+            "Judge 判分 (八维)" if judge.name == "dimension" else "Judge 判分 (指南)",
+            len(cases) * n_runs,
+        )
+
     per_case_results: list[list[CaseResult]] = [[] for _ in cases]
-    det_sem = asyncio.Semaphore(concurrency)
+    judge_sem = asyncio.Semaphore(judge_concurrency)
 
     async def _judge_case(idx: int, case, runs):
-        async with det_sem:
-            run_results: list[CaseResult] = []
-            for trace in runs:
-                r = await judge_all(case, trace, deterministic_judges)
-                if adjudicator is not None:
-                    r = await adjudicator.adjudicate(r)
-                run_results.append(r)
-                progress.advance("judge_det")
-            per_case_results[idx] = run_results
+        run_results: list[CaseResult] = []
+        for trace in runs:
+            async with judge_sem:
+                r = await judge_all(case, trace, judges)
+                apply_grading([r])
+            for judge in judges:
+                progress.advance(f"judge_{judge.name}")
+            run_results.append(r)
+        per_case_results[idx] = run_results
 
-    with span("phase.judge_det", n_cases=len(cases), n_runs=n_runs):
+    with span("phase.judge", n_cases=len(cases), n_runs=n_runs):
         await asyncio.gather(
             *(
                 _judge_case(i, c, runs)
@@ -326,74 +268,14 @@ async def judge_traces(
             )
         )
 
-    # majority voting
+    # 按每次完整评分的最终通过结果做 majority voting。
     folded = fold_n_runs(per_case_results)
-
-    # LLM Judge 仅对代表性 trace 跑一次（控成本）—— 跨 case 并发
-    if llm_judge is not None:
-        progress.start_phase("judge_llm", "Judge 判分 (LLM)", len(folded))
-        llm_fp = ""
-        try:
-            llm_fp = llm_judge.fingerprint()
-        except Exception:
-            pass
-        llm_sem = asyncio.Semaphore(judge_concurrency)
-
-        async def _llm_one(r):
-            async with llm_sem:
-                with span("judge.llm", sample_id=r.case.sample_id):
-                    llm_verdicts = await llm_judge.judge(r.case, r.trace)
-                for v in llm_verdicts:
-                    if not v.judge_fingerprint:
-                        v.judge_fingerprint = llm_fp
-                r.verdicts.extend(llm_verdicts)
-                progress.advance("judge_llm")
-
-        with span("phase.judge_llm", n_cases=len(folded)):
-            await asyncio.gather(*(_llm_one(r) for r in folded))
-
-    # 得分点判官同样仅对代表性 trace 跑一次（控成本），并派生指南匹配率
-    if scoring_judge is not None:
-        progress.start_phase("judge_sp", "Judge 判分 (得分点)", len(folded))
-        sp_fp = ""
-        try:
-            sp_fp = scoring_judge.fingerprint()
-        except Exception:
-            pass
-        sp_sem = asyncio.Semaphore(judge_concurrency)
-
-        async def _sp_one(r):
-            async with sp_sem:
-                with span("judge.scoring_point", sample_id=r.case.sample_id):
-                    sp_verdicts = await scoring_judge.judge(r.case, r.trace)
-                for v in sp_verdicts:
-                    if not v.judge_fingerprint:
-                        v.judge_fingerprint = sp_fp
-                r.verdicts.extend(sp_verdicts)
-                if sp_verdicts:
-                    r.guideline_match_rate = compute_guideline_match_rate(
-                        r.case, sp_verdicts
-                    )
-                progress.advance("judge_sp")
-
-        with span("phase.judge_sp", n_cases=len(folded)):
-            await asyncio.gather(*(_sp_one(r) for r in folded))
-
-    # 软分重新累计（确定性 judge 不贡献软分）：llm.* + scoring_point.summary
-    for r in folded:
-        soft = [
-            v
-            for v in r.verdicts
-            if v.name.startswith("llm.") or v.name == "scoring_point.summary"
-        ]
-        r.soft_score = sum(v.score for v in soft)
-        r.soft_score_max = sum(v.max_score for v in soft)
 
     return build_report(
         run_name=run_name or make_run_slug(config.run.name),
         results=folded,
         adapter_type=config.adapter.type,
-        config_snapshot=config.model_dump(mode="json"),
+        config_snapshot=config.public_snapshot(),
         description=config.run.description,
         started_at=started_at,
         n_runs=n_runs,
@@ -405,7 +287,6 @@ async def evaluate(
     cases: list[TestCase],
     adapter,
     judges: list,
-    adjudicator,
     *,
     progress: ProgressObserver | None = None,
     run_name: str | None = None,
@@ -457,7 +338,6 @@ async def evaluate(
             cases,
             per_case_traces,
             judges,
-            adjudicator,
             progress=progress,
             started_at=started_at,
             run_name=run_name,

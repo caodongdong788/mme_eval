@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from sqlalchemy import inspect, text
 
-from server import db as db_mod
 from server.db import session_scope
 from server.models_db import Benchmark, CaseResultRow, EvalRun, JudgeModelConfig
 from server.schemas import RejudgeRequest
@@ -14,25 +12,6 @@ from server.services.rejudge_launch import (
     resolve_judge_override,
     validate_rejudge_request,
 )
-
-
-def test_drop_review_requested_column(settings):
-    """ORM 已移除 review_requested 时，init_db 应 DROP 遗留 NOT NULL 列。"""
-    db_mod.reset_engine_for_tests()
-    engine = db_mod.init_engine(settings)
-    with engine.begin() as conn:
-        conn.execute(text("DROP TABLE IF EXISTS case_result"))
-        conn.execute(
-            text(
-                "CREATE TABLE case_result ("
-                "id INTEGER PRIMARY KEY, run_id INTEGER NOT NULL, "
-                "sample_id VARCHAR(200) NOT NULL, "
-                "review_requested BOOLEAN NOT NULL DEFAULT 0)"
-            )
-        )
-    db_mod.init_db(settings)
-    cols = {c["name"] for c in inspect(engine).get_columns("case_result")}
-    assert "review_requested" not in cols
 
 
 def test_resolve_judge_override_from_model_id(initialized_db, settings):

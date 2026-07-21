@@ -69,7 +69,7 @@ export function RunOverviewCharts({
         </ResponsiveContainer>
       </RunsChartCard>
 
-      <RunsChartCard title="四模块平均分">
+      <RunsChartCard title="八维平均分">
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={dimData} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
             <CartesianGrid stroke={D.border} vertical={false} />

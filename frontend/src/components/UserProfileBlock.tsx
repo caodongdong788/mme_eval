@@ -27,7 +27,7 @@ const profileValueStyle: CSSProperties = {
   overflowWrap: "anywhere",
 };
 
-export function UserProfileBlock({ text }: { text: string }) {
+export function UserProfileBlock({ text, showTitle = true }: { text: string; showTitle?: boolean }) {
   const rows = text
     .split("\n")
     .map((line) => line.trim())
@@ -43,7 +43,7 @@ export function UserProfileBlock({ text }: { text: string }) {
 
   return (
     <div style={profileRootStyle}>
-      <Typography.Text strong>用户档案</Typography.Text>
+      {showTitle ? <Typography.Text strong>用户档案</Typography.Text> : null}
       <div style={profileRowsStyle}>
         {rows.map((row, index) => (
           <div key={`${row.label}-${index}`} style={profileRowStyle}>

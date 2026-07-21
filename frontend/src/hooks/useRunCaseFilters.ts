@@ -1,90 +1,75 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, CASE_LIST_LIMIT, CaseRow, ReviewStats } from "../api/index";
-import { CaseFilters } from "../components/FilterToolbar";
+import {
+  type CaseFilterCondition,
+  buildCaseFilterValueOptions,
+  filterCaseRows,
+  isActiveCaseFilter,
+} from "../utils/caseFilters";
 
 function readSavedFilters(filtersKey: string): {
-  filters: CaseFilters;
-  onlyPending: boolean;
-  reviewFilter?: string;
+  conditions: CaseFilterCondition[];
 } {
   try {
     const raw = sessionStorage.getItem(filtersKey);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed.conditions)) return { conditions: parsed.conditions };
+    }
   } catch {
     /* ignore */
   }
-  return { filters: {}, onlyPending: false };
+  return { conditions: [] };
 }
 
-export function useRunCaseFilters(runId: number) {
+export function useRunCaseFilters(runId: number, failureTagLabel: (tag: string) => string) {
   const filtersKey = `run:${runId}:caseFilters`;
   const saved = readSavedFilters(filtersKey);
 
   const [cases, setCases] = useState<CaseRow[]>([]);
-  const [filters, setFilters] = useState<CaseFilters>(() => saved.filters);
+  const [filterConditions, setFilterConditions] = useState<CaseFilterCondition[]>(
+    () => saved.conditions
+  );
   const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
   const [queueIds, setQueueIds] = useState<Set<string>>(new Set());
-  const [onlyPending, setOnlyPending] = useState<boolean>(() => saved.onlyPending);
-  const [reviewFilter, setReviewFilter] = useState<string | undefined>(
-    () => saved.reviewFilter
-  );
 
   useEffect(() => {
-    sessionStorage.setItem(
-      filtersKey,
-      JSON.stringify({ filters, onlyPending, reviewFilter })
-    );
-  }, [filtersKey, filters, onlyPending, reviewFilter]);
+    sessionStorage.setItem(filtersKey, JSON.stringify({ conditions: filterConditions }));
+  }, [filtersKey, filterConditions]);
 
   useEffect(() => {
-    const params: Record<string, string | number | boolean> = {
-      ...filters,
-      limit: CASE_LIST_LIMIT,
-    };
-    if (onlyPending) params.review_pending = true;
-    api.listCaseResults(runId, params).then(setCases);
+    api.listCaseResults(runId, { limit: CASE_LIST_LIMIT }).then(setCases);
     api.getReviewStats(runId).then(setReviewStats).catch(() => setReviewStats(null));
     api
-      .getReviewQueue(runId, filters)
+      .getReviewQueue(runId, {})
       .then((q) => setQueueIds(new Set(q.map((it) => it.sample_id))))
       .catch(() => setQueueIds(new Set()));
-  }, [runId, filters, onlyPending]);
+  }, [runId]);
 
-  const shownCases = useMemo(() => {
-    let result = cases;
-    if (reviewFilter === "agree" || reviewFilter === "override") {
-      result = result.filter((c) => c.review?.verdict === reviewFilter);
-    } else if (reviewFilter === "none") {
-      result = result.filter((c) => !c.review);
-    }
-    return result;
-  }, [cases, reviewFilter]);
+  const shownCases = useMemo(
+    () => filterCaseRows(cases, filterConditions, queueIds, failureTagLabel),
+    [cases, failureTagLabel, filterConditions, queueIds]
+  );
+  const filterValueOptions = useMemo(
+    () => buildCaseFilterValueOptions(cases, failureTagLabel),
+    [cases, failureTagLabel]
+  );
 
-  const hasActiveFilters =
-    onlyPending ||
-    reviewFilter != null ||
-    ["release_passed", "level", "turns", "stability", "guideline"].some(
-      (k) => filters[k] != null
-    );
+  const activeFilterCount = filterConditions.filter(isActiveCaseFilter).length;
 
   const resetFilters = () => {
-    setFilters({});
-    setReviewFilter(undefined);
-    setOnlyPending(false);
+    setFilterConditions([]);
   };
 
   return {
     cases,
     shownCases,
-    filters,
-    setFilters,
+    filterConditions,
+    setFilterConditions,
+    filterValueOptions,
     reviewStats,
     queueIds,
-    onlyPending,
-    setOnlyPending,
-    reviewFilter,
-    setReviewFilter,
-    hasActiveFilters,
+    activeFilterCount,
     resetFilters,
   };
 }

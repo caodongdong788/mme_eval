@@ -23,7 +23,7 @@ def _fingerprint_warning(cur: dict, prev: dict) -> str:
     返回值：
       - 完全一致 → ""
       - 不一致 → 带 ⚠️ 的 Markdown 表格 + 解释段
-      - 上版本缺字段（旧 report） → 提示降级
+      - 任一报告缺少对应观测数据 → 提示无法比较
     """
     cur_fps: dict[str, str] = cur.get("judge_fingerprints") or {}
     prev_fps: dict[str, str] | None = prev.get("judge_fingerprints")
@@ -32,7 +32,7 @@ def _fingerprint_warning(cur: dict, prev: dict) -> str:
         if not cur_fps:
             return ""  # 两边都无，不警告
         return (
-            "> ℹ️ 上版本报告未记录 `judge_fingerprints`（旧报告或本提案上线前生成），"
+            "> ℹ️ 对比报告未记录 `judge_fingerprints`，"
             "无法验证判分逻辑是否一致。当前 fingerprint：`"
             + ", ".join(f"{k}={v}" for k, v in sorted(cur_fps.items()))
             + "`\n"
@@ -92,7 +92,7 @@ def _latency_diff(cur: dict, prev: dict) -> str:
     """性能（会话延迟）对比块——基于两份 report 的 ``latency_summary``。
 
     - 当前无延迟数据 → 返回 ""（独立「性能（仅记录）」段已显示 N/A，无需重复）。
-    - 上版本缺 ``latency_summary``（历史报告）→ 返回 ℹ️ 友好提示，不抛错。
+    - 对比报告无 ``latency_summary`` → 返回 ℹ️ 友好提示，不抛错。
     - 两版都有 → 输出 平均 / 中位 / P90 / 最大 的 当前 / 上版 / Δ 表，
       标注延迟"仅记录、不计分、不否决"；Δ 用 ↑（变慢）/ ↓（变快）标方向。
     """
@@ -102,7 +102,7 @@ def _latency_diff(cur: dict, prev: dict) -> str:
     prev_ls = prev.get("latency_summary") or {}
     if not prev_ls:
         return (
-            "> ℹ️ 上版本未记录延迟数据（历史报告），无法对比性能。"
+            "> ℹ️ 对比报告未记录延迟数据，无法对比性能。"
             "本次延迟见下方「性能（仅记录）」段。\n"
         )
 
@@ -132,7 +132,7 @@ def _token_diff(cur: dict, prev: dict) -> str:
     """成本 / Token 对比块——基于两份 report 的 ``token_summary``。
 
     - 当前无 token 数据 → 返回 ""（独立「成本 / Token（仅观测）」段已显示 N/A）。
-    - 上版本缺 ``token_summary``（历史报告）→ 返回 ℹ️ 友好提示，不抛错。
+    - 对比报告无 ``token_summary`` → 返回 ℹ️ 友好提示，不抛错。
     - 两版都有 → 输出 总 Token / 平均/Run /（两版都有单价时）成本 的 当前 / 上版 / Δ 表，
       标注"仅观测、不计分、不否决"；Δ 用 ↑（更多/更贵）/ ↓（更少/更省）标方向。
     """
@@ -142,7 +142,7 @@ def _token_diff(cur: dict, prev: dict) -> str:
     prev_ts = prev.get("token_summary") or {}
     if not prev_ts:
         return (
-            "> ℹ️ 上版本未记录 token 数据（历史报告），无法对比成本。"
+            "> ℹ️ 对比报告未记录 token 数据，无法对比成本。"
             "本次用量见下方「成本 / Token（仅观测）」段。\n"
         )
 

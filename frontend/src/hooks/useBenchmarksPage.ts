@@ -18,6 +18,8 @@ export function useBenchmarksPage() {
   const sourceMode = Form.useWatch("source", form) ?? "offline";
   const [casesOpen, setCasesOpen] = useState(false);
   const [cases, setCases] = useState<CaseBrief[]>([]);
+  const [casesLoading, setCasesLoading] = useState(false);
+  const [casesError, setCasesError] = useState<string | null>(null);
   const [casesTitle, setCasesTitle] = useState("");
   const [casesBenchmark, setCasesBenchmark] = useState<Benchmark | null>(null);
 
@@ -92,7 +94,18 @@ export function useBenchmarksPage() {
     setCasesBenchmark(b);
     setCasesTitle(`${b.name}（${b.case_count} 条用例）`);
     setCasesOpen(true);
-    setCases(await api.getBenchmarkCases(b.id));
+    setCases([]);
+    setCasesLoading(true);
+    setCasesError(null);
+    try {
+      const nextCases = await api.getBenchmarkCases(b.id);
+      setCases(nextCases);
+      setCasesTitle(`${b.name}（${nextCases.length} 条用例）`);
+    } catch (e: unknown) {
+      setCasesError(formatApiError(e, "用例解析失败"));
+    } finally {
+      setCasesLoading(false);
+    }
   };
 
   const openCaseYaml = async (row: CaseBrief) => {
@@ -209,6 +222,8 @@ export function useBenchmarksPage() {
     casesOpen,
     setCasesOpen,
     cases,
+    casesLoading,
+    casesError,
     casesTitle,
     casesBenchmark,
     caseYamlOpen,

@@ -14,6 +14,8 @@ from typing import Any
 
 import httpx
 
+from medeval.evaluation_accounts import evaluation_account_credentials
+
 from .base import BaseAdapter, ChatRequest, ChatResponse
 from .registry import register_adapter
 
@@ -21,7 +23,6 @@ from .registry import register_adapter
 CX_AGENT_CHAT_ENDPOINT = "/api/test/chat/send"
 CX_AGENT_ACCOUNT_LEASE_ENDPOINT = "/api/test/evaluation/accounts/lease"
 CX_AGENT_ACCOUNT_RELEASE_ENDPOINT = "/api/test/evaluation/accounts/release"
-
 
 def _json_or_text(data: str) -> Any:
     if not data:
@@ -133,6 +134,7 @@ class CxAgentAdapter(BaseAdapter):
     async def _ensure_lease(self, req: ChatRequest) -> dict[str, Any] | None:
         if not self._isolated_accounts:
             return None
+        initial_state = req.metadata.get("initial_state")
         existing = self._leases.get(req.session_id)
         if existing is not None:
             return existing
@@ -142,10 +144,13 @@ class CxAgentAdapter(BaseAdapter):
             existing = self._leases.get(req.session_id)
             if existing is not None:
                 return existing
+            body: dict[str, Any] = {"leaseId": req.session_id}
+            if isinstance(initial_state, dict) and initial_state:
+                body["initialState"] = initial_state
             response = await self._client.post(
                 self.base_url + CX_AGENT_ACCOUNT_LEASE_ENDPOINT,
                 headers={"X-Test-Token": self._test_token},
-                json={"leaseId": req.session_id},
+                json=body,
             )
             response.raise_for_status()
             payload = response.json()
@@ -244,8 +249,13 @@ class CxAgentAdapter(BaseAdapter):
             if isinstance(trace_id, str) and trace_id:
                 raw["cx_langfuse_trace_id"] = trace_id
         if lease is not None:
+            test_user_id = lease.get("userId")
             raw["evaluation_account"] = {
-                "test_user_id": lease.get("userId"),
+                **evaluation_account_credentials(
+                    test_user_id,
+                    login_account=lease.get("loginAccount"),
+                ),
+                "test_user_id": test_user_id,
                 "reset_at": lease.get("resetAt"),
                 "reset_status": "success",
                 "profile_after_reset": lease.get("profile", {}),

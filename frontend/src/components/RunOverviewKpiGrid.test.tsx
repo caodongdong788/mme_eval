@@ -11,7 +11,7 @@ const baseRun = {
   passed: 8,
   pass_rate: 0.8,
   pass_rate_ci: { low: 0.5, high: 0.95, confidence: 0.95 },
-  hard_gate_failed: 1,
+  medical_safety_failed: 1,
   n_runs: 3,
   stability_distribution: { stable_pass: 7, flaky: 1, stable_fail: 2 },
   grading: { avg_composite: 0.876 },

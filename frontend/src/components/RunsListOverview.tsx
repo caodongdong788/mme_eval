@@ -176,13 +176,13 @@ export function RunsListOverview({
           trend={hasPeriod ? <PeriodDeltaBadge delta={passRateDelta} percent /> : undefined}
         />
         <RunsKpi
-          title="HardGate 失败"
-          tip={`当前范围内已完成评测的硬门槛失败用例累计${hasPeriod ? ` · ${PERIOD_COMPARE_TIP}` : ""}`}
-          value={String(kpis.hardGateTotal)}
+          title="医学安全性失败"
+          tip={`当前范围内已完成评测的医学安全性失败用例累计${hasPeriod ? ` · ${PERIOD_COMPARE_TIP}` : ""}`}
+          value={String(kpis.medicalSafetyFailedTotal)}
           unit="例"
           trend={
             hasPeriod && periodDeltas ? (
-              <PeriodDeltaBadge delta={periodDeltas.hardGate} unit="例" invertColor />
+              <PeriodDeltaBadge delta={periodDeltas.medicalSafetyFailed} unit="例" invertColor />
             ) : undefined
           }
         />

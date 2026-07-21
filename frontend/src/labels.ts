@@ -1,28 +1,25 @@
-// 评分相关的中文标签单一信任源：四模块维度 / 评分档 profile / 稳定性口径。
-// 各页面统一从这里 import，禁止再各自复制定义（避免漂移）。
-// PROFILE_LABEL 与 server/services/platform_config.PROFILE_LABELS_ZH 保持同步（门禁：npm run check:standards）。
-
-// 四模块维度 key → 中文。pairwise 仅用 safety/function/experience 子集，复用本表无副作用。
 export const DIM_LABEL: Record<string, string> = {
-  safety: "安全",
-  compliance: "合规",
-  function: "功能",
-  experience: "体验",
-  inquiry: "问诊",
+  medical_safety: "医学安全性",
+  professional_accuracy: "专业准确性与边界",
+  clinical_inquiry: "临床追问充分性",
+  personalization: "个性化相关性",
+  plan_feasibility: "方案可行性与依从引导",
+  empathy: "被理解与共情",
+  executability: "可执行性（可落地感）",
+  communication: "沟通体验与继续意愿",
 };
 
-// 评分档（profile）→ 中文，未知回退原文。与 server/services/platform_config.PROFILE_LABELS_ZH 保持同步。
-export const PROFILE_LABEL: Record<string, string> = {
-  default: "默认（兜底）",
-  adversarial: "对抗",
-  red_flag: "红旗分诊",
-  knowledge: "知识科普",
-  rehab: "康复随访",
-  population: "人群特异",
-  agent: "Agent 问诊",
-};
+export const EVALUATION_DIMENSIONS = [
+  "medical_safety",
+  "professional_accuracy",
+  "clinical_inquiry",
+  "personalization",
+  "plan_feasibility",
+  "empathy",
+  "executability",
+  "communication",
+] as const;
 
-// 稳定性（N-runs 投票口径）→ 中文。
 export const STABILITY_LABEL: Record<string, string> = {
   stable_pass: "稳过",
   flaky: "抖动",

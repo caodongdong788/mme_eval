@@ -5,7 +5,7 @@ export type RunsListFilter = "all" | "success" | "running" | "failed" | "pinned"
 export interface RunsListKpis {
   total: number;
   avgPassPct: number | null;
-  hardGateTotal: number;
+  medicalSafetyFailedTotal: number;
   activeCount: number;
   successCount: number;
 }
@@ -61,7 +61,7 @@ export function computeRunsListKpis(runs: RunSummary[]): RunsListKpis {
   return {
     total: runs.length,
     avgPassPct,
-    hardGateTotal: successRuns.reduce((s, r) => s + (r.hard_gate_failed || 0), 0),
+    medicalSafetyFailedTotal: successRuns.reduce((s, r) => s + (r.medical_safety_failed || 0), 0),
     activeCount: runs.filter((r) => RUNNING.has(r.status)).length,
     successCount: successRuns.length,
   };
@@ -129,7 +129,7 @@ export function buildRecentPassBars(
 export interface RunsPeriodDeltas {
   total: number;
   passRatePct: number | null;
-  hardGate: number;
+  medicalSafetyFailed: number;
   active: number;
 }
 
@@ -147,7 +147,7 @@ export function computeRunsPeriodDeltas(
   return {
     total: cur.total - prev.total,
     passRatePct,
-    hardGate: cur.hardGateTotal - prev.hardGateTotal,
+    medicalSafetyFailed: cur.medicalSafetyFailedTotal - prev.medicalSafetyFailedTotal,
     active: cur.activeCount - prev.activeCount,
   };
 }

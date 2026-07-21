@@ -1,11 +1,10 @@
 """transcripts.xlsx 的**纯内容派生层**（无 openpyxl 依赖、无副作用）。
 
 参见 OpenSpec change ``2026-06-02-split-transcript-cells``：把"单元格文本怎么算"
-（截断 / CJK 折行估算 / 关键词标记 / 得分点 / 维度比率 / profile 标签）从排版写入层
+（截断 / CJK 折行估算 / 维度比率）从排版写入层
 （``excel_transcript.py``）拆出，让这些逻辑可独立单测。
 
-这里只接受已解析好的数据（如 profile 名由调用方一次性算好传入），不再触碰
-``resolve_profile`` —— profile 在导出时每个 case 至多解析一次。
+这里只接受已解析好的数据。
 """
 
 from __future__ import annotations
@@ -20,16 +19,6 @@ _TRUNCATE_NOTICE = "…（已截断，完整内容见 report.json 中对应 trac
 
 # 命中关键词的纯文本标记（飞书在线表格可正常显示）。
 _MARK_L, _MARK_R = "【", "】"
-
-# 评分 profile 中文说明（与 README「类别自适应 profile」表一致）。
-_PROFILE_ZH: dict[str, str] = {
-    "default": "默认",
-    "adversarial": "对抗 / 干扰",
-    "red_flag": "红旗 / 分诊",
-    "knowledge": "知识 / 病程",
-    "rehab": "康复 / 随访",
-}
-
 
 def _display_lines(text: str, width_units: int) -> int:
     """估算一段文本在指定列宽下换行后占多少行（中文按 2 个单位宽计）。"""
@@ -84,78 +73,26 @@ def _turns(case_result: CaseResult) -> list[tuple[str, str | None, float | None]
     return pairs
 
 
-def _fmt_points(v) -> str:
-    """绝对分展示（两位小数，可负）。"""
-    if v is None:
-        return "N/A"
-    return f"{v:.2f}"
-
-
-def _fmt_dim_ratio(achieved, max_val) -> str:
-    """维度分「得分/满分」，便于对照类别自适应 profile 权重。"""
-    if achieved is None or max_val is None:
-        return "N/A"
-    return f"{_fmt_points(achieved)}/{_fmt_points(max_val)}"
-
-
 def _case_title(result: CaseResult) -> str:
     """用例描述行：优先 sub_scenario，退回 scenario / sample_id。"""
     c = result.case
     return c.sub_scenario or c.scenario or c.sample_id
 
 
-def _test_content_cell(result: CaseResult, profile_name: str) -> str:
-    """测试内容列：描述 + 来源文件名 + profile（英文 + 中文）。
-
-    ``profile_name`` 由调用方一次性 ``resolve_profile`` 后传入（每 case 仅解析一次）。
-    """
+def _test_content_cell(result: CaseResult) -> str:
+    """测试内容列：描述 + 来源文件名。"""
     case = result.case
     lines = [_case_title(result)]
     if case.case_file:
         lines.append(case.case_file)
-    zh = _PROFILE_ZH.get(profile_name, profile_name)
-    lines.append(f"{profile_name}（{zh}）")
     return "\n".join(lines)
 
 
 def _deduction_text(result: CaseResult) -> str:
-    """扣分原因列：直接展开 score_deductions（四模块的扣分逐条）。"""
+    """扣分原因列：展开八维原始分和指南缺分产生的扣分。"""
     if not result.score_deductions:
         return "—"
     return _truncate("\n".join(result.score_deductions))
-
-
-def _scoring_point_cells(result: CaseResult) -> tuple[str, str, str]:
-    """得分点三列：净分、指南匹配率、逐点明细（与 report.md 得分点段一致）。
-
-    无 ``scoring_point.*`` verdict 时三列均为 ``—``（用例未声明得分点或 judge 未跑）。
-    """
-    if not any(v.name.startswith("scoring_point.") for v in result.verdicts):
-        return "—", "—", "—"
-
-    summary = next(
-        (v for v in result.verdicts if v.name == "scoring_point.summary"), None
-    )
-    net = "—"
-    if summary is not None:
-        net = f"{summary.score:.0f}/{summary.max_score:.0f}"
-
-    gm = result.guideline_match_rate
-    gm_text = f"{gm * 100:.0f}%" if gm is not None else "—"
-
-    lines: list[str] = []
-    point_verdicts = [
-        v for v in result.verdicts if v.name.startswith("scoring_point.point")
-    ]
-    point_verdicts.sort(key=lambda v: int(v.name.removeprefix("scoring_point.point")))
-    for v in point_verdicts:
-        mark = "✓" if v.passed else "✗"
-        neg = "（负分/惩罚）" if v.max_score == 0 else ""
-        crit = v.evidence[0] if v.evidence else v.reason
-        lines.append(f"{mark} {crit}{neg} — {v.reason}")
-
-    detail = _truncate("\n".join(lines)) if lines else "—"
-    return net, gm_text, detail
 
 
 def _highlight_runs(text: str, keywords: list[str]) -> list[tuple[str, bool]]:

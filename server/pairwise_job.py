@@ -13,6 +13,8 @@ from typing import Any
 
 from sqlalchemy import select
 
+from medeval.evaluation import EvaluationDimension
+
 from .constants import PAIRWISE_JOB_USER_ERROR
 
 from .db import session_scope
@@ -25,7 +27,7 @@ from .models_db import (
 
 log = logging.getLogger(__name__)
 
-_DIMENSIONS = ("safety", "function", "experience")
+_DIMENSIONS = tuple(dimension.value for dimension in EvaluationDimension)
 CONFIDENCE_KINDS = frozenset({"high", "order", "safety", "human"})
 
 
@@ -91,6 +93,7 @@ def _build_comparator(judge_model_id: int):
             api_version=jm.api_version or "",
             api_key=jm.api_key or "",
             temperature=jm.temperature if jm.temperature is not None else 0.0,
+            enable_thinking=jm.enable_thinking,
         )
         label = jm.model or jm.name
         concurrency = max(1, int(jm.pairwise_concurrency or 4))
@@ -109,7 +112,7 @@ def _detail_map(session, run_id: int) -> dict[str, dict[str, Any]]:
 def _derive_confidence(
     winner: str, swap_consistent: bool, dimension_winners: dict[str, Any] | None
 ) -> str:
-    """按「换序稳健」口径从已存字段重导 confidence（历史回填用，不重调 LLM）。
+    """按「换序稳健」口径从已存字段重导 confidence（不重调 LLM）。
 
     - winner 决定性（A/B）→ high
     - tie 且顺序敏感（换序不一致）→ low
@@ -128,7 +131,7 @@ def _derive_confidence(
 
 
 def backfill_pairwise_confidence() -> dict[str, int]:
-    """把历史 done 对比的 verdict.confidence 与 summary 按新「换序稳健」口径重算。幂等。"""
+    """把已完成对比的 verdict.confidence 与 summary 按换序稳健口径重算。"""
     changed_verdicts = 0
     touched_comps = 0
     with session_scope() as session:

@@ -29,7 +29,6 @@ def _mk_run(
     name: str,
     benchmark_id: int = 1,
     fingerprints: dict | None = None,
-    scoring: dict | None = None,
     has_traces: bool = True,
     adapter_overrides: dict | None = None,
 ) -> EvalRun:
@@ -39,8 +38,8 @@ def _mk_run(
         status="success",
         benchmark_id=benchmark_id,
         has_traces=has_traces,
-        judge_fingerprints=fingerprints if fingerprints is not None else {"hard_gate": "x"},
-        config_snapshot={"scoring": scoring if scoring is not None else {"safety": 0.3}},
+        judge_fingerprints=fingerprints if fingerprints is not None else {"dimension": "x"},
+        config_snapshot={},
         adapter_overrides=adapter_overrides or {},
     )
     session.add(run)
@@ -92,12 +91,12 @@ def test_incomparable_different_fingerprint(session):
     a = _mk_run(
         session,
         name="A",
-        fingerprints={"hard_gate": "aaaa1111", "rule": "same000", "llm": "llmAAAA0"},
+        fingerprints={"dimension": "aaaa1111", "guideline": "same000"},
     )
     b = _mk_run(
         session,
         name="B",
-        fingerprints={"hard_gate": "bbbb2222", "rule": "same000", "llm": "llmBBBB0"},
+        fingerprints={"dimension": "bbbb2222", "guideline": "same000"},
     )
     _mk_cases(session, a.id, ["s1"])
     _mk_cases(session, b.id, ["s1"])
@@ -105,24 +104,10 @@ def test_incomparable_different_fingerprint(session):
     reasons = check_pairwise_comparable(session, a, b)
     blob = "；".join(reasons)
     # 必须点名「具体哪个判官」不同，且用大白话（不暴露哈希指纹）
-    assert "HardGate" in blob and "LLM" in blob
+    assert "八维评分" in blob
     assert "aaaa1111" not in blob and "bbbb2222" not in blob
-    # 相同的判官（rule）不应被列入差异
-    assert "规则" not in blob
-
-
-def test_incomparable_different_scoring(session):
-    a = _mk_run(session, name="A", scoring={"safety": 0.3, "experience": 0.2})
-    b = _mk_run(session, name="B", scoring={"safety": 0.4, "experience": 0.2})
-    _mk_cases(session, a.id, ["s1"])
-    _mk_cases(session, b.id, ["s1"])
-    session.commit()
-    reasons = check_pairwise_comparable(session, a, b)
-    blob = "；".join(reasons)
-    # 指纹相同但算分口径不同：点名差异字段 safety，不点名相同字段 experience
-    assert "口径" in blob
-    assert "safety" in blob
-    assert "experience" not in blob
+    # 相同的指南判官不应被列入差异
+    assert "指南覆盖评分" not in blob
 
 
 def test_incomparable_different_sample_set(session):
@@ -160,12 +145,12 @@ class _FakeComparator:
         if case.sample_id == "s1":
             return PairwiseResult(
                 winner="B", confidence="high", swap_consistent=True,
-                dimension_winners={"safety": "B"}, reason="B 更准",
+                dimension_winners={"professional_accuracy": "B"}, reason="B 更准",
             )
         if case.sample_id == "s2":
             return PairwiseResult(
                 winner="A", confidence="high", swap_consistent=True,
-                dimension_winners={"experience": "A"}, reason="B 啰嗦",
+                dimension_winners={"communication": "A"}, reason="B 啰嗦",
             )
         return PairwiseResult(winner="tie", confidence="low")
 
@@ -367,7 +352,11 @@ def test_pairwise_human_calibration_recomputes_summary(client, session):
         f"/api/compare/pairwise/{cid}/cases/s1",
         json={
             "winner": "B",
-            "dimension_winners": {"safety": "B", "function": "B", "experience": "tie"},
+            "dimension_winners": {
+                "medical_safety": "B",
+                "plan_feasibility": "B",
+                "communication": "tie",
+            },
             "reason": "人工认定 B 更完整",
         },
     )
@@ -377,6 +366,12 @@ def test_pairwise_human_calibration_recomputes_summary(client, session):
     assert body["confidence_kind"] == "human"
     assert body["human_calibrated"] is True
     assert body["auto_winner"] == "tie"
+
+    invalid = client.patch(
+        f"/api/compare/pairwise/{cid}/cases/s1",
+        json={"winner": "A", "dimension_winners": {"safety": "A"}},
+    )
+    assert invalid.status_code == 422
 
     detail = client.get(f"/api/compare/pairwise/{cid}").json()
     assert detail["summary"]["b_wins"] == 1

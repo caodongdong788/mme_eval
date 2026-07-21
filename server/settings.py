@@ -53,7 +53,7 @@ class Settings:
             "MEDEVAL_DATABASE_URL", f"sqlite:///{PROJECT_ROOT / 'medeval_platform.db'}"
         )
     )
-    # 被测 bot 的基础 config.yaml（adapter/judges/scoring 等口径来源）。
+    # 被测 bot 的基础 config.yaml（adapter 与八维/指南 judges 口径来源）。
     config_path: Path = field(
         default_factory=lambda: _env_path("MEDEVAL_CONFIG_PATH", PROJECT_ROOT / "config.yaml")
     )
@@ -63,12 +63,12 @@ class Settings:
             "MEDEVAL_UPLOADS_DIR", PROJECT_ROOT / "uploads" / "benchmarks"
         )
     )
-    # 评测产物目录（与 CLI 共用，双写兼容）。
+    # 评测产物目录（与 CLI 共用）。
     outputs_dir: Path = field(
         default_factory=lambda: _env_path("MEDEVAL_OUTPUTS_DIR", PROJECT_ROOT / "outputs")
     )
     # 内置 benchmark 路径（相对 project_root）。
-    builtin_cases_dir: str = "cases/breast_cancer"
+    builtin_cases_dir: str = "cases/benchmark"
     # 同时并发执行的评测任务上限。
     max_concurrent_jobs: int = field(
         default_factory=lambda: int(os.environ.get("MEDEVAL_MAX_CONCURRENT_JOBS", "2"))

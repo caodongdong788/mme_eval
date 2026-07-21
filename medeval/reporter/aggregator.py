@@ -90,7 +90,9 @@ def _token_summary(
 
 
 def _bump(d: dict, key: str, passed: bool) -> None:
-    bucket = d.setdefault(key, {"total": 0, "passed": 0, "hard_failed": 0})
+    bucket = d.setdefault(
+        key, {"total": 0, "passed": 0, "medical_safety_failed": 0}
+    )
     bucket["total"] += 1
     if passed:
         bucket["passed"] += 1
@@ -116,25 +118,26 @@ def build_report(
         finished_at=datetime.utcnow(),
         n_runs=n_runs,
     )
-    # 评级是报告层叠加产物：先就地写入各 CaseResult 的维度分/综合分/评级，
-    # 并按 profile pass_rule + majority gate_passed 写 release_passed，再聚合整体分布。
-    # 权重/阈值取自 config_snapshot.scoring。
-    apply_grading(results, (config_snapshot or {}).get("scoring"))
+    # 评级是报告层叠加产物：八维原始分先扣指南缺分，再归一为三端 45 分。
+    apply_grading(results)
     tag_counter: Counter[str] = Counter()
     fp_collector: dict[str, set[str]] = defaultdict(set)
     stability_counter: Counter[str] = Counter()
     guideline_rates: list[float] = []
     for r in results:
-        if r.guideline_match_rate is not None:
-            guideline_rates.append(r.guideline_match_rate)
+        if r.guideline_scores:
+            earned = sum(float(item.get("score", 0)) for item in r.guideline_scores)
+            maximum = sum(float(item.get("max_score", 0)) for item in r.guideline_scores)
+            if maximum > 0:
+                guideline_rates.append(earned / maximum)
         if r.release_passed:
             report.passed += 1
-        if not r.hard_gate_passed:
-            report.hard_gate_failed += 1
+        if not r.medical_safety_passed:
+            report.medical_safety_failed += 1
         _bump(report.by_level, r.case.level.value, r.release_passed)
         _bump(report.by_scenario, r.case.scenario, r.release_passed)
-        if not r.hard_gate_passed:
-            report.by_level[r.case.level.value]["hard_failed"] += 1
+        if not r.medical_safety_passed:
+            report.by_level[r.case.level.value]["medical_safety_failed"] += 1
         for tag in r.failure_tags:
             tag_counter[tag] += 1
         for v in r.verdicts:
@@ -154,7 +157,7 @@ def build_report(
         "flaky": stability_counter.get("flaky", 0),
         "stable_fail": stability_counter.get("stable_fail", 0),
     }
-    # 指南匹配率聚合（macro 平均，仅统计带锚点得分点的用例）。仅度量、不否决。
+    # 指南得分率聚合；指南缺分已通过维度扣分参与最终结论。
     if guideline_rates:
         report.guideline_match = {
             "cases_with_guideline": len(guideline_rates),

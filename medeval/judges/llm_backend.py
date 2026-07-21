@@ -37,7 +37,7 @@ _last_call_at: float = 0.0
 
 
 def configure_llm_rate_limit(max_concurrent: int, min_interval_s: float = 0.0) -> None:
-    """评测 judge 阶段启动前调用：全局限流 llm / scoring_point / semantic 的 chat_json。"""
+    """评测 judge 阶段启动前调用：全局限流八维与指南 chat_json。"""
     global _gate, _min_interval_s, _interval_lock, _last_call_at
     max_concurrent = max(1, int(max_concurrent))
     _gate = asyncio.Semaphore(max_concurrent)
@@ -108,6 +108,7 @@ class LLMBackend:
         base_url: str | None = None,
         api_version: str = "",
         default_headers: dict[str, str] | None = None,
+        enable_thinking: bool | None = None,
         owner: str = "LLM",
     ):
         self.provider = provider
@@ -116,6 +117,7 @@ class LLMBackend:
         self.base_url = base_url or None
         self.api_version = api_version
         self.default_headers = default_headers or {}
+        self.enable_thinking = enable_thinking
         self.owner = owner
         self._client = self._build_client()
 
@@ -189,11 +191,16 @@ class LLMBackend:
         from openai import RateLimitError  # type: ignore  # noqa: F401 — retryable 类型
 
         async def _create():
+            kwargs: dict[str, Any] = {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": temperature,
+                "response_format": {"type": "json_object"},
+            }
+            if self.enable_thinking is not None:
+                kwargs["extra_body"] = {"enable_thinking": self.enable_thinking}
             return await self._client.chat.completions.create(  # type: ignore[union-attr]
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=temperature,
-                response_format={"type": "json_object"},
+                **kwargs,
             )
 
         def _on_retry(attempt: int, exc: BaseException, wait: float) -> None:
@@ -226,7 +233,7 @@ class LLMBackend:
 
 
 def backend_from_llm_cfg(cfg, *, owner: str = "LLM") -> LLMBackend:
-    """从 LLMJudgeCfg（或同形对象）构造 LLMBackend。"""
+    """从八维或指南 Judge 配置构造 LLMBackend。"""
     return LLMBackend(
         provider=cfg.provider,
         api_key=cfg.api_key,
@@ -234,5 +241,6 @@ def backend_from_llm_cfg(cfg, *, owner: str = "LLM") -> LLMBackend:
         base_url=cfg.base_url or None,
         api_version=cfg.api_version,
         default_headers=cfg.default_headers,
+        enable_thinking=getattr(cfg, "enable_thinking", None),
         owner=owner,
     )

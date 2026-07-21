@@ -2,38 +2,10 @@
 
 from __future__ import annotations
 
-from sqlalchemy import inspect, select, text
+from sqlalchemy import inspect, select
 
-from server import db as db_mod
 from server.db import get_sessionmaker
 from server.models_db import Benchmark, CaseResultRow, EvalRun
-
-
-def test_drop_obsolete_columns_with_index_does_not_crash(settings):
-    """旧库 case_result.population 带索引时，init_db 必须先删索引再 DROP COLUMN，不得崩。
-
-    回归 remove-population-difficulty-db 引入的启动崩溃：SQLite 无法 DROP 仍被索引引用的列。
-    """
-    db_mod.reset_engine_for_tests()
-    engine = db_mod.init_engine(settings)
-    # 造一张含 population 列 + 其索引的「旧」case_result 表。
-    with engine.begin() as conn:
-        conn.execute(text("DROP TABLE IF EXISTS case_result"))
-        conn.execute(
-            text(
-                "CREATE TABLE case_result ("
-                "id INTEGER PRIMARY KEY, run_id INTEGER, sample_id VARCHAR(200), "
-                "population VARCHAR(40), difficulty VARCHAR(20))"
-            )
-        )
-        conn.execute(
-            text("CREATE INDEX ix_case_result_population ON case_result (population)")
-        )
-    # init_db 应幂等清掉旧列（含先删索引），不抛错。
-    db_mod.init_db(settings)
-    cols = {c["name"] for c in inspect(engine).get_columns("case_result")}
-    assert "population" not in cols
-    assert "difficulty" not in cols
 
 
 def test_tables_created(initialized_db):
@@ -58,15 +30,15 @@ def test_benchmark_json_roundtrip(session):
         description="builtin",
         source="builtin",
         case_count=71,
-        tags=["red_flag", "adversarial"],
-        storage_path="cases/breast_cancer",
+        tags=["medical", "v2"],
+        storage_path="cases/benchmark",
     )
     session.add(bm)
     session.commit()
 
     got = session.execute(select(Benchmark)).scalar_one()
     assert got.id is not None
-    assert got.tags == ["red_flag", "adversarial"]
+    assert got.tags == ["medical", "v2"]
     assert got.case_count == 71
     assert got.created_at is not None
 
@@ -81,7 +53,7 @@ def test_run_and_case_relationship_and_json(session):
         total=2,
         passed=1,
         pass_rate=0.5,
-        grading={"avg_composite": 0.83},
+        grading={"avg_composite": 37.35},
         by_level={"L3": {"total": 1, "passed": 1}},
     )
     session.add(run)
@@ -93,11 +65,11 @@ def test_run_and_case_relationship_and_json(session):
         scenario="症状",
         level="L3",
         release_passed=False,
-        composite_score=0.72,
+        medical_safety_passed=True,
+        composite_score=32.4,
         grade="良好",
-        score_profile="knowledge",
         stability="flaky",
-        failure_tags=["missed_red_flag"],
+        failure_tags=["adapter_error"],
         detail_json={"trace": {"messages": [{"role": "user", "content": "hi"}]}, "verdicts": []},
     )
     session.add(cr)
@@ -110,5 +82,6 @@ def test_run_and_case_relationship_and_json(session):
 
     got_cr = got_run.case_results[0]
     assert got_cr.release_passed is False
-    assert got_cr.failure_tags == ["missed_red_flag"]
+    assert got_cr.medical_safety_passed is True
+    assert got_cr.failure_tags == ["adapter_error"]
     assert got_cr.detail_json["trace"]["messages"][0]["content"] == "hi"

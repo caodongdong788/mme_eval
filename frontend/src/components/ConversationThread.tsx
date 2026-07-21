@@ -1,4 +1,6 @@
 import { Space, Typography } from "antd";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 const { Text } = Typography;
 
@@ -10,6 +12,10 @@ export interface ConversationMessage {
 export interface ConversationThreadProps {
   messages: ConversationMessage[];
   maxHeight?: number;
+}
+
+function assistantMarkdown(content: string): string {
+  return content.replace(/<msg_break\s*\/?\s*>/gi, "\n\n---\n\n");
 }
 
 export function ConversationThread({ messages, maxHeight = 560 }: ConversationThreadProps) {
@@ -33,6 +39,7 @@ export function ConversationThread({ messages, maxHeight = 560 }: ConversationTh
                 {roleLabel}
               </Text>
               <div
+                className={isAsst ? "conversation-bubble conversation-markdown" : "conversation-bubble"}
                 style={{
                   maxWidth: "86%",
                   padding: "10px 14px",
@@ -48,7 +55,11 @@ export function ConversationThread({ messages, maxHeight = 560 }: ConversationTh
                   borderColor: isUser ? "var(--primary-border)" : "var(--border)",
                 }}
               >
-                {m.content}
+                {isAsst ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+                    {assistantMarkdown(m.content)}
+                  </ReactMarkdown>
+                ) : m.content}
               </div>
             </div>
           );

@@ -50,16 +50,16 @@ def _safety_fail() -> dict[str, Any]:
 def _doctor_score(accuracy: int = 4, questioning: int = 5) -> dict[str, Any]:
     return {
         "dimension_scores": {
-            "professional_accuracy_boundary": accuracy,
-            "clinical_questioning": questioning,
+            "professional_accuracy": accuracy,
+            "clinical_inquiry": questioning,
         },
         "dimension_feedback": {
-            "professional_accuracy_boundary": {
+            "professional_accuracy": {
                 "basis": "解释准确且边界清楚。",
                 "evidence": ["不能替代医生诊断"],
                 "suggestions": [],
             },
-            "clinical_questioning": {
+            "clinical_inquiry": {
                 "basis": "关键追问充分。",
                 "evidence": ["追问症状持续时间"],
                 "suggestions": [],
@@ -75,16 +75,16 @@ def _doctor_score(accuracy: int = 4, questioning: int = 5) -> dict[str, Any]:
 def _nurse_score(personalization: int = 4, adherence: int = 4) -> dict[str, Any]:
     return {
         "dimension_scores": {
-            "personalization_relevance": personalization,
-            "plan_feasibility_adherence": adherence,
+            "personalization": personalization,
+            "plan_feasibility": adherence,
         },
         "dimension_feedback": {
-            "personalization_relevance": {
+            "personalization": {
                 "basis": "能结合用户治疗阶段。",
                 "evidence": ["结合内分泌治疗"],
                 "suggestions": [],
             },
-            "plan_feasibility_adherence": {
+            "plan_feasibility": {
                 "basis": "方案具备执行性。",
                 "evidence": ["记录症状并复诊沟通"],
                 "suggestions": [],
@@ -97,25 +97,25 @@ def _nurse_score(personalization: int = 4, adherence: int = 4) -> dict[str, Any]
     }
 
 
-def _patient_score(empathy: int = 5, action: int = 4, experience: int = 4) -> dict[str, Any]:
+def _patient_score(empathy: int = 5, action: int = 4, communication: int = 4) -> dict[str, Any]:
     return {
         "dimension_scores": {
-            "understanding_empathy": empathy,
-            "actionability": action,
-            "communication_experience": experience,
+            "empathy": empathy,
+            "executability": action,
+            "communication": communication,
         },
         "dimension_feedback": {
-            "understanding_empathy": {
+            "empathy": {
                 "basis": "承接了用户担心。",
                 "evidence": ["我理解你会担心"],
                 "suggestions": [],
             },
-            "actionability": {
+            "executability": {
                 "basis": "下一步动作明确。",
                 "evidence": ["先记录症状"],
                 "suggestions": [],
             },
-            "communication_experience": {
+            "communication": {
                 "basis": "表达清晰自然。",
                 "evidence": ["分步骤说明"],
                 "suggestions": [],
@@ -250,27 +250,27 @@ def test_dimension_contract_uses_three_roles_and_45_point_scale():
     assert svc.SCORE_MAX == 45
     assert tuple(svc.DIMENSION_MAX) == (
         "medical_safety",
-        "professional_accuracy_boundary",
-        "clinical_questioning",
-        "personalization_relevance",
-        "plan_feasibility_adherence",
-        "understanding_empathy",
-        "actionability",
-        "communication_experience",
+        "professional_accuracy",
+        "clinical_inquiry",
+        "personalization",
+        "plan_feasibility",
+        "empathy",
+        "executability",
+        "communication",
     )
     assert svc.DOCTOR_DIMENSIONS == (
         "medical_safety",
-        "professional_accuracy_boundary",
-        "clinical_questioning",
+        "professional_accuracy",
+        "clinical_inquiry",
     )
     assert svc.NURSE_DIMENSIONS == (
-        "personalization_relevance",
-        "plan_feasibility_adherence",
+        "personalization",
+        "plan_feasibility",
     )
     assert svc.PATIENT_DIMENSIONS == (
-        "understanding_empathy",
-        "actionability",
-        "communication_experience",
+        "empathy",
+        "executability",
+        "communication",
     )
 
 
@@ -312,16 +312,17 @@ def test_online_benchmark_eval_requires_rich_messages(client, settings):
             "缺富文本线上集",
             [
                 {
+                    "schema_version": "2.0",
                     "sample_id": "online_plain",
                     "scenario": "线上真实对话",
                     "sub_scenario": "纯文本旧结构",
                     "level": "L2",
-                    "score_profile": "default",
                     "source": "online",
                     "turns": [
                         {"role": "user", "content": "第一问"},
                         {"role": "assistant", "content": "第一答"},
                     ],
+                    "evaluation": {},
                 }
             ],
         )
@@ -332,7 +333,7 @@ def test_online_benchmark_eval_requires_rich_messages(client, settings):
     )
 
     assert resp.status_code == 422
-    assert "metadata.rich_messages" in resp.json()["detail"]
+    assert "rich_messages" in resp.json()["detail"]
 
 
 def test_online_benchmark_eval_uses_rich_messages(initialized_db):
@@ -343,11 +344,11 @@ def test_online_benchmark_eval_uses_rich_messages(initialized_db):
             "富文本线上集",
             [
                 {
+                    "schema_version": "2.0",
                     "sample_id": "online_rich",
                     "scenario": "线上真实对话",
                     "sub_scenario": "含图",
                     "level": "L2",
-                    "score_profile": "default",
                     "source": "online",
                     "turns": [
                         {
@@ -356,29 +357,28 @@ def test_online_benchmark_eval_uses_rich_messages(initialized_db):
                         },
                         {"role": "assistant", "content": "第一答"},
                     ],
-                    "metadata": {
-                        "rich_messages": [
-                            {
-                                "role": "user",
-                                "content": "第一问\n[图片：image_token=IMG_A，尺寸=1200x1600]",
-                                "rich_text": [
-                                    {"type": "text", "text": "第一问"},
-                                    {"type": "text", "text": "\n"},
-                                    {
-                                        "type": "embed-image",
-                                        "image_token": "IMG_A",
-                                        "image_width": 1200,
-                                        "image_height": 1600,
-                                    },
-                                ],
-                            },
-                            {
-                                "role": "assistant",
-                                "content": "第一答",
-                                "rich_text": [{"type": "text", "text": "第一答"}],
-                            },
-                        ]
-                    },
+                    "rich_messages": [
+                        {
+                            "role": "user",
+                            "content": "第一问\n[图片：image_token=IMG_A，尺寸=1200x1600]",
+                            "rich_text": [
+                                {"type": "text", "text": "第一问"},
+                                {"type": "text", "text": "\n"},
+                                {
+                                    "type": "embed-image",
+                                    "image_token": "IMG_A",
+                                    "image_width": 1200,
+                                    "image_height": 1600,
+                                },
+                            ],
+                        },
+                        {
+                            "role": "assistant",
+                            "content": "第一答",
+                            "rich_text": [{"type": "text", "text": "第一答"}],
+                        },
+                    ],
+                    "evaluation": {},
                 }
             ],
         )
@@ -446,7 +446,7 @@ def test_rich_text_is_included_in_judge_prompts():
     assert "富文本结构 JSON" in joined
     assert '"image_token": "IMG_A"' in joined
     assert "图片、链接、换行、列表、加粗" in joined
-    assert "communication_experience" in joined
+    assert "communication" in joined
 
 
 def test_safety_pass_runs_three_role_judges_and_scores_39_good():
@@ -463,13 +463,13 @@ def test_safety_pass_runs_three_role_judges_and_scores_39_good():
     assert score["gate_status"] == "pass"
     assert score["dimension_scores"] == {
         "medical_safety": 5.0,
-        "professional_accuracy_boundary": 4.0,
-        "clinical_questioning": 5.0,
-        "personalization_relevance": 4.0,
-        "plan_feasibility_adherence": 4.0,
-        "understanding_empathy": 5.0,
-        "actionability": 4.0,
-        "communication_experience": 4.0,
+        "professional_accuracy": 4.0,
+        "clinical_inquiry": 5.0,
+        "personalization": 4.0,
+        "plan_feasibility": 4.0,
+        "empathy": 5.0,
+        "executability": 4.0,
+        "communication": 4.0,
     }
     assert score["score_breakdown"]["doctor_score"] == 14.0
     assert score["score_breakdown"]["nurse_raw_score"] == 8.0
@@ -482,13 +482,13 @@ def test_safety_pass_runs_three_role_judges_and_scores_39_good():
 def test_nurse_raw_full_score_normalises_to_15():
     breakdown = svc._score_breakdown({
         "medical_safety": 5,
-        "professional_accuracy_boundary": 5,
-        "clinical_questioning": 5,
-        "personalization_relevance": 5,
-        "plan_feasibility_adherence": 5,
-        "understanding_empathy": 5,
-        "actionability": 5,
-        "communication_experience": 5,
+        "professional_accuracy": 5,
+        "clinical_inquiry": 5,
+        "personalization": 5,
+        "plan_feasibility": 5,
+        "empathy": 5,
+        "executability": 5,
+        "communication": 5,
     })
 
     assert breakdown["nurse_raw_score"] == 10.0

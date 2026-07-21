@@ -55,9 +55,8 @@ def _config(**run_over):
                 "openai_compat": {"base_url": "http://x", "model": "m", "system_prompt": "p"},
             },
             "judges": {
-                "hard_gates": {"enabled": True},
-                "rule": {"enabled": True},
-                "llm": {"enabled": False},
+                "eight_dimension": {"enabled": False},
+                "guideline": {"enabled": False},
             },
         }
     )
@@ -65,7 +64,14 @@ def _config(**run_over):
 
 def _cases():
     return [
-        TestCase(sample_id=f"c{i}", scenario="s", level=Level.L2, turns=[Turn(content=f"q{i}")])
+        TestCase(
+            schema_version="2.0",
+            sample_id=f"c{i}",
+            scenario="s",
+            level=Level.L2,
+            turns=[Turn(content=f"q{i}")],
+            evaluation={},
+        )
         for i in range(3)
     ]
 
@@ -79,7 +85,7 @@ def test_evaluate_with_outdir_persists_traces(tmp_path: Path):
     judges = build_judges(config.judges)
     out_dir = tmp_path / "outputs" / "run1"
     asyncio.run(
-        evaluate(config, cases, _CountingAdapter(), judges, None, run_name="run1", out_dir=out_dir)
+        evaluate(config, cases, _CountingAdapter(), judges, run_name="run1", out_dir=out_dir)
     )
     gz = out_dir / trace_store.TRACES_GZ
     assert gz.exists()
@@ -91,7 +97,7 @@ def test_evaluate_without_outdir_no_traces(tmp_path: Path):
     config = _config()
     cases = _cases()
     judges = build_judges(config.judges)
-    report = asyncio.run(evaluate(config, cases, _CountingAdapter(), judges, None))
+    report = asyncio.run(evaluate(config, cases, _CountingAdapter(), judges))
     assert isinstance(report, RunReport)
     # 未传 out_dir → 不应落任何 trace 文件（行为同现状）
     assert not list(tmp_path.rglob("traces.jsonl.gz"))
@@ -107,7 +113,7 @@ def test_judge_traces_reproduces_scores(tmp_path: Path):
     # 先正常评测并落盘
     out_dir = tmp_path / "outputs" / "run1"
     report_a = asyncio.run(
-        evaluate(config, cases, _CountingAdapter(), judges, None, run_name="run1", out_dir=out_dir)
+        evaluate(config, cases, _CountingAdapter(), judges, run_name="run1", out_dir=out_dir)
     )
 
     # 从落盘 trace 离线重判（零 adapter）
@@ -115,7 +121,7 @@ def test_judge_traces_reproduces_scores(tmp_path: Path):
     per_case = bundle.per_case_traces(cases, config.run.repeat)
     judges2 = build_judges(config.judges)
     report_b = asyncio.run(
-        judge_traces(config, cases, per_case, judges2, None, run_name="rejudge1")
+        judge_traces(config, cases, per_case, judges2, run_name="rejudge1")
     )
 
     a = {r.case.sample_id: r.composite_score for r in report_a.results}
@@ -166,7 +172,7 @@ def test_resume_reuses_successful_traces(tmp_path: Path):
     out_dir = tmp_path / "outputs" / "resumed"
     asyncio.run(
         evaluate(
-            config, cases, adapter, build_judges(config.judges), None,
+            config, cases, adapter, build_judges(config.judges),
             run_name="resumed", out_dir=out_dir, resume_dir=prev_dir,
         )
     )
@@ -197,7 +203,7 @@ def test_resume_rejects_fingerprint_mismatch(tmp_path: Path):
     with pytest.raises(Exception):
         asyncio.run(
             evaluate(
-                config, cases, _CountingAdapter(), build_judges(config.judges), None,
+                config, cases, _CountingAdapter(), build_judges(config.judges),
                 run_name="r", out_dir=tmp_path / "o", resume_dir=prev_dir,
             )
         )

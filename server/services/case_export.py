@@ -9,6 +9,7 @@ import yaml
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from medeval.evaluation_accounts import evaluation_account_credentials
 from medeval.models import CaseResult, RunReport
 from medeval.reporter.excel_transcript import write_transcripts_xlsx
 
@@ -20,6 +21,7 @@ from ..paths import safe_join
 from ..schemas import CasesYamlOut
 from ..settings import Settings, get_settings
 from .case_query import case_row_or_404, filtered_case_rows
+from .agent_chain_summary import ensure_agent_chain_summary
 from .feishu_transcript_export import import_xlsx_as_sheet, publish_xlsx_to_lark
 from .runs import get_run_or_404
 
@@ -32,7 +34,6 @@ def get_cases_yaml(
     release_passed: Optional[bool] = None,
     stability: Optional[str] = None,
     scenario: Optional[str] = None,
-    score_profile: Optional[str] = None,
     guideline: Optional[str] = None,
     sample_id: Optional[str] = None,
 ) -> CasesYamlOut:
@@ -50,7 +51,6 @@ def get_cases_yaml(
         release_passed=release_passed,
         stability=stability,
         scenario=scenario,
-        score_profile=score_profile,
         guideline=guideline,
         load_detail_json=True,
     )
@@ -76,7 +76,18 @@ def get_cases_yaml(
 
 def get_case_detail_json(session: Session, run_id: int, sample_id: str) -> dict[str, Any]:
     row = case_row_or_404(session, run_id, sample_id)
-    return row.detail_json
+    detail = ensure_agent_chain_summary(row.detail_json or {})
+    trace = detail.get("trace")
+    if isinstance(trace, dict):
+        identity = trace.get("evaluation_identity")
+        if isinstance(identity, dict):
+            credentials = evaluation_account_credentials(
+                identity.get("test_user_id"),
+                login_account=identity.get("login_account"),
+            )
+            for key, value in credentials.items():
+                identity.setdefault(key, value)
+    return detail
 
 
 def export_transcripts(
@@ -87,7 +98,6 @@ def export_transcripts(
     release_passed: Optional[bool] = None,
     stability: Optional[str] = None,
     scenario: Optional[str] = None,
-    score_profile: Optional[str] = None,
     guideline: Optional[str] = None,
     parent_folder_token: Optional[str] = None,
     current_user: Optional[FeishuUser] = None,
@@ -102,7 +112,6 @@ def export_transcripts(
         release_passed=release_passed,
         stability=stability,
         scenario=scenario,
-        score_profile=score_profile,
         guideline=guideline,
     )
     if not rows:

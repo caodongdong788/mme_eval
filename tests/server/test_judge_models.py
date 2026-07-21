@@ -2,13 +2,29 @@
 
 from __future__ import annotations
 
-from server.benchmarks import ensure_builtin_benchmark
+from server.benchmarks import create_uploaded_benchmark
 from server.db import session_scope
+from server.models_db import EvalRun
 
 
-def _seed_builtin(settings) -> int:
+def _seed_benchmark(settings) -> int:
     with session_scope() as s:
-        bm = ensure_builtin_benchmark(s, settings)
+        bm = create_uploaded_benchmark(
+            s,
+            name="v2-test",
+            filename="v2.yaml",
+            content=(
+                '- schema_version: "2.0"\n'
+                '  sample_id: v2_test\n'
+                '  scenario: test\n'
+                '  level: L1\n'
+                '  turns:\n'
+                '    - role: user\n'
+                '      content: test\n'
+                '  evaluation: {}\n'
+            ).encode(),
+            settings=settings,
+        )
         s.flush()
         return bm.id
 
@@ -22,6 +38,7 @@ def test_crud_and_key_masking(client, settings):
             "provider": "openai",
             "model": "gpt-5.1",
             "base_url": "https://api.example.com/v1",
+            "enable_thinking": False,
             "api_key": "SECRET-KEY",
         },
     )
@@ -29,6 +46,7 @@ def test_crud_and_key_masking(client, settings):
     body = resp.json()
     mid = body["id"]
     assert body["has_api_key"] is True
+    assert body["enable_thinking"] is False
     assert "api_key" not in body  # 只写不读
 
     # 列表同样不含明文 key
@@ -90,7 +108,7 @@ def test_empty_model_422(client, settings):
 
 
 def test_launch_with_judge_model_injects_key_but_not_public(client, settings, monkeypatch):
-    bid = _seed_builtin(settings)
+    bid = _seed_benchmark(settings)
 
     captured: dict = {}
 
@@ -125,9 +143,21 @@ def test_launch_with_judge_model_injects_key_but_not_public(client, settings, mo
     assert detail["judge_overrides"]["model"] == "gpt-judge"
     assert "api_key" not in detail["judge_overrides"]
 
+    # 防御性脱敏：即使历史快照误含凭据，详情 API 也不得回传。
+    with session_scope() as s:
+        run = s.get(EvalRun, rid)
+        assert run is not None
+        run.config_snapshot = {
+            "judges": {"eight_dimension": {"api_key": "LEAK"}},
+            "adapter": {"cx_agent": {"test_token": "LEAK"}},
+        }
+    public_snapshot = client.get(f"/api/runs/{rid}").json()["config_snapshot"]
+    assert "api_key" not in public_snapshot["judges"]["eight_dimension"]
+    assert "test_token" not in public_snapshot["adapter"]["cx_agent"]
+
 
 def test_launch_unknown_judge_model_404(client, settings):
-    bid = _seed_builtin(settings)
+    bid = _seed_benchmark(settings)
     resp = client.post(
         "/api/runs", json={"benchmark_id": bid, "judge_model_id": 987654}
     )

@@ -49,10 +49,7 @@ export interface CasesYaml {
 
 export interface CaseLogicOverride {
   sample_id: string;
-  expected_behavior?: Record<string, any> | null;
-  hard_gates?: Record<string, any> | null;
-  rubric?: Record<string, any> | null;
-  scoring_points?: Record<string, any>[] | null;
+  evaluation?: Record<string, any> | null;
 }
 
 export interface PreviewRejudgePayload {
@@ -61,17 +58,17 @@ export interface PreviewRejudgePayload {
 }
 
 export interface CaseScores {
-  hard_gate_passed: boolean;
-  gate_passed: boolean;
+  medical_safety_passed: boolean;
   release_passed: boolean;
   composite_score?: number | null;
   grade: string;
+  dimension_raw_scores: Record<string, number | null>;
   dimension_scores: Record<string, number | null>;
   dimension_max: Record<string, number>;
-  score_profile: string;
+  end_scores: Record<string, number>;
+  guideline_scores: GuidelineScore[];
   score_deductions: string[];
   failure_tags: string[];
-  needs_human_review: boolean;
   verdicts: Array<{
     name?: string;
     passed?: boolean | null;
@@ -94,7 +91,7 @@ export interface CaseBrief {
   scenario: string;
   sub_scenario: string;
   level: string;
-  score_profile: string;
+  guideline_count: number;
 }
 
 export interface BenchmarkCaseYaml {
@@ -114,7 +111,7 @@ export interface RunSummary {
   total: number;
   passed: number;
   pass_rate: number;
-  hard_gate_failed: number;
+  medical_safety_failed: number;
   n_runs: number;
   started_at?: string | null;
   finished_at?: string | null;
@@ -137,7 +134,7 @@ export interface RunDetail extends RunSummary {
   guideline_match: Record<string, any>;
   failure_tag_counter: Record<string, number>;
   judge_fingerprints: Record<string, string>;
-  by_level: Record<string, { total: number; passed: number; hard_failed?: number }>;
+  by_level: Record<string, { total: number; passed: number; medical_safety_failed?: number }>;
   by_scenario: Record<string, { total: number; passed: number }>;
   config_snapshot: Record<string, any>;
 }
@@ -148,17 +145,13 @@ export interface CaseRow {
   scenario: string;
   sub_scenario: string;
   level: string;
-  hard_gate_passed: boolean;
-  gate_passed: boolean;
+  medical_safety_passed: boolean;
   release_passed: boolean;
   composite_score?: number | null;
   grade: string;
-  score_profile: string;
   stability: string;
-  needs_human_review: boolean;
-  guideline_match_rate?: number | null;
-  guideline_matched?: number | null;
-  guideline_total?: number | null;
+  guideline_earned?: number | null;
+  guideline_max?: number | null;
   latency_ms?: number | null;
   total_tokens?: number | null;
   cost?: number | null;
@@ -166,6 +159,17 @@ export interface CaseRow {
   failure_tags: string[];
   review?: ReviewSummary | null;
   langfuse_trace_url?: string | null;
+}
+
+export interface GuidelineScore {
+  id: string;
+  dimension: string;
+  criterion: string;
+  source: string;
+  score: number;
+  max_score: number;
+  reason: string;
+  evidence: string[];
 }
 
 export interface ReviewSummary {
@@ -361,7 +365,6 @@ export interface RunCreatePayload {
   benchmark_id: number;
   run_name?: string;
   levels?: string[];
-  score_profiles?: string[];
   limit?: number;
   repeat?: number;
   judge?: {
@@ -391,29 +394,20 @@ export interface JudgeDefaults {
   model_options: string[];
 }
 
-export interface ProfileCoverage {
-  is_fallback: boolean;
-  score_profile: string;
-  case_count: number;
-}
-
-export interface ScoringProfileSnapshot {
-  module_max: Record<string, number>;
-  function_deduction: number;
-  safety_function_deduction: number;
-  min_composite: number;
-  gates: Record<string, string | number>;
-  max_total: number;
-  pass_rule_type: string;
-}
-
-export interface ScoringProfileItem {
-  profile: string;
-  label: string;
-  coverage: ProfileCoverage;
-  defaults: ScoringProfileSnapshot;
-  override: Record<string, unknown> | null;
-  effective: ScoringProfileSnapshot;
+export interface EvaluationStandard {
+  dimensions: Array<{
+    key: string;
+    label: string;
+    role: "doctor" | "nurse" | "user";
+    description: string;
+    max_score: number;
+    binary: boolean;
+  }>;
+  end_max_scores: Record<"doctor" | "nurse" | "user", number>;
+  total_max_score: number;
+  grades: Array<{ grade: string; min_score: number }>;
+  medical_safety_zeroes_total: boolean;
+  guideline_rule: string;
 }
 
 export interface JudgeModel {
@@ -424,8 +418,8 @@ export interface JudgeModel {
   base_url: string;
   api_version: string;
   temperature?: number | null;
+  enable_thinking?: boolean | null;
   pairwise_concurrency: number;
-  prompt_template?: string | null;
   has_api_key: boolean;
   created_by?: string | null;
   created_at?: string | null;
@@ -438,8 +432,8 @@ export interface JudgeModelPayload {
   base_url?: string;
   api_version?: string;
   temperature?: number | null;
+  enable_thinking?: boolean | null;
   pairwise_concurrency?: number;
-  prompt_template?: string | null;
   api_key?: string;
 }
 
@@ -451,7 +445,7 @@ export interface TrendPoint {
   pass_rate: number;
   total: number;
   passed: number;
-  hard_gate_failed: number;
+  medical_safety_failed: number;
   avg_composite?: number | null;
   avg_dimension: Record<string, number>;
   failure_tag_counter: Record<string, number>;

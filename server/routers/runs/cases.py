@@ -31,7 +31,6 @@ def list_case_results(
     release_passed: Optional[bool] = None,
     stability: Optional[str] = None,
     scenario: Optional[str] = None,
-    score_profile: Optional[str] = None,
     turns: Optional[str] = None,
     guideline: Optional[str] = None,
     review_pending: Optional[bool] = None,
@@ -49,7 +48,6 @@ def list_case_results(
         release_passed=release_passed,
         stability=stability,
         scenario=scenario,
-        score_profile=score_profile,
         turns=turns,
         guideline=guideline,
         load_detail_json=False,
@@ -62,7 +60,6 @@ def list_case_results(
             release_passed=release_passed,
             stability=stability,
             scenario=scenario,
-            score_profile=score_profile,
             turns=turns,
             guideline=guideline,
         )
@@ -78,7 +75,6 @@ def get_cases_yaml_route(
     release_passed: Optional[bool] = None,
     stability: Optional[str] = None,
     scenario: Optional[str] = None,
-    score_profile: Optional[str] = None,
     guideline: Optional[str] = None,
     sample_id: Optional[str] = None,
     session: Session = Depends(get_session),
@@ -90,7 +86,6 @@ def get_cases_yaml_route(
         release_passed=release_passed,
         stability=stability,
         scenario=scenario,
-        score_profile=score_profile,
         guideline=guideline,
         sample_id=sample_id,
     )
@@ -103,7 +98,6 @@ def export_transcripts_route(
     release_passed: Optional[bool] = None,
     stability: Optional[str] = None,
     scenario: Optional[str] = None,
-    score_profile: Optional[str] = None,
     guideline: Optional[str] = None,
     parent_folder_token: Optional[str] = None,
     session: Session = Depends(get_session),
@@ -116,7 +110,6 @@ def export_transcripts_route(
         release_passed=release_passed,
         stability=stability,
         scenario=scenario,
-        score_profile=score_profile,
         guideline=guideline,
         parent_folder_token=parent_folder_token,
         current_user=current_user,
@@ -142,4 +135,4 @@ async def sync_case_agent_chain(
     detail["trace"] = trace.model_dump(mode="json")
     row.detail_json = detail
     session.flush()
-    return detail
+    return get_case_detail_json(session, run_id, sample_id)

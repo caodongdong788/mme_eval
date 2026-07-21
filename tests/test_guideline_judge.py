@@ -1,0 +1,88 @@
+from __future__ import annotations
+
+import asyncio
+
+from medeval.judges.guideline import GuidelineJudge
+from medeval.models import ChatMessage, ConversationTrace, TestCase
+from tests.test_v2_case_schema import raw_case
+
+
+def case() -> TestCase:
+    return TestCase.model_validate(raw_case())
+
+
+def trace() -> ConversationTrace:
+    return ConversationTrace(messages=[ChatMessage(role="assistant", content="建议就医")])
+
+
+def test_partial_credit_is_preserved() -> None:
+    judge = GuidelineJudge(enabled=False)
+    judge.enabled = True
+
+    async def fake_call(prompt: str):
+        return {"risk": {"score": 2, "reason": "覆盖主要内容", "evidence": "需要重视"}}
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdict = asyncio.run(judge.judge(case(), trace()))[0]
+    assert verdict.name == "guideline.risk"
+    assert verdict.score == 2
+    assert verdict.max_score == 3
+    assert not verdict.passed
+    assert verdict.evidence == ["需要重视"]
+
+
+def test_invalid_fractional_score_is_zero() -> None:
+    judge = GuidelineJudge(enabled=False)
+    judge.enabled = True
+
+    async def fake_call(prompt: str):
+        return {"risk": {"score": 1.5, "reason": "bad", "evidence": ""}}
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdict = asyncio.run(judge.judge(case(), trace()))[0]
+    assert verdict.score == 0
+    assert "非法" in verdict.reason
+
+
+def test_failure_scores_every_guideline_zero() -> None:
+    judge = GuidelineJudge(enabled=False)
+    judge.enabled = True
+
+    async def boom(prompt: str):
+        raise RuntimeError("boom")
+
+    judge._call = boom  # type: ignore[method-assign]
+    verdict = asyncio.run(judge.judge(case(), trace()))[0]
+    assert verdict.score == 0
+    assert "失败" in verdict.reason
+
+
+def test_prompt_includes_case_initial_state_without_counting_it_as_coverage() -> None:
+    raw = raw_case()
+    raw["initial_state"] = {
+        "user_profile": {"nickname": "小橙"},
+        "long_term_memories": [
+            {
+                "key": "sleep_preference",
+                "category": "activity",
+                "label": "睡前习惯",
+                "content": "睡前听十分钟轻音乐更容易入睡",
+                "memory_tier": "semantic",
+            }
+        ],
+    }
+    judge = GuidelineJudge(enabled=False)
+    judge.enabled = True
+    captured = ""
+
+    async def fake_call(prompt: str):
+        nonlocal captured
+        captured = prompt
+        return {"risk": {"score": 0, "reason": "未覆盖", "evidence": ""}}
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    asyncio.run(judge.judge(TestCase.model_validate(raw), trace()))
+
+    assert "Case 初始化真值" in captured
+    assert "sleep_preference" in captured
+    assert "不得直接算作 bot 已覆盖指南" in captured

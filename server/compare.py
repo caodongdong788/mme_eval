@@ -37,12 +37,6 @@ def _sample_ids(session: Session, run_id: int) -> set[str]:
     return set(rows)
 
 
-def _scoring_snapshot(run: EvalRun) -> Any:
-    """从 config_snapshot 取判分口径（scoring 段）；缺失返回 {}。"""
-    snap = run.config_snapshot or {}
-    return (snap.get("scoring") if isinstance(snap, dict) else None) or {}
-
-
 def _changed_judge_labels(fp_a: dict, fp_b: dict) -> list[str]:
     """逐判官比对指纹，返回「判分逻辑不一致」的判官中文标签列表。"""
     labels: list[str] = []
@@ -52,20 +46,13 @@ def _changed_judge_labels(fp_a: dict, fp_b: dict) -> list[str]:
     return labels
 
 
-def _scoring_diff_keys(a: dict, b: dict) -> list[str]:
-    """逐字段列出评分口径（scoring）的差异 key。"""
-    if not isinstance(a, dict) or not isinstance(b, dict):
-        return []
-    return [k for k in sorted(set(a) | set(b)) if a.get(k) != b.get(k)]
-
-
 def check_pairwise_comparable(
     session: Session, run_a: EvalRun, run_b: EvalRun
 ) -> list[str]:
     """可比性校验——**只卡判分尺子、放开被测 bot**。返回中文原因列表（空=可比）。
 
     卡：benchmark 相同、sample_id 集合一致、判分尺子一致
-    （judge_fingerprints 相等且 config_snapshot.scoring 相等）、双方均已落 trace。
+    （judge_fingerprints 相等）、双方均已落 trace。
     放开：被测参数（system_prompt / 被测 model）差异不拦截（见 ``subject_diff``）。
     """
     reasons: list[str] = []
@@ -92,12 +79,6 @@ def check_pairwise_comparable(
             f"判分标准不一样：两次评测里「{who}」的判分逻辑不同，"
             "等于用了两把不同的尺子量，分数没法直接比。"
         )
-    else:
-        scoring_diff = _scoring_diff_keys(_scoring_snapshot(run_a), _scoring_snapshot(run_b))
-        if scoring_diff:
-            reasons.append(
-                f"算分口径不一样：两次评测在「{'、'.join(scoring_diff)}」上的算分权重/规则不同，分数没法直接比。"
-            )
     if not run_a.has_traces or not run_b.has_traces:
         missing = []
         if not run_a.has_traces:

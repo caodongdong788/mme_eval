@@ -186,8 +186,8 @@ sample_id,reviewer,reviewer_role,dimension,score,reason
 | `clinical_inquiry` | 临床追问充分性 | doctor | 0–5 | 临床质量分 · 0.40（=0 软封顶） |
 | `personalization` | 个性化相关性 | nurse | 0–5 | 临床质量分 · 0.30 |
 | `feasibility_adherence` | 方案可行性与依从引导 | nurse | 0–5 | 临床质量分 · 0.30 |
-| `understanding_empathy` | 被理解与共情 | patient | 0–5 | 体验分 · 0.40 |
-| `actionability` | 可执行性（可落地感） | patient | 0–5 | 体验分 · 0.35 |
+| `empathy` | 被理解与共情 | patient | 0–5 | 体验分 · 0.40 |
+| `executability` | 可执行性（可落地感） | patient | 0–5 | 体验分 · 0.35 |
 | `communication` | 沟通体验与继续意愿 | patient | 0–5 | 体验分 · 0.25 |
 
 > 结构化目的：便于统计（评审间一致性、维度分布、全满分/雷同检测）或接入平台。平台若日后落地，可照搬 Pairwise 人工校准的「机器原判 + human_* 覆写 + `*_by`/`*_at` 留痕 + 逐维度」模式（`server/models_db.py` 的 `PairwiseCaseVerdict`、`server/services/pairwise.py`）与 `CaseAnnotation`（同一用例可多条留痕）的建模思路。

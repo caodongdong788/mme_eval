@@ -22,7 +22,6 @@ def build_eval_job(
     *,
     benchmark_id: int,
     run_name: str | None = None,
-    score_profiles: list[str] | None = None,
     levels: list[str] | None = None,
     limit: int = 0,
     repeat: int | None = None,
@@ -31,7 +30,6 @@ def build_eval_job(
     settings: Settings | None = None,
 ) -> Callable[[InMemoryProgress], Awaitable[None]]:
     settings = settings or get_settings()
-    score_profiles = score_profiles or []
     levels = levels or []
 
     async def job(progress: InMemoryProgress) -> None:
@@ -43,18 +41,13 @@ def build_eval_job(
             repeat=repeat,
             judge_ov=judge_full,
             adapter_ov=adapter_full,
-            release_thresholds=True,
         )
-        if score_profiles:
-            config.cases.score_profiles = list(score_profiles)
 
         with session_scope() as session:
             bm = session.get(Benchmark, benchmark_id)
             if bm is None:
                 raise ValueError(f"benchmark {benchmark_id} 不存在")
-            cases = ej.load_benchmark_cases(
-                bm, score_profiles=score_profiles or None, settings=settings
-            )
+            cases = ej.load_benchmark_cases(bm, settings=settings)
         if levels:
             level_set = set(levels)
             cases = [c for c in cases if getattr(c.level, "value", c.level) in level_set]
@@ -62,7 +55,7 @@ def build_eval_job(
             cases = cases[:limit]
 
         adapter = build_eval_adapter(config)
-        judges, adjudicator = build_judge_stack(config)
+        judges = build_judge_stack(config)
 
         run_slug = make_run_slug(config.run.name)
         out_dir = settings.outputs_dir / run_slug
@@ -73,7 +66,6 @@ def build_eval_job(
             cases,
             adapter,
             judges,
-            adjudicator,
             progress=progress,
             run_name=run_slug,
             out_dir=out_dir,

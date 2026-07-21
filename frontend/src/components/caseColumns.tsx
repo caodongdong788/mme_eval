@@ -39,27 +39,26 @@ export function buildCaseColumns(runId: number, tagLabel: (k: string) => string)
       },
     },
     {
-      title: "综合分",
+      title: "总分",
       dataIndex: "composite_score",
-      render: (v?: number) => (v == null ? "-" : v.toFixed(2)),
+      render: (v?: number) => (v == null ? "-" : `${v.toFixed(1)}/45`),
     },
     {
-      title: "指南匹配率",
-      dataIndex: "guideline_match_rate",
-      render: (v: number | null | undefined, r: CaseRow) => {
-        if (r.guideline_total && r.guideline_total > 0) {
-          const pct = Math.round(((r.guideline_matched ?? 0) / r.guideline_total) * 100);
-          return `${pct}%（${r.guideline_matched ?? 0}/${r.guideline_total}）`;
-        }
-        if (v == null) return <Typography.Text type="secondary">无锚点</Typography.Text>;
-        return `${Math.round(v * 100)}%`;
+      title: "指南得分",
+      dataIndex: "guideline_earned",
+      render: (_: number | null | undefined, r: CaseRow) => {
+        if (r.guideline_max) return `${r.guideline_earned ?? 0}/${r.guideline_max}`;
+        return <Typography.Text type="secondary">无指南项</Typography.Text>;
       },
     },
     {
-      title: "上线判定",
-      dataIndex: "release_passed",
-      render: (v: boolean) =>
-        v ? <Dot kind="pass">通过</Dot> : <Dot kind="fail">失败</Dot>,
+      title: "综合评级",
+      dataIndex: "grade",
+      render: (grade: string, row: CaseRow) => {
+        const label = grade || (row.release_passed ? "合格" : "不合格");
+        const kind = label.includes("不合格") ? "fail" : label === "合格" ? "warn" : "pass";
+        return <Dot kind={kind}>{label}</Dot>;
+      },
     },
     {
       title: "稳定性",

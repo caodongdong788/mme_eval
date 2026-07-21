@@ -17,7 +17,7 @@ function run(partial: Partial<RunSummary> & { id: number }): RunSummary {
     total: 92,
     passed: 80,
     pass_rate: 0.87,
-    hard_gate_failed: 0,
+    medical_safety_failed: 0,
     n_runs: 1,
     error_msg: "",
     has_traces: true,
@@ -56,13 +56,13 @@ describe("runsListOverview", () => {
 
   it("computeRunsListKpis aggregates success runs", () => {
     const kpis = computeRunsListKpis([
-      run({ id: 1, pass_rate: 0.8, hard_gate_failed: 1 }),
-      run({ id: 2, pass_rate: 0.9, hard_gate_failed: 2 }),
+      run({ id: 1, pass_rate: 0.8, medical_safety_failed: 1 }),
+      run({ id: 2, pass_rate: 0.9, medical_safety_failed: 2 }),
       run({ id: 3, status: "running" }),
     ]);
     expect(kpis.total).toBe(3);
     expect(kpis.avgPassPct).toBe(85);
-    expect(kpis.hardGateTotal).toBe(3);
+    expect(kpis.medicalSafetyFailedTotal).toBe(3);
     expect(kpis.activeCount).toBe(1);
   });
 
@@ -78,14 +78,14 @@ describe("runsListOverview", () => {
 
   it("computeRunsPeriodDeltas compares two windows", () => {
     const current = [
-      run({ id: 1, pass_rate: 0.9, hard_gate_failed: 1 }),
-      run({ id: 2, pass_rate: 0.7, hard_gate_failed: 0 }),
+      run({ id: 1, pass_rate: 0.9, medical_safety_failed: 1 }),
+      run({ id: 2, pass_rate: 0.7, medical_safety_failed: 0 }),
     ];
-    const previous = [run({ id: 3, pass_rate: 0.6, hard_gate_failed: 2 })];
+    const previous = [run({ id: 3, pass_rate: 0.6, medical_safety_failed: 2 })];
     expect(computeRunsPeriodDeltas(current, previous)).toEqual({
       total: 1,
       passRatePct: 20,
-      hardGate: -1,
+      medicalSafetyFailed: -1,
       active: 0,
     });
   });

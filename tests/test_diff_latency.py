@@ -48,7 +48,7 @@ def test_latency_diff_faster_marks_down_arrow():
 def test_latency_diff_prev_missing_is_info_not_crash():
     out = _latency_diff(_report(_CUR), _report(None))
     assert "ℹ️" in out
-    assert "上版本" in out
+    assert "对比报告" in out
     assert "性能" in out
 
 

@@ -299,7 +299,7 @@ components:
 |-------------|------|
 | `PRODUCT.md` | 战略、anti-reference 红线 |
 | 本文件 `DESIGN.md` | 视觉命名规则、Dashboard / Ink 双灯 |
-| `.cursor/rules/frontend-workflow.mdc` | 开发五步流程、目录分层、组件硬规则 |
+| `AGENTS.md` | 开发流程、目录分层与验证约定 |
 | `frontend/src/styles.css` | CSS token 单一源（`:root` + `--runs-*`） |
 | `frontend/src/theme.ts` | JS token 镜像（`palette` / `palette.dashboard`） |
 | `frontend/src/labels.ts` | 领域中文标签；`PROFILE_LABEL` 与 `server/services/platform_config.PROFILE_LABELS_ZH` 同步 |

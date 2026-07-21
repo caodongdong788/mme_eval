@@ -14,15 +14,9 @@ from .benchmarks import load_benchmark_cases
 from .services.eval_artifacts import persist_outcome as _persist_outcome
 from .services.eval_launch import build_eval_job
 from .services.eval_rejudge import build_rejudge_job, preview_rejudge_case
-from .services.scoring_profile_config import (
-    apply_scoring_profile_overrides,
-    load_release_threshold_overrides,
-    load_scoring_profile_rows,
-)
 from .services.eval_resume import build_resume_job
 
 __all__ = [
-    "apply_scoring_profile_overrides",
     "build_adapter",
     "build_eval_job",
     "build_rejudge_job",
@@ -30,8 +24,6 @@ __all__ = [
     "evaluate",
     "judge_traces",
     "load_benchmark_cases",
-    "load_release_threshold_overrides",
-    "load_scoring_profile_rows",
     "preview_rejudge_case",
     "retention",
     "_persist_outcome",

@@ -30,7 +30,7 @@ def benchmark_trends(session: Session, benchmark_id: int) -> dict[str, Any]:
                 "pass_rate": r.pass_rate,
                 "total": r.total,
                 "passed": r.passed,
-                "hard_gate_failed": r.hard_gate_failed,
+                "medical_safety_failed": r.medical_safety_failed,
                 "avg_composite": grading.get("avg_composite"),
                 "avg_dimension": grading.get("avg_dimension", {}),
                 "failure_tag_counter": r.failure_tag_counter or {},

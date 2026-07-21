@@ -89,7 +89,7 @@ def build_resume_job(
         )
 
         adapter = build_eval_adapter(config)
-        judges, adjudicator = build_judge_stack(config)
+        judges = build_judge_stack(config)
 
         new_slug = make_run_slug(config.run.name)
         out_dir = settings.outputs_dir / new_slug
@@ -100,7 +100,6 @@ def build_resume_job(
             cases,
             adapter,
             judges,
-            adjudicator,
             progress=progress,
             run_name=new_slug,
             out_dir=out_dir,

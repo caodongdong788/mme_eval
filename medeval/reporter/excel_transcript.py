@@ -3,21 +3,16 @@
 参见 OpenSpec change ``add-transcript-excel-output``：评测报告里只贴 Top N 失败 case 的对话，
 医学审阅者要追溯所有 case 的全文必须打开 transcripts.xlsx。
 
-纯内容派生（截断 / 折行估算 / 关键词标记 / 得分点 / 维度比率 / profile 标签）已拆到
+纯内容派生（截断 / 折行估算 / 八维、三端与指南得分）已拆到
 ``transcript_cells.py``（change ``2026-06-02-split-transcript-cells``）；本模块只负责
 openpyxl 的 sheet / 列宽 / 行高 / 冻结窗格 / 样式写入。
 
 文件结构（两个 sheet）：
   * Sheet 1 ``概览``：每行 1 个 case，列 sample_id / level / depth / scenario / passed / stability / failure_tags
   * Sheet 2 ``对话流水``：**每行 1 个 case** 的宽表。前缀列为
-    测试内容（描述 + 来源 YAML 文件名 + profile）/ 安全·合规·功能·体验（**得分/满分**）/
-    总分（得分/1.00）/ 评级 / 扣分原因 / 得分点净分 / 指南匹配率 /
-    得分点明细 / 轮数 / 总耗时(ms)，
+    测试内容、八维原始分与最终分、三端分、总分（满分45）、评级、指南逐项分、
+    扣分原因、轮数与总耗时(ms)，
     其后按轮次展开 ``第N轮（用户+Bot）`` 与 ``第N轮耗时(ms)`` 成对的列。
-    若某轮 bot 回复命中了 must_have / must_not_have，关键词用 ``【关键词】`` 标记。
-
-关键词标记统一用 ``【关键词】`` 纯文本（飞书在线表格与 Excel 均可正常显示）；
-不再生成富文本/标红，因为评测产物主要在飞书查看，飞书导入会把富文本单元格当空白丢弃。
 
 依赖：openpyxl >= 3.1
 """
@@ -31,13 +26,11 @@ from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
 
 from ..models import CaseResult, RunReport
-from .scoring import resolve_profile
+from ..evaluation import DIMENSION_LABELS, EvaluationDimension
 from .transcript_cells import (
     _case_title,
     _deduction_text,
     _display_lines,
-    _fmt_dim_ratio,
-    _scoring_point_cells,
     _test_content_cell,
     _turn_cell,
     _turns,
@@ -45,25 +38,23 @@ from .transcript_cells import (
 )
 
 # 对话流水宽表的固定前缀列（其后动态追加每轮 内容+耗时 列对）。
-# 首列用 sub_scenario（测试内容）更直观；四模块分 + 总分 + 评级 + 扣分原因
+# 首列用 sub_scenario（测试内容）更直观；八维分 + 三端分 + 总分 + 评级 + 扣分原因
 # 一行看全表现（飞书文档已不再贴失败明细，全在此 Excel 看）。
 _PREFIX_HEADERS = [
     "测试内容",
-    "安全",
-    "合规",
-    "功能",
-    "体验",
+    *[DIMENSION_LABELS[d] for d in EvaluationDimension],
+    "医生端",
+    "护士端",
+    "患者端",
     "总分",
     "评级",
     "扣分原因",
-    "得分点净分",
-    "指南匹配率",
-    "得分点明细",
+    "指南评分",
     "轮数",
     "总耗时(ms)",
 ]
 _REASON_HEADER = "扣分原因"
-_SCORING_DETAIL_HEADER = "得分点明细"
+_SCORING_DETAIL_HEADER = "指南评分"
 
 # 内容列宽（字符单位）与行高估算参数。把行高按文字量写进文件，
 # 打开即可见全文，无需手动拉高（Excel 行高上限 409 pt）。
@@ -83,7 +74,6 @@ def _write_overview(ws, results: list[CaseResult]) -> None:
         "passed",
         "stability",
         "failure_tags",
-        "评分档",
     ]
     ws.append(headers)
     for cell in ws[1]:
@@ -99,19 +89,16 @@ def _write_overview(ws, results: list[CaseResult]) -> None:
                 r.release_passed,
                 r.stability,
                 ",".join(r.failure_tags),
-                r.score_profile or "—",
             ]
         )
 
-    widths = {"A": 32, "B": 8, "C": 8, "D": 18, "E": 10, "F": 14, "G": 40, "H": 12}
+    widths = {"A": 32, "B": 8, "C": 8, "D": 18, "E": 10, "F": 14, "G": 40}
     for col, w in widths.items():
         ws.column_dimensions[col].width = w
     ws.freeze_panes = "A2"
 
 
-def _write_transcripts(
-    ws, results: list[CaseResult], scoring_cfg: dict | None = None
-) -> None:
+def _write_transcripts(ws, results: list[CaseResult]) -> None:
     """每行 1 个 case 的宽表：前缀摘要列 + 逐轮 (内容, 耗时) 列对。"""
     per_case_turns = [_turns(r) for r in results]
     max_turns = max((len(t) for t in per_case_turns), default=0)
@@ -132,35 +119,41 @@ def _write_transcripts(
     scoring_detail_col = _PREFIX_HEADERS.index(_SCORING_DETAIL_HEADER) + 1
     for r, turns in zip(results, per_case_turns):
         d = r.dimension_scores or {}
-        # 每个 case 仅解析一次 profile，name 与 module_max 复用给各列。
-        profile = resolve_profile(r.case, scoring_cfg)
-        mmax = profile["module_max"]
-        composite_max = sum(mmax.values())
-        sp_net, sp_gm, sp_detail = _scoring_point_cells(r)
+        raw = r.dimension_raw_scores or {}
+        guideline_detail = "\n".join(
+            f"{item.get('id')}: {item.get('score', 0):g}/{item.get('max_score', 0):g}"
+            f" · {item.get('reason') or '—'}"
+            for item in r.guideline_scores
+        ) or "—"
         row: list = [
-            _test_content_cell(r, profile["name"]),
-            _fmt_dim_ratio(d.get("safety"), mmax.get("safety")),
-            _fmt_dim_ratio(d.get("compliance"), mmax.get("compliance")),
-            _fmt_dim_ratio(d.get("function"), mmax.get("function")),
-            _fmt_dim_ratio(d.get("experience"), mmax.get("experience")),
-            _fmt_dim_ratio(r.composite_score, composite_max),
+            _test_content_cell(r),
+            *[
+                (
+                    f"{raw.get(dim.value, 0):g}→{d.get(dim.value, 0):g}/5"
+                    if raw.get(dim.value) != d.get(dim.value)
+                    else f"{d.get(dim.value, 0):g}/5"
+                )
+                for dim in EvaluationDimension
+            ],
+            f"{r.end_scores.get('doctor', 0):g}/15",
+            f"{r.end_scores.get('nurse', 0):g}/15",
+            f"{r.end_scores.get('user', 0):g}/15",
+            f"{(r.composite_score or 0):g}/45",
             r.grade or "—",
             _deduction_text(r),
-            sp_net,
-            sp_gm,
-            sp_detail,
+            guideline_detail,
             len(turns),
             r.trace.duration_ms,
         ]
         plain_texts: list[str] = []
         for user, bot, lat in turns:
-            cell_value = _turn_cell(user, bot, r.highlight_keywords)
+            cell_value = _turn_cell(user, bot, [])
             plain_texts.append(cell_value)
             row.append(cell_value)
             row.append(round(lat) if lat is not None else "")
         ws.append(row)
         ws.cell(row=ws.max_row, column=1).alignment = wrap
-        # 扣分原因 / 得分点明细列换行
+        # 扣分原因 / 指南评分列换行
         ws.cell(row=ws.max_row, column=reason_col).alignment = wrap
         ws.cell(row=ws.max_row, column=scoring_detail_col).alignment = wrap
         # 内容列（前缀之后、每两列的第 1 列）换行
@@ -185,18 +178,16 @@ def _write_transcripts(
                 _MAX_ROW_PT, max(line_counts) * _LINE_PT + 4
             )
 
-    # 列宽：测试内容/扣分原因 给宽些，四模块分/总分/评级/轮数紧凑
+    # 列宽：测试内容/扣分原因/指南评分给宽些，其余分数与状态列紧凑。
     prefix_widths = [
         30,
-        12,
-        12,
-        12,
-        12,
+        *([12] * 8),
+        10,
+        10,
+        10,
         10,
         8,
         _REASON_COL_WIDTH,
-        11,
-        11,
         _SCORING_DETAIL_COL_WIDTH,
         6,
         12,
@@ -224,9 +215,8 @@ def write_transcripts_xlsx(report: RunReport, path: Path) -> Path:
     overview.title = "概览"
     transcripts = wb.create_sheet("对话流水")
 
-    scoring_cfg = (report.config_snapshot or {}).get("scoring")
     _write_overview(overview, report.results)
-    _write_transcripts(transcripts, report.results, scoring_cfg=scoring_cfg)
+    _write_transcripts(transcripts, report.results)
 
     path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(path)

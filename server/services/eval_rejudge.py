@@ -60,10 +60,9 @@ def build_rejudge_job(
             judge_ov=judge_ov,
             adapter_ov=adapter_ov,
             extra_judge_ov=judge_override,
-            release_thresholds=True,
         )
 
-        judges, adjudicator = build_judge_stack(config)
+        judges = build_judge_stack(config)
 
         new_slug = make_run_slug(config.run.name)
         out_dir = settings.outputs_dir / new_slug
@@ -91,7 +90,6 @@ def build_rejudge_job(
                 sub_cases,
                 sub_traces,
                 judges,
-                adjudicator,
                 progress=progress,
                 run_name=new_slug,
                 declare_plan=True,
@@ -107,7 +105,7 @@ def build_rejudge_job(
                 run_name=new_slug,
                 results=merged,
                 adapter_type=config.adapter.type,
-                config_snapshot=config.model_dump(mode="json"),
+                config_snapshot=config.public_snapshot(),
                 description=config.run.description,
                 n_runs=n_runs,
             )
@@ -117,7 +115,6 @@ def build_rejudge_job(
                 cases,
                 per_case_traces,
                 judges,
-                adjudicator,
                 progress=progress,
                 run_name=new_slug,
                 declare_plan=True,
@@ -187,16 +184,14 @@ async def preview_rejudge_case(
         repeat=n_runs,
         judge_ov=judge_ov,
         adapter_ov=adapter_ov,
-        release_thresholds=True,
     )
 
-    judges, adjudicator = build_judge_stack(config)
+    judges = build_judge_stack(config)
     report = await ej.judge_traces(
         config,
         sub_cases,
         sub_traces,
         judges,
-        adjudicator,
         declare_plan=False,
     )
     return report.results[0]

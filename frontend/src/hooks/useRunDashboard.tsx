@@ -14,7 +14,7 @@ import { useRunDiff } from "./useRunDiff";
 import { useYamlEditorState } from "./useYamlEditorState";
 import { formatApiError } from "../utils/apiError";
 
-export function useRunDashboard(runId: number) {
+export function useRunDashboard(runId: number, failureTagLabel: (tag: string) => string) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -49,7 +49,7 @@ export function useRunDashboard(runId: number) {
   const [nameDraft, setNameDraft] = useState("");
   const [savingName, setSavingName] = useState(false);
 
-  const caseFilters = useRunCaseFilters(runId);
+  const caseFilters = useRunCaseFilters(runId, failureTagLabel);
   const runDiff = useRunDiff(runId, () => setActiveTab("diff"));
 
   const isBuiltinBenchmark =
@@ -154,7 +154,7 @@ export function useRunDashboard(runId: number) {
 
   const openYamlEditor = () => {
     if (benchmarks.length === 0) api.listBenchmarks().then(setBenchmarks);
-    openFromRun(runId, caseFilters.filters);
+    openFromRun(runId, {});
   };
 
   const saveYamlAsBenchmark = () =>
@@ -189,7 +189,6 @@ export function useRunDashboard(runId: number) {
     setExporting(true);
     try {
       const res = await api.exportTranscripts(runId, {
-        ...caseFilters.filters,
         parent_folder_token: "",
       });
       setExportOpen(false);

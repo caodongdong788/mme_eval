@@ -5,7 +5,7 @@
 现行「Clinical Instrument」视觉系统以发丝边框 + 微光阴影 + 灰底表面微差建立层级。
 产品方希望切换到「极致留白 + 大字号（Apple / Dieter Rams）+ Bauhaus 极简」的语言：
 纯白底、无卡片边框/阴影、夸张留白分区、超大核心指标、黑白印刷质感、圆点状态、降噪图表。
-这是一次**根本性设计漂移**，按 `.cursor/rules/frontend-workflow.mdc` §1 必须先更新设计契约
+这是一次**根本性设计漂移**，按 `AGENTS.md` 必须先更新设计契约
 （`DESIGN.md` + `.impeccable/design.json`）再改代码，并先有计划。
 
 ## What Changes

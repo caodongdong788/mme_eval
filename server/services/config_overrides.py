@@ -15,7 +15,7 @@ JUDGE_OVERRIDE_KEYS = (
     "api_key_env",
     "api_key",
     "temperature",
-    "prompt_template",
+    "enable_thinking",
 )
 
 ADAPTER_OVERRIDE_KEYS = (
@@ -31,7 +31,7 @@ ADAPTER_OVERRIDE_KEYS = (
 def apply_judge_overrides(config: Config, judge: dict[str, Any] | None) -> None:
     if not judge:
         return
-    for target in (config.judges.llm, config.judges.scoring_point):
+    for target in (config.judges.eight_dimension, config.judges.guideline):
         for k in JUDGE_OVERRIDE_KEYS:
             v = judge.get(k)
             if v is not None and hasattr(target, k):

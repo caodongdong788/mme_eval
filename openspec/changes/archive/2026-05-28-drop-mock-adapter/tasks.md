@@ -20,7 +20,7 @@
 
 - [x] 4.1 删除 `config.multi_turn_smoke.yaml`
 - [x] 4.2 `config.yaml` 删除 `adapter.mock` 子节点；README 把 "用 Mock Adapter 跑通流程" 改成 "配好你的 chatbot adapter 后跑评测"
-- [x] 4.3 `.cursor/skills/` grep 无 mock 残留
+- [x] 4.3 `.codex/skills/` grep 无 mock 残留
 
 ## 5. Spec 更新
 

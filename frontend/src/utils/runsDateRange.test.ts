@@ -18,7 +18,7 @@ function run(partial: Partial<RunSummary> & { id: number; created_at: string }):
     total: 10,
     passed: 8,
     pass_rate: 0.8,
-    hard_gate_failed: 0,
+    medical_safety_failed: 0,
     n_runs: 1,
     error_msg: "",
     has_traces: true,

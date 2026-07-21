@@ -7,6 +7,7 @@ from sqlalchemy import select
 from medeval.models import ChatMessage, ConversationTrace
 from server.ingest import ingest_report
 from server.models_db import CaseResultRow, EvalRun
+from server.services.case_query import filtered_case_rows
 
 from factories import make_case_result, make_report
 
@@ -27,9 +28,9 @@ def test_ingest_run_summary(session):
     assert run.adapter_type == "openai_compat"
     assert run.judge_overrides["model"] == "gpt-4o"
     assert run.by_level["L3"]["passed"] == 1
-    assert run.failure_tag_counter["missed_red_flag"] == 1
+    assert run.failure_tag_counter == {}
     assert run.stability_distribution["flaky"] == 1
-    assert run.grading["avg_composite"] == 0.775
+    assert run.grading["avg_composite"] == 33.5
 
 
 def test_ingest_case_rows_scalar_columns(session):
@@ -51,10 +52,9 @@ def test_ingest_case_rows_scalar_columns(session):
 
     assert bc2.sample_id == "bc_002"
     assert bc2.release_passed is False
-    assert bc2.gate_passed is False
+    assert bc2.medical_safety_passed is True
     assert bc2.stability == "flaky"
-    assert bc2.failure_tags == ["missed_red_flag"]
-    assert bc2.score_profile == "knowledge"
+    assert bc2.failure_tags == []
 
 
 def test_ingest_detail_json_lossless(session):
@@ -69,19 +69,34 @@ def test_ingest_detail_json_lossless(session):
     # 完整对话与 verdict 无损还原
     assert detail["case"]["sample_id"] == "bc_002"
     assert detail["trace"]["messages"][1]["content"] == "建议尽快就医"
-    assert [v["name"] for v in detail["verdicts"]] == [
-        "hard_gate.red_flag",
-        "rule.must_have",
-    ]
-    assert detail["dimension_scores"]["safety"] == 0.3
-    # 三根通过率轴均无损
+    assert len(detail["verdicts"]) == 8
+    assert detail["dimension_scores"]["medical_safety"] == 5.0
     assert detail["release_passed"] is False
-    assert detail["gate_passed"] is False
-    assert detail["hard_gate_passed"] is True
+    assert detail["medical_safety_passed"] is True
 
 
-def test_ingest_legacy_report_without_tokens(session):
-    """历史 report（factory 默认无 token）落库 → token 字段安全为空。"""
+def test_guideline_scores_are_queryable_without_loading_detail_json(session):
+    report = make_report()
+    report.results[0].guideline_scores = [
+        {"id": "1", "score": 3.0, "max_score": 3.0},
+        {"id": "2", "score": 2.0, "max_score": 3.0},
+    ]
+    run = ingest_report(session, report)
+    session.commit()
+
+    rows = filtered_case_rows(session, run.id, load_detail_json=False)
+    row = next(item for item in rows if item.sample_id == "bc_001")
+    assert row.guideline_earned == 5.0
+    assert row.guideline_max == 6.0
+
+    partial = filtered_case_rows(
+        session, run.id, guideline="partial", load_detail_json=False
+    )
+    assert [item.sample_id for item in partial] == ["bc_001"]
+
+
+def test_ingest_report_without_tokens(session):
+    """无 token 的新报告落库后 token 字段为空。"""
     report = make_report()
     ingest_report(session, report)
     session.commit()

@@ -3,17 +3,51 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import { CasePreviewRejudgePanel } from "../components/CasePreviewRejudgePanel";
 import { EditCriteriaDrawer } from "../components/EditCriteriaDrawer";
 import { CaseDetailSummary, CaseDetailSummaryCard } from "../components/CaseDetailSummaryCard";
-import { CaseDimensionScoresCard } from "../components/CaseDimensionScoresCard";
 import { ConversationThread } from "../components/ConversationThread";
 import { DashPanel } from "../components/DashPanel";
 import { HumanReviewCard } from "../components/HumanReviewCard";
 import { JudgeVerdictTable } from "../components/JudgeVerdictTable";
+import { GuidelineScoresTable } from "../components/GuidelineScoresTable";
 import { AgentChainPanel } from "../components/AgentChainPanel";
 import type { AgentChainTrace } from "../components/AgentChainPanel";
-import { ScoringPointsTable } from "../components/ScoringPointsTable";
+import { UserProfileBlock } from "../components/UserProfileBlock";
 import { useFailureTagLabels } from "../hooks/useConfigLabelMap";
 import { useCaseDetail } from "../hooks/useCaseDetail";
 import { CaseVerdict } from "../utils/caseJudging";
+
+const profileLabels: Record<string, string> = {
+  nickname: "昵称",
+  birthday: "出生日期",
+  gender: "性别",
+  currentConcern: "当前关注",
+  medical: "医疗档案",
+};
+
+function profileHasContent(value: unknown): boolean {
+  if (value === null || value === undefined || value === "") return false;
+  if (Array.isArray(value)) return value.some(profileHasContent);
+  if (typeof value === "object") return Object.values(value as Record<string, unknown>).some(profileHasContent);
+  return true;
+}
+
+function profileValueText(value: unknown): string {
+  if (Array.isArray(value)) return value.map(profileValueText).filter(Boolean).join("、");
+  if (value && typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => profileHasContent(item))
+      .map(([key, item]) => `${profileLabels[key] || key}：${profileValueText(item)}`)
+      .join("；");
+  }
+  return value == null ? "" : String(value);
+}
+
+function profileText(profile: Record<string, unknown> | undefined): string {
+  if (!profile || !profileHasContent(profile)) return "";
+  return Object.entries(profile)
+    .filter(([, value]) => profileHasContent(value))
+    .map(([key, value]) => `${profileLabels[key] || key}：${profileValueText(value)}`)
+    .join("\n");
+}
 
 export default function CaseDetailPage() {
   const { runId, sampleId } = useParams();
@@ -54,34 +88,33 @@ export default function CaseDetailPage() {
   const trace = cd.detail.trace as (AgentChainTrace & { messages?: Array<{ role: string; content: string }> }) | undefined;
   const messages = trace?.messages || [];
   const verdicts = (cd.detail.verdicts as CaseVerdict[] | undefined) || [];
-  const scoringPoints = verdicts.filter((v) => v.name?.startsWith("scoring_point."));
-  const mainVerdicts = verdicts.filter((v) => !v.name?.startsWith("scoring_point."));
+  const guidelineScores = (cd.detail.guideline_scores || []) as import("../api").GuidelineScore[];
   const caseInfo = cd.detail.case as { sample_id?: string; sub_scenario?: string; scenario?: string } | undefined;
+  const identityProfile = trace?.evaluation_identity?.user_profile || trace?.evaluation_identity?.profile_after_reset;
+  const userProfileText = profileText(identityProfile);
 
   return (
     <div className="dash-page">
       <CaseDetailSummaryCard
         detail={cd.detail as CaseDetailSummary}
-        scoringPoints={scoringPoints}
         backTo={backTo}
         backState={backState}
         backLabel={backLabel}
       />
 
       <Row gutter={14}>
-        <Col xs={24} lg={14}>
+        <Col xs={24} lg={userProfileText ? 16 : 24}>
           <DashPanel title="对话流水">
             <ConversationThread messages={messages} />
           </DashPanel>
         </Col>
-        <Col xs={24} lg={10}>
-          <CaseDimensionScoresCard
-            dimensionScores={cd.detail.dimension_scores as Record<string, number | null> | undefined}
-            dimensionMax={cd.detail.dimension_max as Record<string, number> | undefined}
-            scoreDeductions={cd.detail.score_deductions as string[] | undefined}
-            highlightKeywords={cd.detail.highlight_keywords as string[] | undefined}
-          />
-        </Col>
+        {userProfileText ? (
+          <Col xs={24} lg={8}>
+            <DashPanel title="用户画像">
+              <UserProfileBlock text={userProfileText} showTitle={false} />
+            </DashPanel>
+          </Col>
+        ) : null}
       </Row>
 
       <AgentChainPanel
@@ -90,8 +123,15 @@ export default function CaseDetailPage() {
         onSync={cd.syncAgentChain}
       />
 
-      <JudgeVerdictTable verdicts={mainVerdicts} tagLabel={tagLabel} />
-      <ScoringPointsTable scoringPoints={scoringPoints} />
+      <JudgeVerdictTable
+        verdicts={verdicts}
+        tagLabel={tagLabel}
+        dimensionScores={cd.detail.dimension_scores as Record<string, number | null> | undefined}
+        dimensionRawScores={cd.detail.dimension_raw_scores as Record<string, number | null> | undefined}
+        dimensionMax={cd.detail.dimension_max as Record<string, number> | undefined}
+        scoreDeductions={cd.detail.score_deductions as string[] | undefined}
+      />
+      <GuidelineScoresTable scores={guidelineScores} />
 
       <HumanReviewCard
         verdict={cd.verdict}

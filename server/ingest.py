@@ -9,6 +9,7 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from medeval.models import CaseResult, RunReport
+from medeval.config import redact_config_secrets
 from medeval.reporter.token_cost import case_token_cost
 
 from .models_db import CaseResultRow, EvalRun
@@ -30,7 +31,7 @@ def populate_run_summary(row: EvalRun, report: RunReport) -> None:
     row.total = report.total
     row.passed = report.passed
     row.pass_rate = (report.passed / report.total) if report.total else 0.0
-    row.hard_gate_failed = report.hard_gate_failed
+    row.medical_safety_failed = report.medical_safety_failed
     row.n_runs = report.n_runs
     row.started_at = report.started_at
     row.finished_at = report.finished_at
@@ -44,7 +45,7 @@ def populate_run_summary(row: EvalRun, report: RunReport) -> None:
     row.judge_fingerprints = report.judge_fingerprints
     row.by_level = report.by_level
     row.by_scenario = report.by_scenario
-    row.config_snapshot = report.config_snapshot
+    row.config_snapshot = redact_config_secrets(report.config_snapshot)
 
 
 def build_case_row(
@@ -53,6 +54,12 @@ def build_case_row(
     """从一条 CaseResult 构造 case_result 行（标量列 + detail_json）。"""
     case = cr.case
     total_tokens, cost = case_token_cost(cr, pricing)
+    guideline_earned = sum(
+        float(item.get("score", 0)) for item in cr.guideline_scores
+    )
+    guideline_max = sum(
+        float(item.get("max_score", 0)) for item in cr.guideline_scores
+    )
     return CaseResultRow(
         run_id=run_id,
         sample_id=case.sample_id,
@@ -61,17 +68,13 @@ def build_case_row(
         level=_enum_val(case.level),
         source=_enum_val(case.source),
         tags=[],
-        hard_gate_passed=cr.hard_gate_passed,
-        gate_passed=cr.gate_passed,
+        medical_safety_passed=cr.medical_safety_passed,
         release_passed=cr.release_passed,
         composite_score=cr.composite_score,
+        guideline_earned=guideline_earned if guideline_max > 0 else None,
+        guideline_max=guideline_max if guideline_max > 0 else None,
         grade=cr.grade,
-        score_profile=cr.score_profile,
-        soft_score=cr.soft_score,
-        soft_score_max=cr.soft_score_max,
         stability=cr.stability,
-        needs_human_review=cr.needs_human_review,
-        guideline_match_rate=cr.guideline_match_rate,
         latency_ms=float(cr.trace.duration_ms) if cr.trace else None,
         total_tokens=total_tokens,
         cost=cost,

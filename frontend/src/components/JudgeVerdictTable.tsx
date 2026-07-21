@@ -8,13 +8,41 @@ const { Text } = Typography;
 export interface JudgeVerdictTableProps {
   verdicts: CaseVerdict[];
   tagLabel: (tag: string) => string;
+  dimensionScores?: Record<string, number | null>;
+  dimensionRawScores?: Record<string, number | null>;
+  dimensionMax?: Record<string, number>;
+  scoreDeductions?: string[];
 }
 
-export function JudgeVerdictTable({ verdicts, tagLabel }: JudgeVerdictTableProps) {
+function dimensionKey(name: string): string | null {
+  return name.startsWith("dimension.") ? name.slice("dimension.".length) : null;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function JudgeVerdictTable({
+  verdicts,
+  tagLabel,
+  dimensionScores = {},
+  dimensionRawScores = {},
+  dimensionMax = {},
+  scoreDeductions = [],
+}: JudgeVerdictTableProps) {
   const judgeLabel = useJudgeVerdictLabels();
+  const dimensionVerdicts = verdicts.filter((verdict) => dimensionKey(verdict.name));
+  const deductionsFor = (name: string): string[] => {
+    const key = dimensionKey(name);
+    if (!key) return [];
+    const prefix = new RegExp(`^${escapeRegExp(key)}(?:\\s+|[：:])`);
+    return scoreDeductions
+      .filter((item) => prefix.test(item))
+      .map((item) => item.replace(prefix, ""));
+  };
   const columns = [
     {
-      title: "Judge",
+      title: "维度",
       dataIndex: "name",
       width: 200,
       render: (name: string) => (
@@ -39,10 +67,37 @@ export function JudgeVerdictTable({ verdicts, tagLabel }: JudgeVerdictTableProps
     },
     {
       title: "分数",
-      width: 90,
-      render: (_: unknown, v: CaseVerdict) => (v.max_score ? `${v.score}/${v.max_score}` : "-"),
+      width: 110,
+      render: (_: unknown, v: CaseVerdict) => {
+        const key = dimensionKey(v.name);
+        if (!key) return v.max_score ? `${v.score}/${v.max_score}` : "-";
+        const finalScore = dimensionScores[key] ?? v.score;
+        const rawScore = dimensionRawScores[key] ?? v.score;
+        const maxScore = dimensionMax[key] ?? v.max_score;
+        if (finalScore == null || maxScore == null) return "-";
+        return rawScore != null && rawScore !== finalScore
+          ? `${rawScore} → ${finalScore}/${maxScore}`
+          : `${finalScore}/${maxScore}`;
+      },
     },
-    { title: "原因", dataIndex: "reason" },
+    {
+      title: "判定与扣分原因",
+      dataIndex: "reason",
+      render: (reason: string | undefined, verdict: CaseVerdict) => {
+        const deductions = deductionsFor(verdict.name);
+        return (
+          <div className="judge-reason">
+            <span>{reason || "—"}</span>
+            {deductions.length ? (
+              <div className="judge-reason__deductions">
+                <strong>扣分原因</strong>
+                {deductions.map((item, index) => <div key={`${item}-${index}`}>{item}</div>)}
+              </div>
+            ) : null}
+          </div>
+        );
+      },
+    },
     {
       title: "失败标签",
       dataIndex: "failure_tags",
@@ -53,22 +108,16 @@ export function JudgeVerdictTable({ verdicts, tagLabel }: JudgeVerdictTableProps
           </Tag>
         )),
     },
-    {
-      title: "语义救回",
-      dataIndex: "adjudicated",
-      width: 90,
-      render: (a: boolean) => (a ? <Tag color="blue">是</Tag> : ""),
-    },
   ];
 
   return (
-    <DashPanel title="Judge 判定" bodyClassName="dash-panel__body--flush">
+    <DashPanel title="维度评分" bodyClassName="dash-panel__body--flush">
       <Table
         className="dash-table"
         rowKey="name"
         size="small"
         columns={columns}
-        dataSource={verdicts}
+        dataSource={dimensionVerdicts}
         pagination={false}
       />
     </DashPanel>

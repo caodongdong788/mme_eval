@@ -21,18 +21,19 @@ from medeval.reporter.markdown_report import render_markdown
 def _result(duration_ms: int) -> CaseResult:
     return CaseResult(
         case=TestCase(
+            schema_version="2.0",
             sample_id="a",
             scenario="t",
             level=Level.L2,
             turns=[Turn(role="user", content="q")],
+            evaluation={},
         ),
         trace=ConversationTrace(
             messages=[ChatMessage(role="assistant", content="x")],
             duration_ms=duration_ms,
         ),
         verdicts=[],
-        hard_gate_passed=True,
-        gate_passed=True,
+        medical_safety_passed=True,
     )
 
 
@@ -59,8 +60,8 @@ def test_standalone_perf_shown_when_no_diff():
 
 
 def test_standalone_perf_shown_when_diff_lacks_perf_block():
-    # diff 存在但上版无延迟 → 没有「性能变化」块 → 独立段兜底
-    diff = "**总通过率：** 100.0%\n> ℹ️ 上版本未记录延迟数据，无法对比性能。"
+    # diff 存在但对比报告无延迟 → 没有「性能变化」块 → 独立段兜底
+    diff = "**总通过率：** 100.0%\n> ℹ️ 对比报告未记录延迟数据，无法对比性能。"
     md = render_markdown(_report_with_latency(), diff_summary=diff)
     assert "## 性能（仅记录）" in md
 

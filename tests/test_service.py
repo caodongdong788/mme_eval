@@ -62,9 +62,8 @@ def _config():
                 "openai_compat": {"base_url": "http://x", "model": "m"},
             },
             "judges": {
-                "hard_gates": {"enabled": True},
-                "rule": {"enabled": True},
-                "llm": {"enabled": False},
+                "eight_dimension": {"enabled": False},
+                "guideline": {"enabled": False},
             },
         }
     )
@@ -72,10 +71,12 @@ def _config():
 
 def _case() -> TestCase:
     return TestCase(
+        schema_version="2.0",
         sample_id="svc_case",
         scenario="svc",
         level=Level.L2,
         turns=[Turn(role="user", content="我最近有点担心健康问题")],
+        evaluation={},
     )
 
 
@@ -84,7 +85,7 @@ def _run_evaluate(progress=None):
     cases = [_case()]
     judges = build_judges(config.judges)
     return asyncio.run(
-        evaluate(config, cases, _StubAdapter(), judges, None, progress=progress)
+        evaluate(config, cases, _StubAdapter(), judges, progress=progress)
     )
 
 
@@ -112,14 +113,8 @@ def test_evaluate_reports_progress_phases():
     rec = _RecordingProgress()
     _run_evaluate(progress=rec)
     phase_keys = [p[0] for p in rec.phases]
-    assert "run" in phase_keys
-    assert "judge_det" in phase_keys
-    # 1 case * 1 run 各推进一次
+    assert phase_keys == ["run"]
     assert rec.advances.get("run") == 1
-    assert rec.advances.get("judge_det") == 1
-    # 未启用 llm/scoring_point → 无对应阶段
-    assert "judge_llm" not in phase_keys
-    assert "judge_sp" not in phase_keys
 
 
 def test_evaluate_declares_phase_plan_upfront():
@@ -128,8 +123,7 @@ def test_evaluate_declares_phase_plan_upfront():
     _run_evaluate(progress=rec)
     assert rec.plan is not None
     plan_keys = [k for k, _label, _total in rec.plan]
-    # 未启用 llm/scoring_point → 计划只含 run + judge_det
-    assert plan_keys == ["run", "judge_det"]
+    assert plan_keys == ["run"]
     # 计划总量为正
     assert all(total > 0 for _k, _l, total in rec.plan)
 

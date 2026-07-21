@@ -31,7 +31,7 @@ def test_warning_omitted_when_both_empty():
 
 
 def test_warning_when_prev_missing_field():
-    cur = _minimal_report({"hard_gate": "abc123", "rule": "def456"})
+    cur = _minimal_report({"dimension": "abc123", "guideline": "def456"})
     prev = _minimal_report(None)
     w = _fingerprint_warning(cur, prev)
     assert "ℹ️" in w
@@ -40,21 +40,21 @@ def test_warning_when_prev_missing_field():
 
 
 def test_warning_when_fp_differs():
-    cur = _minimal_report({"hard_gate": "NEW000", "rule": "same111"})
-    prev = _minimal_report({"hard_gate": "OLD000", "rule": "same111"})
+    cur = _minimal_report({"dimension": "NEW000", "guideline": "same111"})
+    prev = _minimal_report({"dimension": "OLD000", "guideline": "same111"})
     w = _fingerprint_warning(cur, prev)
     assert "⚠️" in w
-    assert "hard_gate" in w
+    assert "dimension" in w
     assert "OLD000" in w
     assert "NEW000" in w
     # 同值的 judge 不应出现在表里
-    rule_table_rows = [line for line in w.splitlines() if line.startswith("| `rule`")]
-    assert rule_table_rows == []
+    guideline_rows = [line for line in w.splitlines() if line.startswith("| `guideline`")]
+    assert guideline_rows == []
 
 
 def test_warning_silent_when_all_equal():
-    cur = _minimal_report({"hard_gate": "abc", "rule": "def"})
-    prev = _minimal_report({"hard_gate": "abc", "rule": "def"})
+    cur = _minimal_report({"dimension": "abc", "guideline": "def"})
+    prev = _minimal_report({"dimension": "abc", "guideline": "def"})
     assert _fingerprint_warning(cur, prev) == ""
 
 
@@ -62,10 +62,10 @@ def test_diff_runs_inserts_warning_at_top(tmp_path: Path):
     cur_path = tmp_path / "cur.json"
     prev_path = tmp_path / "prev.json"
     cur_path.write_text(
-        json.dumps(_minimal_report({"hard_gate": "NEW000"})), encoding="utf-8"
+        json.dumps(_minimal_report({"dimension": "NEW000"})), encoding="utf-8"
     )
     prev_path.write_text(
-        json.dumps(_minimal_report({"hard_gate": "OLD000"})), encoding="utf-8"
+        json.dumps(_minimal_report({"dimension": "OLD000"})), encoding="utf-8"
     )
     md = diff_runs(cur_path, prev_path)
     # 警告必须出现在最早，且早于 "总通过率"

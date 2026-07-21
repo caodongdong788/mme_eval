@@ -1,6 +1,6 @@
 # 重构分层与解耦 — 设计说明
 
-> **历史设计快照**（2026-06-15 批准）。后端/前端分层已按 OpenSpec 变更落地并归档；**现状以 `openspec/specs/`、`server/README.md`、`.cursor/rules/frontend-workflow.mdc` 为准**，本文保留动机与阶段划分供追溯。索引见 [`README.md`](../README.md)。
+> **历史设计快照**（2026-06-15 批准）。后端/前端分层已按 OpenSpec 变更落地并归档；**现状以 `openspec/specs/`、`server/README.md`、`AGENTS.md` 为准**，本文保留动机与阶段划分供追溯。索引见 [`README.md`](../README.md)。
 
 > 日期：2026-06-15  
 > 状态：已批准（用户确认 P0→P3 范围 + Judge 中文标签前后端对齐）  

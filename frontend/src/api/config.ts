@@ -1,13 +1,9 @@
 import { http } from "./client";
-import type { JudgeDefaults, ScoringProfileItem } from "./types";
+import type { EvaluationStandard, JudgeDefaults } from "./types";
 
 export const configApi = {
-  getScoringProfiles: () =>
-    http.get<ScoringProfileItem[]>("/config/scoring-profiles").then((r) => r.data),
-  putScoringProfiles: (overrides: Record<string, Record<string, unknown> | null>) =>
-    http
-      .put<ScoringProfileItem[]>("/config/scoring-profiles", { overrides })
-      .then((r) => r.data),
+  getEvaluationStandard: () =>
+    http.get<EvaluationStandard>("/config/evaluation-standard").then((r) => r.data),
   getFailureTagLabels: () =>
     http.get<Record<string, string>>(`/config/failure-tags`).then((r) => r.data),
   getJudgeVerdictLabels: () =>

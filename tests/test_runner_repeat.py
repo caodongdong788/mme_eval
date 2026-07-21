@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from medeval.adapter.base import BaseAdapter, ChatRequest, ChatResponse
-from medeval.models import HardGates, Level, RedFlagTriage, TestCase, Turn
+from medeval.models import CaseEvaluation, Level, TestCase, Turn
 from medeval.runner import run_cases
 
 
@@ -29,10 +29,12 @@ class _RecordingAdapter(BaseAdapter):
 
 def _case(sid: str) -> TestCase:
     return TestCase(
+        schema_version="2.0",
         sample_id=sid,
         scenario="t",
         level=Level.L2,
         turns=[Turn(role="user", content="hi")],
+        evaluation=CaseEvaluation(),
     )
 
 

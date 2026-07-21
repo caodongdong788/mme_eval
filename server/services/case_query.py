@@ -25,13 +25,11 @@ def _attach_row_display_fields(row: CaseResultRow, *, load_detail_json: bool) ->
         row.n_turns = case_n_turns(row)
         row.langfuse_trace_url = case_trace_url(row)
         gc = guideline_counts(row)
-        row.guideline_matched = gc[0] if gc else None
-        row.guideline_total = gc[1] if gc else None
+        row.guideline_earned = gc[0] if gc else None
+        row.guideline_max = gc[1] if gc else None
     else:
         row.n_turns = 1
         row.langfuse_trace_url = None
-        row.guideline_matched = None
-        row.guideline_total = None
 
 
 def case_n_turns(row: CaseResultRow) -> int:
@@ -52,26 +50,15 @@ def case_trace_url(row: CaseResultRow) -> Optional[str]:
     return url if isinstance(url, str) and url else None
 
 
-def guideline_counts(row: CaseResultRow) -> Optional[tuple[int, int]]:
+def guideline_counts(row: CaseResultRow) -> Optional[tuple[float, float]]:
     detail = row.detail_json or {}
-    points = (detail.get("case") or {}).get("scoring_points") or []
-    anchored = [
-        i for i, sp in enumerate(points) if isinstance(sp, dict) and sp.get("guideline")
-    ]
-    if not anchored:
+    scores = detail.get("guideline_scores") or []
+    if not scores:
         return None
-    passed_by_idx: dict[int, bool] = {}
-    prefix = "scoring_point.point"
-    for v in detail.get("verdicts") or []:
-        name = v.get("name", "") if isinstance(v, dict) else ""
-        if name.startswith(prefix):
-            try:
-                idx = int(name[len(prefix) :])
-            except ValueError:
-                continue
-            passed_by_idx[idx] = bool(v.get("passed"))
-    matched = sum(1 for i in anchored if passed_by_idx.get(i, False))
-    return matched, len(anchored)
+    return (
+        sum(float(item.get("score", 0)) for item in scores),
+        sum(float(item.get("max_score", 0)) for item in scores),
+    )
 
 
 def filtered_case_rows(
@@ -82,7 +69,6 @@ def filtered_case_rows(
     release_passed: Optional[bool] = None,
     stability: Optional[str] = None,
     scenario: Optional[str] = None,
-    score_profile: Optional[str] = None,
     turns: Optional[str] = None,
     guideline: Optional[str] = None,
     load_detail_json: bool = True,
@@ -100,21 +86,16 @@ def filtered_case_rows(
         stmt = stmt.where(CaseResultRow.stability == stability)
     if scenario:
         stmt = stmt.where(CaseResultRow.scenario == scenario)
-    if guideline == "full":
-        stmt = stmt.where(CaseResultRow.guideline_match_rate >= 0.999)
-    elif guideline == "partial":
-        stmt = stmt.where(
-            CaseResultRow.guideline_match_rate.is_not(None),
-            CaseResultRow.guideline_match_rate < 0.999,
-        )
-    elif guideline == "none":
-        stmt = stmt.where(CaseResultRow.guideline_match_rate.is_(None))
     stmt = stmt.order_by(CaseResultRow.sample_id)
     rows = list(session.execute(stmt).scalars().all())
-    if score_profile:
-        rows = [r for r in rows if r.score_profile == score_profile]
     for r in rows:
         _attach_row_display_fields(r, load_detail_json=load_detail_json)
+    if guideline == "full":
+        rows = [r for r in rows if r.guideline_max and r.guideline_earned == r.guideline_max]
+    elif guideline == "partial":
+        rows = [r for r in rows if r.guideline_max and r.guideline_earned != r.guideline_max]
+    elif guideline == "none":
+        rows = [r for r in rows if not r.guideline_max]
     if turns == "single":
         rows = [r for r in rows if r.n_turns <= 1]
     elif turns == "multi":
@@ -150,17 +131,17 @@ def attach_review_summary(
 def case_scores(d: dict[str, Any]) -> CaseScores:
     d = d or {}
     return CaseScores(
-        hard_gate_passed=bool(d.get("hard_gate_passed")),
-        gate_passed=bool(d.get("gate_passed")),
+        medical_safety_passed=bool(d.get("medical_safety_passed")),
         release_passed=bool(d.get("release_passed")),
         composite_score=d.get("composite_score"),
         grade=d.get("grade") or "",
         dimension_scores=d.get("dimension_scores") or {},
         dimension_max=d.get("dimension_max") or {},
-        score_profile=d.get("score_profile") or "",
+        dimension_raw_scores=d.get("dimension_raw_scores") or {},
+        end_scores=d.get("end_scores") or {},
+        guideline_scores=d.get("guideline_scores") or [],
         score_deductions=d.get("score_deductions") or [],
         failure_tags=d.get("failure_tags") or [],
-        needs_human_review=bool(d.get("needs_human_review")),
         verdicts=[
             {
                 "name": v.get("name"),
@@ -182,19 +163,8 @@ def override_from_yaml(yaml_text: str, sample_id: str) -> dict[str, Any]:
     items = docs if isinstance(docs, list) else [docs]
     for it in items:
         if isinstance(it, dict) and it.get("sample_id") == sample_id:
-            ov: dict[str, Any] = {"sample_id": sample_id}
-            for f in ("expected_behavior", "hard_gates", "rubric", "scoring_points"):
-                if it.get(f) is not None:
-                    ov[f] = it[f]
-            return ov
+            return {"sample_id": sample_id, "evaluation": it.get("evaluation") or {}}
     raise HTTPException(status_code=400, detail=f"YAML 中未找到用例 {sample_id}")
-
-
-def is_red_flag(row: CaseResultRow) -> bool:
-    triage = (
-        ((row.detail_json or {}).get("case") or {}).get("hard_gates") or {}
-    ).get("red_flag_triage")
-    return bool(triage) and triage != "none"
 
 
 def queue_reasons(
@@ -205,20 +175,10 @@ def queue_reasons(
     cross_run_comparable: bool = True,
 ) -> list[str]:
     reasons: list[str] = []
-    if row.needs_human_review:
-        reasons.append("needs_human_review")
-    detail = row.detail_json or {}
-    verdicts = detail.get("verdicts") or []
-    max_disp = max(
-        (float(v.get("score_dispersion") or 0.0) for v in verdicts if isinstance(v, dict)),
-        default=0.0,
-    )
-    if max_disp >= dispersion_threshold:
-        reasons.append("high_dispersion")
     if not row.release_passed:
         reasons.append("release_failed")
-        if is_red_flag(row):
-            reasons.append("red_flag_failed")
+    if not row.medical_safety_passed:
+        reasons.append("medical_safety_failed")
     if baseline is not None and cross_run_comparable:
         from .cross_run_diff import cross_run_diff_reasons
 

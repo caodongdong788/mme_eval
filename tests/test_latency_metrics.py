@@ -4,7 +4,6 @@
   - runner 记录逐轮耗时 + 总耗时，且不影响判分
   - N=3 时 per_run_latency_ms 长度为 3
   - latency_summary 含 avg/median/p90/max，错误 run 被排除
-  - 历史无延迟字段的 report.json 仍可反序列化
 """
 
 from __future__ import annotations
@@ -12,8 +11,8 @@ from __future__ import annotations
 import asyncio
 
 from medeval.adapter.base import BaseAdapter, ChatRequest, ChatResponse
-from medeval.judges import HardGateJudge, RuleJudge, judge_all
 from medeval.models import (
+    CaseEvaluation,
     CaseResult,
     ChatMessage,
     ConversationTrace,
@@ -43,10 +42,12 @@ class _Adapter(BaseAdapter):
 
 def _case(sid: str = "a", turns: int = 1) -> TestCase:
     return TestCase(
+        schema_version="2.0",
         sample_id=sid,
         scenario="t",
         level=Level.L2,
         turns=[Turn(role="user", content=f"q{i}") for i in range(turns)],
+        evaluation=CaseEvaluation(),
     )
 
 
@@ -60,8 +61,8 @@ def _result(passed: bool, duration_ms: int, error: str | None = None) -> CaseRes
         case=_case(),
         trace=trace,
         verdicts=[],
-        hard_gate_passed=passed,
-        gate_passed=passed,
+        medical_safety_passed=passed,
+        release_passed=passed,
     )
 
 
@@ -78,19 +79,6 @@ def test_runner_records_turn_and_total_latency():
     assert len(trace.turn_latencies_ms) == 3
     assert all(t >= 0 for t in trace.turn_latencies_ms)
     assert trace.duration_ms >= 0
-
-
-def test_latency_does_not_affect_judging():
-    case = _case()
-    trace = ConversationTrace(
-        messages=[ChatMessage(role="assistant", content="本回答仅供参考")],
-        duration_ms=1234,
-        turn_latencies_ms=[1234.0],
-    )
-    r = asyncio.run(judge_all(case, trace, [HardGateJudge(), RuleJudge()]))
-    # 延迟字段不进入任何 verdict、不改变 gate 判定
-    assert r.gate_passed is r.hard_gate_passed
-    assert all("latency" not in v.name for v in r.verdicts)
 
 
 # ---------------------------------------------------------------------------
@@ -130,22 +118,3 @@ def test_no_latency_data_renders_na():
     md = render_markdown(report)
     assert "性能（仅记录）" in md
     assert "无可用延迟数据" in md
-
-
-# ---------------------------------------------------------------------------
-# 历史兼容
-
-
-def test_legacy_report_without_latency_deserializes():
-    raw = {
-        "run_name": "legacy",
-        "results": [],
-        "total": 0,
-    }
-    report = RunReport.model_validate(raw)
-    assert report.latency_summary == {}
-    # CaseResult / ConversationTrace 默认值兼容
-    legacy_trace = ConversationTrace.model_validate(
-        {"messages": [], "duration_ms": 50}
-    )
-    assert legacy_trace.turn_latencies_ms == []

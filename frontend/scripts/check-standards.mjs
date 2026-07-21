@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 前端规范门禁（与 .cursor/rules/frontend-workflow.mdc 对齐）。
+ * 前端规范门禁（与 AGENTS.md 对齐）。
  * 用法：cd frontend && npm run check:standards
  */
 import { readFileSync, readdirSync } from "node:fs";
@@ -112,6 +112,25 @@ export function parsePythonDict(source, constName) {
   );
   if (!m) return null;
   return parseRecordBody(m[1], true);
+}
+
+export function parsePythonEnumDict(source, constName, enumName) {
+  const m = source.match(
+    new RegExp(
+      `^\\s*${constName}(?:\\s*:[^=]+)?\\s*=\\s*\\{([\\s\\S]*?)\\n\\}`,
+      "m"
+    )
+  );
+  if (!m) return null;
+  const out = {};
+  const entry = new RegExp(
+    `^${enumName.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\.([A-Za-z0-9_]+)\\s*:\\s*["']([^"']*)["'],?\\s*$`
+  );
+  for (const line of m[1].split("\n")) {
+    const kv = line.trim().match(entry);
+    if (kv) out[kv[1]] = kv[2];
+  }
+  return out;
 }
 
 function parseRecordBody(body, pythonQuotedKeys = false) {
@@ -232,31 +251,35 @@ export function checkTokenMirror(
   return errors;
 }
 
-export function checkProfileLabelsSync(
+export function checkDimensionLabelsSync(
   labelsTs = readFileSync(join(SRC, "labels.ts"), "utf8"),
-  serverPy = readFileSync(
-    join(REPO_ROOT, "server/services/platform_config.py"),
+  evaluationPy = readFileSync(
+    join(REPO_ROOT, "medeval/evaluation.py"),
     "utf8"
   )
 ) {
   const errors = [];
-  const fe = parseTsRecord(labelsTs, "PROFILE_LABEL");
-  const be = parsePythonDict(serverPy, "PROFILE_LABELS_ZH");
+  const fe = parseTsRecord(labelsTs, "DIM_LABEL");
+  const be = parsePythonEnumDict(
+    evaluationPy,
+    "DIMENSION_LABELS",
+    "EvaluationDimension"
+  );
   if (!fe || !be) {
-    errors.push("无法解析 PROFILE_LABEL / PROFILE_LABELS_ZH 用于同步校验");
+    errors.push("无法解析 DIM_LABEL / DIMENSION_LABELS 用于同步校验");
     return errors;
   }
   const keys = new Set([...Object.keys(fe), ...Object.keys(be)]);
   for (const k of [...keys].sort()) {
     if (!(k in fe)) {
-      errors.push(`labels.ts PROFILE_LABEL 缺少 key「${k}」（后端已有）`);
+      errors.push(`labels.ts DIM_LABEL 缺少 key「${k}」（后端已有）`);
     } else if (!(k in be)) {
       errors.push(
-        `server PROFILE_LABELS_ZH 缺少 key「${k}」（前端 labels.ts 已有）`
+        `medeval DIMENSION_LABELS 缺少 key「${k}」（前端 labels.ts 已有）`
       );
     } else if (fe[k] !== be[k]) {
       errors.push(
-        `PROFILE 中文漂移 key=${k}: 前端「${fe[k]}」≠ 后端「${be[k]}」`
+        `维度中文漂移 key=${k}: 前端「${fe[k]}」≠ 后端「${be[k]}」`
       );
     }
   }
@@ -269,7 +292,7 @@ export function runAllChecks() {
     ...checkBannedDeps(),
     ...checkPagesLayer(),
     ...checkTokenMirror(),
-    ...checkProfileLabelsSync(),
+    ...checkDimensionLabelsSync(),
   ];
 }
 
@@ -279,7 +302,7 @@ function main() {
     console.error("frontend check:standards FAILED\n");
     for (const e of errors) console.error(`  ✗ ${e}`);
     console.error(
-      "\n规范见 .cursor/rules/frontend-workflow.mdc · 设计见 DESIGN.md"
+      "\n规范见 AGENTS.md · 设计见 DESIGN.md"
     );
     process.exit(1);
   }

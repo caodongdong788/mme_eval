@@ -39,9 +39,9 @@ export function RunOverviewKpiGrid({
       />
       <RunsKpi
         title="硬门槛失败"
-        value={run.hard_gate_failed}
+        value={run.medical_safety_failed}
         unit="例"
-        danger={run.hard_gate_failed > 0}
+        danger={run.medical_safety_failed > 0}
       />
       <RunsKpi title="总用例" value={run.total} unit="例" />
       <RunsKpi

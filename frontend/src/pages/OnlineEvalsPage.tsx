@@ -160,7 +160,7 @@ export default function OnlineEvalsPage() {
                     <Form.Item
                       name="judge_model_id"
                       label="Judge 模型"
-                      extra="不选择时使用 config.yaml 中 judges.llm 的默认模型"
+                      extra="不选择时使用 config.yaml 中 judges.eight_dimension 的默认模型"
                     >
                       <Select
                         allowClear

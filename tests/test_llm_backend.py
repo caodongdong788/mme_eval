@@ -47,9 +47,11 @@ class _FakeCompletions:
         self.content = content
         self.fail_times = fail_times
         self.calls = 0
+        self.last_kwargs = None
 
     async def create(self, **kwargs):
         self.calls += 1
+        self.last_kwargs = kwargs
         if self.calls <= self.fail_times:
             raise _rate_limit_error()
         return _Resp(self.content)
@@ -105,6 +107,22 @@ def test_chat_json_parses_dict():
     backend._client = _FakeClient('{"a": 1, "b": [2, 3]}')
     out = asyncio.run(backend.chat_json("m", "prompt", 0.0))
     assert out == {"a": 1, "b": [2, 3]}
+
+
+def test_chat_json_passes_enable_thinking_via_extra_body():
+    backend = LLMBackend(provider="openai", api_key="k", enable_thinking=False)
+    backend._client = _FakeClient('{"ok": true}')
+    asyncio.run(backend.chat_json("kimi-k2.6", "prompt", 0.0))
+    assert backend._client.chat.completions.last_kwargs["extra_body"] == {
+        "enable_thinking": False
+    }
+
+
+def test_chat_json_omits_extra_body_when_thinking_is_unspecified():
+    backend = LLMBackend(provider="openai", api_key="k")
+    backend._client = _FakeClient('{"ok": true}')
+    asyncio.run(backend.chat_json("m", "prompt", 0.0))
+    assert "extra_body" not in backend._client.chat.completions.last_kwargs
 
 
 def test_chat_json_retries_then_succeeds(monkeypatch):

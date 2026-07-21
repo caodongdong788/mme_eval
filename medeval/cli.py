@@ -4,7 +4,6 @@
   medeval run --config config.yaml
   medeval validate --config config.yaml      # 仅校验用例和配置
   medeval list-cases --config config.yaml    # 打印用例清单
-  medeval import-feishu --sheet-url <url>    # 从飞书电子表格导入 benchmark YAML（需 lark-cli）
 """
 
 from __future__ import annotations
@@ -32,7 +31,6 @@ from .reporter import (
 )
 from .run_slug import make_run_slug
 from .service import (
-    build_adjudicator,
     build_judges,
     evaluate,
     judge_traces,
@@ -90,8 +88,8 @@ def _print_summary(report) -> None:
     table.add_column("指标", style="bold cyan")
     table.add_column("值", style="bold")
     pass_rate = (report.passed / report.total * 100) if report.total else 0.0
-    hard_rate = (
-        (report.total - report.hard_gate_failed) / report.total * 100
+    safety_rate = (
+        (report.total - report.medical_safety_failed) / report.total * 100
         if report.total
         else 0.0
     )
@@ -99,9 +97,9 @@ def _print_summary(report) -> None:
     table.add_row("总通过", f"{report.passed}")
     color = "green" if pass_rate >= 85 else ("yellow" if pass_rate >= 70 else "red")
     table.add_row("总通过率", f"[{color}]{pass_rate:.1f}%[/{color}]")
-    hcolor = "green" if hard_rate == 100 else "red"
-    table.add_row("硬门槛通过率", f"[{hcolor}]{hard_rate:.1f}%[/{hcolor}]")
-    table.add_row("硬门槛失败数", f"[red]{report.hard_gate_failed}[/red]" if report.hard_gate_failed else "0")
+    safety_color = "green" if safety_rate == 100 else "red"
+    table.add_row("医学安全性通过率", f"[{safety_color}]{safety_rate:.1f}%[/{safety_color}]")
+    table.add_row("医学安全性失败数", f"[red]{report.medical_safety_failed}[/red]" if report.medical_safety_failed else "0")
     if report.n_runs > 1:
         sd = report.stability_distribution or {}
         table.add_row(
@@ -118,7 +116,7 @@ def _print_summary(report) -> None:
         lvl_table.add_column("总数")
         lvl_table.add_column("通过")
         lvl_table.add_column("通过率")
-        lvl_table.add_column("硬门槛失败")
+        lvl_table.add_column("医学安全性失败")
         for lvl in sorted(report.by_level):
             b = report.by_level[lvl]
             r = (b["passed"] / b["total"] * 100) if b["total"] else 0.0
@@ -127,7 +125,7 @@ def _print_summary(report) -> None:
                 str(b["total"]),
                 str(b["passed"]),
                 f"{r:.1f}%",
-                str(b.get("hard_failed", 0)),
+                str(b.get("medical_safety_failed", 0)),
             )
         console.print(lvl_table)
 
@@ -174,13 +172,6 @@ def main():
 @click.option("--config", "config_path", type=click.Path(exists=True, dir_okay=False, path_type=Path), default="config.yaml", show_default=True)
 @click.option("--adapter", "adapter_override", type=str, default=None, help="覆盖 config.yaml 中的 adapter.type")
 @click.option("--run-name", type=str, default=None, help="覆盖 run.name")
-@click.option(
-    "--score-profile",
-    "score_profiles",
-    type=str,
-    default=None,
-    help="仅运行指定 score_profile 的用例，逗号分隔（default/red_flag/adversarial/knowledge/rehab）",
-)
 @click.option("--limit", type=int, default=0, help="只跑前 N 条（debug 用）")
 @click.option("--dry-run", is_flag=True, help="只加载用例不调用 adapter")
 @click.option(
@@ -203,7 +194,7 @@ def main():
     default=None,
     help="断点续跑：复用指定历史 run 目录中成功的会话留痕，只重跑缺失/失败者（仅 local 后端）",
 )
-def run(config_path: Path, adapter_override, run_name, score_profiles, limit, dry_run, repeat, diff_against_cli, resume_arg):
+def run(config_path: Path, adapter_override, run_name, limit, dry_run, repeat, diff_against_cli, resume_arg):
     """跑一次完整评测。"""
     config = _load_config(config_path)
     run_cfg = config.run
@@ -214,11 +205,6 @@ def run(config_path: Path, adapter_override, run_name, score_profiles, limit, dr
         run_cfg.name = run_name
     if adapter_override:
         config.adapter.type = adapter_override
-    if score_profiles:
-        config.cases.score_profiles = [
-            t.strip() for t in score_profiles.split(",") if t.strip()
-        ]
-
     # --repeat 优先级：CLI > config > 默认 1。回写 typed config，作为 evaluate 的单一来源。
     if repeat is not None:
         if repeat < 1:
@@ -240,7 +226,6 @@ def run(config_path: Path, adapter_override, run_name, score_profiles, limit, dr
     cases: list[TestCase] = load_cases(
         include=config.cases.include,
         exclude=config.cases.exclude,
-        score_profiles=config.cases.score_profiles,
         base_dir=base_dir,
     )
     if limit:
@@ -259,8 +244,7 @@ def run(config_path: Path, adapter_override, run_name, score_profiles, limit, dr
         # fail-fast：adapter.type 缺失或不识别 → 友好报错而非 traceback
         raise click.UsageError(str(e)) from e
     judges = build_judges(config.judges)
-    adjudicator = build_adjudicator(config.judges)
-    _print_judge_fingerprints(judges + ([adjudicator] if adjudicator else []))
+    _print_judge_fingerprints(judges)
 
     # 开跑前确定 run slug 与输出目录，使会话留痕可在 run 阶段增量落盘（崩溃也留得下），
     # 且 report.run_name 与落盘目录名一致。
@@ -287,7 +271,6 @@ def run(config_path: Path, adapter_override, run_name, score_profiles, limit, dr
                 cases,
                 adapter,
                 judges,
-                adjudicator,
                 progress=RichProgress(progress),
                 run_name=run_slug,
                 out_dir=out_dir,
@@ -417,48 +400,9 @@ def validate(config_path):
     cases = load_cases(
         include=config.cases.include,
         exclude=config.cases.exclude,
-        score_profiles=config.cases.score_profiles,
         base_dir=base_dir,
     )
     console.print(f"[green]✓[/green] 配置校验通过；{len(cases)} 条用例校验通过")
-
-
-@main.command(name="verify-heuristics")
-def verify_heuristics():
-    """启发式治理本地自检 (HardGate 关键词表).
-
-    串联三项检查：
-      1. scripts/lint_hard_gate_comments.py —— 关键词表上方 5 行注释完整性
-      2. pytest tests/test_hard_gate_golden.py —— 黄金集回归
-      3. scripts/check_heuristics_changelog.py —— fingerprint 与 CHANGELOG 同步
-
-    全部通过返回 0；任一失败以非零退出码退出，并打印失败摘要。
-    """
-    import subprocess
-
-    checks = [
-        ("comments", [sys.executable, "scripts/lint_hard_gate_comments.py"]),
-        ("golden", [sys.executable, "-m", "pytest", "tests/test_hard_gate_golden.py", "-q"]),
-        ("changelog", [sys.executable, "scripts/check_heuristics_changelog.py"]),
-    ]
-    table = Table(title="HardGate Heuristics 自检")
-    table.add_column("Check")
-    table.add_column("Status")
-    table.add_column("Detail")
-    failures: list[str] = []
-    for name, cmd in checks:
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode == 0:
-            table.add_row(name, "[green]✓[/green]", (result.stdout.strip().splitlines() or [""])[-1])
-        else:
-            failures.append(name)
-            last_line = (result.stderr.strip() or result.stdout.strip()).splitlines()[-1:] or [""]
-            table.add_row(name, "[red]✗[/red]", last_line[0])
-    console.print(table)
-    if failures:
-        console.print(f"[red]✗[/red] {len(failures)} 项失败：{', '.join(failures)}")
-        sys.exit(1)
-    console.print("[green]✓[/green] 所有检查通过")
 
 
 @main.command(name="list-cases")
@@ -470,7 +414,6 @@ def list_cases(config_path):
     cases = load_cases(
         include=config.cases.include,
         exclude=config.cases.exclude,
-        score_profiles=config.cases.score_profiles,
         base_dir=base_dir,
     )
     table = Table(title=f"用例清单（{len(cases)}）", show_lines=False)
@@ -478,14 +421,14 @@ def list_cases(config_path):
     table.add_column("Level")
     table.add_column("Scenario")
     table.add_column("Sub")
-    table.add_column("Profile")
+    table.add_column("指南项数")
     for c in cases:
         table.add_row(
             c.sample_id,
             c.level.value,
             c.scenario,
             c.sub_scenario,
-            c.score_profile.value,
+            str(len(c.evaluation.guidelines)),
         )
     console.print(table)
 
@@ -541,8 +484,7 @@ def rejudge(run_dir: Path, config_path: Path, run_name, diff_against_cli):
     config.run.repeat = n_runs
 
     judges = build_judges(config.judges)
-    adjudicator = build_adjudicator(config.judges)
-    _print_judge_fingerprints(judges + ([adjudicator] if adjudicator else []))
+    _print_judge_fingerprints(judges)
 
     new_slug = make_run_slug(run_name or f"{config.run.name}_rejudge")
     outputs_dir = base_dir / config.run.output_dir
@@ -562,7 +504,6 @@ def rejudge(run_dir: Path, config_path: Path, run_name, diff_against_cli):
                 cases,
                 per_case_traces,
                 judges,
-                adjudicator,
                 progress=RichProgress(progress),
                 run_name=new_slug,
                 declare_plan=True,
@@ -621,48 +562,36 @@ def prune(config_path: Path, keep_last, ttl_days, dry_run):
         console.print("[yellow]（--dry-run：未实际删除任何文件）[/yellow]")
 
 
-from .import_feishu.cli import import_feishu_cmd  # noqa: E402
-
-main.add_command(import_feishu_cmd)
-
-
 def _check_thresholds(report, thr: ThresholdsCfg) -> bool:
-    # 未配置任何阈值（整段缺省）→ 不做断言（与历史 `not thr` 行为一致）。
     configured = any(
         v is not None
         for v in (
-            thr.hard_gate_pass_rate,
+            thr.medical_safety_pass_rate,
             thr.overall_pass_rate,
-            thr.l3_red_flag_pass_rate,
-            thr.l2_business_pass_rate,
-            thr.l4_adversarial_pass_rate,
         )
     )
     if not configured or report.total == 0:
         return True
     pass_rate = report.passed / report.total
-    hard_rate = (report.total - report.hard_gate_failed) / report.total
+    hard_rate = (report.total - report.medical_safety_failed) / report.total
     ok = True
     msg = []
 
-    # 缺省值沿用历史 `.get(k, default)` 口径：hard_gate=1.0 / overall=0.0 / l3=1.0
-    hgpr = thr.hard_gate_pass_rate if thr.hard_gate_pass_rate is not None else 1.0
+    safety_required = (
+        thr.medical_safety_pass_rate
+        if thr.medical_safety_pass_rate is not None
+        else 1.0
+    )
     opr = thr.overall_pass_rate if thr.overall_pass_rate is not None else 0.0
-    l3pr = thr.l3_red_flag_pass_rate if thr.l3_red_flag_pass_rate is not None else 1.0
 
-    if hard_rate < hgpr:
+    if hard_rate < safety_required:
         ok = False
-        msg.append(f"硬门槛通过率 {hard_rate*100:.1f}% < {hgpr*100:.1f}%")
+        msg.append(
+            f"医学安全性通过率 {hard_rate*100:.1f}% < {safety_required*100:.1f}%"
+        )
     if pass_rate < opr:
         ok = False
         msg.append(f"总通过率 {pass_rate*100:.1f}% < {opr*100:.1f}%")
-    # L3 红旗集
-    by_level = report.by_level.get("L3") or {}
-    if by_level.get("total"):
-        l3_rate = by_level["passed"] / by_level["total"]
-        if l3_rate < l3pr:
-            ok = False
-            msg.append(f"L3 红旗通过率 {l3_rate*100:.1f}% < {l3pr*100:.1f}%")
     for line in msg:
         console.print(f"[red]  ✗ {line}[/red]")
     return ok

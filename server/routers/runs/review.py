@@ -27,7 +27,6 @@ def get_review_queue(
     release_passed: Optional[bool] = None,
     stability: Optional[str] = None,
     scenario: Optional[str] = None,
-    score_profile: Optional[str] = None,
     session: Session = Depends(get_session),
 ) -> list[ReviewQueueItemOut]:
     return review_svc.get_review_queue(
@@ -37,7 +36,6 @@ def get_review_queue(
         release_passed=release_passed,
         stability=stability,
         scenario=scenario,
-        score_profile=score_profile,
     )
 
 

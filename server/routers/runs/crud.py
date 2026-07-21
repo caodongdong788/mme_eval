@@ -27,7 +27,6 @@ async def create_run(
         plan.run.id,
         benchmark_id=plan.benchmark_id,
         run_name=plan.run_name,
-        score_profiles=plan.score_profiles,
         levels=plan.levels,
         limit=plan.limit,
         repeat=plan.repeat,

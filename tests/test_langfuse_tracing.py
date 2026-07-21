@@ -39,10 +39,12 @@ class _Adapter(BaseAdapter):
 
 def _case(sid: str = "a", turns: int = 1) -> TestCase:
     return TestCase(
+        schema_version="2.0",
         sample_id=sid,
         scenario="t",
         level=Level.L2,
         turns=[Turn(role="user", content=f"q{i}") for i in range(turns)],
+        evaluation={},
     )
 
 

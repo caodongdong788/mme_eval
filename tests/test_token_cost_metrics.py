@@ -7,28 +7,23 @@
   - N=3 时 per_run_tokens 长度为 3；token_summary 含总 token / 平均
   - 错误 run 不计入聚合
   - 配置单价→出 cost；未配置→cost N/A
-  - diff 在历史报告缺 token_summary 时友好降级
-  - 历史无 token 字段的 report.json 仍可反序列化
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
-from pathlib import Path
 
 from medeval.adapter.base import BaseAdapter, ChatRequest, ChatResponse
-from medeval.judges import HardGateJudge, RuleJudge, judge_all
 from medeval.models import (
+    CaseEvaluation,
     CaseResult,
     ChatMessage,
     ConversationTrace,
     Level,
-    RunReport,
     TestCase,
     Turn,
 )
-from medeval.reporter import build_report, diff_runs
+from medeval.reporter import build_report
 from medeval.reporter.markdown_report import render_markdown
 from medeval.runner import (
     _extract_token_usage,
@@ -69,10 +64,12 @@ class _UsageAdapter(BaseAdapter):
 
 def _case(sid: str = "a", turns: int = 1) -> TestCase:
     return TestCase(
+        schema_version="2.0",
         sample_id=sid,
         scenario="t",
         level=Level.L2,
         turns=[Turn(role="user", content=f"q{i}") for i in range(turns)],
+        evaluation=CaseEvaluation(),
     )
 
 
@@ -90,8 +87,8 @@ def _result(passed: bool, tokens: int, error: str | None = None) -> CaseResult:
         case=_case(),
         trace=trace,
         verdicts=[],
-        hard_gate_passed=passed,
-        gate_passed=passed,
+        medical_safety_passed=passed,
+        release_passed=passed,
         per_run_tokens=[tokens] if not error else [tokens],
     )
 
@@ -148,17 +145,6 @@ def test_token_usage_survives_store_raw_trim():
 # 判分零耦合
 
 
-def test_token_does_not_affect_judging():
-    case = _case()
-    trace = ConversationTrace(
-        messages=[ChatMessage(role="assistant", content="本回答仅供参考")],
-        turn_token_usage=[{"prompt_tokens": 9, "completion_tokens": 9, "total_tokens": 18}],
-    )
-    r = asyncio.run(judge_all(case, trace, [HardGateJudge(), RuleJudge()]))
-    assert r.gate_passed is r.hard_gate_passed
-    assert all("token" not in v.name and "cost" not in v.name for v in r.verdicts)
-
-
 # ---------------------------------------------------------------------------
 # N-runs 折叠 + 聚合
 
@@ -172,7 +158,7 @@ def test_fold_collects_per_run_tokens():
             ],
         )
         return CaseResult(
-            case=_case(), trace=trace, verdicts=[], hard_gate_passed=True, gate_passed=True
+            case=_case(), trace=trace, verdicts=[], medical_safety_passed=True, release_passed=True
         )
 
     folded = fold_n_runs([[_run(100), _run(200), _run(300)]])
@@ -223,32 +209,3 @@ def test_no_token_data_renders_na():
     md = render_markdown(report)
     assert "成本 / Token（仅观测）" in md
     assert "无可用 token 数据" in md
-
-
-# ---------------------------------------------------------------------------
-# diff 降级
-
-
-def test_token_diff_degrades_when_prev_missing(tmp_path: Path):
-    cur = build_report("cur", [_result(True, 100)], adapter_type="stub")
-    cur_path = tmp_path / "cur.json"
-    prev_path = tmp_path / "prev.json"
-    cur_path.write_text(cur.model_dump_json(), encoding="utf-8")
-    # 上版本是历史报告，无 token_summary
-    legacy = json.loads(cur.model_dump_json())
-    legacy.pop("token_summary", None)
-    prev_path.write_text(json.dumps(legacy), encoding="utf-8")
-    out = diff_runs(cur_path, prev_path)
-    assert "上版本未记录 token 数据" in out
-
-
-# ---------------------------------------------------------------------------
-# 历史兼容
-
-
-def test_legacy_report_without_token_deserializes():
-    raw = {"run_name": "legacy", "results": [], "total": 0}
-    report = RunReport.model_validate(raw)
-    assert report.token_summary == {}
-    legacy_trace = ConversationTrace.model_validate({"messages": [], "duration_ms": 50})
-    assert legacy_trace.turn_token_usage == []

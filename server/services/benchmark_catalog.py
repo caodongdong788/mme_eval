@@ -86,7 +86,7 @@ def list_benchmark_case_briefs(session: Session, benchmark_id: int) -> list[Case
                 else c.sub_scenario
             ) or c.sub_scenario or c.sample_id,
             level=getattr(c.level, "value", c.level),
-            score_profile=getattr(c.score_profile, "value", c.score_profile),
+            guideline_count=len(c.evaluation.guidelines),
         )
         for c in cases
     ]
@@ -132,7 +132,7 @@ def delete_benchmark_case(session: Session, benchmark_id: int, sample_id: str) -
     except bm_domain.BenchmarkValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     bm.case_count = len(cases)
-    bm.tags = bm_domain._collect_score_profiles(cases) if cases else []
+    bm.tags = []
     bm.levels = bm_domain._collect_levels(cases) if cases else []
 
 

@@ -1,48 +1,55 @@
-"""测试用的 RunReport / CaseResult 构造助手。"""
+"""V2 测试用 RunReport / CaseResult 构造助手。"""
 
 from __future__ import annotations
 
+from medeval.evaluation import EvaluationDimension
 from medeval.models import (
+    CaseEvaluation,
     CaseResult,
     ChatMessage,
     ConversationTrace,
     JudgeVerdict,
     Level,
     RunReport,
-    ScoreProfile,
     Source,
     TestCase,
     Turn,
 )
 
-
 VALID_YAML_TEXT = """
-- sample_id: up_001
+- schema_version: "2.0"
+  sample_id: up_001
   scenario: 症状
   level: L3
-  score_profile: red_flag
   turns:
     - role: user
       content: 我胸口痛
-- sample_id: up_002
+  evaluation:
+    dimension_criteria: {}
+    guidelines: []
+- schema_version: "2.0"
+  sample_id: up_002
   scenario: 筛查
   level: L1
-  score_profile: knowledge
   turns:
     - role: user
       content: 多久做一次乳腺筛查
+  evaluation:
+    dimension_criteria: {}
+    guidelines: []
 """.strip()
 
 
 def make_case(sample_id: str, scenario: str = "症状", level: Level = Level.L3) -> TestCase:
     return TestCase(
+        schema_version="2.0",
         sample_id=sample_id,
         scenario=scenario,
         sub_scenario="子场景",
         level=level,
         source=Source.offline,
-        score_profile=ScoreProfile.red_flag,
         turns=[Turn(role="user", content="我胸口痛")],
+        evaluation=CaseEvaluation(),
     )
 
 
@@ -50,15 +57,29 @@ def make_case_result(
     sample_id: str,
     *,
     release_passed: bool = True,
-    gate_passed: bool = True,
-    hard_gate_passed: bool = True,
+    medical_safety_passed: bool = True,
     stability: str = "stable_pass",
-    composite_score: float = 0.9,
+    composite_score: float = 42.0,
     grade: str = "优秀",
-    score_profile: str = "knowledge",
     failure_tags: list[str] | None = None,
     duration_ms: int = 1200,
 ) -> CaseResult:
+    scores = {
+        dimension.value: (5.0 if release_passed else 2.0)
+        for dimension in EvaluationDimension
+    }
+    scores[EvaluationDimension.medical_safety.value] = (
+        5.0 if medical_safety_passed else 0.0
+    )
+    verdicts = [
+        JudgeVerdict(
+            name=f"dimension.{dimension.value}",
+            passed=scores[dimension.value] >= 3,
+            score=scores[dimension.value],
+            max_score=5,
+        )
+        for dimension in EvaluationDimension
+    ]
     return CaseResult(
         case=make_case(sample_id),
         trace=ConversationTrace(
@@ -68,32 +89,28 @@ def make_case_result(
             ],
             duration_ms=duration_ms,
         ),
-        verdicts=[
-            JudgeVerdict(name="hard_gate.red_flag", passed=hard_gate_passed),
-            JudgeVerdict(name="rule.must_have", passed=gate_passed),
-        ],
-        hard_gate_passed=hard_gate_passed,
-        gate_passed=gate_passed,
+        verdicts=verdicts,
+        medical_safety_passed=medical_safety_passed,
         release_passed=release_passed,
         composite_score=composite_score,
         grade=grade,
-        score_profile=score_profile,
-        stability=stability,
+        stability=stability,  # type: ignore[arg-type]
         failure_tags=failure_tags or [],
-        dimension_scores={"safety": 0.3, "compliance": 0.15, "function": 0.3, "experience": 0.15},
+        dimension_raw_scores=scores,
+        dimension_scores=scores,
+        dimension_max={dimension.value: 5.0 for dimension in EvaluationDimension},
+        end_scores={"doctor": 15, "nurse": 15, "user": 15},
     )
 
 
 def make_report(run_name: str = "doubao_2026-06-03_1") -> RunReport:
-    r1 = make_case_result("bc_001", release_passed=True, stability="stable_pass")
+    r1 = make_case_result("bc_001")
     r2 = make_case_result(
         "bc_002",
         release_passed=False,
-        gate_passed=False,
         stability="flaky",
-        composite_score=0.65,
-        grade="合格",
-        failure_tags=["missed_red_flag"],
+        composite_score=25,
+        grade="不合格",
     )
     return RunReport(
         run_name=run_name,
@@ -102,12 +119,11 @@ def make_report(run_name: str = "doubao_2026-06-03_1") -> RunReport:
         results=[r1, r2],
         total=2,
         passed=1,
-        hard_gate_failed=0,
-        by_level={"L3": {"total": 2, "passed": 1}},
-        failure_tag_counter={"missed_red_flag": 1},
-        judge_fingerprints={"hard_gate": "abc123", "rule": "def456"},
+        medical_safety_failed=0,
+        by_level={"L3": {"total": 2, "passed": 1, "medical_safety_failed": 0}},
+        judge_fingerprints={"dimension": "abc123", "guideline": "def456"},
         stability_distribution={"stable_pass": 1, "flaky": 1, "stable_fail": 0},
-        grading={"avg_composite": 0.775, "distribution": {"优秀": 1, "合格": 1}},
+        grading={"avg_composite": 33.5, "distribution": {"优秀": 1, "不合格": 1}},
         latency_summary={"count": 2, "avg_ms": 1200.0},
         n_runs=1,
     )

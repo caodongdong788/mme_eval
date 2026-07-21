@@ -106,6 +106,62 @@ def test_cx_agent_adapter_reuses_cx_session_for_same_mme_session():
     asyncio.run(adapter.close())
 
 
+def test_cx_agent_adapter_uses_stateless_pool_without_initial_state():
+    requests: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request.url.path)
+        if request.url.path.endswith("/evaluation/accounts/lease"):
+            return httpx.Response(
+                200,
+                json={
+                    "success": True,
+                    "data": {
+                        "userId": "00000000-0000-0000-0000-000000000101",
+                        "resetAt": "2026-07-21T08:00:00.000Z",
+                        "profile": {},
+                    },
+                },
+            )
+        if request.url.path.endswith("/evaluation/accounts/release"):
+            return httpx.Response(200, json={"success": True})
+        return httpx.Response(
+            200,
+            text=_sse(
+                ("session", {"sessionId": "cx-stateless-1"}),
+                ("text_delta", {"content": "已收到"}),
+                ("message_end", {}),
+            ),
+        )
+
+    adapter = CxAgentAdapter(
+        base_url="http://cx.local",
+        test_token="token-1",
+        isolated_accounts=True,
+    )
+    adapter._client = httpx.AsyncClient(transport=httpx.MockTransport(handler), timeout=10)
+
+    response = asyncio.run(
+        adapter.chat(
+            ChatRequest(
+                messages=[{"role": "user", "content": "普通问题"}],
+                session_id="mme-stateless-1",
+                metadata={"sample_id": "case-stateless"},
+            )
+        )
+    )
+    asyncio.run(adapter.end_session("mme-stateless-1"))
+
+    assert response.reply == "已收到"
+    assert response.raw["evaluation_account"]["test_user_id"].endswith("0101")
+    assert requests == [
+        "/api/test/evaluation/accounts/lease",
+        "/api/test/chat/send",
+        "/api/test/evaluation/accounts/release",
+    ]
+    asyncio.run(adapter.close())
+
+
 def test_cx_agent_adapter_turns_sse_error_into_chat_error():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
@@ -159,7 +215,13 @@ def test_cx_agent_adapter_requires_token(monkeypatch: pytest.MonkeyPatch):
         CxAgentAdapter(base_url="http://cx.local", test_token_env="CX_AGENT_TEST_TOKEN")
 
 
-def test_cx_agent_adapter_leases_blank_account_and_exposes_trace_context():
+def test_cx_agent_adapter_leases_blank_account_and_exposes_trace_context(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv(
+        "CX_AGENT_EVALUATION_LOGIN_CODES",
+        "+8610000000201=418572",
+    )
     requests: list[tuple[str, dict]] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -171,7 +233,7 @@ def test_cx_agent_adapter_leases_blank_account_and_exposes_trace_context():
                 json={
                     "success": True,
                     "data": {
-                        "userId": "00000000-0000-0000-0000-000000000101",
+                        "userId": "00000000-0000-0000-0000-000000000201",
                         "resetAt": "2026-07-21T08:00:00.000Z",
                         "profile": {},
                     },
@@ -188,7 +250,7 @@ def test_cx_agent_adapter_leases_blank_account_and_exposes_trace_context():
                     {
                         "traceId": "lf-trace-1",
                         "sessionId": "cx-isolated-1",
-                        "testUserId": "00000000-0000-0000-0000-000000000101",
+                        "testUserId": "00000000-0000-0000-0000-000000000201",
                         "userProfile": {},
                     },
                 ),
@@ -206,7 +268,24 @@ def test_cx_agent_adapter_leases_blank_account_and_exposes_trace_context():
     request = ChatRequest(
         messages=[{"role": "user", "content": "这是全新账户吗"}],
         session_id="mme-isolated-1",
-        metadata={"eval_run_id": "run-1", "sample_id": "case-1", "run_idx": 0},
+        metadata={
+            "eval_run_id": "run-1",
+            "sample_id": "case-1",
+            "run_idx": 0,
+            "initial_state": {
+                "user_profile": {"nickname": "小橙"},
+                "long_term_memories": [
+                    {
+                        "key": "tamoxifen_schedule",
+                        "category": "medication",
+                        "label": "他莫昔芬服药时间",
+                        "content": "晚上九点服用",
+                        "memory_tier": "semantic",
+                        "importance": 8,
+                    }
+                ],
+            },
+        },
     )
 
     response = asyncio.run(adapter.chat(request))
@@ -215,18 +294,38 @@ def test_cx_agent_adapter_leases_blank_account_and_exposes_trace_context():
     assert response.reply == "已收到"
     assert response.raw["cx_langfuse_trace_id"] == "lf-trace-1"
     assert response.raw["evaluation_account"] == {
-        "test_user_id": "00000000-0000-0000-0000-000000000101",
+        "login_account": "+8610000000201",
+        "verification_code": "418572",
+        "test_user_id": "00000000-0000-0000-0000-000000000201",
         "reset_at": "2026-07-21T08:00:00.000Z",
         "reset_status": "success",
         "profile_after_reset": {},
     }
     assert requests == [
-        ("/api/test/evaluation/accounts/lease", {"leaseId": "mme-isolated-1"}),
+        (
+            "/api/test/evaluation/accounts/lease",
+            {
+                "leaseId": "mme-isolated-1",
+                "initialState": {
+                    "user_profile": {"nickname": "小橙"},
+                    "long_term_memories": [
+                        {
+                            "key": "tamoxifen_schedule",
+                            "category": "medication",
+                            "label": "他莫昔芬服药时间",
+                            "content": "晚上九点服用",
+                            "memory_tier": "semantic",
+                            "importance": 8,
+                        }
+                    ],
+                },
+            },
+        ),
         (
             "/api/test/chat/send",
             {
                 "content": "这是全新账户吗",
-                "testUserId": "00000000-0000-0000-0000-000000000101",
+                "testUserId": "00000000-0000-0000-0000-000000000201",
                 "evaluationLeaseId": "mme-isolated-1",
                 "evalRunId": "run-1",
                 "sampleId": "case-1",
@@ -237,7 +336,7 @@ def test_cx_agent_adapter_leases_blank_account_and_exposes_trace_context():
             "/api/test/evaluation/accounts/release",
             {
                 "leaseId": "mme-isolated-1",
-                "testUserId": "00000000-0000-0000-0000-000000000101",
+                "testUserId": "00000000-0000-0000-0000-000000000201",
             },
         ),
     ]

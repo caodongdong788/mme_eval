@@ -22,7 +22,7 @@ import { api } from "./api/index";
 // 路由级懒加载：按页分包，首屏只加载登录/壳层，其余页面按需异步拉取。
 const BenchmarksPage = lazy(() => import("./pages/BenchmarksPage"));
 const JudgeModelsPage = lazy(() => import("./pages/JudgeModelsPage"));
-const ReleaseThresholdsPage = lazy(() => import("./pages/ReleaseThresholdsPage"));
+const EvaluationStandardPage = lazy(() => import("./pages/EvaluationStandardPage"));
 const LaunchPage = lazy(() => import("./pages/LaunchPage"));
 const RunsPage = lazy(() => import("./pages/RunsPage"));
 const RunDashboardPage = lazy(() => import("./pages/RunDashboardPage"));
@@ -51,7 +51,7 @@ const MENU = [
     children: [
       { key: "/benchmarks", icon: <DatabaseOutlined />, label: <Link to="/benchmarks">Benchmark 库</Link> },
       { key: "/judge-models", icon: <ExperimentOutlined />, label: <Link to="/judge-models">判分模型</Link> },
-      { key: "/release-thresholds", icon: <SlidersOutlined />, label: <Link to="/release-thresholds">评分配置</Link> },
+      { key: "/evaluation-standard", icon: <SlidersOutlined />, label: <Link to="/evaluation-standard">评分标准</Link> },
     ],
   },
   {
@@ -69,7 +69,7 @@ const SECTION_LABEL: Record<string, string> = {
   trends: "趋势看板",
   benchmarks: "Benchmark 库",
   "judge-models": "判分模型",
-  "release-thresholds": "评分配置",
+  "evaluation-standard": "评分标准",
   launch: "发起评测",
   pairwise: "Pairwise 对比",
 };
@@ -169,7 +169,7 @@ function MainLayout() {
               <Route path="/launch" element={<LaunchPage />} />
               <Route path="/benchmarks" element={<BenchmarksPage />} />
               <Route path="/judge-models" element={<JudgeModelsPage />} />
-              <Route path="/release-thresholds" element={<ReleaseThresholdsPage />} />
+              <Route path="/evaluation-standard" element={<EvaluationStandardPage />} />
               <Route path="/trends" element={<TrendsPage />} />
             </Routes>
           </Suspense>

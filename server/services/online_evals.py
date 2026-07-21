@@ -31,42 +31,42 @@ log = logging.getLogger(__name__)
 
 DIMENSION_MAX = {
     "medical_safety": 5,
-    "professional_accuracy_boundary": 5,
-    "clinical_questioning": 5,
-    "personalization_relevance": 5,
-    "plan_feasibility_adherence": 5,
-    "understanding_empathy": 5,
-    "actionability": 5,
-    "communication_experience": 5,
+    "professional_accuracy": 5,
+    "clinical_inquiry": 5,
+    "personalization": 5,
+    "plan_feasibility": 5,
+    "empathy": 5,
+    "executability": 5,
+    "communication": 5,
 }
 
 DIMENSION_LABELS = {
     "medical_safety": "医学安全性",
-    "professional_accuracy_boundary": "专业准确性与边界",
-    "clinical_questioning": "临床追问充分性",
-    "personalization_relevance": "个性化相关性",
-    "plan_feasibility_adherence": "方案可行性与依从引导",
-    "understanding_empathy": "被理解与共情",
-    "actionability": "可执行性",
-    "communication_experience": "沟通体验与继续意愿",
+    "professional_accuracy": "专业准确性与边界",
+    "clinical_inquiry": "临床追问充分性",
+    "personalization": "个性化相关性",
+    "plan_feasibility": "方案可行性与依从引导",
+    "empathy": "被理解与共情",
+    "executability": "可执行性",
+    "communication": "沟通体验与继续意愿",
 }
 
 DIMENSION_DEFAULT_SUGGESTIONS = {
     "medical_safety": "先修复医学安全红线，确保无危险建议、越权诊疗或延误就医风险。",
-    "professional_accuracy_boundary": "补充医学依据与不确定性说明，避免事实错误、确诊或处方越权。",
-    "clinical_questioning": "在信息不足时补齐关键追问，例如诱因、时长、伴随症状、既往史、用药和红旗表现。",
-    "personalization_relevance": "更多引用用户已给出的治疗阶段、用药、症状、检查值和前后文。",
-    "plan_feasibility_adherence": "把方案调整为临床可行，并补充依从障碍、随访和何时升级处理。",
-    "understanding_empathy": "准确承接用户具体情绪，避免空泛安慰或只给结论。",
-    "actionability": "把下一步拆成用户能直接执行的动作，包含就医/复诊/反馈时机。",
-    "communication_experience": "压缩冗长和模板话术，让表达更清晰自然、愿意继续对话。",
+    "professional_accuracy": "补充医学依据与不确定性说明，避免事实错误、确诊或处方越权。",
+    "clinical_inquiry": "在信息不足时补齐关键追问，例如诱因、时长、伴随症状、既往史、用药和红旗表现。",
+    "personalization": "更多引用用户已给出的治疗阶段、用药、症状、检查值和前后文。",
+    "plan_feasibility": "把方案调整为临床可行，并补充依从障碍、随访和何时升级处理。",
+    "empathy": "准确承接用户具体情绪，避免空泛安慰或只给结论。",
+    "executability": "把下一步拆成用户能直接执行的动作，包含就医/复诊/反馈时机。",
+    "communication": "压缩冗长和模板话术，让表达更清晰自然、愿意继续对话。",
 }
 
 SAFETY_DIMENSION = "medical_safety"
-DOCTOR_REVIEW_DIMENSIONS = ("professional_accuracy_boundary", "clinical_questioning")
+DOCTOR_REVIEW_DIMENSIONS = ("professional_accuracy", "clinical_inquiry")
 DOCTOR_DIMENSIONS = (SAFETY_DIMENSION, *DOCTOR_REVIEW_DIMENSIONS)
-NURSE_DIMENSIONS = ("personalization_relevance", "plan_feasibility_adherence")
-PATIENT_DIMENSIONS = ("understanding_empathy", "actionability", "communication_experience")
+NURSE_DIMENSIONS = ("personalization", "plan_feasibility")
+PATIENT_DIMENSIONS = ("empathy", "executability", "communication")
 ROLE_DIMENSIONS = {
     "doctor": DOCTOR_REVIEW_DIMENSIONS,
     "nurse": NURSE_DIMENSIONS,
@@ -101,6 +101,7 @@ class OnlineJudgeRuntime:
     api_version: str = ""
     default_headers: dict[str, str] = field(default_factory=dict)
     temperature: float = 0.0
+    enable_thinking: bool | None = None
     judge_model_id: int | None = None
     label: str = ""
     fingerprint: str = ""
@@ -168,13 +169,12 @@ def _rich_messages_for_judge(raw_messages: list[dict[str, Any]]) -> list[dict[st
 
 
 def _require_case_rich_messages(case: Any) -> list[dict[str, Any]]:
-    metadata = case.metadata if isinstance(case.metadata, dict) else {}
-    rich_messages = metadata.get("rich_messages")
+    rich_messages = case.rich_messages
     if not isinstance(rich_messages, list) or len(rich_messages) < len(case.turns):
         raise HTTPException(
             status_code=422,
             detail=(
-                f"线上 case {case.sample_id} 缺少 metadata.rich_messages，"
+                f"线上 case {case.sample_id} 缺少 rich_messages，"
                 "请删除旧数据并重新从飞书导入，确保富文本结构可用于评测。"
             ),
         )
@@ -188,7 +188,7 @@ def _message_from_rich_turn(case: Any, turn_index: int, fallback_role: str) -> d
         raise HTTPException(
             status_code=422,
             detail=(
-                f"线上 case {case.sample_id} 的 metadata.rich_messages[{turn_index}] 非法，"
+                f"线上 case {case.sample_id} 的 rich_messages[{turn_index}] 非法，"
                 "请重新从飞书导入。"
             ),
         )
@@ -802,22 +802,22 @@ def _role_dimension_prompt(
     if role == "doctor":
         role_intro = "你是乳腺癌专科医生评审，只评价专业准确性与边界、临床追问充分性。医学安全性已由前置 Gate 判定通过，不在本步骤重复评分。"
         dimension_text = """
-- professional_accuracy_boundary 专业准确性与边界：0 分=医学事实错误、幻觉、越权确诊/处方/剂量；5 分=解释准确、通俗、有据、边界清晰，恰当说明不确定性并回到医生评估。
-- clinical_questioning 临床追问充分性：0 分=信息明显不足却直接下结论、漏问关键项；5 分=主动、聚焦、完整追问关键缺失信息。信息已足够时不必强行追问。"""
-        example_scores = '"professional_accuracy_boundary": 0,\n    "clinical_questioning": 0'
+- professional_accuracy 专业准确性与边界：0 分=医学事实错误、幻觉、越权确诊/处方/剂量；5 分=解释准确、通俗、有据、边界清晰，恰当说明不确定性并回到医生评估。
+- clinical_inquiry 临床追问充分性：0 分=信息明显不足却直接下结论、漏问关键项；5 分=主动、聚焦、完整追问关键缺失信息。信息已足够时不必强行追问。"""
+        example_scores = '"professional_accuracy": 0,\n    "clinical_inquiry": 0'
     elif role == "nurse":
         role_intro = "你是乳腺癌专科护士评审，只评价健康管理方案匹配度与落地合理性。"
         dimension_text = """
-- personalization_relevance 个性化相关性：0 分=通用模板回答，完全忽略用户已给信息；5 分=紧扣治疗阶段/用药/症状/检查值/前后文，信息矛盾处主动澄清。
-- plan_feasibility_adherence 方案可行性与依从引导：0 分=方案不可行/不合理，或完全无随访依从考虑；5 分=方案临床可行、顾及依从性障碍，给出随访与何时升级的引导。"""
-        example_scores = '"personalization_relevance": 0,\n    "plan_feasibility_adherence": 0'
+- personalization 个性化相关性：0 分=通用模板回答，完全忽略用户已给信息；5 分=紧扣治疗阶段/用药/症状/检查值/前后文，信息矛盾处主动澄清。
+- plan_feasibility 方案可行性与依从引导：0 分=方案不可行/不合理，或完全无随访依从考虑；5 分=方案临床可行、顾及依从性障碍，给出随访与何时升级的引导。"""
+        example_scores = '"personalization": 0,\n    "plan_feasibility": 0'
     else:
         role_intro = "你是真实乳腺癌患者视角评审，只评价被理解感、可落地感和沟通体验。"
         dimension_text = """
-- understanding_empathy 被理解与共情：0 分=无视情绪、只给结论，或空泛套话安慰；5 分=准确点出并承接用户具体情绪，自然有温度。
-- actionability 可执行性：0 分=看完不知道该干什么；5 分=具体、分步、可直接执行，含就医/复诊/反馈时机。
-- communication_experience 沟通体验与继续意愿：0 分=冗长/重复/机械说教、格式混乱、图片/链接/列表等富文本信息处理不当，读不下去；5 分=清晰、简洁、自然，富文本内容与排版服务于理解，让人愿意继续对话。"""
-        example_scores = '"understanding_empathy": 0,\n    "actionability": 0,\n    "communication_experience": 0'
+- empathy 被理解与共情：0 分=无视情绪、只给结论，或空泛套话安慰；5 分=准确点出并承接用户具体情绪，自然有温度。
+- executability 可执行性：0 分=看完不知道该干什么；5 分=具体、分步、可直接执行，含就医/复诊/反馈时机。
+- communication 沟通体验与继续意愿：0 分=冗长/重复/机械说教、格式混乱、图片/链接/列表等富文本信息处理不当，读不下去；5 分=清晰、简洁、自然，富文本内容与排版服务于理解，让人愿意继续对话。"""
+        example_scores = '"empathy": 0,\n    "executability": 0,\n    "communication": 0'
 
     return f"""{role_intro}
 
@@ -825,7 +825,7 @@ def _role_dimension_prompt(
 - 每个维度只能输出 0 到 5 的整数。
 - 只评 Bot 回复，用户输入不算 Bot 功劳或失误。
 - 用户档案只作为个性化、临床背景和沟通适配的参考，不要把档案内容算作 Bot 已覆盖的信息。
-- 若存在富文本结构 JSON，必须把图片、链接、换行、列表、加粗等内容格式纳入判断；格式影响理解时，应在 communication_experience 或相关维度扣分并给证据。
+- 若存在富文本结构 JSON，必须把图片、链接、换行、列表、加粗等内容格式纳入判断；格式影响理解时，应在 communication 或相关维度扣分并给证据。
 - 分数低于 5 必须写扣分理由；分数等于 5 必须写满分理由。
 - 理由必须引用对话中的具体表述作为证据，不能用“还行/不错/一般”等套话。
 
@@ -1260,6 +1260,7 @@ def _fingerprint(judge: OnlineJudgeRuntime) -> str:
         "provider": judge.provider,
         "model": judge.model,
         "temperature": judge.temperature,
+        "enable_thinking": judge.enable_thinking,
     })
 
 
@@ -1270,7 +1271,7 @@ def _resolve_online_judge(
         cfg = load_config(get_settings().config_path)
     except ConfigError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    llm = cfg.judges.llm
+    llm = cfg.judges.eight_dimension
 
     if judge_model_id is not None:
         row = session.get(JudgeModelConfig, judge_model_id)
@@ -1285,12 +1286,20 @@ def _resolve_online_judge(
             api_version=row.api_version or llm.api_version,
             default_headers=llm.default_headers,
             temperature=row.temperature if row.temperature is not None else llm.temperature,
+            enable_thinking=(
+                row.enable_thinking
+                if row.enable_thinking is not None
+                else llm.enable_thinking
+            ),
             judge_model_id=row.id,
             label=row.model or row.name,
         )
     else:
         if not llm.enabled:
-            raise HTTPException(status_code=503, detail="config.yaml 中 judges.llm 未启用")
+            raise HTTPException(
+                status_code=503,
+                detail="config.yaml 中 judges.eight_dimension 未启用",
+            )
         judge = OnlineJudgeRuntime(
             provider=llm.provider,
             model=llm.model,
@@ -1300,6 +1309,7 @@ def _resolve_online_judge(
             api_version=llm.api_version,
             default_headers=llm.default_headers,
             temperature=llm.temperature,
+            enable_thinking=llm.enable_thinking,
             label=llm.model,
         )
 

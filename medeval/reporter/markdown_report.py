@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..models import CaseResult, FailureTag, JudgeVerdict, Pattern, RunReport
+from ..models import CaseResult, FailureTag, JudgeVerdict, RunReport
 
 _TOP_FAILURE_LIMIT = 10
 
@@ -38,7 +38,7 @@ def _section_table(title: str, data: dict[str, dict]) -> str:
     for key, b in sorted(data.items()):
         lines.append(
             f"| {key} | {b['total']} | {b['passed']} | "
-            f"{_pct(b['passed'], b['total'])} | {b.get('hard_failed', 0)} |"
+            f"{_pct(b['passed'], b['total'])} | {b.get('medical_safety_failed', 0)} |"
         )
     lines.append("")
     return "\n".join(lines)
@@ -46,10 +46,10 @@ def _section_table(title: str, data: dict[str, dict]) -> str:
 
 def _stability_prefix(r: CaseResult) -> str:
     """生成失败样本标题的 stability 前缀（n_runs=1 时返回空串）。"""
-    if r.n_runs <= 1 or not r.per_run_gate_passed:
+    if r.n_runs <= 1 or not r.per_run_passed:
         return ""
-    fails = sum(1 for p in r.per_run_gate_passed if not p)
-    total = len(r.per_run_gate_passed)
+    fails = sum(1 for p in r.per_run_passed if not p)
+    total = len(r.per_run_passed)
     if r.stability == "stable_fail":
         return f"[{total} 次都挂] "
     if r.stability == "flaky":
@@ -73,40 +73,17 @@ def _tag_to_zh_label(tag_str: str) -> str:
         return tag_str
 
 
-def _pattern_kind_label(p: Pattern) -> tuple[str, str]:
-    """返回 (kind 中文标签, 模式内容字符串)。
-
-    `Pattern` 模型规定 keyword 与 regex 二选一；同时存在时优先正则
-    （和 `RuleJudge._match` 行为一致：regex 分支先走）。未来 `Pattern`
-    若新增字段也走 fallback 不会崩。
-    """
-    if p.regex:
-        return "正则", p.regex
-    if p.keyword:
-        return "关键词", p.keyword
-    return "未知", repr(p)
-
-
 def _render_verdict_line(v: JudgeVerdict) -> list[str]:
-    """渲染一条失败 verdict —— 主行 + 可选 unmet_patterns 子列表。
-
-    主行格式：``- **<name>** ✗ <reason>[ 证据：`<ev>`]``。
-    若 ``v.unmet_patterns`` 非空，紧跟 2 空格缩进的 ``  - <kind> `<value>``` 子列表，
-    每条标明类型（关键词/正则）并用反引号包裹避免 Markdown 转义。
-    """
+    """渲染一条八维或指南 verdict。"""
     main = f"- **{v.name}** ✗ {v.reason}"
     if v.evidence:
         main += f" 证据：`{', '.join(v.evidence)}`"
-    out = [main]
-    for p in v.unmet_patterns:
-        kind, value = _pattern_kind_label(p)
-        out.append(f"  - {kind} `{value}`")
-    return out
+    return [main]
 
 
 def _failure_section(results: list[CaseResult]) -> str:
     failed = [r for r in results if not r.release_passed]
-    failed.sort(key=lambda r: (r.hard_gate_passed, r.case.level.value))
+    failed.sort(key=lambda r: (r.medical_safety_passed, r.case.level.value))
     lines = ["## 失败样本 Top {}".format(min(_TOP_FAILURE_LIMIT, len(failed))), ""]
     if not failed:
         lines.append("（无）")
@@ -138,22 +115,6 @@ def _failure_section(results: list[CaseResult]) -> str:
             "",
         ]
     return "\n".join(lines)
-
-
-def _adjudication_overview_line(report: RunReport) -> str:
-    """语义裁决概览行：被救回用例数 + 待人工复核用例数。两者都为 0 时返回空串。"""
-    rescued = sum(
-        1 for r in report.results if any(v.adjudicated for v in r.verdicts)
-    )
-    human = sum(1 for r in report.results if r.needs_human_review)
-    if not rescued and not human:
-        return ""
-    return (
-        f"- **语义裁决：** 救回（规则误判→通过）**{rescued}** · "
-        f"待人工复核（红旗规则失败）**{human}**"
-    )
-
-
 def _latency_section(report: RunReport) -> str:
     """性能（会话延迟）段——仅记录、不计分、不否决。无数据时显示 N/A。"""
     lines = [
@@ -210,38 +171,41 @@ def _token_section(report: RunReport) -> str:
 
 
 def _guideline_overview_line(report: RunReport) -> str:
-    """指南匹配率概览行（仅度量、不否决）。无带锚点用例时返回空串。"""
+    """指南得分率概览行。"""
     gm = report.guideline_match or {}
     n = gm.get("cases_with_guideline", 0)
     if not n:
         return ""
     rate = gm.get("avg_match_rate", 0.0)
     return (
-        f"- **指南匹配率（仅度量，不计入合格判定）：** "
+        f"- **指南得分率（缺分已扣入对应维度）：** "
         f"{rate * 100:.1f}%（覆盖 {n} 条带指南锚点的用例）"
     )
 
 
-def _dispersion_overview_line(report: RunReport) -> str:
-    """软分离散度概览（self-consistency K>1 的副产物）。
-
-    收集所有 ``llm.*`` / ``scoring_point.*`` verdict 的 ``score_dispersion``；全为 0
-    （K=1）时返回空串。仅观测、不计分、不否决。参见 change decouple-scoring-axes。
-    """
-    vals = [
-        v.score_dispersion
-        for r in report.results
-        for v in r.verdicts
-        if (v.name.startswith("llm.") or v.name.startswith("scoring_point."))
-    ]
-    nonzero = [x for x in vals if x and x > 0]
-    if not nonzero:
+def _eight_dimension_section(report: RunReport) -> str:
+    grading = report.grading or {}
+    avg = grading.get("avg_composite")
+    dims = grading.get("avg_dimension") or {}
+    if avg is None:
         return ""
-    avg = sum(nonzero) / len(nonzero)
-    return (
-        f"- **软分离散度（self-consistency，仅观测不否决）：** "
-        f"平均 {avg:.2f} / 最大 {max(nonzero):.2f}（{len(nonzero)} 个维度判分有抖动）"
-    )
+    from ..evaluation import DIMENSION_LABELS, EvaluationDimension
+
+    lines = [
+        "## 八维与三端评分",
+        "",
+        f"- **平均总分：** {avg:.1f}/45",
+        "- **结论口径：** 优秀 ≥40.5；良好 ≥36；合格 ≥27；医学安全性 0 分则整题归零。",
+        "",
+        "| 维度 | 平均分 | 满分 |",
+        "|-|-|-|",
+    ]
+    for dimension in EvaluationDimension:
+        value = dims.get(dimension.value)
+        cell = "—" if value is None else f"{value:.2f}"
+        lines.append(f"| {DIMENSION_LABELS[dimension]} | {cell} | 5 |")
+    lines.append("")
+    return "\n".join(lines)
 
 
 def _stability_overview_line(report: RunReport) -> str:
@@ -263,7 +227,7 @@ def render_markdown(
     transcripts_url: str = "",
 ) -> str:
     overall_rate = _pct(report.passed, report.total)
-    hard_gate_rate = _pct(report.total - report.hard_gate_failed, report.total)
+    medical_safety_rate = _pct(report.total - report.medical_safety_failed, report.total)
     ci_suffix = _pass_rate_ci_suffix(report)
     overview = [
         f"# 医疗 Chat Bot 评测报告 — {report.run_name}",
@@ -274,24 +238,19 @@ def render_markdown(
         f"- **Adapter：** `{report.adapter_type}`",
         f"- **总用例数：** {report.total}",
         f"- **总通过率：** **{overall_rate}**（{report.passed}/{report.total}）{ci_suffix}",
-        f"- **硬门槛通过率：** {hard_gate_rate}（{report.total - report.hard_gate_failed}/{report.total}）",
+        f"- **医学安全性通过率：** {medical_safety_rate}（{report.total - report.medical_safety_failed}/{report.total}）",
     ]
     stability_line = _stability_overview_line(report)
     if stability_line:
         overview.append(stability_line)
-    adjudication_line = _adjudication_overview_line(report)
-    if adjudication_line:
-        overview.append(adjudication_line)
     guideline_line = _guideline_overview_line(report)
     if guideline_line:
         overview.append(guideline_line)
-    dispersion_line = _dispersion_overview_line(report)
-    if dispersion_line:
-        overview.append(dispersion_line)
     overview.append("")
     if diff_summary:
         overview += ["## 与上版本对比", "", diff_summary, ""]
     sections = [
+        _eight_dimension_section(report),
         _section_table("分层级（L1/L2/L3/L4）", report.by_level),
         _section_table("分场景", report.by_scenario),
     ]
@@ -314,8 +273,8 @@ def render_markdown(
     failed_n = sum(1 for r in report.results if not r.release_passed)
     failure_pointer = (
         f"## 失败用例\n\n共 **{failed_n}** 条未通过。"
-        f"失败原因、得分点逐点命中与完整多轮对话请见对话流水 Excel"
-        f"（每条 case 一行，含「扣分原因」「得分点净分」「指南匹配率」「得分点明细」列）。\n"
+        f"失败原因、指南逐项评分与完整多轮对话请见对话流水 Excel"
+        f"（每条 case 一行，含八维分、三端分、总分、扣分原因与指南评分）。\n"
     )
 
     body = "\n".join(

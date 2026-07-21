@@ -15,7 +15,7 @@ export default function RunDashboardPage() {
   const { runId } = useParams();
   const id = Number(runId);
   const tagLabel = useFailureTagLabels();
-  const dash = useRunDashboard(id);
+  const dash = useRunDashboard(id, tagLabel);
 
   if (dash.runError)
     return (
@@ -80,15 +80,9 @@ export default function RunDashboardPage() {
                 cases={dash.cases}
                 shownCases={dash.shownCases}
                 columns={columns}
-                filters={dash.filters}
-                setFilters={dash.setFilters}
-                reviewFilter={dash.reviewFilter}
-                setReviewFilter={dash.setReviewFilter}
-                onlyPending={dash.onlyPending}
-                setOnlyPending={dash.setOnlyPending}
-                queueIds={dash.queueIds}
-                hasActiveFilters={dash.hasActiveFilters}
-                resetFilters={dash.resetFilters}
+                filterConditions={dash.filterConditions}
+                setFilterConditions={dash.setFilterConditions}
+                filterValueOptions={dash.filterValueOptions}
                 exporting={dash.exporting}
                 onOpenYamlEditor={dash.openYamlEditor}
                 onOpenExport={() => dash.setExportOpen(true)}

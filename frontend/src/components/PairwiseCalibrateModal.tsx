@@ -5,10 +5,10 @@ import {
   type PairwiseCalibratePayload,
   type PairwiseCaseVerdict,
 } from "../api/index";
-import { DIM_LABEL } from "../labels";
+import { DIM_LABEL, EVALUATION_DIMENSIONS } from "../labels";
 import { formatApiError } from "../utils/apiError";
 
-const DIMS = ["safety", "function", "experience"] as const;
+const DIMS = EVALUATION_DIMENSIONS;
 const SIDE_OPTS = [
   { value: "A", label: "A 更好" },
   { value: "B", label: "B 更好" },
@@ -38,11 +38,12 @@ export default function PairwiseCalibrateModal({
     form.setFieldsValue({
       winner: verdict.winner,
       reason: verdict.reason,
-      dimension_winners: {
-        safety: (verdict.dimension_winners?.safety as "A" | "B" | "tie") || "tie",
-        function: (verdict.dimension_winners?.function as "A" | "B" | "tie") || "tie",
-        experience: (verdict.dimension_winners?.experience as "A" | "B" | "tie") || "tie",
-      },
+      dimension_winners: Object.fromEntries(
+        DIMS.map((dimension) => [
+          dimension,
+          (verdict.dimension_winners?.[dimension] as "A" | "B" | "tie") || "tie",
+        ]),
+      ),
     });
   }, [open, verdict, form]);
 
@@ -92,7 +93,7 @@ export default function PairwiseCalibrateModal({
       confirmLoading={saving}
       okText="保存校准"
       cancelText="取消"
-      width={520}
+      width={860}
       destroyOnClose
     >
       {verdict?.human_calibrated && verdict.auto_winner != null && (
@@ -119,7 +120,7 @@ export default function PairwiseCalibrateModal({
             <Radio.Button value="tie">持平</Radio.Button>
           </Radio.Group>
         </Form.Item>
-        <Space style={{ display: "flex", width: "100%" }} align="start">
+        <Space wrap style={{ display: "flex", width: "100%" }} align="start">
           {DIMS.map((dim) => (
             <Form.Item
               key={dim}

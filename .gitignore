@@ -18,3 +18,10 @@ frontend/dist/
 
 # 杂项
 .DS_Store
+
+# Graphify 本机缓存与查询记忆；根级 graph/report/manifest 仍保留
+graphify-out/.graphify_python
+graphify-out/.vocab.txt
+graphify-out/cache/ast/
+graphify-out/memory/
+graphify-out/20??-??-??/

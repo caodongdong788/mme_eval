@@ -1,5 +1,6 @@
 import { Col, Row, Space, Tag, Typography } from "antd";
 import { DIM_LABEL } from "../labels";
+import { EVALUATION_DIMENSIONS } from "../labels";
 import type { PairwiseDetail } from "../api/index";
 import { DashPanel } from "./DashPanel";
 import { RunsKpi } from "./RunsKpi";
@@ -83,10 +84,10 @@ export function PairwiseDetailSummaryCard({
       </DashPanel>
 
       <Row gutter={14}>
-        {["safety", "function", "experience"].map((dim) => {
+        {EVALUATION_DIMENSIONS.map((dim) => {
           const d = byDim[dim] || { A: 0, B: 0, tie: 0 };
           return (
-            <Col span={8} key={dim}>
+            <Col xs={24} sm={12} xl={6} key={dim}>
               <DashPanel title={`${DIM_LABEL[dim]}维度`}>
                 <Space size={16}>
                   <RunsKpi

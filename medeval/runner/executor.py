@@ -87,6 +87,11 @@ async def _run_one(
     error: str | None = None
     cx_langfuse_trace_ids: list[str] = []
     evaluation_identity: dict = {}
+    initial_state = case.initial_state.model_dump(
+        mode="json",
+        exclude_none=True,
+        exclude_defaults=True,
+    )
 
     start = time.perf_counter()
     # bot 模型名（仅 openai_compat 等有 .model）；用于 Langfuse generation 标注。
@@ -111,14 +116,17 @@ async def _run_one(
                 continue
 
             messages.append({"role": "user", "content": turn.content})
+            metadata = {
+                "eval_run_id": run_name,
+                "sample_id": case.sample_id,
+                "run_idx": run_idx,
+            }
+            if initial_state:
+                metadata["initial_state"] = initial_state
             req = ChatRequest(
                 messages=list(messages),
                 session_id=session_id,
-                metadata={
-                    "eval_run_id": run_name,
-                    "sample_id": case.sample_id,
-                    "run_idx": run_idx,
-                },
+                metadata=metadata,
             )
 
             last_err: str | None = None

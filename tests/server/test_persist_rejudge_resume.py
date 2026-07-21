@@ -5,10 +5,8 @@ from __future__ import annotations
 import asyncio
 
 from factories import make_report
-from sqlalchemy import create_engine, inspect, text
-
 from medeval import trace_store
-from server.db import _ensure_additive_columns, session_scope
+from server.db import session_scope
 from server.eval_job import build_eval_job, build_rejudge_job, build_resume_job
 from server.models_db import Benchmark, EvalRun
 from server.progress import InMemoryProgress
@@ -61,26 +59,7 @@ def _seed_source_run(settings, *, with_traces: bool = True, n_runs: int = 1) -> 
 
 
 # ---------------------------------------------------------------------------
-# 1. 附加列幂等迁移
-
-
-def test_ensure_additive_columns_on_legacy_table(tmp_path):
-    """旧库（eval_run 缺新列）→ 迁移补齐，且可重复执行。"""
-    engine = create_engine(f"sqlite:///{tmp_path / 'legacy.db'}", future=True)
-    with engine.begin() as conn:
-        conn.execute(
-            text("CREATE TABLE eval_run (id INTEGER PRIMARY KEY, run_slug TEXT)")
-        )
-
-    _ensure_additive_columns(engine)
-    _ensure_additive_columns(engine)  # 幂等：再跑一次不报错
-
-    cols = {c["name"] for c in inspect(engine).get_columns("eval_run")}
-    assert {"has_traces", "pinned", "parent_run_id"} <= cols
-
-
-# ---------------------------------------------------------------------------
-# 2. 平台正常评测：落 trace + has_traces + retention 收尾
+# 平台正常评测：落 trace + has_traces + retention 收尾
 
 
 def test_eval_job_persists_traces_and_runs_retention(
@@ -95,7 +74,7 @@ def test_eval_job_persists_traces_and_runs_retention(
         s.flush()
         bid, rid = bm.id, run.id
 
-    async def fake_eval(config, cases, adapter, judges, adjudicator, *, progress=None,
+    async def fake_eval(config, cases, adapter, judges, *, progress=None,
                         run_name=None, out_dir=None, resume_dir=None):
         # 模拟内核落盘：在给定 out_dir 写下 traces.jsonl.gz。
         assert out_dir is not None and run_name is not None
@@ -135,7 +114,7 @@ def test_rejudge_job_replays_frozen_traces(initialized_db, settings, monkeypatch
 
     captured: dict = {}
 
-    async def fake_judge(config, cases, per_case_traces, judges, adjudicator, *,
+    async def fake_judge(config, cases, per_case_traces, judges, *,
                          progress=None, run_name=None, declare_plan=True, **kw):
         captured["sample_ids"] = [c.sample_id for c in cases]
         captured["n_traces"] = sum(len(t) for t in per_case_traces)
@@ -173,7 +152,7 @@ def test_resume_job_passes_resume_dir(initialized_db, settings, monkeypatch):
 
     captured: dict = {}
 
-    async def fake_eval(config, cases, adapter, judges, adjudicator, *, progress=None,
+    async def fake_eval(config, cases, adapter, judges, *, progress=None,
                         run_name=None, out_dir=None, resume_dir=None):
         captured["resume_dir"] = resume_dir
         captured["out_dir"] = out_dir

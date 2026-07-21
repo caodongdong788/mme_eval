@@ -3,20 +3,15 @@
 参见 OpenSpec change ``2026-06-02-typed-config-validation``。
 
 要点：
-  * **分区 forbid**：结构化节点 ``extra="forbid"``（抓拼错/多余字段）；自由键值叶子
-    （default_headers / extra_body / http.headers / module_max / grade_thresholds /
-    gates、以及 profiles 的名字）以普通 ``dict`` 承载，允许任意键。
-  * **跨字段校验**：adapter.type ↔ 对应子块、azure provider 必须有 base_url+api_version、
-    pass_rule 形状。
-  * **不重复 scoring 数值默认**：module_max/扣分步长/阈值的数值默认仍由
-    ``reporter/scoring.py`` 独占（避免双默认源）；本模块只校验结构与禁拼错。
+  * 结构化节点统一 ``extra="forbid"``，旧四模块和 score profile 配置会直接报错。
+  * 跨字段校验 adapter.type 子块及 Azure LLM 必填连接信息。
   * ``load_config`` 把 ``ValidationError`` 渲染成定位到键路径的友好报错（``ConfigError``）。
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Literal, Union
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -63,7 +58,7 @@ class RunCfg(_Strict):
     description: str = ""
     output_dir: str = "outputs"
     concurrency: int = 4
-    # LLM 判官并发（与 bot 分离）；语义裁决/llm/scoring_point 共用全局限流。
+    # LLM 判官并发（与 bot 分离）。
     judge_concurrency: int = Field(2, ge=1)
     # 判官 API 两次调用之间的最小间隔（秒），缓和 QPM；0 = 仅受 judge_concurrency 约束。
     llm_min_interval_s: float = Field(0.5, ge=0.0)
@@ -92,7 +87,6 @@ class RunCfg(_Strict):
 class CasesCfg(_Strict):
     include: list[str] = Field(default_factory=list)
     exclude: list[str] = Field(default_factory=list)
-    score_profiles: list[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -168,6 +162,7 @@ class _LLMClientCfg(_Strict):
     api_version: str = ""
     default_headers: dict[str, str] = Field(default_factory=dict)  # 自由叶子
     temperature: float = 0.0
+    enable_thinking: bool | None = None
 
     @model_validator(mode="after")
     def _check_azure(self):
@@ -180,50 +175,17 @@ class _LLMClientCfg(_Strict):
         return self
 
 
-class HardGatesCfg(_Strict):
-    enabled: bool = True
+class EightDimensionCfg(_LLMClientCfg):
+    pass
 
 
-class NegationPrefilterCfg(_Strict):
-    enabled: bool = True
-    cues: list[str] | None = None
-
-
-class CacheCfg(_Strict):
-    enabled: bool = True
-
-
-class SemanticAdjudicatorCfg(_LLMClientCfg):
-    negation_prefilter: NegationPrefilterCfg = Field(default_factory=NegationPrefilterCfg)
-    cache: CacheCfg = Field(default_factory=CacheCfg)
-
-
-class RuleCfg(_Strict):
-    enabled: bool = True
-    normalize: bool = True
-    semantic_adjudicator: SemanticAdjudicatorCfg = Field(
-        default_factory=SemanticAdjudicatorCfg
-    )
-
-
-class ScoringPointCfg(_LLMClientCfg):
-    self_consistency: int = Field(1, ge=1)
-
-
-class LLMJudgeCfg(_LLMClientCfg):
-    dual_judge: bool = False
-    second_model: str = ""
-    self_consistency: int = Field(1, ge=1)
-    aggregate: Literal["median", "min"] = "median"
-    # 非空时覆盖内置 judge prompt 模板（须含 {conversation}/{rubric_text}/{tool_context}）。
-    prompt_template: str = ""
+class GuidelineCfg(_LLMClientCfg):
+    pass
 
 
 class JudgesCfg(_Strict):
-    hard_gates: HardGatesCfg = Field(default_factory=HardGatesCfg)
-    rule: RuleCfg = Field(default_factory=RuleCfg)
-    scoring_point: ScoringPointCfg = Field(default_factory=ScoringPointCfg)
-    llm: LLMJudgeCfg = Field(default_factory=LLMJudgeCfg)
+    eight_dimension: EightDimensionCfg = Field(default_factory=EightDimensionCfg)
+    guideline: GuidelineCfg = Field(default_factory=GuidelineCfg)
 
 
 # ---------------------------------------------------------------------------
@@ -243,80 +205,8 @@ class ReporterCfg(_Strict):
 
 
 class ThresholdsCfg(_Strict):
-    hard_gate_pass_rate: float | None = None
-    l3_red_flag_pass_rate: float | None = None
+    medical_safety_pass_rate: float | None = None
     overall_pass_rate: float | None = None
-    l2_business_pass_rate: float | None = None
-    l4_adversarial_pass_rate: float | None = None
-
-
-# ---------------------------------------------------------------------------
-# scoring（数值默认归 reporter/scoring.py；这里只校验结构与禁拼错）
-
-
-class ThresholdRule(_Strict):
-    type: Literal["threshold"] = "threshold"
-    min_composite: float
-    # gate 值：``full`` = 维度满分；0.0~1.0 浮点 = 该维度满分的比例（如 0.9）。
-    gates: dict[str, Any] = Field(default_factory=dict)
-
-    @model_validator(mode="after")
-    def _validate_gate_values(self) -> "ThresholdRule":
-        for dim, req in self.gates.items():
-            if req in ("full", True):
-                continue
-            if isinstance(req, (int, float)):
-                frac = float(req)
-                if 0.0 < frac <= 1.0:
-                    continue
-            if isinstance(req, str) and req != "full":
-                try:
-                    frac = float(req)
-                except ValueError:
-                    pass
-                else:
-                    if 0.0 < frac <= 1.0:
-                        continue
-            raise ValueError(
-                f"gates.{dim}: must be 'full' or a number in (0, 1], got {req!r}"
-            )
-        return self
-
-
-PassRule = Union[Literal["perfect", "threshold"], ThresholdRule]
-
-
-class ProfileCfg(_Strict):
-    module_max: dict[str, float] | None = None  # 自由叶子（维度名）
-    function_deduction: float | None = None
-    safety_function_deduction: float | None = None
-    grade_thresholds: dict[str, float] | None = None
-    pass_rule: PassRule | None = None
-
-
-class WhenCfg(_Strict):
-    tags_any: list[str] = Field(default_factory=list)
-    level_any: list[str] = Field(default_factory=list)
-    scenario_any: list[str] = Field(default_factory=list)
-    red_flag: bool = False
-    multi_turn: bool = False
-
-
-class ProfileMatchCfg(_Strict):
-    when: WhenCfg = Field(default_factory=WhenCfg)
-    profile: str
-
-
-class ScoringCfg(_Strict):
-    module_max: dict[str, float] = Field(default_factory=dict)  # 自由叶子
-    function_deduction: float | None = None
-    safety_function_deduction: float | None = None
-    scoring_point_function_cap: float | None = None
-    grade_thresholds: dict[str, float] = Field(default_factory=dict)  # 自由叶子
-    pass_rule: PassRule | None = None
-    # profiles 的名字自由；每个 profile 内部字段受 ProfileCfg(extra=forbid) 约束。
-    profiles: dict[str, ProfileCfg] = Field(default_factory=dict)
-    profile_match: list[ProfileMatchCfg] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -371,9 +261,28 @@ class Config(_Strict):
     judges: JudgesCfg = Field(default_factory=JudgesCfg)
     reporter: ReporterCfg = Field(default_factory=ReporterCfg)
     thresholds: ThresholdsCfg = Field(default_factory=ThresholdsCfg)
-    scoring: ScoringCfg = Field(default_factory=ScoringCfg)
     observability: ObservabilityCfg = Field(default_factory=ObservabilityCfg)
     cost: CostConfig = Field(default_factory=CostConfig)
+
+    def public_snapshot(self) -> dict[str, Any]:
+        """可持久化、可通过 API 返回的配置快照，递归移除明文凭据。"""
+        return redact_config_secrets(self.model_dump(mode="json"))
+
+
+_SECRET_CONFIG_KEYS = frozenset({"api_key", "test_token"})
+
+
+def redact_config_secrets(value: Any) -> Any:
+    """递归删除配置中的明文密钥；保留对应的 ``*_env`` 名称以便复现。"""
+    if isinstance(value, dict):
+        return {
+            key: redact_config_secrets(item)
+            for key, item in value.items()
+            if key not in _SECRET_CONFIG_KEYS
+        }
+    if isinstance(value, list):
+        return [redact_config_secrets(item) for item in value]
+    return value
 
 
 class ConfigError(Exception):

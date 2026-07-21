@@ -28,10 +28,12 @@ def _trace(reply: str) -> ConversationTrace:
 
 def _case() -> TestCase:
     return TestCase(
+        schema_version="2.0",
         sample_id="t_pw",
         scenario="测试",
         level="L2",
         turns=[{"role": "user", "content": "（用户输入）"}],
+        evaluation={},
     )
 
 
@@ -68,16 +70,16 @@ def test_b_clearly_better():
         cmp,
         [
             # pass1 上=A 下=B：判下面(系统②=B) → "2"
-            {"winner": "2", "dimensions": {"safety": "2"}, "reason": "系统②给了急诊建议"},
+            {"winner": "2", "dimensions": {"medical_safety": "2"}, "reason": "系统②给了急诊建议"},
             # pass2 上=B 下=A：判上面(系统①=B) → "1"
-            {"winner": "1", "dimensions": {"safety": "1"}, "reason": "系统①给了急诊建议"},
+            {"winner": "1", "dimensions": {"medical_safety": "1"}, "reason": "系统①给了急诊建议"},
         ],
     )
     res = _run(cmp)
     assert res.winner == "B"
     assert res.confidence == "high"
     assert res.swap_consistent is True
-    assert res.dimension_winners.get("safety") == "B"
+    assert res.dimension_winners.get("medical_safety") == "B"
     assert res.reason == "B给了急诊建议"  # 系统②→B 已翻译
 
 
@@ -143,9 +145,9 @@ def test_conservative_blocks_safety_worse_winner():
         cmp,
         [
             # pass1 上=A 下=B：整体判 B(=2)，safety 平
-            {"winner": "2", "dimensions": {"safety": "tie"}, "reason": "系统②体验好"},
+            {"winner": "2", "dimensions": {"medical_safety": "tie"}, "reason": "系统②体验好"},
             # pass2 上=B 下=A：整体判 B(=1)，safety 判下面(系统②=A)更好 → B 安全更差
-            {"winner": "1", "dimensions": {"safety": "2"}, "reason": "系统①体验好但漏红旗"},
+            {"winner": "1", "dimensions": {"medical_safety": "2"}, "reason": "系统①体验好但漏红旗"},
         ],
     )
     res = _run(cmp)
@@ -247,8 +249,8 @@ def test_inner_parallel_keeps_semantics():
     _stub(
         cmp,
         [
-            {"winner": "2", "dimensions": {"safety": "2"}, "reason": "系统②更稳"},  # pass1 2→B
-            {"winner": "1", "dimensions": {"safety": "1"}, "reason": "系统①更稳"},  # pass2 1→B
+            {"winner": "2", "dimensions": {"medical_safety": "2"}, "reason": "系统②更稳"},  # pass1 2→B
+            {"winner": "1", "dimensions": {"medical_safety": "1"}, "reason": "系统①更稳"},  # pass2 1→B
         ],
     )
     res = _run(cmp)

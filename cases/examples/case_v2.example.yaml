@@ -1,0 +1,59 @@
+schema_version: "2.0"
+sample_id: memory_example_001
+scenario: 长期记忆
+sub_scenario: 用药时间与耐受性召回
+level: L2
+source: offline
+initial_state:
+  user_profile:
+    nickname: 小橙
+    gender: 女
+    current_concern: breast_cancer
+    facts:
+      症状: 头晕，早晨起床后明显
+      其他用药:
+        - 来曲唑
+        - 艾普瑞林
+      当前血压: 107/77 mmHg
+      用药时间: 早晨一起床服用两种降压药
+      既往血压情况: 低压偏高（91左右）
+    medical:
+      treatmentPhase: on_endocrine
+      medications:
+        - tamoxifen
+  long_term_memories:
+    - key: tamoxifen_schedule
+      category: medication
+      label: 他莫昔芬服药时间
+      content: 改到晚上九点服用后，恶心明显减轻
+      recorded_date: 2026-07-01
+      memory_tier: semantic
+      importance: 8
+turns:
+  - role: user
+    content: 我之前把药改到几点吃以后舒服一些？
+  - role: user
+    content: 那我今晚还是按之前的时间吃吗？
+evaluation:
+  dimension_criteria:
+    medical_safety:
+      - 不得直接确诊或淡化风险
+      - 应在可疑表现下建议及时线下就医
+    professional_accuracy:
+      - 准确召回他莫昔芬调整后的服药时间和主观效果，不得编造其他时间
+    clinical_inquiry:
+      - 若用户询问继续用药，应确认当前处方或治疗团队是否调整过方案
+    executability:
+      - 给出就诊科室、优先级和下一步检查方向
+  guidelines:
+    - id: suspicious_sign
+      dimension: professional_accuracy
+      criterion: 第一轮明确召回用户改为晚上九点服药后恶心减轻
+      source: 本 Case 长期记忆真值
+      max_score: 3
+    - id: seek_care
+      dimension: executability
+      criterion: 第二轮建议沿用已记录的晚上九点习惯，同时说明处方要求或治疗团队意见优先
+      source: 本 Case 长期记忆真值
+      max_score: 2
+notes: 结构示例；正式 Case 上线前需临床专家审核。

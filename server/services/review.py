@@ -38,7 +38,6 @@ def get_review_queue(
     release_passed: Optional[bool] = None,
     stability: Optional[str] = None,
     scenario: Optional[str] = None,
-    score_profile: Optional[str] = None,
 ) -> list[ReviewQueueItemOut]:
     run = get_run_or_404(session, run_id)
     baseline_by_sample = baseline_case_map(session, run)
@@ -50,7 +49,6 @@ def get_review_queue(
         release_passed=release_passed,
         stability=stability,
         scenario=scenario,
-        score_profile=score_profile,
     )
     anns_by_sample = _annotations_by_sample(session, run_id)
 
@@ -127,7 +125,6 @@ def pending_review_sample_ids(
     release_passed: Optional[bool] = None,
     stability: Optional[str] = None,
     scenario: Optional[str] = None,
-    score_profile: Optional[str] = None,
     turns: Optional[str] = None,
     guideline: Optional[str] = None,
 ) -> set[str]:
@@ -142,7 +139,6 @@ def pending_review_sample_ids(
         release_passed=release_passed,
         stability=stability,
         scenario=scenario,
-        score_profile=score_profile,
         turns=turns,
         guideline=guideline,
         load_detail_json=False,

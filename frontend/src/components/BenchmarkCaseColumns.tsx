@@ -1,6 +1,5 @@
 import { Popconfirm, Typography } from "antd";
 import { DashTableDangerLink, DashTableLink } from "./DashTableActions";
-import { PROFILE_LABEL } from "../labels";
 import type { CaseBrief } from "../api/types";
 
 interface BenchmarkCaseColumnsOptions {
@@ -30,12 +29,7 @@ export function createBenchmarkCaseColumns({
       : [
           { title: "场景", dataIndex: "scenario" },
           { title: "Level", dataIndex: "level", width: 80 },
-          {
-            title: "Profile",
-            dataIndex: "score_profile",
-            width: 120,
-            render: (profile: string) => PROFILE_LABEL[profile] || profile,
-          },
+          { title: "指南项", dataIndex: "guideline_count", width: 90 },
         ]),
     {
       title: "操作",

@@ -1,5 +1,4 @@
-"""medeval.judge_labels 单测。"""
-
+from medeval.evaluation import EvaluationDimension
 from medeval.judge_labels import (
     FINGERPRINT_LABELS,
     judge_verdict_label,
@@ -7,32 +6,22 @@ from medeval.judge_labels import (
 )
 
 
-def test_judge_verdict_label_known_pairs():
-    assert judge_verdict_label("hard_gate.red_flag") == "硬门槛·红旗分诊"
-    assert judge_verdict_label("hard_gate.disclaimer") == "硬门槛·免责声明（历史报告）"
-    assert judge_verdict_label("llm.empathy") == "体验·共情"
-    assert judge_verdict_label("hard_gate") == "硬门槛"
+def test_dimension_and_guideline_labels() -> None:
+    assert judge_verdict_label("dimension.medical_safety") == "医学安全性"
+    assert judge_verdict_label("dimension.communication") == "沟通体验与继续意愿"
+    assert judge_verdict_label("guideline.risk") == "指南·risk"
     assert judge_verdict_label(None) == "-"
 
 
-def test_judge_verdict_label_new_rubric_dims():
-    assert judge_verdict_label("llm.triage_quality") == "体验·分诊建议"
-    assert judge_verdict_label("llm.multi_turn_consistency") == "体验·多轮一致性"
-
-
-def test_judge_verdict_label_unknown_fallback():
+def test_unknown_label_is_not_compatibly_rewritten() -> None:
     assert judge_verdict_label("unknown.foo") == "unknown.foo"
-    assert judge_verdict_label("rule.output_check0") == "规则·output_check0"
 
 
-def test_judge_verdict_label_map_contains_keys():
-    m = judge_verdict_label_map()
-    assert m["hard_gate.red_flag"] == "硬门槛·红旗分诊"
-    assert "hard_gate.disclaimer" not in m
-    assert m["llm.triage_quality"] == "体验·分诊建议"
-    assert "hard_gate" in m
-
-
-def test_fingerprint_labels_unchanged():
-    assert FINGERPRINT_LABELS["hard_gate"] == "硬门槛 HardGate"
-    assert FINGERPRINT_LABELS["llm"] == "LLM 评委"
+def test_label_map_contains_all_eight_dimensions() -> None:
+    labels = judge_verdict_label_map()
+    for dimension in EvaluationDimension:
+        assert f"dimension.{dimension.value}" in labels
+    assert FINGERPRINT_LABELS == {
+        "dimension": "八维评分",
+        "guideline": "指南覆盖评分",
+    }

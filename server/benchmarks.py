@@ -1,7 +1,7 @@
 """benchmark 库：上传/校验/存储、内置注册、用例解析。
 
 上传用例集用现有 ``medeval.loader.load_cases`` 校验（schema + 重复 sample_id），校验失败拒绝。
-内置 ``cases/breast_cancer`` 注册为 ``source=builtin``。存储路径统一存绝对路径，便于 load_cases。
+新的正式 ``cases/benchmark`` 在存在 Case 时注册为 ``source=builtin``。存储路径统一存绝对路径，便于 load_cases。
 """
 
 from __future__ import annotations
@@ -383,10 +383,6 @@ def _attachment_notes(value: Any) -> str:
     return "；".join(notes)
 
 
-def _collect_score_profiles(cases: list[TestCase]) -> list[str]:
-    return sorted({c.score_profile.value for c in cases})
-
-
 def _collect_levels(cases: list[TestCase]) -> list[str]:
     return sorted({getattr(c.level, "value", c.level) for c in cases})
 
@@ -440,7 +436,7 @@ def _create_uploaded_benchmark_from_yaml_bytes(
         version=version or "v1",
         source=source,
         case_count=len(cases),
-        tags=_collect_score_profiles(cases),
+        tags=[],
         levels=_collect_levels(cases),
         storage_path="",
         created_by=created_by,
@@ -449,6 +445,8 @@ def _create_uploaded_benchmark_from_yaml_bytes(
     session.flush()
 
     dest_dir = settings.uploads_dir / str(row.id)
+    # 数据库从空库重建时，ID 可能与磁盘上的孤儿目录重复；新建记录只保留本次上传。
+    shutil.rmtree(dest_dir, ignore_errors=True)
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / _safe_yaml_name(filename)
     tmp.replace(dest)
@@ -473,13 +471,14 @@ def feishu_base_records_to_yaml_bytes(records: list[dict[str, Any]]) -> bytes:
 
         title = first_user_turn_content(turns) or _cell_text(fields.get("会话标题"))
         case: dict[str, Any] = {
+            "schema_version": "2.0",
             "sample_id": sample_id,
             "scenario": "线上真实对话",
             "sub_scenario": title or sample_id,
             "level": "L2",
-            "score_profile": "default",
             "source": "online",
             "turns": turns,
+            "evaluation": {"dimension_criteria": {}, "guidelines": []},
         }
         image_notes = _attachment_notes(fields.get("第一轮用户输入(图片)"))
         notes = _case_notes(
@@ -489,7 +488,7 @@ def feishu_base_records_to_yaml_bytes(records: list[dict[str, Any]]) -> bytes:
         if notes:
             case["notes"] = notes
         if rich_messages:
-            case["metadata"] = {"rich_messages": rich_messages}
+            case["rich_messages"] = rich_messages
         cases.append(case)
 
     if not cases:
@@ -520,19 +519,20 @@ def _sheet_to_cases(sheet: dict[str, Any], seen: set[str]) -> list[dict[str, Any
         sample_id = _unique_online_sample_id(seen, raw_id, index)
         title = first_user_turn_content(turns) or _cell_text(fields.get("会话标题"))
         case: dict[str, Any] = {
+            "schema_version": "2.0",
             "sample_id": sample_id,
             "scenario": "线上真实对话",
             "sub_scenario": title or sample_id,
             "level": "L2",
-            "score_profile": "default",
             "source": "online",
             "turns": turns,
+            "evaluation": {"dimension_criteria": {}, "guidelines": []},
         }
         notes = _case_notes(user_profile=_user_profile_text(fields))
         if notes:
             case["notes"] = notes
         if rich_messages:
-            case["metadata"] = {"rich_messages": rich_messages}
+            case["rich_messages"] = rich_messages
         cases.append(case)
     return cases
 
@@ -634,7 +634,7 @@ def _replace_uploaded_benchmark_with_yaml_bytes(
     tmp.replace(dest)
 
     benchmark.case_count = len(cases)
-    benchmark.tags = _collect_score_profiles(cases)
+    benchmark.tags = []
     benchmark.levels = _collect_levels(cases)
     benchmark.storage_path = str(dest_dir)
     benchmark.source = source
@@ -711,8 +711,8 @@ def create_uploaded_benchmark(
     )
 
 
-# 允许通过派生覆盖的 case 判据字段（仅判分相关，不含会话/元数据）。
-_CASE_OVERRIDE_FIELDS = ("expected_behavior", "hard_gates", "rubric", "scoring_points")
+# 派生 benchmark 只允许覆盖 V2 evaluation。
+_CASE_OVERRIDE_FIELDS = ("evaluation",)
 
 
 def _apply_case_overrides(
@@ -879,7 +879,7 @@ def overwrite_benchmark_from_yaml(
 def ensure_builtin_benchmark(
     session: Session, settings: Settings | None = None
 ) -> Benchmark | None:
-    """若内置 benchmark 尚未注册则创建（指向仓库 cases 目录）。幂等。"""
+    """若新版正式 benchmark 已有 Case 则注册；空目录不创建记录。"""
     settings = settings or get_settings()
     existing = session.execute(
         select(Benchmark).where(Benchmark.source == "builtin")
@@ -891,7 +891,7 @@ def ensure_builtin_benchmark(
     if existing is not None:
         # ponytail: 列表展示 case_count 须与磁盘同步，否则用例增删后仍显示旧值（如 71 vs 92）
         existing.case_count = len(cases)
-        existing.tags = _collect_score_profiles(cases)
+        existing.tags = []
         existing.levels = _collect_levels(cases)
         session.flush()
         return existing
@@ -900,11 +900,11 @@ def ensure_builtin_benchmark(
         return None
     row = Benchmark(
         name="乳腺癌专科 benchmark",
-        description="内置乳腺癌全病程套件（cases/breast_cancer）",
-        version="v1",
+        description="固定八维与指南评分正式套件（cases/benchmark）",
+        version="v2",
         source="builtin",
         case_count=len(cases),
-        tags=_collect_score_profiles(cases),
+        tags=[],
         levels=_collect_levels(cases),
         storage_path=str(cases_dir),
     )
@@ -966,7 +966,7 @@ def resolve_cases_path(benchmark: Benchmark) -> Path:
     return Path(benchmark.storage_path)
 
 
-# 用例解析结果缓存：键 = (storage_path, mtime, score_profiles)；mtime 变更（覆盖/替换）自动失效。
+# 用例解析结果缓存：键 = (storage_path, mtime)。
 # 返回深拷贝，保证调用方拿到与「每次重新解析」一致的独立对象，不会被其他请求改动污染。
 _CASES_CACHE: dict[tuple, list[TestCase]] = {}
 
@@ -984,25 +984,22 @@ def _path_mtime(path: str, settings: Settings) -> float | None:
 def load_benchmark_cases(
     benchmark: Benchmark,
     *,
-    score_profiles: list[str] | None = None,
     settings: Settings | None = None,
 ) -> list[TestCase]:
-    """加载某 benchmark 的用例（可按 score_profile 过滤）。
+    """加载某 benchmark 的 V2 用例。
 
-    按 ``(storage_path, mtime, score_profiles)`` 做进程内缓存，避免发起页/重判反复读盘解析 YAML；
+    按 ``(storage_path, mtime)`` 做进程内缓存；
     文件被覆盖（mtime 变化）即自动失效。返回深拷贝以隔离调用方的就地修改。
     """
     settings = settings or get_settings()
-    profiles = tuple(score_profiles or [])
     mtime = _path_mtime(benchmark.storage_path, settings)
-    key = (benchmark.storage_path, mtime, profiles)
+    key = (benchmark.storage_path, mtime)
     if mtime is not None:
         cached = _CASES_CACHE.get(key)
         if cached is not None:
             return [c.model_copy(deep=True) for c in cached]
     cases = load_cases(
         include=[benchmark.storage_path],
-        score_profiles=list(profiles),
         base_dir=settings.project_root,
     )
     if mtime is not None:

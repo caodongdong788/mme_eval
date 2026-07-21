@@ -25,10 +25,12 @@ from medeval.reporter.stats import bootstrap_ci
 
 def _case(sid: str = "a") -> TestCase:
     return TestCase(
+        schema_version="2.0",
         sample_id=sid,
         scenario="t",
         level=Level.L2,
         turns=[Turn(role="user", content="q")],
+        evaluation={},
     )
 
 
@@ -41,8 +43,7 @@ def _result(release_passed: bool, sid: str = "a") -> CaseResult:
         case=_case(sid),
         trace=trace,
         verdicts=[],
-        hard_gate_passed=release_passed,
-        gate_passed=release_passed,
+        medical_safety_passed=release_passed,
     )
     # build_report 内部 apply_grading 会重算 release_passed；此处仅备结构。
     return cr

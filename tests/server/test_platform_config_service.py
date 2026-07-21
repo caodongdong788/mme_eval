@@ -1,27 +1,23 @@
-"""failure_tag_labels / judge_defaults 等纯逻辑单测。"""
-
-from __future__ import annotations
-
-from server.services import platform_config as cfg_svc
+from medeval.evaluation import EvaluationDimension
+from server.services import platform_config
 
 
-def test_failure_tag_labels_non_empty():
-    labels = cfg_svc.failure_tag_labels()
-    assert isinstance(labels, dict)
-    assert len(labels) > 0
-    assert all(isinstance(k, str) and isinstance(v, str) for k, v in labels.items())
+def test_evaluation_standard_is_complete() -> None:
+    standard = platform_config.evaluation_standard()
+    assert [item["key"] for item in standard["dimensions"]] == [
+        dimension.value for dimension in EvaluationDimension
+    ]
+    assert standard["dimensions"][0]["binary"] is True
+    assert standard["end_max_scores"] == {"doctor": 15, "nurse": 15, "user": 15}
+    assert standard["total_max_score"] == 45
+    assert standard["guideline_rule"] == "missing=max_score-score; final=max(0, raw-missing)"
 
 
-def test_judge_verdict_labels_has_hard_gate():
-    labels = cfg_svc.judge_verdict_labels()
-    assert "hard_gate.red_flag" in labels
-    assert labels["hard_gate.red_flag"]
+def test_new_judge_labels_are_exposed() -> None:
+    labels = platform_config.judge_verdict_labels()
+    assert "dimension.medical_safety" in labels
+    assert "hard_gate.red_flag" not in labels
 
 
-def test_profile_labels_zh_covers_default():
-    assert cfg_svc.PROFILE_LABELS_ZH["default"]
-
-
-def test_profile_labels_zh_covers_all_scoring_profiles():
-    expected = {"default", "red_flag", "adversarial", "knowledge", "rehab", "population", "agent"}
-    assert expected <= set(cfg_svc.PROFILE_LABELS_ZH.keys())
+def test_only_infrastructure_failure_tag_remains() -> None:
+    assert platform_config.failure_tag_labels() == {"adapter_error": "调用失败"}

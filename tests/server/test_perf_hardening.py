@@ -11,13 +11,14 @@ from server.ingest import ingest_report
 from factories import make_report
 
 VALID_YAML = b"""
-- sample_id: up_001
+- schema_version: "2.0"
+  sample_id: up_001
   scenario: \xe7\x97\x87\xe7\x8a\xb6
   level: L3
-  score_profile: red_flag
   turns:
     - role: user
       content: x
+  evaluation: {}
 """.strip()
 
 

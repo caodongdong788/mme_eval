@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 from ..models_db import CaseResultRow, EvalRun
 from .run_comparability import judge_fingerprints_match, same_benchmark
 
-COMPOSITE_SWING_THRESHOLD = 0.25
-DIMENSION_SWING_THRESHOLD = 0.15
+COMPOSITE_SWING_THRESHOLD = 5.0
+DIMENSION_SWING_THRESHOLD = 1.0
 
 
 def runs_comparable(current: EvalRun, baseline: EvalRun) -> bool:
@@ -37,8 +37,7 @@ def cross_run_diff_reasons(
 def _gate_flipped(current: CaseResultRow, baseline: CaseResultRow) -> bool:
     return (
         current.release_passed != baseline.release_passed
-        or current.hard_gate_passed != baseline.hard_gate_passed
-        or current.gate_passed != baseline.gate_passed
+        or current.medical_safety_passed != baseline.medical_safety_passed
     )
 
 

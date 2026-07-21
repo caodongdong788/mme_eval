@@ -30,7 +30,7 @@ const run = (id: number): RunSummary =>
     pass_rate: 0.9,
     passed: 9,
     total: 10,
-    hard_gate_failed: 0,
+    medical_safety_failed: 0,
     n_runs: 1,
     error_msg: "",
     has_traces: true,

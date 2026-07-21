@@ -217,10 +217,17 @@ export default function BenchmarksPage() {
       </Modal>
 
       <Drawer title={bm.casesTitle} width={720} open={bm.casesOpen} onClose={() => bm.setCasesOpen(false)}>
+        {bm.casesError ? (
+          <AsyncLoadError
+            message={bm.casesError}
+            onRetry={() => bm.casesBenchmark && bm.viewCases(bm.casesBenchmark)}
+          />
+        ) : null}
         <Table
           className="dash-table"
           rowKey="sample_id"
           size="small"
+          loading={bm.casesLoading}
           columns={caseColumns}
           dataSource={bm.cases}
           pagination={{ pageSize: 20 }}

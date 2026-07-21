@@ -27,7 +27,7 @@
 ## 5. 验证与归档
 
 - [x] 5.1 `pytest` 全量转绿（含新增测试），确认 preview 端点零落库、零 bot 调用
-- [x] 5.2 前端按 `.cursor/rules/frontend-workflow.mdc` 自审：单一 UI 库、token 单一信任源、无裸 hex
+- [x] 5.2 前端按 `AGENTS.md` 自审：单一 UI 库、token 单一信任源、无裸 hex
 - [x] 5.3 `medeval run --config config.yaml --dry-run` 跑通（确认主链路未受影响）
 - [x] 5.4 `graphify update .` 刷新图谱
 - [x] 5.5 `openspec validate case-criteria-preview-rejudge --strict` 通过；完成后走 `openspec archive`

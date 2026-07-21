@@ -1,7 +1,6 @@
 """CLI 层 rejudge / prune 冒烟测试（change 2026-06-04-persist-traces-rejudge）。
 
-不触网：config 关闭 llm / scoring_point / semantic_adjudicator / lark，
-仅 hard_gate + rule 离线判分。
+不触网：关闭八维和指南 Judge，仅验证留痕重判与清理流程。
 """
 
 from __future__ import annotations
@@ -36,10 +35,8 @@ adapter:
     model: m
     system_prompt: p
 judges:
-  hard_gates: {enabled: true}
-  rule: {enabled: true}
-  llm: {enabled: false}
-  scoring_point: {enabled: false}
+  eight_dimension: {enabled: false}
+  guideline: {enabled: false}
 reporter:
   lark: {enabled: false}
 """
@@ -61,11 +58,20 @@ class _StubAdapter(BaseAdapter):
 def _seed_run(base: Path, slug: str) -> Path:
     """用 stub adapter 造一个含 report.json + traces.jsonl.gz 的 run 目录。"""
     cfg = load_config(base / "config.yaml")
-    cases = [TestCase(sample_id="c0", scenario="s", level=Level.L2, turns=[Turn(content="q")])]
+    cases = [
+        TestCase(
+            schema_version="2.0",
+            sample_id="c0",
+            scenario="s",
+            level=Level.L2,
+            turns=[Turn(content="q")],
+            evaluation={},
+        )
+    ]
     judges = build_judges(cfg.judges)
     out_dir = base / "outputs" / slug
     report = asyncio.run(
-        evaluate(cfg, cases, _StubAdapter(), judges, None, run_name=slug, out_dir=out_dir)
+        evaluate(cfg, cases, _StubAdapter(), judges, run_name=slug, out_dir=out_dir)
     )
     write_core_artifacts(report, out_dir, prev_json=None)
     return out_dir

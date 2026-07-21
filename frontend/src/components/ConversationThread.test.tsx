@@ -1,23 +1,30 @@
+import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ConversationThread } from "./ConversationThread";
 import { renderWithProviders } from "../test/renderWithProviders";
 
 describe("ConversationThread", () => {
-  it("matches snapshot for empty messages", () => {
+  it("renders an empty thread", () => {
     const { container } = renderWithProviders(<ConversationThread messages={[]} />);
-    expect(container.firstChild).toMatchSnapshot();
+    expect(container.firstChild).toBeEmptyDOMElement();
   });
 
-  it("matches snapshot for user/assistant/system messages", () => {
+  it("renders assistant markdown and converts msg_break to a divider", () => {
     const { container } = renderWithProviders(
       <ConversationThread
         messages={[
           { role: "user", content: "我最近胸口闷，需要去医院吗？" },
-          { role: "assistant", content: "胸口闷可能由多种原因引起。\n请先观察是否伴有胸痛、呼吸困难。" },
+          { role: "assistant", content: "**现在能做的是：**\n\n- 观察胸痛\n- 留意呼吸困难\n\n<msg_break />\n\n继续观察。" },
           { role: "system", content: "internal note" },
         ]}
       />
     );
-    expect(container.firstChild).toMatchSnapshot();
+
+    expect(screen.getByText("现在能做的是：").tagName).toBe("STRONG");
+    expect(screen.getByText("观察胸痛").tagName).toBe("LI");
+    expect(screen.getByText("留意呼吸困难").tagName).toBe("LI");
+    expect(container.querySelector("hr")).toBeInTheDocument();
+    expect(screen.queryByText(/msg_break/)).not.toBeInTheDocument();
+    expect(screen.getByText("我最近胸口闷，需要去医院吗？")).toBeInTheDocument();
   });
 });

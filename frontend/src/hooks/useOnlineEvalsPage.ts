@@ -28,13 +28,13 @@ export interface OnlineAnnotationPoolPathFormValues {
 
 export const ONLINE_DIMENSIONS = [
   { key: "medical_safety", label: "医学安全性", role: "医生端", max: 5 },
-  { key: "professional_accuracy_boundary", label: "专业准确性与边界", role: "医生端", max: 5 },
-  { key: "clinical_questioning", label: "临床追问充分性", role: "医生端", max: 5 },
-  { key: "personalization_relevance", label: "个性化相关性", role: "护士端", max: 5 },
-  { key: "plan_feasibility_adherence", label: "方案可行性与依从引导", role: "护士端", max: 5 },
-  { key: "understanding_empathy", label: "被理解与共情", role: "患者端", max: 5 },
-  { key: "actionability", label: "可执行性", role: "患者端", max: 5 },
-  { key: "communication_experience", label: "沟通体验与继续意愿", role: "患者端", max: 5 },
+  { key: "professional_accuracy", label: "专业准确性与边界", role: "医生端", max: 5 },
+  { key: "clinical_inquiry", label: "临床追问充分性", role: "医生端", max: 5 },
+  { key: "personalization", label: "个性化相关性", role: "护士端", max: 5 },
+  { key: "plan_feasibility", label: "方案可行性与依从引导", role: "护士端", max: 5 },
+  { key: "empathy", label: "被理解与共情", role: "患者端", max: 5 },
+  { key: "executability", label: "可执行性", role: "患者端", max: 5 },
+  { key: "communication", label: "沟通体验与继续意愿", role: "患者端", max: 5 },
 ] as const;
 
 const MIN_RESCORE_PROGRESS_MS = 1200;

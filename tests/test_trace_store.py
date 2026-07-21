@@ -30,7 +30,14 @@ def _trace(reply: str = "ok", error: str | None = None, raw=None) -> Conversatio
 
 
 def _case(sid: str) -> TestCase:
-    return TestCase(sample_id=sid, scenario="s", level=Level.L2, turns=[Turn(content="q")])
+    return TestCase(
+        schema_version="2.0",
+        sample_id=sid,
+        scenario="s",
+        level=Level.L2,
+        turns=[Turn(content="q")],
+        evaluation={},
+    )
 
 
 def _meta(fp: str = "fp123", store_raw: str = "always", n_runs: int = 1, n_cases: int = 1):

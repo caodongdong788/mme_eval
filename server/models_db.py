@@ -87,7 +87,7 @@ class EvalRun(Base):
     total: Mapped[int] = mapped_column(Integer, default=0)
     passed: Mapped[int] = mapped_column(Integer, default=0)
     pass_rate: Mapped[float] = mapped_column(Float, default=0.0)
-    hard_gate_failed: Mapped[int] = mapped_column(Integer, default=0)
+    medical_safety_failed: Mapped[int] = mapped_column(Integer, default=0)
     n_runs: Mapped[int] = mapped_column(Integer, default=1)
 
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
@@ -141,25 +141,21 @@ class CaseResultRow(Base):
     source: Mapped[str] = mapped_column(String(40), default="")
     tags: Mapped[list[str]] = mapped_column(JSON, default=list)
 
-    hard_gate_passed: Mapped[bool] = mapped_column(Boolean, default=True)
-    gate_passed: Mapped[bool] = mapped_column(Boolean, default=True)
+    medical_safety_passed: Mapped[bool] = mapped_column(Boolean, default=True)
     release_passed: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
 
     composite_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    guideline_earned: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    guideline_max: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     grade: Mapped[str] = mapped_column(String(20), default="")
-    score_profile: Mapped[str] = mapped_column(String(40), default="", index=True)
-    soft_score: Mapped[float] = mapped_column(Float, default=0.0)
-    soft_score_max: Mapped[float] = mapped_column(Float, default=0.0)
     stability: Mapped[str] = mapped_column(String(20), default="stable_pass", index=True)
-    needs_human_review: Mapped[bool] = mapped_column(Boolean, default=False)
-    guideline_match_rate: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     latency_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     # 成本/Token 观测（仅观测、不否决）：该用例总 token 与折算成本。
     total_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     cost: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     failure_tags: Mapped[list[str]] = mapped_column(JSON, default=list)
 
-    # 完整 CaseResult.model_dump(mode="json")：对话、verdicts、扣分原因、命中关键词、得分点等
+    # 完整 CaseResult：对话、八维原始/最终分、指南得分和扣分原因。
     detail_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
@@ -407,8 +403,7 @@ class JudgeModelConfig(Base):
     base_url: Mapped[str] = mapped_column(String(500), default="")
     api_version: Mapped[str] = mapped_column(String(60), default="")
     temperature: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    # 自定义 LLM-as-Judge prompt 模板；空=内核内置。须含 {conversation}/{rubric_text}/{tool_context}。
-    prompt_template: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    enable_thinking: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     # Pairwise 对比题间并发度（仅作用于对比，不影响主评测链路）。默认 4。
     pairwise_concurrency: Mapped[int] = mapped_column(Integer, default=4)
     # 只写不读：仅服务端发起评测时读取注入，接口侧只暴露 has_api_key。
@@ -423,29 +418,6 @@ class JudgeModelConfig(Base):
     def has_api_key(self) -> bool:
         return bool(self.api_key)
 
-
-class ReleaseThresholdConfig(Base):
-    """按评分档（profile）覆盖评分口径：权重 / 扣分 / 及格线 / gates。
-
-    无行或某列为 NULL = 该字段沿用 config.yaml。仅作用于之后发起的新评测与重判。
-    composite_threshold 非 NULL 表示覆盖 min_composite（历史字段名保留）。
-    """
-
-    __tablename__ = "release_threshold_config"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    profile: Mapped[str] = mapped_column(String(60), unique=True, index=True)
-    composite_threshold: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    module_max: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
-    function_deduction: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    safety_function_deduction: Mapped[Optional[float]] = mapped_column(
-        Float, nullable=True
-    )
-    gates: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
-    updated_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), onupdate=func.now()
-    )
 
 class FeishuUser(Base):
     """一个飞书登录用户及其 per-user OAuth token 缓存。

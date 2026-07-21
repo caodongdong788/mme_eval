@@ -15,12 +15,14 @@ def _case_with_tokens(
         kwargs["per_run_tokens"] = per_run_tokens
     return CaseResult(
         case=TestCase(
+            schema_version="2.0",
             sample_id="bc_token_1",
             scenario="症状",
             sub_scenario="子",
             level=Level.L3,
             source=Source.offline,
             turns=[Turn(role="user", content="test")],
+            evaluation={},
         ),
         trace=ConversationTrace(
             messages=[
@@ -30,8 +32,7 @@ def _case_with_tokens(
             turn_token_usage=turn_usage or [],
         ),
         verdicts=[],
-        hard_gate_passed=True,
-        gate_passed=True,
+        medical_safety_passed=True,
         release_passed=True,
         **kwargs,
     )
