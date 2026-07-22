@@ -51,13 +51,61 @@ function comparable(value: string): string {
     .replace(/[\s，。；、：:,.!?！？（）()【】\[\]「」『』"'`*—\-]/g, "");
 }
 
-function candidatePhrases(value: unknown): string[] {
-  const text = renderValue(value);
-  return text
-    .split(/[\n，。；、：:,.!?！？]/)
-    .map((part) => part.trim())
-    .filter((part) => comparable(part).length >= 4)
-    .sort((a, b) => comparable(b).length - comparable(a).length);
+function longestCommonExcerpt(left: string, right: string): string {
+  const a = comparable(left);
+  const b = comparable(right);
+  if (!a || !b) return "";
+  let previous = new Array<number>(b.length + 1).fill(0);
+  let bestLength = 0;
+  let bestEnd = 0;
+  for (let row = 1; row <= a.length; row += 1) {
+    const current = new Array<number>(b.length + 1).fill(0);
+    for (let column = 1; column <= b.length; column += 1) {
+      if (a[row - 1] === b[column - 1]) {
+        current[column] = previous[column - 1] + 1;
+        if (current[column] > bestLength) {
+          bestLength = current[column];
+          bestEnd = row;
+        }
+      }
+    }
+    previous = current;
+  }
+  // 六个连续字符可排除常见药名、泛化的“产后恢复”等偶然重合；同时容忍
+  // 模型在“医生提示过产后 5 天”这类句子中插入一个语气词。
+  return bestLength >= 6 ? a.slice(bestEnd - bestLength, bestEnd) : "";
+}
+
+function fuzzyExcerpt(left: string, right: string): string {
+  const directExcerpt = longestCommonExcerpt(left, right);
+  if (directExcerpt) return directExcerpt;
+
+  const a = comparable(left);
+  const b = comparable(right);
+  if (a.length < 4 || b.length < 4) return "";
+
+  // 对较短的改写（例如“尽快恢复服用”→“尽快恢复吃”）使用二元片段重叠。
+  // 这并不是要求整句相同；但至少要求三个连续的二元片段、并覆盖较短文本的
+  // 40%，避免“产后”“用药”等常见词造成误命中。
+  const bigrams = (text: string) => new Set(
+    Array.from({ length: text.length - 1 }, (_, index) => text.slice(index, index + 2)),
+  );
+  const sourceBigrams = bigrams(a);
+  const replyBigrams = bigrams(b);
+  const shared = [...sourceBigrams].filter((gram) => replyBigrams.has(gram));
+  const coverage = shared.length / Math.min(sourceBigrams.size, replyBigrams.size);
+  if (shared.length < 3 || coverage < 0.4) return "";
+
+  // 用最长公共片段展示可核对的证据。即使片段不足六字，前述重叠阈值已保证
+  // 它不是单个泛化词带来的偶然相同。
+  let best = "";
+  for (let start = 0; start < a.length; start += 1) {
+    for (let end = start + 2; end <= a.length; end += 1) {
+      const candidate = a.slice(start, end);
+      if (candidate.length > best.length && b.includes(candidate)) best = candidate;
+    }
+  }
+  return best;
 }
 
 function timelineFacts(value: unknown): Array<{ label: string; content: unknown }> {
@@ -73,15 +121,15 @@ function timelineFacts(value: unknown): Array<{ label: string; content: unknown 
 }
 
 function referenceTurns(content: unknown, assistantMessages: AssistantMessage[]): { turns: number[]; evidence: string } | null {
-  const phrases = candidatePhrases(content);
-  for (const phrase of phrases) {
-    const needle = comparable(phrase);
-    const turns = assistantMessages.flatMap((message, index) => (
-      comparable(message.content).includes(needle) ? [index + 1] : []
-    ));
-    if (turns.length) return { turns, evidence: phrase };
-  }
-  return null;
+  const sourceText = renderValue(content);
+  let evidence = "";
+  const turns = assistantMessages.flatMap((message, index) => {
+    const excerpt = fuzzyExcerpt(sourceText, message.content);
+    if (!excerpt) return [];
+    if (excerpt.length > evidence.length) evidence = excerpt;
+    return [index + 1];
+  });
+  return turns.length ? { turns, evidence } : null;
 }
 
 export function findConversationContextReferences(
@@ -117,7 +165,7 @@ function ReferenceRows({ references, kind }: { references: ContextReference[]; k
             <span>{reference.turns.map((turn) => <Tag key={turn}>回复 {turn}</Tag>)}</span>
           </div>
           <p>{renderValue(reference.content)}</p>
-          <small>命中：{reference.evidence}</small>
+          <small>模糊命中：{reference.evidence}</small>
         </article>
       ))}
     </div>
@@ -136,7 +184,7 @@ export function ConversationContextReferences({
   const factCount = references.filter((reference) => reference.kind === "fact").length;
   return (
     <div className="conversation-context-references">
-      <p className="conversation-context-note">仅展示回复正文中可确认命中的预置上下文；未命中不代表未注入。</p>
+      <p className="conversation-context-note">按关键片段模糊匹配展示回复中可确认的预置上下文；未命中不代表未注入。</p>
       <section>
         <header><Typography.Text strong>引用的用户档案</Typography.Text><span>{profileCount} 项</span></header>
         <ReferenceRows references={references} kind="profile" />
