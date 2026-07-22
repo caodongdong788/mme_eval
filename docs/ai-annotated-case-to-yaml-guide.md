@@ -228,60 +228,27 @@ guidelines:
 ```yaml
 initial_state:
   user_profile:
-    nickname: 小橙
-    gender: 女
-    current_concern: 乳腺癌诊疗
-    facts:
-      当前血压: 107/77 mmHg
-      其他用药:
-        - 来曲唑
-        - 艾普瑞林
-    medical:
-      treatmentPhase: on_endocrine
-  long_term_memories:
-    - key: tamoxifen_schedule
-      category: medication
-      label: 他莫昔芬服药时间
-      content: 改到晚上九点服用后，恶心明显减轻
-      recorded_date: 2026-07-01
-      memory_tier: semantic
-      importance: 8
+    昵称: 小橙
+    性别: 女
+    当前血压: 107/77 mmHg
+    其他用药: [来曲唑, 艾普瑞林]
+    治疗阶段: 内分泌治疗
+  Timeline:
+    - 他莫昔芬服药时间: 改到晚上九点服用后，恶心明显减轻
+      记录日期: 2026-07-01
 ```
 
 ### `user_profile`
 
-- 固定字段：`nickname`、`birthday`、`gender`、`current_concern`、`medical`、`facts`；
-- `gender` 只能是 `男` 或 `女`；
-- `current_concern` 可直接使用中文业务描述，例如 `乳腺结节随访`、`乳腺炎`。原文会
-  作为“当前关注”传给 Agent；可识别的乳腺分类会额外映射为 cx-agent 的内部分类；
-- 任意、不固定的画像 Key 放在 `facts`；最多 50 个顶层字段，Key 长度 1～80，
-  总 JSON 长度不超过 8000 字符；
-- 需要参与 cx-agent 标准医疗档案逻辑的 canonical 字段放入 `medical`，内部沿用 cx-agent
-  的 camelCase；
+- `user_profile` 是自由键值对象，字段名和层级均不固定；直接保留原始用户画像即可；
+- 若使用 `nickname`、`gender`、`birthday`、`current_concern`，平台会在可识别时同步
+  到 cx-agent 的标准档案；其他字段同样会以画像事实传给 Agent；
 - 原数据没有的画像字段不要补全，不要用 `unknown`、`待确认` 等假事实占位。
 
-### `long_term_memories`
+### `Timeline`
 
-| Key | 规则 |
-|---|---|
-| `key` | 稳定主题键，1～100 字符；同一主题保持一致 |
-| `category` | 见下方枚举 |
-| `label` | 展示名，1～40 字符 |
-| `content` | 事实正文，1～200 字符 |
-| `note` | 可选补充，最多 400 字符 |
-| `recorded_date` | 可选，`YYYY-MM-DD`，记录进入系统的日期 |
-| `event_date` | 可选，`YYYY-MM-DD`，事实实际发生的日期 |
-| `importance` | 严格整数 `1..10`，默认 5 |
-| `memory_tier` | `semantic` 稳定事实；`event` 阶段性事件，默认 `event` |
-
-`category` 只能是：
-
-```text
-medication, side_effect, symptom, metric, diet, activity, mood,
-contraindication, risk_flag, daily_score, other
-```
-
-同一个 Case 内，`key + recorded_date` 组合不能重复。Judge 会看到完整 `initial_state` 真值，
+`Timeline` 是自由对象列表。每个对象的任意键都会作为一条历史事实写入，不需要预设
+`key`、`category`、`label`、`content` 等内部字段。Judge 会看到完整 `initial_state` 真值，
 因此召回要求应明确写入对应维度或指南，例如：
 
 ```yaml
@@ -340,7 +307,7 @@ guidelines:
 | 标准答案中的关键知识点 | 原子化 `guidelines[]` |
 | 要点权重 | `guidelines[].max_score`，归一到整数 1～5 |
 | 用户资料 | `initial_state.user_profile` |
-| 历史事实 / Timeline | `initial_state.long_term_memories` |
+| 历史事实 / Timeline | `initial_state.Timeline` |
 
 如果原始标注没有某个目标字段：
 
@@ -502,7 +469,7 @@ cases:
 4. medical_safety 只能写在 dimension_criteria，guideline 不能绑定 medical_safety。
 5. guideline.id 在单题内唯一且必须是字符串；max_score 必须是 1～5 的整数。
 6. 多轮题的指南要标明第几轮，并检查是否正确承接上一轮。
-7. 用户画像的任意字段放 facts；标准医疗字段放 medical；长期事实放 long_term_memories。
+7. 用户画像和 Timeline 都直接保留原始键值，不需要预设字段名。
 8. 不确定且无法从原数据推断的必填信息不要编造，放入 conversion_issues。
 
 请分两步工作：

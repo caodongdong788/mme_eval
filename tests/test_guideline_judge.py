@@ -61,13 +61,9 @@ def test_prompt_includes_case_initial_state_without_counting_it_as_coverage() ->
     raw = raw_case()
     raw["initial_state"] = {
         "user_profile": {"nickname": "小橙"},
-        "long_term_memories": [
+        "Timeline": [
             {
-                "key": "sleep_preference",
-                "category": "activity",
-                "label": "睡前习惯",
-                "content": "睡前听十分钟轻音乐更容易入睡",
-                "memory_tier": "semantic",
+                "睡前习惯": "睡前听十分钟轻音乐更容易入睡",
             }
         ],
     }
@@ -84,7 +80,7 @@ def test_prompt_includes_case_initial_state_without_counting_it_as_coverage() ->
     asyncio.run(judge.judge(TestCase.model_validate(raw), trace()))
 
     assert "Case 初始化真值" in captured
-    assert "sleep_preference" in captured
+    assert "睡前习惯" in captured
     assert "不得直接算作 bot 已覆盖指南" in captured
 
 

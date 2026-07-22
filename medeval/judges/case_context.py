@@ -10,6 +10,7 @@ from ..models import TestCase
 def format_initial_state(case: TestCase) -> str:
     payload = case.initial_state.model_dump(
         mode="json",
+        by_alias=True,
         exclude_none=True,
         exclude_defaults=True,
     )

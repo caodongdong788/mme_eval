@@ -18,20 +18,13 @@ level: L2
 source: offline
 initial_state:
   user_profile:
-    nickname: 小橙
-    facts:
-      症状: 头晕，早晨起床后明显
-      当前血压: 107/77 mmHg
-      其他用药: [来曲唑, 艾普瑞林]
-    medical:
-      treatmentPhase: on_endocrine
-  long_term_memories:
-    - key: tamoxifen_schedule
-      category: medication
-      label: 他莫昔芬服药时间
-      content: 改到晚上九点服用后，恶心明显减轻
-      memory_tier: semantic
-      importance: 8
+    昵称: 小橙
+    症状: 头晕，早晨起床后明显
+    当前血压: 107/77 mmHg
+    其他用药: [来曲唑, 艾普瑞林]
+    治疗阶段: 内分泌治疗
+  Timeline:
+    - 他莫昔芬服药时间: 改到晚上九点服用后，恶心明显减轻
 turns:
   - role: user
     content: 用户问题
@@ -53,24 +46,15 @@ notes: 可选说明
 ## 用户画像与长期记忆
 
 `initial_state` 可选，仅用于需要预置账号状态的 Case。执行时系统会先清空专用测试账号，
-再写入 `user_profile` 和 `long_term_memories`，之后才发送第一轮用户问题。
+再写入 `user_profile` 和 `Timeline`，之后才发送第一轮用户问题。
 系统使用两套相互独立的账号池：`101～103` 服务普通 Case，`201～203` 仅服务带
 `initial_state` 的长期记忆 Case。每个 Case/run 临时租用一个账号，完整多轮结束后释放；
 顺序执行时账号可复用，并会在下一次租用时再次清空和重新注入。
 
-- `user_profile`：基础画像字段使用 snake_case。
-- `user_profile.facts`：任意 key 的 Case 画像事实，不需要为每个新 key 修改 schema；支持
-  字符串、数字、布尔值、空值、数组和嵌套对象，最多 50 个顶层字段、总长不超过 8000 字符。
-  这部分作为“数据而非指令”直接进入 cx-agent 第二条 system 上下文。
-- `user_profile.medical`：cx-agent 已有的标准医疗档案字段，其内部沿用 canonical camelCase；
-  需要参与病历夹或标准医疗逻辑的字段应放这里，而不是重复放入 `facts`。
-- `long_term_memories[].key`：Timeline 的稳定主题键，同一主题后续精确召回时使用。
-- `category`：记忆类别，支持 `medication`、`side_effect`、`symptom`、`metric`、
-  `diet`、`activity`、`mood`、`contraindication`、`risk_flag`、`daily_score`、`other`。
-- `content`：该时间点的事实正文；`recorded_date` 是记录日期，省略时使用评测当天。
-- `event_date`：事实真实发生日期，适合“上个月开始潮热”这类追溯信息。
-- `memory_tier`：`semantic` 表示稳定长期事实，`event` 表示阶段性事件。
-- `importance`：1～10，影响 Timeline 索引中的优先级。
+- `user_profile`：完全自由的键值对象。所有字段都会作为“数据而非指令”传给 Agent，
+  不需要预先定义字段名，也不要求拆到 `facts` 或 `medical`。
+- `Timeline`：完全自由的对象列表。每个对象中的任意键都会作为一条历史事实写入 Agent
+  Timeline；不用填写 `key`、`category`、`label`、`content` 等内部字段。
 
 多轮问题继续写在 `turns` 中。指南可以明确“第 1 轮应召回什么、第 2 轮应如何承接”，
 Judge 会同时看到完整对话与 `initial_state` 真值。

@@ -57,42 +57,31 @@ def test_v2_schema_accepts_list_guideline_and_case_type() -> None:
     assert point.deduction_rule.startswith("扣分规则")
 
 
-def test_v2_schema_accepts_profile_and_long_term_memory_initial_state() -> None:
+def test_v2_schema_accepts_free_profile_and_timeline_initial_state() -> None:
     raw = raw_case()
     raw["initial_state"] = {
         "user_profile": {
-            "nickname": "小橙",
-            "gender": "女",
-            "current_concern": "breast_cancer",
-            "facts": {
-                "症状": "头晕，早晨起床后明显",
-                "当前血压": "107/77 mmHg",
-                "其他用药": ["来曲唑", "艾普瑞林"],
-            },
-            "medical": {
-                "treatmentPhase": "on_endocrine",
-                "medications": ["tamoxifen"],
-            },
+            "昵称": "小橙",
+            "当前血压": "107/77 mmHg",
+            "其他用药": ["来曲唑", "艾普瑞林"],
+            "治疗阶段": "内分泌治疗",
         },
-        "long_term_memories": [
+        "Timeline": [
             {
-                "key": "tamoxifen_schedule",
-                "category": "medication",
-                "label": "他莫昔芬服药时间",
-                "content": "改到晚上九点服用后，恶心明显减轻",
-                "recorded_date": "2026-07-01",
-                "memory_tier": "semantic",
-                "importance": 8,
+                "用药时间": "改到晚上九点服用后，恶心明显减轻",
+                "记录日期": "2026-07-01",
             }
         ],
     }
 
     case = TestCase.model_validate(raw)
 
-    assert case.initial_state.user_profile.nickname == "小橙"
-    assert case.initial_state.user_profile.facts["当前血压"] == "107/77 mmHg"
-    assert case.initial_state.long_term_memories[0].key == "tamoxifen_schedule"
-    assert case.initial_state.long_term_memories[0].importance == 8
+    assert case.initial_state.user_profile["昵称"] == "小橙"
+    assert case.initial_state.user_profile["当前血压"] == "107/77 mmHg"
+    assert case.initial_state.timeline[0]["用药时间"].startswith("改到晚上")
+    agent_payload = case.initial_state.to_agent_payload()
+    assert agent_payload["user_profile"]["facts"]["治疗阶段"] == "内分泌治疗"
+    assert agent_payload["long_term_memories"][0]["label"] == "用药时间"
 
 
 def test_v2_schema_accepts_arbitrary_chinese_current_concern() -> None:
@@ -105,35 +94,16 @@ def test_v2_schema_accepts_arbitrary_chinese_current_concern() -> None:
 
     case = TestCase.model_validate(raw)
 
-    assert case.initial_state.user_profile.current_concern.startswith("乳腺炎")
+    assert case.initial_state.user_profile["current_concern"].startswith("乳腺炎")
     agent_profile = case.initial_state.to_agent_payload()["user_profile"]
     assert "current_concern" not in agent_profile
     assert agent_profile["facts"]["当前关注"].startswith("乳腺炎")
 
 
-@pytest.mark.parametrize(
-    ("field", "value"),
-    [
-        ("category", "unknown"),
-        ("memory_tier", "archive"),
-        ("importance", 11),
-        ("recorded_date", "07/01/2026"),
-    ],
-)
-def test_v2_schema_rejects_invalid_long_term_memory(field: str, value) -> None:
+def test_v2_schema_rejects_old_long_term_memories_key() -> None:
     raw = raw_case()
-    memory = {
-        "key": "tamoxifen_schedule",
-        "category": "medication",
-        "label": "他莫昔芬服药时间",
-        "content": "改到晚上九点服用后，恶心明显减轻",
-        "memory_tier": "semantic",
-        "importance": 8,
-    }
-    memory[field] = value
-    raw["initial_state"] = {"long_term_memories": [memory]}
-
-    with pytest.raises(ValidationError, match=field):
+    raw["initial_state"] = {"long_term_memories": []}
+    with pytest.raises(ValidationError, match="long_term_memories"):
         TestCase.model_validate(raw)
 
 
@@ -158,20 +128,11 @@ def test_v2_schema_rejects_guideline_source_key() -> None:
         TestCase.model_validate(raw)
 
 
-def test_v2_schema_rejects_empty_profile_nickname() -> None:
+def test_v2_schema_accepts_free_profile_values() -> None:
     raw = raw_case()
-    raw["initial_state"] = {"user_profile": {"nickname": ""}}
-    with pytest.raises(ValidationError, match="nickname"):
-        TestCase.model_validate(raw)
-
-
-def test_v2_schema_rejects_too_many_dynamic_profile_facts() -> None:
-    raw = raw_case()
-    raw["initial_state"] = {
-        "user_profile": {"facts": {f"字段{i}": "值" for i in range(51)}}
-    }
-    with pytest.raises(ValidationError, match="facts"):
-        TestCase.model_validate(raw)
+    raw["initial_state"] = {"user_profile": {"任意字段": {"任意嵌套": ["值"]}}}
+    case = TestCase.model_validate(raw)
+    assert case.initial_state.user_profile["任意字段"]["任意嵌套"] == ["值"]
 
 
 @pytest.mark.parametrize(

@@ -24,15 +24,10 @@ def test_runner_passes_same_initial_state_through_multiturn_metadata() -> None:
             "scenario": "长期记忆",
             "level": "L2",
             "initial_state": {
-                "user_profile": {"nickname": "小橙", "current_concern": "乳腺结节随访"},
-                "long_term_memories": [
+                "user_profile": {"昵称": "小橙", "current_concern": "乳腺结节随访"},
+                "Timeline": [
                     {
-                        "key": "sleep_preference",
-                        "category": "activity",
-                        "label": "睡前习惯",
-                        "content": "睡前听十分钟轻音乐更容易入睡",
-                        "memory_tier": "semantic",
-                        "importance": 6,
+                        "睡前习惯": "睡前听十分钟轻音乐更容易入睡",
                     }
                 ],
             },
@@ -52,10 +47,10 @@ def test_runner_passes_same_initial_state_through_multiturn_metadata() -> None:
     first = adapter.requests[0].metadata["initial_state"]
     second = adapter.requests[1].metadata["initial_state"]
     assert first == second
-    assert first["user_profile"]["nickname"] == "小橙"
+    assert first["user_profile"]["facts"]["昵称"] == "小橙"
     assert first["user_profile"]["current_concern"] == "breast_tumor"
     assert first["user_profile"]["facts"]["当前关注"] == "乳腺结节随访"
-    assert first["long_term_memories"][0]["key"] == "sleep_preference"
+    assert first["long_term_memories"][0]["label"] == "睡前习惯"
 
 
 def test_runner_passes_resolved_turn_images_to_adapter() -> None:

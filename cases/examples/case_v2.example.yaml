@@ -5,29 +5,18 @@ level: L2
 source: offline
 initial_state:
   user_profile:
-    nickname: 小橙
-    gender: 女
-    current_concern: 乳腺癌诊疗
-    facts:
-      症状: 头晕，早晨起床后明显
-      其他用药:
-        - 来曲唑
-        - 艾普瑞林
-      当前血压: 107/77 mmHg
-      用药时间: 早晨一起床服用两种降压药
-      既往血压情况: 低压偏高（91左右）
-    medical:
-      treatmentPhase: on_endocrine
-      medications:
-        - tamoxifen
-  long_term_memories:
-    - key: tamoxifen_schedule
-      category: medication
-      label: 他莫昔芬服药时间
-      content: 改到晚上九点服用后，恶心明显减轻
-      recorded_date: 2026-07-01
-      memory_tier: semantic
-      importance: 8
+    昵称: 小橙
+    性别: 女
+    关注情况: 乳腺癌诊疗
+    症状: 头晕，早晨起床后明显
+    其他用药: [来曲唑, 艾普瑞林]
+    当前血压: 107/77 mmHg
+    用药时间: 早晨一起床服用两种降压药
+    既往血压情况: 低压偏高（91左右）
+    治疗阶段: 内分泌治疗
+  Timeline:
+    - 他莫昔芬服药时间: 改到晚上九点服用后，恶心明显减轻
+      记录日期: 2026-07-01
 turns:
   - role: user
     content: 我之前把药改到几点吃以后舒服一些？

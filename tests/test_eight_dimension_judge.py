@@ -62,13 +62,9 @@ def test_call_failure_is_conservative_zero() -> None:
 def test_prompt_includes_case_initial_state_as_scoring_truth() -> None:
     raw = raw_case()
     raw["initial_state"] = {
-        "long_term_memories": [
+        "Timeline": [
             {
-                "key": "tamoxifen_schedule",
-                "category": "medication",
-                "label": "他莫昔芬服药时间",
-                "content": "晚上九点服用后恶心减轻",
-                "memory_tier": "semantic",
+                "他莫昔芬服药时间": "晚上九点服用后恶心减轻",
             }
         ]
     }
@@ -86,5 +82,5 @@ def test_prompt_includes_case_initial_state_as_scoring_truth() -> None:
     asyncio.run(judge.judge(TestCase.model_validate(raw), trace()))
 
     assert "Case 初始化真值" in captured
-    assert "tamoxifen_schedule" in captured
+    assert "他莫昔芬服药时间" in captured
     assert "晚上九点服用后恶心减轻" in captured

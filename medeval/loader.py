@@ -100,13 +100,10 @@ def _expand_items(data: object, path: Path) -> list:
 
 
 def _normalize_case_initial_state(item: object) -> object:
-    """兼容标注集顶层 ``user_profile``，归一到正式的 ``initial_state``。
+    """将顶层 ``user_profile`` 归一到 ``initial_state.user_profile``。
 
-    标注集常以中文业务标签存放画像（如 ``关注``、``用药``、``年龄``）。
-    这些标签保存在 ``facts``，确保不丢失；可识别的性别同时写入标准字段。
-    ``medical_history`` 是标注侧常见的 Timeline 类型，执行时映射为 Agent
-    支持的通用 ``other`` 类型。
-    显式声明的 ``initial_state.user_profile`` 优先级最高。
+    用户画像是自由键值结构，Case 不再改写其中的字段；显式的
+    ``initial_state.user_profile`` 在同名字段上优先。
     """
     if not isinstance(item, dict):
         return item
@@ -123,35 +120,8 @@ def _normalize_case_initial_state(item: object) -> object:
     if not isinstance(profile, dict):
         return normalized
     profile = dict(profile)
-    facts = dict(legacy_profile or {})
-    explicit_facts = profile.get("facts") or {}
-    if isinstance(explicit_facts, dict):
-        facts.update(explicit_facts)
-    profile["facts"] = facts
-
-    if profile.get("gender") is None and isinstance(legacy_profile, dict) and legacy_profile.get("性别") in {"男", "女"}:
-        profile["gender"] = legacy_profile["性别"]
-    if profile.get("gender") == "女性":
-        profile["gender"] = "女"
-    elif profile.get("gender") == "男性":
-        profile["gender"] = "男"
-
-    age = profile.pop("age", None)
-    if age is not None:
-        facts.setdefault("年龄", age)
-
-    memories = initial_state.get("long_term_memories")
-    if isinstance(memories, list):
-        normalized_memories = []
-        for memory in memories:
-            if not isinstance(memory, dict):
-                normalized_memories.append(memory)
-                continue
-            normalized_memory = dict(memory)
-            if normalized_memory.get("category") == "medical_history":
-                normalized_memory["category"] = "other"
-            normalized_memories.append(normalized_memory)
-        initial_state["long_term_memories"] = normalized_memories
+    if isinstance(legacy_profile, dict):
+        profile = {**legacy_profile, **profile}
 
     initial_state["user_profile"] = profile
     normalized["initial_state"] = initial_state

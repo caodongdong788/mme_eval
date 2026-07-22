@@ -9,11 +9,11 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import datetime
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, PrivateAttr, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
 from .evaluation import EvaluationDimension
 
@@ -80,96 +80,68 @@ class Turn(BaseModel):
         self._image_data_urls = list(urls)
 
 
-class InitialUserProfile(BaseModel):
-    """评测账号在首轮对话前写入的用户画像。"""
-
-    model_config = ConfigDict(extra="forbid")
-
-    nickname: str | None = Field(default=None, min_length=1, max_length=80)
-    birthday: date | None = None
-    gender: Literal["男", "女"] | None = None
-    # 标注集是面向业务人员编辑的，关注点允许直接写中文（如“乳腺结节随访”）。
-    # 发送给 cx-agent 时再由 CaseInitialState.to_agent_payload 转成其内部枚举，
-    # 原始文本始终保留为画像事实，供 Agent 理解。
-    current_concern: str | None = Field(default=None, min_length=1, max_length=200)
-    medical: dict[str, Any] = Field(default_factory=dict)
-    facts: dict[str, JsonValue] = Field(default_factory=dict)
-
-    @model_validator(mode="after")
-    def _validate_dynamic_facts(self) -> "InitialUserProfile":
-        if len(self.facts) > 50:
-            raise ValueError("user_profile.facts 最多允许 50 个字段")
-        if any(not key.strip() or len(key) > 80 for key in self.facts):
-            raise ValueError("user_profile.facts 的 key 必须为 1..80 个字符")
-        if len(self.model_dump_json(include={"facts"})) > 8_000:
-            raise ValueError("user_profile.facts 总长度不能超过 8000 字符")
-        return self
-
-
-class LongTermMemory(BaseModel):
-    """写入 cx-agent 统一 Timeline 的单条长期记忆。"""
-
-    model_config = ConfigDict(extra="forbid")
-
-    key: str = Field(min_length=1, max_length=100)
-    category: Literal[
-        "medication",
-        "side_effect",
-        "symptom",
-        "metric",
-        "diet",
-        "activity",
-        "mood",
-        "contraindication",
-        "risk_flag",
-        "daily_score",
-        "other",
-    ]
-    label: str = Field(min_length=1, max_length=40)
-    content: str = Field(min_length=1, max_length=200)
-    note: str | None = Field(default=None, max_length=400)
-    recorded_date: date | None = None
-    event_date: date | None = None
-    importance: int = Field(default=5, ge=1, le=10, strict=True)
-    memory_tier: Literal["event", "semantic"] = "event"
-
-
 class CaseInitialState(BaseModel):
-    """Case 自包含的评测账号初始化数据。"""
+    """Case 自包含的评测账号初始化数据。
 
-    model_config = ConfigDict(extra="forbid")
+    Case 是标注格式，``user_profile`` 与 ``Timeline`` 均接受自由业务字段；
+    仅在调用 cx-agent 时转换成其内部所需的结构。
+    """
 
-    user_profile: InitialUserProfile = Field(default_factory=InitialUserProfile)
-    long_term_memories: list[LongTermMemory] = Field(default_factory=list)
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    user_profile: dict[str, Any] = Field(default_factory=dict)
+    timeline: list[dict[str, Any]] | dict[str, Any] = Field(
+        default_factory=list,
+        validation_alias="Timeline",
+        serialization_alias="Timeline",
+    )
 
     def is_empty(self) -> bool:
-        return (
-            self.user_profile == InitialUserProfile()
-            and not self.long_term_memories
-        )
+        return not self.user_profile and not self.timeline
 
     def to_agent_payload(self) -> dict[str, Any]:
         """生成 cx-agent 可接受的初始化数据，不改变 Case 的原始画像。
 
-        cx-agent 的 ``current_concern`` 是数据库内部分类，只接受两个枚举值；
-        Case 中则允许任意中文业务描述。已知的乳腺分类会同步到内部字段，其他
-        描述仅作为 ``facts.当前关注`` 写入评测画像上下文，避免中文被接口拒绝。
+        画像字段会进入 Agent 的事实画像；Timeline 的每个自由键值会转换为一条
+        通用 Timeline 记录。Case 的自由字段及原始值不会被 schema 限制。
         """
-        payload = self.model_dump(mode="json", exclude_none=True, exclude_defaults=True)
-        profile = payload.get("user_profile")
-        if not isinstance(profile, dict):
-            return payload
+        payload: dict[str, Any] = {}
+        if self.user_profile:
+            profile, facts = self._profile_to_agent_payload()
+            if facts:
+                profile["facts"] = facts
+            payload["user_profile"] = profile
+        memories = self._timeline_to_agent_memories()
+        if memories:
+            payload["long_term_memories"] = memories
+        return payload
 
-        concern = profile.get("current_concern")
-        if not isinstance(concern, str) or concern in {"breast_cancer", "breast_tumor"}:
-            return payload
+    def _profile_to_agent_payload(self) -> tuple[dict[str, Any], dict[str, Any]]:
+        raw = dict(self.user_profile)
+        profile: dict[str, Any] = {}
+        facts = raw.pop("facts", {})
+        facts = dict(facts) if isinstance(facts, dict) else {"facts": facts}
 
-        facts = profile.get("facts")
-        if not isinstance(facts, dict):
-            facts = {}
-            profile["facts"] = facts
-        facts.setdefault("当前关注", concern)
+        nickname = raw.pop("nickname", None)
+        if isinstance(nickname, str) and nickname.strip():
+            profile["nickname"] = nickname.strip()
+        elif nickname is not None:
+            facts["nickname"] = nickname
 
+        birthday = raw.pop("birthday", None)
+        if self._is_iso_date(birthday):
+            profile["birthday"] = birthday
+        elif birthday is not None:
+            facts["birthday"] = birthday
+
+        gender = raw.pop("gender", None)
+        gender_aliases = {"男": "男", "男性": "男", "女": "女", "女性": "女"}
+        if isinstance(gender, str) and gender in gender_aliases:
+            profile["gender"] = gender_aliases[gender]
+        elif gender is not None:
+            facts["gender"] = gender
+
+        concern = raw.pop("current_concern", None)
         concern_aliases = {
             "乳腺癌": "breast_cancer",
             "乳腺癌诊疗": "breast_cancer",
@@ -178,19 +150,82 @@ class CaseInitialState(BaseModel):
             "乳腺结节": "breast_tumor",
             "乳腺结节随访": "breast_tumor",
         }
-        internal_concern = concern_aliases.get(concern)
-        if internal_concern:
-            profile["current_concern"] = internal_concern
-        else:
-            profile.pop("current_concern", None)
-        return payload
+        if isinstance(concern, str):
+            facts.setdefault("当前关注", concern)
+            internal_concern = concern_aliases.get(concern, concern)
+            if internal_concern in {"breast_cancer", "breast_tumor"}:
+                profile["current_concern"] = internal_concern
+        elif concern is not None:
+            facts["current_concern"] = concern
 
-    @model_validator(mode="after")
-    def _reject_overwriting_memories(self) -> "CaseInitialState":
-        identities = [(item.key, item.recorded_date) for item in self.long_term_memories]
-        if len(identities) != len(set(identities)):
-            raise ValueError("long_term_memories 的 key + recorded_date 不能重复")
-        return self
+        medical = raw.pop("medical", None)
+        if isinstance(medical, dict):
+            profile["medical"] = medical
+        elif medical is not None:
+            facts["medical"] = medical
+        facts.update(raw)
+        return profile, facts
+
+    def _timeline_to_agent_memories(self) -> list[dict[str, Any]]:
+        entries = self.timeline if isinstance(self.timeline, list) else [self.timeline]
+        memories: list[dict[str, Any]] = []
+        supported_categories = {
+            "medication", "side_effect", "symptom", "metric", "diet", "activity",
+            "mood", "contraindication", "risk_flag", "daily_score", "other",
+        }
+        metadata_keys = {
+            "key", "category", "label", "content", "note", "recorded_date", "event_date",
+            "importance", "memory_tier", "日期", "时间", "date",
+        }
+
+        def add_memory(label: Any, content: Any, source: dict[str, Any] | None = None) -> None:
+            source = source or {}
+            category = source.get("category")
+            memory = {
+                "key": str(source.get("key") or f"case_timeline_{len(memories) + 1}"),
+                "category": category if category in supported_categories else "other",
+                "label": str(source.get("label") or label),
+                "content": self._timeline_text(source.get("content", content)),
+                "importance": source.get("importance") if isinstance(source.get("importance"), int) and 1 <= source["importance"] <= 10 else 5,
+                "memory_tier": source.get("memory_tier") if source.get("memory_tier") in {"event", "semantic"} else "event",
+            }
+            for date_key in ("recorded_date", "event_date"):
+                date_value = source.get(date_key)
+                if date_value is not None:
+                    rendered_date = str(date_value)
+                    if self._is_iso_date(rendered_date):
+                        memory[date_key] = rendered_date
+                    else:
+                        memory["content"] += f"\n{date_key}: {rendered_date}"
+            memories.append(memory)
+
+        for entry in entries:
+            if not isinstance(entry, dict):
+                add_memory("Timeline", entry)
+            elif any(key in entry for key in {"label", "content", "key"}):
+                add_memory(entry.get("label", "Timeline"), entry.get("content", entry), entry)
+            else:
+                for key, value in entry.items():
+                    if key not in metadata_keys:
+                        add_memory(key, value, entry)
+        return memories
+
+    @staticmethod
+    def _timeline_text(value: Any) -> str:
+        if isinstance(value, str):
+            return value
+        import json
+        return json.dumps(value, ensure_ascii=False, default=str, separators=(",", ":"))
+
+    @staticmethod
+    def _is_iso_date(value: Any) -> bool:
+        if not isinstance(value, str):
+            return False
+        try:
+            datetime.strptime(value, "%Y-%m-%d")
+        except ValueError:
+            return False
+        return True
 
 
 class GuidelineItem(BaseModel):

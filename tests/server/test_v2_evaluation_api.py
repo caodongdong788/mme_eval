@@ -140,8 +140,7 @@ def test_upload_normalizes_top_level_user_profile_into_initial_state(client, set
         benchmark = session.get(Benchmark, benchmark_id)
         case = load_benchmark_cases(benchmark, settings=settings)[0]
     profile = case.initial_state.user_profile
-    assert profile.gender == "女"
-    assert profile.facts == {
+    assert profile == {
         "关注": "乳腺结节随访",
         "性别": "女",
         "近期症状": "关节痛",
@@ -160,26 +159,23 @@ def test_upload_accepts_chinese_current_concern_and_prepares_agent_payload(clien
         benchmark = session.get(Benchmark, benchmark_id)
         case = load_benchmark_cases(benchmark, settings=settings)[0]
     profile = case.initial_state.user_profile
-    assert profile.current_concern == "乳腺结节随访"
-    assert "当前关注" not in profile.facts
+    assert profile["current_concern"] == "乳腺结节随访"
     agent_profile = case.initial_state.to_agent_payload()["user_profile"]
     assert agent_profile["current_concern"] == "breast_tumor"
     assert agent_profile["facts"]["当前关注"] == "乳腺结节随访"
 
 
-def test_upload_normalizes_localized_profile_age_gender_and_memory_category(client, settings) -> None:
+def test_upload_accepts_free_profile_and_timeline_keys(client, settings) -> None:
     with_profile = V2_YAML.replace(
         "  turns:",
         "  initial_state:\n"
         "    user_profile:\n"
-        "      age: 中年\n"
-        "      gender: 女性\n"
-        "      current_concern: 贫血\n"
-        "    long_term_memories:\n"
-        "      - key: medical-history\n"
-        "        category: medical_history\n"
-        "        label: 病历\n"
-        "        content: 正在服用奥拉帕利\n"
+        "      年龄: 中年\n"
+        "      性别: 女性\n"
+        "      关注情况: 贫血\n"
+        "    Timeline:\n"
+        "      - 病历: 正在服用奥拉帕利\n"
+        "        患者自定义标签: 需关注贫血\n"
         "  turns:",
     )
     response = upload(client, with_profile, name="localized-profile-and-memory")
@@ -189,12 +185,12 @@ def test_upload_normalizes_localized_profile_age_gender_and_memory_category(clie
         benchmark = session.get(Benchmark, benchmark_id)
         case = load_benchmark_cases(benchmark, settings=settings)[0]
 
-    assert case.initial_state.user_profile.gender == "女"
-    assert case.initial_state.user_profile.facts["年龄"] == "中年"
-    assert case.initial_state.long_term_memories[0].category == "other"
+    assert case.initial_state.user_profile["年龄"] == "中年"
+    assert case.initial_state.user_profile["性别"] == "女性"
+    assert case.initial_state.timeline[0]["患者自定义标签"] == "需关注贫血"
     agent_profile = case.initial_state.to_agent_payload()["user_profile"]
-    assert "current_concern" not in agent_profile
-    assert agent_profile["facts"]["当前关注"] == "贫血"
+    assert agent_profile["facts"]["关注情况"] == "贫血"
+    assert len(case.initial_state.to_agent_payload()["long_term_memories"]) == 2
 
 
 def test_upload_zip_with_single_top_level_folder_hydrates_turn_images(client, settings) -> None:
