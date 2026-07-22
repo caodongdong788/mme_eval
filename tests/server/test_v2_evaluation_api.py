@@ -167,6 +167,36 @@ def test_upload_accepts_chinese_current_concern_and_prepares_agent_payload(clien
     assert agent_profile["facts"]["当前关注"] == "乳腺结节随访"
 
 
+def test_upload_normalizes_localized_profile_age_gender_and_memory_category(client, settings) -> None:
+    with_profile = V2_YAML.replace(
+        "  turns:",
+        "  initial_state:\n"
+        "    user_profile:\n"
+        "      age: 中年\n"
+        "      gender: 女性\n"
+        "      current_concern: 贫血\n"
+        "    long_term_memories:\n"
+        "      - key: medical-history\n"
+        "        category: medical_history\n"
+        "        label: 病历\n"
+        "        content: 正在服用奥拉帕利\n"
+        "  turns:",
+    )
+    response = upload(client, with_profile, name="localized-profile-and-memory")
+    assert response.status_code == 201, response.text
+    benchmark_id = response.json()["id"]
+    with session_scope() as session:
+        benchmark = session.get(Benchmark, benchmark_id)
+        case = load_benchmark_cases(benchmark, settings=settings)[0]
+
+    assert case.initial_state.user_profile.gender == "女"
+    assert case.initial_state.user_profile.facts["年龄"] == "中年"
+    assert case.initial_state.long_term_memories[0].category == "other"
+    agent_profile = case.initial_state.to_agent_payload()["user_profile"]
+    assert "current_concern" not in agent_profile
+    assert agent_profile["facts"]["当前关注"] == "贫血"
+
+
 def test_upload_zip_with_single_top_level_folder_hydrates_turn_images(client, settings) -> None:
     case_with_image = V2_YAML.replace(
         "      content: 乳房摸到硬块怎么办？",
