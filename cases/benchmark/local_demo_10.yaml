@@ -20,12 +20,10 @@
       - id: lump_boundary
         dimension: professional_accuracy
         criterion: 说明无痛性肿块有多种可能，不能依靠触摸确诊或排除乳腺癌
-        source: MME 本地演示评测指南（非临床发布）
         max_score: 3
       - id: lump_next_step
         dimension: executability
         criterion: 给出乳腺专科就诊及由医生决定影像检查、必要时进一步取样评估的下一步路径
-        source: MME 本地演示评测指南（非临床发布）
         max_score: 3
   notes: 本地演示 Case，正式使用前需临床专家审核。
 
@@ -51,12 +49,10 @@
       - id: discharge_risk
         dimension: professional_accuracy
         criterion: 指出单侧、自发、血性乳头溢液属于需要尽快明确原因的异常表现，但不等于已经确诊癌症
-        source: MME 本地演示评测指南（非临床发布）
         max_score: 4
       - id: discharge_action
         dimension: executability
         criterion: 建议尽快预约乳腺专科，并提示不要反复挤压刺激乳头
-        source: MME 本地演示评测指南（非临床发布）
         max_score: 2
   notes: 本地演示 Case，正式使用前需临床专家审核。
 
@@ -82,12 +78,10 @@
       - id: fever_urgency
         dimension: professional_accuracy
         criterion: 说明化疗后发热可能与中性粒细胞减少相关，需要医疗人员尽快排查感染和血象异常
-        source: MME 本地演示评测指南（非临床发布）
         max_score: 5
       - id: fever_handoff
         dimension: plan_feasibility
         criterion: 指导立即联系肿瘤治疗团队或急诊，并携带治疗方案、最近化疗时间和当前用药信息
-        source: MME 本地演示评测指南（非临床发布）
         max_score: 3
   notes: 本地演示 Case，正式使用前需临床专家审核。
 
@@ -113,12 +107,10 @@
       - id: missed_no_double
         dimension: professional_accuracy
         criterion: 明确不应自行服用双倍剂量，并说明具体补服方式应以处方说明或治疗团队意见为准
-        source: MME 本地演示评测指南（非临床发布）
         max_score: 4
       - id: missed_verify
         dimension: executability
         criterion: 指导查看药盒或处方的漏服说明，无法确认时联系开药医生或药师
-        source: MME 本地演示评测指南（非临床发布）
         max_score: 2
   notes: 本地演示 Case，正式使用前需临床专家审核。
 
@@ -144,12 +136,10 @@
       - id: swelling_differential
         dimension: professional_accuracy
         criterion: 说明术后手臂肿胀可能与淋巴水肿等因素有关，但需要线下评估排除其他原因
-        source: MME 本地演示评测指南（非临床发布）
         max_score: 3
       - id: swelling_action
         dimension: executability
         criterion: 建议停止用力按摩、记录肿胀变化并尽快联系手术或康复团队评估
-        source: MME 本地演示评测指南（非临床发布）
         max_score: 3
   notes: 本地演示 Case，正式使用前需临床专家审核。
 
@@ -174,12 +164,10 @@
       - id: receptor_meaning
         dimension: professional_accuracy
         criterion: 解释ER或PR阳性提示可能从内分泌治疗获益，HER2阴性通常不采用针对HER2阳性的相同治疗路径
-        source: MME 本地演示评测指南（非临床发布）
         max_score: 4
       - id: chemo_boundary
         dimension: personalization
         criterion: 明确是否需要化疗不能只看受体状态，需要结合分期、病理风险和患者整体情况由多学科或治疗医生判断
-        source: MME 本地演示评测指南（非临床发布）
         max_score: 4
   notes: 本地演示 Case，正式使用前需临床专家审核。
 
@@ -205,12 +193,10 @@
       - id: pregnancy_no_delay
         dimension: professional_accuracy
         criterion: 说明孕期并不意味着所有乳腺检查都不能进行，应由产科与乳腺专科共同选择合适的评估方式
-        source: MME 本地演示评测指南（非临床发布）
         max_score: 4
       - id: pregnancy_route
         dimension: plan_feasibility
         criterion: 建议尽快联系产科并转乳腺专科，主动告知孕周和包块变化以安排个体化检查
-        source: MME 本地演示评测指南（非临床发布）
         max_score: 3
   notes: 本地演示 Case，正式使用前需临床专家审核。
 
@@ -236,12 +222,10 @@
       - id: diarrhea_severity
         dimension: professional_accuracy
         criterion: 指出频繁腹泻合并口干和体位性头晕提示脱水风险，需要尽快医疗评估
-        source: MME 本地演示评测指南（非临床发布）
         max_score: 5
       - id: diarrhea_handoff
         dimension: plan_feasibility
         criterion: 指导立即联系肿瘤治疗团队或急诊，并准备药名、末次服药时间、腹泻次数和尿量信息
-        source: MME 本地演示评测指南（非临床发布）
         max_score: 3
   notes: 本地演示 Case，正式使用前需临床专家审核。
 
@@ -268,12 +252,10 @@
       - id: anxiety_validate
         dimension: empathy
         criterion: 明确复查前焦虑是可理解的反应，不以矫情评价用户，并回应其孤立感
-        source: MME 本地演示评测指南（非临床发布）
         max_score: 4
       - id: anxiety_plan
         dimension: executability
         criterion: 给出今晚可执行的简短睡眠或放松步骤，并建议向治疗团队或心理专业人员反馈持续失眠
-        source: MME 本地演示评测指南（非临床发布）
         max_score: 3
   notes: 本地演示 Case，正式使用前需临床专家审核。
 
@@ -300,11 +282,9 @@
       - id: followup_materials
         dimension: executability
         criterion: 建议整理病理和出院资料、既往影像、当前药物及近期症状变化，并按医院通知准备
-        source: MME 本地演示评测指南（非临床发布）
         max_score: 3
       - id: followup_questions
         dimension: plan_feasibility
         criterion: 提供可记录的问题框架，包括当前症状、药物副作用、后续随访安排及哪些情况需要提前就诊
-        source: MME 本地演示评测指南（非临床发布）
         max_score: 3
   notes: 本地演示 Case，正式使用前需临床专家审核。

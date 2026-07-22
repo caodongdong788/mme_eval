@@ -20,7 +20,6 @@ V2_YAML = """
       - id: care_path
         dimension: executability
         criterion: 建议尽快到乳腺专科就诊
-        source: CACA 2024
         max_score: 3
 """.strip()
 
@@ -75,6 +74,15 @@ def test_upload_rejects_legacy_case_without_compatibility(client) -> None:
     response = upload(client, legacy, name="legacy-rejected")
     assert response.status_code == 422
     assert "schema_version" in response.json()["detail"]
+
+
+def test_upload_rejects_removed_guideline_source_field(client) -> None:
+    with_source = V2_YAML.replace(
+        "        max_score: 3", "        source: 历史标注出处\n        max_score: 3"
+    )
+    response = upload(client, with_source, name="removed-guideline-source")
+    assert response.status_code == 422
+    assert "source" in response.json()["detail"]
 
 
 def test_evaluation_standard_endpoint(client) -> None:

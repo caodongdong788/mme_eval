@@ -85,7 +85,7 @@ class GuidelineJudge(BaseJudge):
             conversation=format_conversation(trace),
             initial_state=format_initial_state(case),
             guidelines="\n".join(
-                f"- id={item.id}; max_score={item.max_score}; criterion={item.criterion}; source={item.source}"
+                f"- id={item.id}; max_score={item.max_score}; criterion={item.criterion}"
                 for item in guidelines
             ),
         )

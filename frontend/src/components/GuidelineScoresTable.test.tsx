@@ -4,7 +4,7 @@ import { renderWithProviders } from "../test/renderWithProviders";
 import { GuidelineScoresTable } from "./GuidelineScoresTable";
 
 describe("GuidelineScoresTable", () => {
-  it("renders guideline scoring details without a source column", () => {
+  it("renders guideline scoring details", () => {
     renderWithProviders(
       <GuidelineScoresTable
         scores={[
@@ -12,7 +12,6 @@ describe("GuidelineScoresTable", () => {
             id: "next_step",
             dimension: "executability",
             criterion: "建议及时联系治疗团队评估",
-            source: "不应在表格中展示的来源",
             score: 2,
             max_score: 3,
             reason: "部分覆盖",
@@ -27,7 +26,5 @@ describe("GuidelineScoresTable", () => {
     expect(screen.getByText("绑定维度")).toBeInTheDocument();
     expect(screen.getByText("得分")).toBeInTheDocument();
     expect(screen.getByText("判定理由")).toBeInTheDocument();
-    expect(screen.queryByText("来源")).not.toBeInTheDocument();
-    expect(screen.queryByText("不应在表格中展示的来源")).not.toBeInTheDocument();
   });
 });

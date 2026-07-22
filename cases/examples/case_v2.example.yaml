@@ -49,11 +49,9 @@ evaluation:
     - id: suspicious_sign
       dimension: professional_accuracy
       criterion: 第一轮明确召回用户改为晚上九点服药后恶心减轻
-      source: 本 Case 长期记忆真值
       max_score: 3
     - id: seek_care
       dimension: executability
       criterion: 第二轮建议沿用已记录的晚上九点习惯，同时说明处方要求或治疗团队意见优先
-      source: 本 Case 长期记忆真值
       max_score: 2
 notes: 结构示例；正式 Case 上线前需临床专家审核。

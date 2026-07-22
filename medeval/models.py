@@ -141,7 +141,6 @@ class GuidelineItem(BaseModel):
     id: str = Field(min_length=1)
     dimension: EvaluationDimension
     criterion: str = Field(min_length=1)
-    source: str = Field(min_length=1)
     max_score: int = Field(ge=1, le=5, strict=True)
 
     @model_validator(mode="after")

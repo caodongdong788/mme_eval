@@ -23,7 +23,6 @@ def raw_case() -> dict:
                     "id": "risk",
                     "dimension": "professional_accuracy",
                     "criterion": "指出硬块需要重视",
-                    "source": "CACA 2024",
                     "max_score": 3,
                 }
             ],
@@ -107,6 +106,13 @@ def test_v2_schema_rejects_metadata_key() -> None:
     raw = raw_case()
     raw["metadata"] = {}
     with pytest.raises(ValidationError, match="metadata"):
+        TestCase.model_validate(raw)
+
+
+def test_v2_schema_rejects_guideline_source_key() -> None:
+    raw = raw_case()
+    raw["evaluation"]["guidelines"][0]["source"] = "不再属于 Case schema"
+    with pytest.raises(ValidationError, match="source"):
         TestCase.model_validate(raw)
 
 

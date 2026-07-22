@@ -89,12 +89,10 @@ evaluation:
     - id: suspicious_sign
       dimension: professional_accuracy
       criterion: 指出无痛性硬质肿块属于需要重视的乳腺癌可疑表现
-      source: CACA 2024 乳腺癌诊疗指南
       max_score: 3
     - id: seek_care
       dimension: executability
       criterion: 建议尽快到乳腺专科就诊，并说明需通过影像或必要时活检明确性质
-      source: CACA 2024 乳腺癌诊疗指南
       max_score: 2
 
 notes: 仅用于框架测试，正式使用前需临床专家审核。
@@ -106,7 +104,7 @@ notes: 仅用于框架测试，正式使用前需临床专家审核。
 - `evaluation` 必填。
 - `dimension_criteria` 只允许使用 8 个受控维度 Key；每个维度值为非空字符串列表。未声明的维度仍使用全局标准参与评分。
 - `guidelines` 可为空。
-- 每条指南必须包含在本 Case 内唯一的 `id`、受控 `dimension`、非空 `criterion`、非空 `source` 和 `max_score`。
+- 每条指南必须包含在本 Case 内唯一的 `id`、受控 `dimension`、非空 `criterion` 和 `max_score`。
 - `max_score` 必须是 1～5 的整数。
 - 指南不能绑定 `medical_safety`，避免把二值 Gate 扣成 1～4 分。安全要求写入 `medical_safety` 的 Case 标准，由八维 Judge 直接判 0/5。
 - 未知字段在加载时拒绝，避免拼写错误静默生效。

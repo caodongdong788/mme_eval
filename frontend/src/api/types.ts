@@ -165,7 +165,6 @@ export interface GuidelineScore {
   id: string;
   dimension: string;
   criterion: string;
-  source: string;
   score: number;
   max_score: number;
   reason: string;

@@ -17,7 +17,7 @@
 
 ### Requirement: evaluation 必须表达八维补充标准和指南
 
-`evaluation.dimension_criteria` 的键 MUST 取自固定八维；每个值 MUST 是非空字符串列表。每条 guideline MUST 含 Case 内唯一 `id`、非安全目标维度、非空 `criterion`、非空 `source` 与严格整数 `max_score`（1～5）。
+`evaluation.dimension_criteria` 的键 MUST 取自固定八维；每个值 MUST 是非空字符串列表。每条 guideline MUST 含 Case 内唯一 `id`、非安全目标维度、非空 `criterion` 与严格整数 `max_score`（1～5）。
 
 #### Scenario: 指南绑定医学安全性
 

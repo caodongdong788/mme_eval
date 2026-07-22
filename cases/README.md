@@ -43,7 +43,6 @@ evaluation:
     - id: unique_in_case
       dimension: professional_accuracy
       criterion: Bot 应覆盖的单一指南要点
-      source: CACA 2024 乳腺癌诊疗指南
       max_score: 3
 notes: 可选说明
 ```

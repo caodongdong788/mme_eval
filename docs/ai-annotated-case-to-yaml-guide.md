@@ -18,10 +18,10 @@ Case YAML v2。目标读者是负责转换数据的 AI、脚本开发者和审�
 
 转换 AI **不得**：
 
-- 编造患者信息、检查结果、诊断、用药或指南来源；
+- 编造患者信息、检查结果、诊断或用药；
 - 把参考答案整段复制成一个宽泛指南项；
 - 为凑齐八维而虚构 `dimension_criteria`；
-- 输出 `metadata`、`case_file` 或任何旧评分字段；
+- 输出 `metadata`、`case_file`、`guidelines[].source` 或任何旧评分字段；
 - 把标注的标准答案当成 Agent 已经说过的话写进 `turns`；
 - 修改原始用户问题来让 Case 更容易得分。
 
@@ -51,7 +51,6 @@ Case YAML v2。目标读者是负责转换数据的 AI、脚本开发者和审�
       - id: lump_boundary
         dimension: professional_accuracy
         criterion: 说明无痛性肿块有多种可能，不能依靠触摸确诊或排除乳腺癌
-        source: 标注批次 2026-07
         max_score: 3
   notes: 由人工标注数据转换，待临床专家复核。
 ```
@@ -169,7 +168,6 @@ dimension_criteria:
 - id: no_double_dose
   dimension: professional_accuracy
   criterion: 明确不应自行服用双倍剂量，具体补服方式以处方说明或治疗团队意见为准
-  source: 标注批次 2026-07 / 记录 004
   max_score: 4
 ```
 
@@ -179,7 +177,6 @@ dimension_criteria:
   `"1"`、`"2"`，不要写成 YAML 数字；
 - `dimension`：指南扣分绑定的一个维度；不能是 `medical_safety`；
 - `criterion`：一条可独立判断覆盖程度的要求；
-- `source`：真实来源。可以是临床指南名称、标注批次、专家标注编号或“本 Case 长期记忆真值”；
 - `max_score`：严格整数 `1..5`，代表该要点的重要度与最多可扣分值。
 
 模型会给每条指南 `0..max_score` 的整数分。扣分公式是：
@@ -205,12 +202,10 @@ guidelines:
   - id: no_double
     dimension: professional_accuracy
     criterion: 明确不应自行服用双倍剂量，具体补服方式以处方说明为准
-    source: 标注记录 004
     max_score: 4
   - id: verify_route
     dimension: executability
     criterion: 指导查看药盒或处方的漏服说明，无法确认时联系开药医生或药师
-    source: 标注记录 004
     max_score: 2
 ```
 
@@ -296,7 +291,6 @@ guidelines:
   - id: recall_schedule
     dimension: professional_accuracy
     criterion: 第 1 轮准确召回用户改为晚上九点服药后恶心减轻
-    source: 本 Case 长期记忆真值
     max_score: 3
 ```
 
@@ -323,7 +317,6 @@ guidelines:
       "id": "no_double",
       "dimension": "professional_accuracy",
       "criterion": "明确不应自行服用双倍剂量",
-      "source": "annotation-row-004",
       "max_score": 4
     }
   ],
@@ -344,7 +337,6 @@ guidelines:
 | 必须追问 | `dimension_criteria.clinical_inquiry` |
 | 情绪、画像使用、表达要求 | 对应维度的 `dimension_criteria` |
 | 标准答案中的关键知识点 | 原子化 `guidelines[]` |
-| 标注依据 | `guidelines[].source` |
 | 要点权重 | `guidelines[].max_score`，归一到整数 1～5 |
 | 用户资料 | `initial_state.user_profile` |
 | 历史事实 / Timeline | `initial_state.long_term_memories` |
@@ -488,7 +480,6 @@ cases:
         - id: next_step
           dimension: executability
           criterion: 建议尽快到乳腺专科评估
-          source: 标注批次 2026-07 / 001
           max_score: 3
 ```
 
@@ -510,10 +501,9 @@ cases:
 3. 标准答案不能写进 assistant turn；将其拆成 dimension_criteria 和原子 guidelines。
 4. medical_safety 只能写在 dimension_criteria，guideline 不能绑定 medical_safety。
 5. guideline.id 在单题内唯一且必须是字符串；max_score 必须是 1～5 的整数。
-6. guideline.source 必须使用真实来源；没有临床来源时写标注批次和记录 ID，不得编造指南。
-7. 多轮题的指南要标明第几轮，并检查是否正确承接上一轮。
-8. 用户画像的任意字段放 facts；标准医疗字段放 medical；长期事实放 long_term_memories。
-9. 不确定且无法从原数据推断的必填信息不要编造，放入 conversion_issues。
+6. 多轮题的指南要标明第几轮，并检查是否正确承接上一轮。
+7. 用户画像的任意字段放 facts；标准医疗字段放 medical；长期事实放 long_term_memories。
+8. 不确定且无法从原数据推断的必填信息不要编造，放入 conversion_issues。
 
 请分两步工作：
 A. 先输出字段映射、每题拆分结果和 conversion_issues，供人工确认；
@@ -572,7 +562,7 @@ PY
 - [ ] 安全底线只进入 `medical_safety` criteria；
 - [ ] 指南已经原子化，没有重复扣分；
 - [ ] 指南绑定维度与内容语义一致；
-- [ ] `source` 可追溯且没有虚构临床指南；
+- [ ] 原始标注的出处保存在批次报告或中间数据的 `source_id`，不写入 Case YAML；
 - [ ] AI 推断项和默认值已在转换报告中披露。
 
 ### 长期记忆

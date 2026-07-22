@@ -54,7 +54,6 @@ evaluation:
     - id: suspicious_sign
       dimension: professional_accuracy
       criterion: 指出无痛性硬质肿块是需要重视的可疑表现
-      source: CACA 2024 乳腺癌诊疗指南
       max_score: 3
 notes: 可选说明
 ```
