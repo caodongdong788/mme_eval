@@ -81,7 +81,7 @@ def _expand_items(data: object, path: Path) -> list:
         深合并进 ``cases`` 的每一项（case 侧覆盖 defaults），消除跨题 boilerplate。
     """
     if isinstance(data, list):
-        return data
+        return [_normalize_case_initial_state(item) for item in data]
     if isinstance(data, dict) and "cases" in data:
         defaults = data.get("defaults") or {}
         if not isinstance(defaults, dict):
@@ -90,11 +90,50 @@ def _expand_items(data: object, path: Path) -> list:
         if not isinstance(cases, list):
             raise ValueError(f"{path}: 顶层 cases 必须是数组")
         return [
-            _deep_merge(defaults, item) if isinstance(item, dict) else item
+            _normalize_case_initial_state(_deep_merge(defaults, item))
+            if isinstance(item, dict)
+            else item
             for item in cases
         ]
     # 其它单 mapping（无 cases 键）按单题处理，保持旧行为
-    return [data]
+    return [_normalize_case_initial_state(data)]
+
+
+def _normalize_case_initial_state(item: object) -> object:
+    """兼容标注集顶层 ``user_profile``，归一到正式的 ``initial_state``。
+
+    历史标注集常以中文业务标签存放画像（如 ``关注``、``用药``、``性别``）。
+    这些标签保存在 ``facts``，确保不丢失；可识别的性别同时写入标准字段。
+    显式声明的 ``initial_state.user_profile`` 优先级最高。
+    """
+    if not isinstance(item, dict) or "user_profile" not in item:
+        return item
+    legacy_profile = item.get("user_profile")
+    if not isinstance(legacy_profile, dict):
+        return item
+
+    normalized = dict(item)
+    normalized.pop("user_profile", None)
+    initial_state = normalized.get("initial_state") or {}
+    if not isinstance(initial_state, dict):
+        return normalized
+    initial_state = dict(initial_state)
+    profile = initial_state.get("user_profile") or {}
+    if not isinstance(profile, dict):
+        return normalized
+    profile = dict(profile)
+    facts = dict(legacy_profile)
+    explicit_facts = profile.get("facts") or {}
+    if isinstance(explicit_facts, dict):
+        facts.update(explicit_facts)
+    profile["facts"] = facts
+
+    if profile.get("gender") is None and legacy_profile.get("性别") in {"男", "女"}:
+        profile["gender"] = legacy_profile["性别"]
+
+    initial_state["user_profile"] = profile
+    normalized["initial_state"] = initial_state
+    return normalized
 
 
 def _iter_yaml_files(roots: Iterable[Path]) -> Iterable[Path]:

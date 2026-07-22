@@ -128,6 +128,26 @@ def test_upload_zip_with_relative_images_hydrates_turn_images(client, settings) 
     assert saved.status_code == 200, saved.text
 
 
+def test_upload_normalizes_top_level_user_profile_into_initial_state(client, settings) -> None:
+    with_profile = V2_YAML.replace(
+        "  turns:",
+        "  user_profile:\n    关注: 乳腺结节随访\n    性别: 女\n    近期症状: 关节痛\n  turns:",
+    )
+    response = upload(client, with_profile, name="top-level-profile")
+    assert response.status_code == 201, response.text
+    benchmark_id = response.json()["id"]
+    with session_scope() as session:
+        benchmark = session.get(Benchmark, benchmark_id)
+        case = load_benchmark_cases(benchmark, settings=settings)[0]
+    profile = case.initial_state.user_profile
+    assert profile.gender == "女"
+    assert profile.facts == {
+        "关注": "乳腺结节随访",
+        "性别": "女",
+        "近期症状": "关节痛",
+    }
+
+
 def test_upload_zip_with_single_top_level_folder_hydrates_turn_images(client, settings) -> None:
     case_with_image = V2_YAML.replace(
         "      content: 乳房摸到硬块怎么办？",
