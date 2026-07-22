@@ -7,7 +7,7 @@ import yaml
 
 from server.benchmarks import load_benchmark_cases
 from server.db import session_scope
-from server.models_db import Benchmark
+from server.models_db import Benchmark, CaseResultRow, EvalRun
 
 
 V2_YAML = """
@@ -148,6 +148,47 @@ def test_upload_zip_with_single_top_level_folder_hydrates_turn_images(client, se
     benchmark_id = response.json()["id"]
     assert (settings.uploads_dir / str(benchmark_id) / "cases.yaml").is_file()
     assert (settings.uploads_dir / str(benchmark_id) / "images" / "case-api-folder-1.jpg").is_file()
+
+
+def test_run_case_image_endpoint_serves_declared_markdown_image(client, settings) -> None:
+    case_with_markdown_image = V2_YAML.replace(
+        "      content: 乳房摸到硬块怎么办？",
+        "      content: \"![报告图](images/case-markdown-1.jpg)\"",
+    )
+    package = io.BytesIO()
+    with zipfile.ZipFile(package, "w") as archive:
+        archive.writestr("cases.yaml", case_with_markdown_image)
+        archive.writestr("images/case-markdown-1.jpg", b"fake-jpeg-content")
+    uploaded = client.post(
+        "/api/benchmarks",
+        data={"name": "zip-markdown-image-benchmark", "source": "offline"},
+        files={"file": ("benchmark.zip", package.getvalue(), "application/zip")},
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    benchmark_id = uploaded.json()["id"]
+
+    with session_scope() as session:
+        run = EvalRun(run_slug="image_preview", name="图片预览", status="success", benchmark_id=benchmark_id)
+        session.add(run)
+        session.flush()
+        session.add(
+            CaseResultRow(
+                run_id=run.id,
+                sample_id="api_v2_001",
+                detail_json={
+                    "case": {
+                        "turns": [{"role": "user", "content": "![报告图](images/case-markdown-1.jpg)"}],
+                    },
+                    "trace": {"messages": [{"role": "user", "content": "![报告图](images/case-markdown-1.jpg)"}]},
+                },
+            )
+        )
+        run_id = run.id
+
+    response = client.get(f"/api/runs/{run_id}/cases/api_v2_001/images/images/case-markdown-1.jpg")
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"] == "image/jpeg"
+    assert response.content == b"fake-jpeg-content"
 
 
 def test_upload_zip_rejects_path_traversal(client) -> None:

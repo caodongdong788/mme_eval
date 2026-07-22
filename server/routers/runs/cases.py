@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import mimetypes
+import re
+from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import Depends, Query
+from fastapi import Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from medeval.models import ConversationTrace
@@ -12,7 +16,8 @@ from medeval.models import ConversationTrace
 from ...auth import get_current_user_optional
 from ...constants import LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX
 from ...db import get_session
-from ...models_db import CaseResultRow, FeishuUser
+from ...models_db import Benchmark, CaseResultRow, FeishuUser
+from ...paths import safe_join
 from ...schemas import CaseRowOut, CasesYamlOut
 from ...services.case_export import export_transcripts, get_case_detail_json, get_cases_yaml
 from ...services.case_query import attach_review_summary, filtered_case_rows
@@ -22,6 +27,27 @@ from ...services.review import pending_review_sample_ids
 from ...services.runs import get_run_or_404
 from ...settings import get_settings
 from ._router import router
+
+
+_CASE_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+_MARKDOWN_IMAGE_PATH_RE = re.compile(r"!\[[^\]]*\]\(\s*(images/[^\s)]+)", re.IGNORECASE)
+
+
+def _case_image_paths(detail: dict[str, Any]) -> set[str]:
+    """取冻结 Case 声明的图片路径，避免图片接口被用于任意读文件。"""
+    case = detail.get("case") or {}
+    turns = case.get("turns") if isinstance(case, dict) else []
+    paths: set[str] = set()
+    for turn in turns if isinstance(turns, list) else []:
+        if not isinstance(turn, dict):
+            continue
+        images = turn.get("images") or []
+        if isinstance(images, list):
+            paths.update(item for item in images if isinstance(item, str))
+        content = turn.get("content")
+        if isinstance(content, str):
+            paths.update(_MARKDOWN_IMAGE_PATH_RE.findall(content))
+    return paths
 
 
 @router.get("/{run_id}/cases", response_model=list[CaseRowOut])
@@ -121,6 +147,42 @@ def get_case_detail(
     run_id: int, sample_id: str, session: Session = Depends(get_session)
 ) -> dict[str, Any]:
     return get_case_detail_json(session, run_id, sample_id)
+
+
+@router.get("/{run_id}/cases/{sample_id}/images/{image_path:path}")
+def get_case_image(
+    run_id: int, sample_id: str, image_path: str, session: Session = Depends(get_session)
+) -> FileResponse:
+    """返回当前 Case 在 ZIP benchmark 中声明的图片，用于评测流水预览。"""
+    row = case_row_or_404(session, run_id, sample_id)
+    normalized_path = image_path.replace("\\", "/")
+    relative = Path(normalized_path)
+    if (
+        relative.is_absolute()
+        or ".." in relative.parts
+        or not relative.parts
+        or relative.parts[0] != "images"
+        or relative.suffix.lower() not in _CASE_IMAGE_SUFFIXES
+    ):
+        raise HTTPException(status_code=404, detail="图片不存在")
+    if normalized_path not in _case_image_paths(row.detail_json or {}):
+        raise HTTPException(status_code=404, detail="图片未在该 Case 中声明")
+
+    run = get_run_or_404(session, run_id)
+    benchmark = session.get(Benchmark, run.benchmark_id) if run.benchmark_id else None
+    if benchmark is None:
+        raise HTTPException(status_code=404, detail="该评测关联的 benchmark 不存在")
+    storage_root = Path(benchmark.storage_path)
+    if not storage_root.is_absolute():
+        storage_root = get_settings().project_root / storage_root
+    try:
+        image_file = safe_join(storage_root, normalized_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="图片不存在") from exc
+    if not image_file.is_file():
+        raise HTTPException(status_code=404, detail="图片文件不存在")
+    media_type = mimetypes.guess_type(image_file.name)[0] or "application/octet-stream"
+    return FileResponse(image_file, media_type=media_type, headers={"Cache-Control": "private, max-age=3600"})
 
 
 @router.post("/{run_id}/cases/{sample_id}/agent-chain/sync")

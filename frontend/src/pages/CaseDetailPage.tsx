@@ -86,10 +86,16 @@ export default function CaseDetailPage() {
   }
 
   const trace = cd.detail.trace as (AgentChainTrace & { messages?: Array<{ role: string; content: string }> }) | undefined;
-  const messages = trace?.messages || [];
+  const caseInfo = cd.detail.case as { sample_id?: string; scenario?: string; turns?: Array<{ role?: string; images?: string[] }> } | undefined;
+  let userTurnIndex = 0;
+  const caseUserTurns = (caseInfo?.turns || []).filter((turn) => turn.role === "user");
+  const messages = (trace?.messages || []).map((message) => {
+    if (message.role !== "user") return message;
+    const images = caseUserTurns[userTurnIndex++]?.images || [];
+    return images.length ? { ...message, images } : message;
+  });
   const verdicts = (cd.detail.verdicts as CaseVerdict[] | undefined) || [];
   const guidelineScores = (cd.detail.guideline_scores || []) as import("../api").GuidelineScore[];
-  const caseInfo = cd.detail.case as { sample_id?: string; scenario?: string } | undefined;
   const identityProfile = trace?.evaluation_identity?.user_profile || trace?.evaluation_identity?.profile_after_reset;
   const userProfileText = profileText(identityProfile);
 
@@ -107,7 +113,12 @@ export default function CaseDetailPage() {
       <Row gutter={14}>
         <Col xs={24} lg={userProfileText ? 16 : 24}>
           <DashPanel title="对话流水">
-            <ConversationThread messages={messages} />
+            <ConversationThread
+              messages={messages}
+              resolveImageSrc={(imagePath) =>
+                `/api/runs/${id}/cases/${encodeURIComponent(sampleId || "")}/images/${encodeURIComponent(imagePath)}`
+              }
+            />
           </DashPanel>
         </Col>
         {userProfileText ? (

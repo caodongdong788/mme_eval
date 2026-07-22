@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import logging
 import mimetypes
+import re
 from pathlib import Path
 from typing import Iterable
 
@@ -16,6 +17,7 @@ log = logging.getLogger(__name__)
 
 _SUPPORTED_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 _MAX_IMAGE_BYTES = 10 * 1024 * 1024
+_MARKDOWN_IMAGE_PATH_RE = re.compile(r"!\[[^\]]*\]\(\s*(images/[^\s)]+)", re.IGNORECASE)
 
 
 def _image_data_url(raw_path: str, *, yaml_dir: Path) -> str:
@@ -39,11 +41,17 @@ def _image_data_url(raw_path: str, *, yaml_dir: Path) -> str:
 
 
 def _hydrate_case_images(case: TestCase, *, yaml_dir: Path) -> TestCase:
-    """为 Case 的每个 turn 注入运行时图片内容，序列化时不带出 base64。"""
+    """为 Case 的每个 turn 注入运行时图片内容，序列化时不带出 base64。
+
+    图片既可以显式声明在 ``turn.images``，也可以写在用户内容的 Markdown 图片
+    ``![说明](images/xxx.jpg)`` 中，后者兼容已有的 benchmark 编辑方式。
+    """
     for turn in case.turns:
-        if turn.images:
+        markdown_paths = _MARKDOWN_IMAGE_PATH_RE.findall(turn.content)
+        image_paths = list(dict.fromkeys([*turn.images, *markdown_paths]))
+        if image_paths:
             turn.attach_image_data_urls(
-                [_image_data_url(raw_path, yaml_dir=yaml_dir) for raw_path in turn.images]
+                [_image_data_url(raw_path, yaml_dir=yaml_dir) for raw_path in image_paths]
             )
     return case
 

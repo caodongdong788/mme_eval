@@ -1,4 +1,4 @@
-import { Space, Typography } from "antd";
+import { Image, Space, Typography } from "antd";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -7,18 +7,24 @@ const { Text } = Typography;
 export interface ConversationMessage {
   role: string;
   content: string;
+  images?: string[];
 }
 
 export interface ConversationThreadProps {
   messages: ConversationMessage[];
   maxHeight?: number;
+  resolveImageSrc?: (imagePath: string) => string;
 }
 
 function assistantMarkdown(content: string): string {
   return content.replace(/<msg_break\s*\/?\s*>/gi, "\n\n---\n\n");
 }
 
-export function ConversationThread({ messages, maxHeight = 560 }: ConversationThreadProps) {
+function imagePathsInMarkdown(content: string): string[] {
+  return Array.from(content.matchAll(/!\[[^\]]*\]\(\s*(images\/[^\s)]+)/gi), (match) => match[1]);
+}
+
+export function ConversationThread({ messages, maxHeight = 560, resolveImageSrc }: ConversationThreadProps) {
   return (
     <div style={{ maxHeight, overflowY: "auto", paddingRight: 6 }}>
       <Space direction="vertical" size={12} style={{ display: "flex" }}>
@@ -26,6 +32,8 @@ export function ConversationThread({ messages, maxHeight = 560 }: ConversationTh
           const isUser = m.role === "user";
           const isAsst = m.role === "assistant";
           const roleLabel = isUser ? "用户" : isAsst ? "AI 回复" : m.role;
+          const inlineImagePaths = imagePathsInMarkdown(m.content);
+          const attachedImages = (m.images || []).filter((path) => !inlineImagePaths.includes(path));
           return (
             <div
               key={i}
@@ -59,7 +67,33 @@ export function ConversationThread({ messages, maxHeight = 560 }: ConversationTh
                   <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
                     {assistantMarkdown(m.content)}
                   </ReactMarkdown>
+                ) : resolveImageSrc ? (
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    skipHtml
+                    components={{
+                      img: ({ src, alt }) => (
+                        <Image
+                          data-testid="case-conversation-image"
+                          src={src?.startsWith("images/") ? resolveImageSrc(src) : src}
+                          alt={alt || "Case 图片"}
+                          style={{ display: "block", maxWidth: 320, maxHeight: 420, objectFit: "contain", marginTop: 8 }}
+                        />
+                      ),
+                    }}
+                  >
+                    {m.content}
+                  </ReactMarkdown>
                 ) : m.content}
+                {resolveImageSrc && attachedImages.map((imagePath) => (
+                  <Image
+                    key={imagePath}
+                    data-testid="case-conversation-image"
+                    src={resolveImageSrc(imagePath)}
+                    alt="Case 图片"
+                    style={{ display: "block", maxWidth: 320, maxHeight: 420, objectFit: "contain", marginTop: 8 }}
+                  />
+                ))}
               </div>
             </div>
           );

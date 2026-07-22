@@ -27,4 +27,18 @@ describe("ConversationThread", () => {
     expect(screen.queryByText(/msg_break/)).not.toBeInTheDocument();
     expect(screen.getByText("我最近胸口闷，需要去医院吗？")).toBeInTheDocument();
   });
+
+  it("renders Case markdown images through the provided protected source", () => {
+    renderWithProviders(
+      <ConversationThread
+        resolveImageSrc={(path) => `/api/runs/1/cases/case_1/images/${encodeURIComponent(path)}`}
+        messages={[{ role: "user", content: "![报告图](images/report.jpg)" }]}
+      />
+    );
+
+    expect(screen.getByTestId("case-conversation-image")).toHaveAttribute(
+      "src",
+      "/api/runs/1/cases/case_1/images/images%2Freport.jpg"
+    );
+  });
 });
