@@ -148,6 +148,22 @@ def test_upload_normalizes_top_level_user_profile_into_initial_state(client, set
     }
 
 
+def test_upload_normalizes_chinese_current_concern_into_profile_facts(client, settings) -> None:
+    with_profile = V2_YAML.replace(
+        "  turns:",
+        "  initial_state:\n    user_profile:\n      current_concern: 乳腺结节随访\n  turns:",
+    )
+    response = upload(client, with_profile, name="chinese-current-concern")
+    assert response.status_code == 201, response.text
+    benchmark_id = response.json()["id"]
+    with session_scope() as session:
+        benchmark = session.get(Benchmark, benchmark_id)
+        case = load_benchmark_cases(benchmark, settings=settings)[0]
+    profile = case.initial_state.user_profile
+    assert profile.current_concern == "breast_tumor"
+    assert profile.facts["当前关注"] == "乳腺结节随访"
+
+
 def test_upload_zip_with_single_top_level_folder_hydrates_turn_images(client, settings) -> None:
     case_with_image = V2_YAML.replace(
         "      content: 乳房摸到硬块怎么办？",
