@@ -94,7 +94,6 @@ export default function BenchmarksPage() {
   ];
 
   const caseColumns = createBenchmarkCaseColumns({
-    isOnlineCase,
     isBuiltin: bm.casesBenchmark?.source === "builtin",
     onOpenCase: bm.openCaseYaml,
     onDeleteCase: bm.deleteCase,
@@ -235,7 +234,7 @@ export default function BenchmarksPage() {
       </Drawer>
 
       <Drawer
-        title={`${isOnlineCase ? "线上对话" : "用例 YAML"} · ${bm.caseYamlMeta?.subScenario ?? ""}`}
+        title={`${isOnlineCase ? "线上对话" : "用例 YAML"} · ${bm.caseYamlMeta?.caseId ?? ""}`}
         width={760}
         open={bm.caseYamlOpen}
         onClose={() => bm.setCaseYamlOpen(false)}

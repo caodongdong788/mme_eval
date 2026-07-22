@@ -80,13 +80,8 @@ def list_benchmark_case_briefs(session: Session, benchmark_id: int) -> list[Case
         CaseBrief(
             sample_id=c.sample_id,
             scenario=c.scenario,
-            sub_scenario=(
-                bm_domain.first_user_turn_content(c.turns)
-                if bm.source == "online"
-                else c.sub_scenario
-            ) or c.sub_scenario or c.sample_id,
+            case_type=c.case_type,
             level=getattr(c.level, "value", c.level),
-            guideline_count=len(c.evaluation.guidelines),
         )
         for c in cases
     ]

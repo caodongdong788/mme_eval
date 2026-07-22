@@ -13,7 +13,7 @@
 schema_version: "2.0"
 sample_id: bc_unique_id
 scenario: 症状识别
-sub_scenario: 具体场景
+type: bug修复
 level: L2
 source: offline
 initial_state:

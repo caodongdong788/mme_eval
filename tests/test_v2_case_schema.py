@@ -128,6 +128,13 @@ def test_v2_schema_rejects_metadata_key() -> None:
         TestCase.model_validate(raw)
 
 
+def test_v2_schema_rejects_sub_scenario() -> None:
+    raw = raw_case()
+    raw["sub_scenario"] = "不再属于 Case schema"
+    with pytest.raises(ValidationError, match="sub_scenario"):
+        TestCase.model_validate(raw)
+
+
 def test_v2_schema_rejects_guideline_source_key() -> None:
     raw = raw_case()
     raw["evaluation"]["guidelines"][0]["source"] = "不再属于 Case schema"

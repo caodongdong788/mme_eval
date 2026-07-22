@@ -45,7 +45,6 @@ def make_case(sample_id: str, scenario: str = "症状", level: Level = Level.L3)
         schema_version="2.0",
         sample_id=sample_id,
         scenario=scenario,
-        sub_scenario="子场景",
         level=level,
         source=Source.offline,
         turns=[Turn(role="user", content="我胸口痛")],

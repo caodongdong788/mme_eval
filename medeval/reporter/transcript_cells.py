@@ -74,9 +74,9 @@ def _turns(case_result: CaseResult) -> list[tuple[str, str | None, float | None]
 
 
 def _case_title(result: CaseResult) -> str:
-    """用例描述行：优先 sub_scenario，退回 scenario / sample_id。"""
+    """用例描述行：场景为空时回退到 sample_id。"""
     c = result.case
-    return c.sub_scenario or c.scenario or c.sample_id
+    return c.scenario or c.sample_id
 
 
 def _test_content_cell(result: CaseResult) -> str:

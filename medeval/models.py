@@ -208,7 +208,6 @@ class TestCase(BaseModel):
     schema_version: Literal["2.0"]
     sample_id: str
     scenario: str
-    sub_scenario: str = ""
     level: Level
     source: Source = Source.offline
     # 用例业务类型（如“bug修复”），仅供检索和报告定位，不参与八维评分。

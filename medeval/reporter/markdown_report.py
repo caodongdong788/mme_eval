@@ -102,7 +102,7 @@ def _failure_section(results: list[CaseResult]) -> str:
             fail_lines.extend(_render_verdict_line(v))
         prefix = _stability_prefix(r)
         lines += [
-            f"### {i}. {prefix}`{r.case.sample_id}` · {r.case.scenario}/{r.case.sub_scenario} "
+            f"### {i}. {prefix}`{r.case.sample_id}` · {r.case.scenario} "
             f"· {r.case.level.value}",
             f"**失败标签：** {', '.join(_tag_to_zh_label(t) for t in r.failure_tags) or '—'}",
             "",

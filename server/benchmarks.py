@@ -331,20 +331,6 @@ def _feishu_row_rich_messages(fields: dict[str, Any]) -> list[dict[str, Any]]:
     return messages
 
 
-def first_user_turn_content(turns: list[Any]) -> str:
-    """返回第一轮用户输入，供线上 case 列表和 sub_scenario 展示。"""
-    for turn in turns:
-        if isinstance(turn, dict):
-            role = turn.get("role")
-            content = turn.get("content")
-        else:
-            role = getattr(turn, "role", "")
-            content = getattr(turn, "content", "")
-        if getattr(role, "value", role) == "user":
-            return " ".join(str(content or "").split()).strip()
-    return ""
-
-
 def _sheet_row_fields(headers: list[str], row: list[Any]) -> dict[str, Any]:
     fields: dict[str, Any] = {}
     for col_index, cell in enumerate(row):
@@ -469,12 +455,10 @@ def feishu_base_records_to_yaml_bytes(records: list[dict[str, Any]]) -> bytes:
 
         sample_id = _unique_online_sample_id(seen, record.get("record_id"), index)
 
-        title = first_user_turn_content(turns) or _cell_text(fields.get("会话标题"))
         case: dict[str, Any] = {
             "schema_version": "2.0",
             "sample_id": sample_id,
             "scenario": "线上真实对话",
-            "sub_scenario": title or sample_id,
             "level": "L2",
             "source": "online",
             "turns": turns,
@@ -517,12 +501,10 @@ def _sheet_to_cases(sheet: dict[str, Any], seen: set[str]) -> list[dict[str, Any
         row_number = row_indices[index] if index < len(row_indices) else index + 1
         raw_id = f"{sheet.get('sheet_name') or sheet.get('sheet_id') or 'sheet'}_{row_number}"
         sample_id = _unique_online_sample_id(seen, raw_id, index)
-        title = first_user_turn_content(turns) or _cell_text(fields.get("会话标题"))
         case: dict[str, Any] = {
             "schema_version": "2.0",
             "sample_id": sample_id,
             "scenario": "线上真实对话",
-            "sub_scenario": title or sample_id,
             "level": "L2",
             "source": "online",
             "turns": turns,

@@ -18,7 +18,6 @@ def _case_with_tokens(
             schema_version="2.0",
             sample_id="bc_token_1",
             scenario="症状",
-            sub_scenario="子",
             level=Level.L3,
             source=Source.offline,
             turns=[Turn(role="user", content="test")],

@@ -126,9 +126,8 @@ class CaseBrief(BaseModel):
 
     sample_id: str
     scenario: str
-    sub_scenario: str = ""
+    case_type: str = ""
     level: str
-    guideline_count: int = 0
 
 
 class BenchmarkCaseYamlOut(BaseModel):

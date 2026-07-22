@@ -64,7 +64,7 @@ def build_case_row(
         run_id=run_id,
         sample_id=case.sample_id,
         scenario=case.scenario,
-        sub_scenario=case.sub_scenario,
+        sub_scenario="",
         level=_enum_val(case.level),
         source=_enum_val(case.source),
         tags=[],

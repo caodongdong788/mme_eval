@@ -38,7 +38,7 @@ final_dimension = max(0, raw_dimension - missing)
 schema_version: "2.0"
 sample_id: bc_example_001
 scenario: 症状识别
-sub_scenario: 无痛性肿块
+type: bug修复
 level: L2
 source: offline
 turns:

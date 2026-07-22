@@ -1,7 +1,6 @@
 schema_version: "2.0"
 sample_id: memory_example_001
 scenario: 长期记忆
-sub_scenario: 用药时间与耐受性召回
 level: L2
 source: offline
 initial_state:

@@ -5,6 +5,7 @@ import { api, Benchmark, CaseBrief } from "../api/index";
 import { formatApiError } from "../utils/apiError";
 import { useAsyncData } from "./useAsyncData";
 import { useEditModal } from "./useEditModal";
+import { shortCaseId } from "../components/BenchmarkCaseColumns";
 
 export function useBenchmarksPage() {
   const { data: list, loading, error, reload } = useAsyncData(() => api.listBenchmarks(), []);
@@ -29,7 +30,7 @@ export function useBenchmarksPage() {
   const [caseYamlText, setCaseYamlText] = useState("");
   const [caseYamlMeta, setCaseYamlMeta] = useState<{
     sampleId: string;
-    subScenario: string;
+    caseId: string;
     caseFile: string;
   } | null>(null);
 
@@ -115,7 +116,7 @@ export function useBenchmarksPage() {
     setCaseYamlText("");
     setCaseYamlMeta({
       sampleId: row.sample_id,
-      subScenario: row.sub_scenario || row.sample_id,
+      caseId: shortCaseId(row.sample_id),
       caseFile: "",
     });
     try {
@@ -126,7 +127,7 @@ export function useBenchmarksPage() {
           ? { ...m, caseFile: res.case_file }
           : {
               sampleId: row.sample_id,
-              subScenario: row.sub_scenario || row.sample_id,
+              caseId: shortCaseId(row.sample_id),
               caseFile: res.case_file,
             }
       );

@@ -1,7 +1,6 @@
 - schema_version: "2.0"
   sample_id: demo_lump_001
   scenario: 症状识别
-  sub_scenario: 新发现无痛性乳房肿块
   level: L2
   source: offline
   turns:
@@ -30,7 +29,6 @@
 - schema_version: "2.0"
   sample_id: demo_discharge_002
   scenario: 症状识别
-  sub_scenario: 单侧血性乳头溢液
   level: L3
   source: offline
   turns:
@@ -59,7 +57,6 @@
 - schema_version: "2.0"
   sample_id: demo_chemo_fever_003
   scenario: 治疗副作用
-  sub_scenario: 化疗后发热伴寒战
   level: L3
   source: offline
   turns:
@@ -88,7 +85,6 @@
 - schema_version: "2.0"
   sample_id: demo_endocrine_missed_004
   scenario: 用药管理
-  sub_scenario: 内分泌治疗漏服
   level: L2
   source: offline
   turns:
@@ -117,7 +113,6 @@
 - schema_version: "2.0"
   sample_id: demo_arm_swelling_005
   scenario: 康复管理
-  sub_scenario: 术后患侧手臂肿胀
   level: L2
   source: offline
   turns:
@@ -146,7 +141,6 @@
 - schema_version: "2.0"
   sample_id: demo_pathology_006
   scenario: 检查解读
-  sub_scenario: ER阳性HER2阴性含义
   level: L1
   source: offline
   turns:
@@ -174,7 +168,6 @@
 - schema_version: "2.0"
   sample_id: demo_pregnancy_lump_007
   scenario: 特殊人群
-  sub_scenario: 孕期发现乳房肿块
   level: L3
   source: offline
   turns:
@@ -203,7 +196,6 @@
 - schema_version: "2.0"
   sample_id: demo_diarrhea_008
   scenario: 治疗副作用
-  sub_scenario: 口服治疗期间严重腹泻
   level: L3
   source: offline
   turns:
@@ -232,7 +224,6 @@
 - schema_version: "2.0"
   sample_id: demo_recurrence_anxiety_009
   scenario: 情绪支持
-  sub_scenario: 复查前复发焦虑与失眠
   level: L2
   source: offline
   turns:
@@ -262,7 +253,6 @@
 - schema_version: "2.0"
   sample_id: demo_followup_010
   scenario: 随访管理
-  sub_scenario: 治疗结束后的复查准备
   level: L1
   source: offline
   turns:

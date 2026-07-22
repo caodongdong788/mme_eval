@@ -348,7 +348,7 @@ async def run_pairwise_comparison(comparison_id: int, judge_model_id: int) -> No
             row = {
                 "sample_id": sid,
                 "scenario": (case.scenario or "").strip(),
-                "sub_scenario": (case.sub_scenario or "").strip(),
+                "sub_scenario": "",
                 "winner": res.winner,
                 "confidence": res.confidence,
                 "swap_consistent": res.swap_consistent,

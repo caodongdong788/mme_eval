@@ -5,7 +5,7 @@ import { STABILITY_LABEL } from "../labels";
 import { DashPanel } from "./DashPanel";
 
 export interface CaseDetailSummary {
-  case?: { sample_id?: string; scenario?: string; sub_scenario?: string; level?: string };
+  case?: { sample_id?: string; scenario?: string; level?: string };
   composite_score?: number;
   grade?: string;
   stability?: string;
@@ -32,7 +32,7 @@ export function CaseDetailSummaryCard({
   return (
     <DashPanel title={<Link to={backTo} state={backState} className="dash-table__link">← 返回{backLabel}</Link>}>
       <Descriptions title={`用例 ${detail.case?.sample_id}`} column={3} size="small">
-        <Descriptions.Item label="场景">{detail.case?.sub_scenario || detail.case?.scenario}</Descriptions.Item>
+        <Descriptions.Item label="场景">{detail.case?.scenario}</Descriptions.Item>
         <Descriptions.Item label="Level">{detail.case?.level}</Descriptions.Item>
         <Descriptions.Item label="总分">{detail.composite_score ?? "-"}/45</Descriptions.Item>
         <Descriptions.Item label="医生端">{detail.end_scores?.doctor ?? "-"}/15</Descriptions.Item>

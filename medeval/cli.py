@@ -420,14 +420,14 @@ def list_cases(config_path):
     table.add_column("Sample ID")
     table.add_column("Level")
     table.add_column("Scenario")
-    table.add_column("Sub")
+    table.add_column("Case 类型")
     table.add_column("指南项数")
     for c in cases:
         table.add_row(
             c.sample_id,
             c.level.value,
             c.scenario,
-            c.sub_scenario,
+            c.case_type,
             str(len(c.evaluation.guidelines)),
         )
     console.print(table)

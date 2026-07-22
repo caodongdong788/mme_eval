@@ -89,7 +89,7 @@ export default function CaseDetailPage() {
   const messages = trace?.messages || [];
   const verdicts = (cd.detail.verdicts as CaseVerdict[] | undefined) || [];
   const guidelineScores = (cd.detail.guideline_scores || []) as import("../api").GuidelineScore[];
-  const caseInfo = cd.detail.case as { sample_id?: string; sub_scenario?: string; scenario?: string } | undefined;
+  const caseInfo = cd.detail.case as { sample_id?: string; scenario?: string } | undefined;
   const identityProfile = trace?.evaluation_identity?.user_profile || trace?.evaluation_identity?.profile_after_reset;
   const userProfileText = profileText(identityProfile);
 
@@ -157,7 +157,7 @@ export default function CaseDetailPage() {
             ? `#${cd.run.benchmark_id}「${cd.benchmarkName || "—"}」`
             : undefined
         }
-        title={`改判据 · ${caseInfo?.sub_scenario || caseInfo?.scenario || sampleId}`}
+        title={`改判据 · ${caseInfo?.scenario || sampleId}`}
         name={cd.yamlName}
         onNameChange={cd.setYamlName}
         yamlText={cd.yamlText}

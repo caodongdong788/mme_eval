@@ -65,7 +65,7 @@ Case 可在 `evaluation.dimension_criteria` 中补充本题关注点，但不能
 schema_version: "2.0"
 sample_id: bc_example_001
 scenario: 症状识别
-sub_scenario: 无痛性肿块就医路径
+type: bug修复
 level: L2
 source: offline
 

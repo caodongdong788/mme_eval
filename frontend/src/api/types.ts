@@ -89,9 +89,8 @@ export interface PreviewRejudgeResult {
 export interface CaseBrief {
   sample_id: string;
   scenario: string;
-  sub_scenario: string;
+  case_type: string;
   level: string;
-  guideline_count: number;
 }
 
 export interface BenchmarkCaseYaml {

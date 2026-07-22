@@ -35,7 +35,7 @@ Case YAML v2。目标读者是负责转换数据的 AI、脚本开发者和审�
 - schema_version: "2.0"
   sample_id: batch_001
   scenario: 症状识别
-  sub_scenario: 新发现无痛性乳房肿块
+  type: bug修复
   level: L2
   source: offline
   turns:
@@ -64,7 +64,7 @@ Case YAML v2。目标读者是负责转换数据的 AI、脚本开发者和审�
 | `schema_version` | 是 | 字符串，只能是 `"2.0"` | 固定填写；必须加引号 |
 | `sample_id` | 是 | 非空字符串 | 全项目唯一、稳定、可追踪回原标注记录 |
 | `scenario` | 是 | 字符串 | 一级业务场景，如“症状识别”“用药管理” |
-| `sub_scenario` | 否 | 字符串 | 更具体的问题类型；没有则可写空字符串或省略 |
+| `type` | 否 | 字符串 | Case 类型，如“bug修复”；没有可省略 |
 | `level` | 是 | `L1`/`L2`/`L3`/`L4` | 按下文难度规则映射 |
 | `source` | 否 | `online`/`offline` | 默认为 `offline`；真实线上采样才写 `online` |
 | `initial_state` | 否 | object | 需要预置用户画像或长期记忆时填写 |
@@ -303,7 +303,7 @@ guidelines:
 {
   "source_id": "annotation-row-004",
   "scenario": "用药管理",
-  "sub_scenario": "内分泌治疗漏服",
+  "type": "bug修复",
   "level": "L2",
   "source": "offline",
   "turns": [
@@ -330,7 +330,7 @@ guidelines:
 | 原始标注语义 | MME 目标字段 |
 |---|---|
 | 记录 ID / 题号 | `sample_id` 的来源部分 |
-| 一级/二级分类 | `scenario` / `sub_scenario` |
+| 场景 / Case 类型 | `scenario` / `type` |
 | 难度 / 风险级 | `level`，需按项目语义复核 |
 | 用户问题 / 多轮追问 | `turns[].content` |
 | 禁止项 / 红旗 | `dimension_criteria.medical_safety` |
@@ -344,7 +344,7 @@ guidelines:
 如果原始标注没有某个目标字段：
 
 - 必填字段无法可靠推断时，输出到“待人工补充列表”，不要静默编造；
-- `sub_scenario`、`initial_state`、`notes` 等可选字段可以省略；
+- `type`、`initial_state`、`notes` 等可选字段可以省略；
 - 指南来源缺失时可以使用真实的标注批次与记录 ID，不能编造临床指南名；
 - 权重缺失时可先使用明确的批次默认值，但必须在转换报告中记录该默认规则。
 
@@ -375,7 +375,6 @@ def stable_sample_id(item: dict[str, Any]) -> str:
 
     fingerprint_input = {
         "scenario": item.get("scenario"),
-        "sub_scenario": item.get("sub_scenario"),
         "turns": item.get("turns"),
     }
     raw = json.dumps(fingerprint_input, ensure_ascii=False, sort_keys=True)
@@ -388,7 +387,7 @@ def to_case(item: dict[str, Any]) -> TestCase:
         "schema_version": "2.0",
         "sample_id": stable_sample_id(item),
         "scenario": item["scenario"],
-        "sub_scenario": item.get("sub_scenario", ""),
+        "type": item.get("type", ""),
         "level": item["level"],
         "source": item.get("source", "offline"),
         "turns": item["turns"],
@@ -468,7 +467,7 @@ defaults:
 cases:
   - sample_id: batch_001
     scenario: 症状识别
-    sub_scenario: 乳房肿块
+    type: bug修复
     turns:
       - role: user
         content: 我摸到一个硬块，需要去医院吗？
