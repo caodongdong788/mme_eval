@@ -30,6 +30,10 @@ describe("AgentChainPanel", () => {
     renderWithProviders(
       <AgentChainPanel
         onSync={onSync}
+        caseInitialState={{
+          user_profile: { "治疗阶段": "产后恢复期", "用药-他莫昔芬": "计划恢复服用" },
+          timeline: [{ "他莫昔芬（key=tamoxifen；用药）": "2026-07-20：医生提示产后 5 天不宜立即启动" }],
+        }}
         trace={{
           evaluation_identity: {
             test_user_id: "00000000-0000-0000-0000-000000000101",
@@ -82,8 +86,10 @@ describe("AgentChainPanel", () => {
     expect(screen.getByText("731904")).toBeInTheDocument();
     expect(screen.queryByText("00000000-0000-0000-0000-000000000101")).not.toBeInTheDocument();
     expect(screen.getByText("948c4c16-75d9-4597-8980-3757fe68110c")).toBeInTheDocument();
-    expect(screen.getByText("用户画像")).toBeInTheDocument();
-    expect(screen.getByText("小橙")).toBeInTheDocument();
+    expect(screen.getByText("用户档案和过往事实")).toBeInTheDocument();
+    expect(screen.getAllByText("用户档案").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("过往事实").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("已注入").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("调用路径")).toBeInTheDocument();
     expect(screen.getByText("信息来源")).toBeInTheDocument();
     expect(screen.getByText("读取 1 份病例资料（2 个附件）")).toBeInTheDocument();
@@ -95,6 +101,10 @@ describe("AgentChainPanel", () => {
     expect(screen.getByText("75%")).toBeInTheDocument();
     expect(screen.queryByText(/原始 Langfuse 数据/)).not.toBeInTheDocument();
     expect(screen.queryByText(/在 Langfuse 查看第/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "查看详情" }));
+    expect(screen.getAllByText("他莫昔芬（key=tamoxifen；用药）").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("2026-07-20：医生提示产后 5 天不宜立即启动")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /重新同步/ }));
     expect(onSync).toHaveBeenCalledOnce();

@@ -86,7 +86,16 @@ async def _run_one(
     turn_token_usage: list[dict[str, int]] = []
     error: str | None = None
     cx_langfuse_trace_ids: list[str] = []
-    evaluation_identity: dict = {}
+    # 原始 Case 上的用户档案 / Timeline 需要随评测结果固化：它们是 Agent
+    # 的预置上下文，也是平台展示「用户档案和过往事实」及判断其是否注入的依据。
+    # 使用 alias 保留 Case YAML 中的 ``Timeline`` 名称与自由 key，不展示
+    # 仅供 cx-agent 使用的内部 long_term_memories 转换结果。
+    case_initial_state = case.initial_state.model_dump(by_alias=True, exclude_none=True)
+    evaluation_identity: dict = (
+        {"initial_state": case_initial_state}
+        if case_initial_state
+        else {}
+    )
     initial_state = case.initial_state.to_agent_payload()
 
     start = time.perf_counter()
@@ -182,8 +191,9 @@ async def _run_one(
                             cx_langfuse_trace_ids.append(trace_id)
                         account = resp.raw.get("evaluation_account")
                         context = resp.raw.get("evaluation_context")
-                        if isinstance(account, dict) and not evaluation_identity:
-                            evaluation_identity = dict(account)
+                        if isinstance(account, dict):
+                            for key, value in account.items():
+                                evaluation_identity.setdefault(key, value)
                         if isinstance(context, dict):
                             profile = context.get("userProfile")
                             if isinstance(profile, dict):

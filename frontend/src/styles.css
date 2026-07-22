@@ -2024,6 +2024,65 @@ a.ant-typography-secondary:hover {
   color: var(--runs-text-secondary);
   font-size: 12px;
 }
+.agent-context-summary {
+  display: grid;
+  gap: 9px;
+}
+.agent-context-summary > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--runs-border);
+}
+.agent-context-summary > div > strong {
+  color: var(--runs-text);
+  font-size: 12px;
+}
+.agent-context-summary > div > span {
+  color: var(--runs-text-muted);
+  font-size: 11px;
+  text-align: right;
+}
+.agent-context-summary .ant-btn {
+  justify-self: start;
+  padding-left: 0;
+}
+.agent-context-details {
+  display: grid;
+  gap: 12px;
+}
+.agent-context-details h4 {
+  margin: 0;
+  color: var(--runs-text);
+  font-size: 13px;
+}
+.agent-context-details dl {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+.agent-context-details dl > div {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.36fr) minmax(0, 1fr);
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--runs-border);
+}
+.agent-context-details dt {
+  color: var(--runs-text-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.agent-context-details dd {
+  margin: 0;
+  color: var(--runs-text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .agent-source-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2039,7 +2098,8 @@ a.ant-typography-secondary:hover {
 }
 .agent-source-card.is-read,
 .agent-source-card.is-hit,
-.agent-source-card.is-queried {
+.agent-source-card.is-queried,
+.agent-source-card.is-injected {
   border-left-color: var(--runs-green);
 }
 .agent-source-card.is-miss,

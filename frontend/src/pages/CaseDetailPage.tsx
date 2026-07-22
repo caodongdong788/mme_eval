@@ -86,7 +86,12 @@ export default function CaseDetailPage() {
   }
 
   const trace = cd.detail.trace as (AgentChainTrace & { messages?: Array<{ role: string; content: string }> }) | undefined;
-  const caseInfo = cd.detail.case as { sample_id?: string; scenario?: string; turns?: Array<{ role?: string; images?: string[] }> } | undefined;
+  const caseInfo = cd.detail.case as {
+    sample_id?: string;
+    scenario?: string;
+    initial_state?: Record<string, unknown>;
+    turns?: Array<{ role?: string; images?: string[] }>;
+  } | undefined;
   let userTurnIndex = 0;
   const caseUserTurns = (caseInfo?.turns || []).filter((turn) => turn.role === "user");
   const messages = (trace?.messages || []).map((message) => {
@@ -134,6 +139,7 @@ export default function CaseDetailPage() {
         trace={trace}
         syncing={cd.chainSyncing}
         onSync={cd.syncAgentChain}
+        caseInitialState={caseInfo?.initial_state}
       />
 
       <JudgeVerdictTable

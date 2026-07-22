@@ -2,8 +2,10 @@ import {
   Alert,
   Button,
   Empty,
+  Modal,
   Space,
 } from "antd";
+import { useState } from "react";
 import {
   BranchesOutlined,
   DatabaseOutlined,
@@ -43,7 +45,7 @@ interface ChainStep {
 interface SourceSummary {
   key: string;
   label: string;
-  status: "unused" | "listed" | "read" | "queried" | "hit" | "miss" | "failed";
+  status: "unused" | "injected" | "listed" | "read" | "queried" | "hit" | "miss" | "failed";
   summary: string;
   calls: number;
   count: number;
@@ -119,6 +121,13 @@ interface EvaluationIdentity {
   cx_session_id?: string;
   user_profile?: Record<string, unknown>;
   profile_after_reset?: Record<string, unknown>;
+  initial_state?: CaseInitialState;
+}
+
+interface CaseInitialState {
+  user_profile?: Record<string, unknown>;
+  Timeline?: unknown;
+  timeline?: unknown;
 }
 
 export interface AgentChainTrace {
@@ -130,6 +139,7 @@ export interface AgentChainTrace {
 
 const sourceStatusLabels: Record<SourceSummary["status"], string> = {
   unused: "未调用",
+  injected: "已注入",
   listed: "仅查看目录",
   read: "已读取",
   queried: "已查询",
@@ -175,6 +185,24 @@ function hasContent(value: unknown): boolean {
   return true;
 }
 
+function timelineFacts(value: unknown): Array<{ label: string; content: unknown }> {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => timelineFacts(item));
+  }
+  const item = record(value);
+  if (!Object.keys(item).length) return [];
+  if (typeof item.label === "string" && hasContent(item.content)) {
+    return [{ label: item.label, content: item.content }];
+  }
+  return Object.entries(item)
+    .filter(([, content]) => hasContent(content))
+    .map(([label, content]) => ({ label, content }));
+}
+
+function initialTimeline(initialState?: CaseInitialState): Array<{ label: string; content: unknown }> {
+  return timelineFacts(initialState?.Timeline ?? initialState?.timeline);
+}
+
 function displayId(value?: string): string {
   if (!value) return "—";
   return value;
@@ -217,20 +245,59 @@ function Metric({ label, value, hint }: { label: string; value: string; hint?: s
   );
 }
 
-function ProfileCard({ profile }: { profile: Record<string, unknown> }) {
-  const entries = Object.entries(profile).filter(([, value]) => hasContent(value)).slice(0, 10);
-  if (!entries.length) return null;
+function ContextCard({
+  initialState,
+  fallbackProfile,
+}: {
+  initialState?: CaseInitialState;
+  fallbackProfile: Record<string, unknown>;
+}) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const profile = record(initialState?.user_profile);
+  const profileEntries = Object.entries(Object.keys(profile).length ? profile : fallbackProfile)
+    .filter(([key, value]) => key !== "profileFactCount" && key !== "longTermMemoryCount" && hasContent(value));
+  const facts = initialTimeline(initialState);
+  if (!profileEntries.length && !facts.length) return null;
   return (
     <section className="agent-insight-block agent-profile-card">
-      <header><UserOutlined /><strong>用户画像</strong><span>{entries.length} 项</span></header>
-      <dl>
-        {entries.map(([key, value]) => (
-          <div key={key}>
-            <dt>{profileLabels[key] || key.replace(/_/g, " ")}</dt>
-            <dd>{inlineText(value)}</dd>
-          </div>
-        ))}
-      </dl>
+      <header><UserOutlined /><strong>用户档案和过往事实</strong><span>{profileEntries.length} 项档案 · {facts.length} 条事实</span></header>
+      <div className="agent-context-summary">
+        <div><strong>用户档案</strong><span>{profileEntries.length} 项，已注入本轮上下文</span></div>
+        <div><strong>过往事实</strong><span>{facts.length} 条，已注入本轮上下文</span></div>
+        <Button type="link" size="small" onClick={() => setDetailsOpen(true)}>查看详情</Button>
+      </div>
+      <Modal
+        open={detailsOpen}
+        title="用户档案和过往事实"
+        footer={null}
+        width={820}
+        onCancel={() => setDetailsOpen(false)}
+      >
+        <section className="agent-context-details">
+          <h4>用户档案（{profileEntries.length} 项）</h4>
+          {profileEntries.length ? (
+            <dl>
+              {profileEntries.map(([key, value]) => (
+                <div key={key}>
+                  <dt>{profileLabels[key] || key.replace(/_/g, " ")}</dt>
+                  <dd>{inlineText(value)}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : <div className="agent-insight-empty">未配置用户档案</div>}
+          <h4>过往事实（{facts.length} 条）</h4>
+          {facts.length ? (
+            <dl>
+              {facts.map((fact, index) => (
+                <div key={`${fact.label}-${index}`}>
+                  <dt>{fact.label}</dt>
+                  <dd>{inlineText(fact.content)}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : <div className="agent-insight-empty">未配置过往事实</div>}
+        </section>
+      </Modal>
     </section>
   );
 }
@@ -266,12 +333,47 @@ function RecallFlow({ source }: { source: SourceSummary }) {
   );
 }
 
-function SourceGrid({ sources }: { sources: SourceSummary[] }) {
+function displaySources(sources: SourceSummary[], initialState?: CaseInitialState): SourceSummary[] {
+  const profile = record(initialState?.user_profile);
+  const profileDetails = Object.entries(profile)
+    .filter(([, value]) => hasContent(value))
+    .map(([key]) => profileLabels[key] || key.replace(/_/g, " "));
+  const facts = initialTimeline(initialState);
+  const timelineDetails = facts.map((fact) => fact.label);
+  const displayed = sources.map((source) => {
+    if (source.key !== "timeline" || !facts.length) return source;
+    if (source.status !== "unused") {
+      return { ...source, label: "过往事实", details: [...timelineDetails, ...source.details] };
+    }
+    return {
+      ...source,
+      label: "过往事实",
+      status: "injected" as const,
+      summary: "已注入本轮系统提示词，无需额外函数调用",
+      count: facts.length,
+      details: timelineDetails,
+    };
+  });
+  return profileDetails.length
+    ? [{
+      key: "user_profile",
+      label: "用户档案",
+      status: "injected" as const,
+      summary: "已注入本轮系统提示词，无需额外函数调用",
+      calls: 0,
+      count: profileDetails.length,
+      details: profileDetails,
+    }, ...displayed]
+    : displayed;
+}
+
+function SourceGrid({ sources, initialState }: { sources: SourceSummary[]; initialState?: CaseInitialState }) {
+  const visibleSources = displaySources(sources, initialState);
   return (
     <section className="agent-insight-block agent-insight-block--wide">
-      <header><DatabaseOutlined /><strong>信息来源</strong><span>是否真正读取，一眼可见</span></header>
+      <header><DatabaseOutlined /><strong>信息来源</strong><span>系统注入与工具读取均会展示</span></header>
       <div className="agent-source-grid">
-        {sources.map((source) => (
+        {visibleSources.map((source) => (
           <article className={`agent-source-card is-${source.status}`} key={source.key}>
             <div className="agent-source-card__head">
               <strong>{source.label}</strong>
@@ -336,10 +438,12 @@ export function AgentChainPanel({
   trace,
   syncing,
   onSync,
+  caseInitialState,
 }: {
   trace?: AgentChainTrace;
   syncing?: boolean;
   onSync: () => void;
+  caseInitialState?: CaseInitialState;
 }) {
   const identity = trace?.evaluation_identity || {};
   const chain = trace?.agent_chain || {};
@@ -349,6 +453,7 @@ export function AgentChainPanel({
   const candidateProfile = hasContent(identity.user_profile)
     ? record(identity.user_profile)
     : record(identity.profile_after_reset);
+  const initialState = identity.initial_state || caseInitialState;
 
   return (
     <DashPanel
@@ -386,8 +491,8 @@ export function AgentChainPanel({
 
             <div className="agent-insight-layout">
               <CallPath steps={summary.steps} />
-              <ProfileCard profile={candidateProfile} />
-              <SourceGrid sources={summary.sources} />
+              <ContextCard initialState={initialState} fallbackProfile={candidateProfile} />
+              <SourceGrid sources={summary.sources} initialState={initialState} />
               <Decisions risks={summary.risks} actions={summary.actions} />
               <ChainQuality quality={summary.quality} />
             </div>
