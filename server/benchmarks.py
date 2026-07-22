@@ -410,7 +410,11 @@ def _validate_yaml_bytes(content: bytes, settings: Settings) -> tuple[Path, list
 
 
 def _validate_and_extract_zip(content: bytes, settings: Settings) -> tuple[Path, list[TestCase]]:
-    """安全解压标准 benchmark 包，并校验 cases.yaml 对图片的引用。"""
+    """安全解压标准 benchmark 包，并校验 cases.yaml 对图片的引用。
+
+    接受 ZIP 根目录，或 macOS「压缩文件夹」时自动生成的单层目录包装。
+    解压后的 benchmark 存储始终规范为 ``cases.yaml`` + ``images/``。
+    """
     staging = settings.uploads_dir / "_staging" / uuid4().hex
     try:
         archive = zipfile.ZipFile(io.BytesIO(content))
@@ -421,13 +425,14 @@ def _validate_and_extract_zip(content: bytes, settings: Settings) -> tuple[Path,
         infos = archive.infolist()
         if len(infos) > _ZIP_MAX_FILES:
             raise BenchmarkValidationError(f"ZIP 文件数超过上限（{_ZIP_MAX_FILES}）")
-        total_size = 0
-        case_found = False
+        members: list[tuple[zipfile.ZipInfo, PurePosixPath]] = []
         for info in infos:
             raw_name = info.filename.replace("\\", "/")
-            if not raw_name or raw_name.startswith("__MACOSX/") or raw_name == ".DS_Store":
+            if not raw_name:
                 continue
             path = PurePosixPath(raw_name)
+            if "__MACOSX" in path.parts or path.name == ".DS_Store":
+                continue
             if path.is_absolute() or ".." in path.parts or raw_name.startswith("/"):
                 raise BenchmarkValidationError(f"ZIP 含不安全路径：{info.filename}")
             mode = info.external_attr >> 16
@@ -435,29 +440,47 @@ def _validate_and_extract_zip(content: bytes, settings: Settings) -> tuple[Path,
                 raise BenchmarkValidationError(f"ZIP 不允许符号链接：{info.filename}")
             if info.is_dir():
                 continue
+            members.append((info, path))
+
+        has_root_cases = any(path.parts == ("cases.yaml",) for _, path in members)
+        top_level_parts = {path.parts[0] for _, path in members if len(path.parts) >= 2}
+        wrapper = ()
+        if not has_root_cases:
+            if len(top_level_parts) == 1:
+                candidate = next(iter(top_level_parts))
+                if any(path.parts == (candidate, "cases.yaml") for _, path in members):
+                    wrapper = (candidate,)
+            if not wrapper:
+                raise BenchmarkValidationError("ZIP 根目录必须包含 cases.yaml，或只包含一层目录包装")
+
+        total_size = 0
+        case_found = False
+        normalized_members: list[tuple[zipfile.ZipInfo, PurePosixPath]] = []
+        for info, path in members:
+            if wrapper:
+                if len(path.parts) <= 1 or path.parts[0] != wrapper[0]:
+                    raise BenchmarkValidationError("ZIP 仅允许包含一个顶层目录，其中应有 cases.yaml 和 images/")
+                path = PurePosixPath(*path.parts[1:])
             total_size += info.file_size
             if total_size > _ZIP_MAX_UNCOMPRESSED_BYTES:
                 raise BenchmarkValidationError("ZIP 解压后内容超过 100 MiB 限制")
-            if raw_name == "cases.yaml":
+            if path.parts == ("cases.yaml",):
                 case_found = True
+                normalized_members.append((info, path))
                 continue
-            if not raw_name.startswith("images/") or len(path.parts) < 2:
+            if not path.parts or path.parts[0] != "images" or len(path.parts) < 2:
                 raise BenchmarkValidationError("ZIP 仅允许包含 cases.yaml 和 images/ 目录")
             if path.suffix.lower() not in _IMAGE_SUFFIXES:
                 raise BenchmarkValidationError(f"images/ 中存在不支持的图片格式：{info.filename}")
             if info.file_size > 10 * 1024 * 1024:
                 raise BenchmarkValidationError(f"单张图片超过 10 MiB 限制：{info.filename}")
+            normalized_members.append((info, path))
         if not case_found:
-            raise BenchmarkValidationError("ZIP 根目录必须包含 cases.yaml")
+            raise BenchmarkValidationError("ZIP 中未找到 cases.yaml")
 
         staging.mkdir(parents=True, exist_ok=False)
-        for info in infos:
-            raw_name = info.filename.replace("\\", "/")
-            if not raw_name or raw_name.startswith("__MACOSX/") or raw_name == ".DS_Store":
-                continue
-            if info.is_dir():
-                continue
-            target = staging.joinpath(*PurePosixPath(raw_name).parts)
+        for info, path in normalized_members:
+            target = staging.joinpath(*path.parts)
             target.parent.mkdir(parents=True, exist_ok=True)
             with archive.open(info) as source, target.open("wb") as dest:
                 shutil.copyfileobj(source, dest)

@@ -128,6 +128,28 @@ def test_upload_zip_with_relative_images_hydrates_turn_images(client, settings) 
     assert saved.status_code == 200, saved.text
 
 
+def test_upload_zip_with_single_top_level_folder_hydrates_turn_images(client, settings) -> None:
+    case_with_image = V2_YAML.replace(
+        "      content: 乳房摸到硬块怎么办？",
+        "      content: 请结合报告图片判断\n      images:\n        - images/case-api-folder-1.jpg",
+    )
+    package = io.BytesIO()
+    with zipfile.ZipFile(package, "w") as archive:
+        archive.writestr("乳腺癌高质量benchmark库_mme_cases 2/cases.yaml", case_with_image)
+        archive.writestr("乳腺癌高质量benchmark库_mme_cases 2/images/case-api-folder-1.jpg", b"fake-jpeg-content")
+
+    response = client.post(
+        "/api/benchmarks",
+        data={"name": "zip-folder-image-benchmark", "source": "offline"},
+        files={"file": ("benchmark.zip", package.getvalue(), "application/zip")},
+    )
+
+    assert response.status_code == 201, response.text
+    benchmark_id = response.json()["id"]
+    assert (settings.uploads_dir / str(benchmark_id) / "cases.yaml").is_file()
+    assert (settings.uploads_dir / str(benchmark_id) / "images" / "case-api-folder-1.jpg").is_file()
+
+
 def test_upload_zip_rejects_path_traversal(client) -> None:
     package = io.BytesIO()
     with zipfile.ZipFile(package, "w") as archive:
