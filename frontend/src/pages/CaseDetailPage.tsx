@@ -4,50 +4,16 @@ import { CasePreviewRejudgePanel } from "../components/CasePreviewRejudgePanel";
 import { EditCriteriaDrawer } from "../components/EditCriteriaDrawer";
 import { CaseDetailSummary, CaseDetailSummaryCard } from "../components/CaseDetailSummaryCard";
 import { ConversationThread } from "../components/ConversationThread";
+import { ConversationContextReferences } from "../components/ConversationContextReferences";
 import { DashPanel } from "../components/DashPanel";
 import { HumanReviewCard } from "../components/HumanReviewCard";
 import { JudgeVerdictTable } from "../components/JudgeVerdictTable";
 import { GuidelineScoresTable } from "../components/GuidelineScoresTable";
 import { AgentChainPanel } from "../components/AgentChainPanel";
 import type { AgentChainTrace } from "../components/AgentChainPanel";
-import { UserProfileBlock } from "../components/UserProfileBlock";
 import { useFailureTagLabels } from "../hooks/useConfigLabelMap";
 import { useCaseDetail } from "../hooks/useCaseDetail";
 import { CaseVerdict } from "../utils/caseJudging";
-
-const profileLabels: Record<string, string> = {
-  nickname: "昵称",
-  birthday: "出生日期",
-  gender: "性别",
-  currentConcern: "当前关注",
-  medical: "医疗档案",
-};
-
-function profileHasContent(value: unknown): boolean {
-  if (value === null || value === undefined || value === "") return false;
-  if (Array.isArray(value)) return value.some(profileHasContent);
-  if (typeof value === "object") return Object.values(value as Record<string, unknown>).some(profileHasContent);
-  return true;
-}
-
-function profileValueText(value: unknown): string {
-  if (Array.isArray(value)) return value.map(profileValueText).filter(Boolean).join("、");
-  if (value && typeof value === "object") {
-    return Object.entries(value as Record<string, unknown>)
-      .filter(([, item]) => profileHasContent(item))
-      .map(([key, item]) => `${profileLabels[key] || key}：${profileValueText(item)}`)
-      .join("；");
-  }
-  return value == null ? "" : String(value);
-}
-
-function profileText(profile: Record<string, unknown> | undefined): string {
-  if (!profile || !profileHasContent(profile)) return "";
-  return Object.entries(profile)
-    .filter(([, value]) => profileHasContent(value))
-    .map(([key, value]) => `${profileLabels[key] || key}：${profileValueText(value)}`)
-    .join("\n");
-}
 
 export default function CaseDetailPage() {
   const { runId, sampleId } = useParams();
@@ -101,8 +67,6 @@ export default function CaseDetailPage() {
   });
   const verdicts = (cd.detail.verdicts as CaseVerdict[] | undefined) || [];
   const guidelineScores = (cd.detail.guideline_scores || []) as import("../api").GuidelineScore[];
-  const identityProfile = trace?.evaluation_identity?.user_profile || trace?.evaluation_identity?.profile_after_reset;
-  const userProfileText = profileText(identityProfile);
 
   return (
     <div className="dash-page">
@@ -116,23 +80,25 @@ export default function CaseDetailPage() {
       />
 
       <Row gutter={14}>
-        <Col xs={24} lg={userProfileText ? 16 : 24}>
-          <DashPanel title="对话流水">
+        <Col xs={24} lg={14}>
+          <DashPanel title="对话内容">
             <ConversationThread
               messages={messages}
+              maxHeight={640}
               resolveImageSrc={(imagePath) =>
                 `/api/runs/${id}/cases/${encodeURIComponent(sampleId || "")}/images/${encodeURIComponent(imagePath)}`
               }
             />
           </DashPanel>
         </Col>
-        {userProfileText ? (
-          <Col xs={24} lg={8}>
-            <DashPanel title="用户画像">
-              <UserProfileBlock text={userProfileText} showTitle={false} />
-            </DashPanel>
-          </Col>
-        ) : null}
+        <Col xs={24} lg={10}>
+          <DashPanel title="对话引用的用户档案和过往事实">
+            <ConversationContextReferences
+              initialState={caseInfo?.initial_state}
+              messages={messages}
+            />
+          </DashPanel>
+        </Col>
       </Row>
 
       <AgentChainPanel

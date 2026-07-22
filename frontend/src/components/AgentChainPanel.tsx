@@ -354,6 +354,9 @@ function displaySources(sources: SourceSummary[], initialState?: CaseInitialStat
       details: timelineDetails,
     };
   });
+  const withoutUnusedHistory = displayed.filter(
+    (source) => source.key !== "chat_history" || source.status !== "unused",
+  );
   return profileDetails.length
     ? [{
       key: "user_profile",
@@ -363,8 +366,8 @@ function displaySources(sources: SourceSummary[], initialState?: CaseInitialStat
       calls: 0,
       count: profileDetails.length,
       details: profileDetails,
-    }, ...displayed]
-    : displayed;
+    }, ...withoutUnusedHistory]
+    : withoutUnusedHistory;
 }
 
 function SourceGrid({ sources, initialState }: { sources: SourceSummary[]; initialState?: CaseInitialState }) {
