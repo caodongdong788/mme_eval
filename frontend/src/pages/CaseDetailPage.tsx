@@ -140,7 +140,6 @@ export default function CaseDetailPage() {
         verdicts={verdicts}
         tagLabel={tagLabel}
         dimensionScores={cd.detail.dimension_scores as Record<string, number | null> | undefined}
-        dimensionRawScores={cd.detail.dimension_raw_scores as Record<string, number | null> | undefined}
         dimensionMax={cd.detail.dimension_max as Record<string, number> | undefined}
         scoreDeductions={cd.detail.score_deductions as string[] | undefined}
       />

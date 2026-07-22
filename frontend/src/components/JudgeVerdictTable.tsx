@@ -9,7 +9,6 @@ export interface JudgeVerdictTableProps {
   verdicts: CaseVerdict[];
   tagLabel: (tag: string) => string;
   dimensionScores?: Record<string, number | null>;
-  dimensionRawScores?: Record<string, number | null>;
   dimensionMax?: Record<string, number>;
   scoreDeductions?: string[];
 }
@@ -26,7 +25,6 @@ export function JudgeVerdictTable({
   verdicts,
   tagLabel,
   dimensionScores = {},
-  dimensionRawScores = {},
   dimensionMax = {},
   scoreDeductions = [],
 }: JudgeVerdictTableProps) {
@@ -72,12 +70,9 @@ export function JudgeVerdictTable({
         const key = dimensionKey(v.name);
         if (!key) return v.max_score ? `${v.score}/${v.max_score}` : "-";
         const finalScore = dimensionScores[key] ?? v.score;
-        const rawScore = dimensionRawScores[key] ?? v.score;
         const maxScore = dimensionMax[key] ?? v.max_score;
         if (finalScore == null || maxScore == null) return "-";
-        return rawScore != null && rawScore !== finalScore
-          ? `${rawScore} → ${finalScore}/${maxScore}`
-          : `${finalScore}/${maxScore}`;
+        return `${finalScore}/${maxScore}`;
       },
     },
     {
