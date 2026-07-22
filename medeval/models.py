@@ -13,7 +13,7 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
 from .evaluation import EvaluationDimension
 
@@ -134,19 +134,51 @@ class CaseInitialState(BaseModel):
 
 
 class GuidelineItem(BaseModel):
-    """由模型按覆盖程度给 0..max_score 部分分的单条指南。"""
+    """一条可审计的指南扣分项。
+
+    ``criterion`` 保留 Case YAML 的列表形态：除“扣分规则”外的每一项都是
+    需要逐项核对的检查点；``max_score`` 表示该项最多可扣的分数。
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1)
     dimension: EvaluationDimension
-    criterion: str = Field(min_length=1)
+    criterion: list[str] = Field(min_length=1)
     max_score: int = Field(ge=1, le=5, strict=True)
+
+    @field_validator("criterion", mode="before")
+    @classmethod
+    def _normalize_criterion(cls, value: Any) -> list[str] | Any:
+        # 简短 Case 仍可用单字符串；运行期统一按列表逐项核对。
+        if isinstance(value, str):
+            return [value]
+        return value
+
+    @field_validator("criterion")
+    @classmethod
+    def _validate_criterion(cls, value: list[str]) -> list[str]:
+        normalized = [item.strip() for item in value if isinstance(item, str) and item.strip()]
+        if len(normalized) != len(value) or not normalized:
+            raise ValueError("guideline.criterion 必须是非空字符串或非空字符串列表")
+        return normalized
+
+    @property
+    def checkpoints(self) -> list[str]:
+        """供 judge 逐项判定的要求，自动排除末尾的自然语言扣分规则。"""
+        return [item for item in self.criterion if not item.startswith("扣分规则")]
+
+    @property
+    def deduction_rule(self) -> str:
+        """Case 写在 criterion 内的自然语言扣分规则；省略时按线性扣分。"""
+        return next((item for item in self.criterion if item.startswith("扣分规则")), "")
 
     @model_validator(mode="after")
     def _not_safety(self) -> "GuidelineItem":
         if self.dimension == EvaluationDimension.medical_safety:
             raise ValueError("guideline.dimension 不能为 medical_safety（二值安全底线）")
+        if not self.checkpoints:
+            raise ValueError("guideline.criterion 至少需要一个检查点，不能只写扣分规则")
         return self
 
 
@@ -170,7 +202,8 @@ class CaseEvaluation(BaseModel):
 
 
 class TestCase(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    # 运行期 report.json 会以内部字段名序列化；同时接受 YAML 的 `type` 别名。
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     schema_version: Literal["2.0"]
     sample_id: str
@@ -178,6 +211,8 @@ class TestCase(BaseModel):
     sub_scenario: str = ""
     level: Level
     source: Source = Source.offline
+    # 用例业务类型（如“bug修复”），仅供检索和报告定位，不参与八维评分。
+    case_type: str = Field(default="", alias="type")
 
     initial_state: CaseInitialState = Field(
         default_factory=CaseInitialState,
@@ -246,6 +281,8 @@ class JudgeVerdict(BaseModel):
     max_score: float = 0.0
     reason: str = ""             # 人类可读的原因
     evidence: list[str] = Field(default_factory=list)
+    # 指南 judge 的逐点命中、遗漏与实际扣分；其它 judge 默认为空。
+    details: dict[str, Any] = Field(default_factory=dict)
     failure_tags: list[str] = Field(default_factory=list)
     judge_fingerprint: str = ""
 

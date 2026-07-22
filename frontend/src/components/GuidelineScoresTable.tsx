@@ -13,14 +13,24 @@ export function GuidelineScoresTable({ scores }: { scores: GuidelineScore[] }) {
         pagination={false}
         dataSource={scores}
         columns={[
-          { title: "指南项", dataIndex: "criterion" },
+          {
+            title: "检查点与规则",
+            render: (_, row) => (
+              <div>
+                <ol style={{ margin: 0, paddingInlineStart: 18 }}>
+                  {(row.checkpoints || row.criterion || []).map((point) => <li key={point}>{point}</li>)}
+                </ol>
+                {row.deduction_rule ? <Typography.Text type="secondary">{row.deduction_rule}</Typography.Text> : null}
+              </div>
+            ),
+          },
           { title: "绑定维度", dataIndex: "dimension", width: 180 },
           {
             title: "得分",
             width: 100,
             render: (_, row) => (
               <Tag color={row.score === row.max_score ? "green" : "orange"}>
-                {row.score}/{row.max_score}
+                {row.score}/{row.max_score}{row.deduction ? `（扣 ${row.deduction}）` : ""}
               </Tag>
             ),
           },
@@ -29,6 +39,7 @@ export function GuidelineScoresTable({ scores }: { scores: GuidelineScore[] }) {
             render: (_, row) => (
               <div>
                 <div>{row.reason || "—"}</div>
+                {row.missed_points?.length ? <Typography.Text type="danger">遗漏：{row.missed_points.join("；")}</Typography.Text> : null}
                 {row.evidence?.length ? (
                   <Typography.Text type="secondary">{row.evidence.join("；")}</Typography.Text>
                 ) : null}

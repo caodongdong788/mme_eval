@@ -42,8 +42,11 @@ evaluation:
   guidelines:
     - id: unique_in_case
       dimension: professional_accuracy
-      criterion: Bot 应覆盖的单一指南要点
-      max_score: 3
+      criterion:
+        - Bot 应覆盖的第一个检查点
+        - 不得出现的相反表述或高风险建议
+        - 扣分规则：遗漏一项关键要求扣 1 分；遗漏多项关键要求或出现相反表述扣 2 分。
+      max_score: 2
 notes: 可选说明
 ```
 
@@ -91,12 +94,17 @@ Judge 会同时看到完整对话与 `initial_state` 真值。
 
 ## 指南部分分与扣分
 
-每条指南配置 1～5 的整数 `max_score`。模型根据回答覆盖程度给
-0～`max_score` 整数分，维度扣分为：
+每条指南的 `criterion` 是字符串列表：除以“扣分规则”开头的条目外，其余均为
+必须逐项核对的检查点。`max_score` 是该条指南的最高扣分（1～5 整数）。
+
+评测时 judge 会对每个检查点判断是否满足，输出遗漏检查点、bot 原文证据和实际扣分；
+若 `criterion` 中提供了“扣分规则”，则严格按该规则确定扣分。未提供规则时，默认每遗漏
+一个检查点扣 1 分，最多扣至 `max_score`。报告中的“指南得分”为 `max_score - deduction`，
+维度扣分为：
 
 ```text
-missing = max_score - model_score
-final_dimension = max(0, raw_dimension - missing)
+deduction = max_score - guideline_score
+final_dimension = max(0, raw_dimension - deduction)
 ```
 
 指南必须绑定一个非安全维度。`medical_safety` 是二值安全底线，安全要求应写入

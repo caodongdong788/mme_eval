@@ -35,7 +35,26 @@ def test_v2_schema_accepts_partial_credit_guideline() -> None:
     point = case.evaluation.guidelines[0]
     assert point.dimension == EvaluationDimension.professional_accuracy
     assert point.max_score == 3
+    assert point.criterion == ["指出硬块需要重视"]
+    assert point.checkpoints == ["指出硬块需要重视"]
     assert "initial_state" not in case.model_dump(mode="json")
+
+
+def test_v2_schema_accepts_list_guideline_and_case_type() -> None:
+    raw = raw_case()
+    raw["type"] = "bug修复"
+    raw["evaluation"]["guidelines"][0]["criterion"] = [
+        "应追问医生拟开的具体药名。",
+        "信息不足时不得直接下结论。",
+        "扣分规则：遗漏一项关键要求扣 1 分；遗漏多项关键要求扣 2 分。",
+    ]
+
+    case = TestCase.model_validate(raw)
+    point = case.evaluation.guidelines[0]
+
+    assert case.case_type == "bug修复"
+    assert point.checkpoints == ["应追问医生拟开的具体药名。", "信息不足时不得直接下结论。"]
+    assert point.deduction_rule.startswith("扣分规则")
 
 
 def test_v2_schema_accepts_profile_and_long_term_memory_initial_state() -> None:

@@ -164,9 +164,13 @@ export interface CaseRow {
 export interface GuidelineScore {
   id: string;
   dimension: string;
-  criterion: string;
+  criterion: string[];
+  checkpoints?: string[];
+  deduction_rule?: string;
   score: number;
   max_score: number;
+  deduction?: number;
+  missed_points?: string[];
   reason: string;
   evidence: string[];
 }

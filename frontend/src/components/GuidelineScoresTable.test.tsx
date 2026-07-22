@@ -11,7 +11,7 @@ describe("GuidelineScoresTable", () => {
           {
             id: "next_step",
             dimension: "executability",
-            criterion: "建议及时联系治疗团队评估",
+            criterion: ["建议及时联系治疗团队评估"],
             score: 2,
             max_score: 3,
             reason: "部分覆盖",
@@ -22,7 +22,7 @@ describe("GuidelineScoresTable", () => {
     );
 
     expect(screen.getByText("指南覆盖评分")).toBeInTheDocument();
-    expect(screen.getByText("指南项")).toBeInTheDocument();
+    expect(screen.getByText("检查点与规则")).toBeInTheDocument();
     expect(screen.getByText("绑定维度")).toBeInTheDocument();
     expect(screen.getByText("得分")).toBeInTheDocument();
     expect(screen.getByText("判定理由")).toBeInTheDocument();

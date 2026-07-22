@@ -47,8 +47,12 @@ def score_eight_dimension_case(result: CaseResult) -> dict[str, Any]:
             "id": guideline.id,
             "dimension": dimension,
             "criterion": guideline.criterion,
+            "checkpoints": guideline.checkpoints,
+            "deduction_rule": guideline.deduction_rule,
             "score": score,
             "max_score": float(guideline.max_score),
+            "deduction": missing,
+            "missed_points": list((verdict.details if verdict is not None else {}).get("missed_points", [])),
             "reason": verdict.reason if verdict is not None else "缺少指南判分结果",
             "evidence": list(verdict.evidence) if verdict is not None else [],
         }

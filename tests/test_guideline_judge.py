@@ -20,7 +20,7 @@ def test_partial_credit_is_preserved() -> None:
     judge.enabled = True
 
     async def fake_call(prompt: str):
-        return {"risk": {"score": 2, "reason": "覆盖主要内容", "evidence": "需要重视"}}
+        return {"risk": {"deduction": 1, "reason": "覆盖主要内容", "evidence": ["需要重视"]}}
 
     judge._call = fake_call  # type: ignore[method-assign]
     verdict = asyncio.run(judge.judge(case(), trace()))[0]
@@ -36,12 +36,12 @@ def test_invalid_fractional_score_is_zero() -> None:
     judge.enabled = True
 
     async def fake_call(prompt: str):
-        return {"risk": {"score": 1.5, "reason": "bad", "evidence": ""}}
+        return {"risk": {"deduction": 1.5, "reason": "bad", "evidence": ""}}
 
     judge._call = fake_call  # type: ignore[method-assign]
     verdict = asyncio.run(judge.judge(case(), trace()))[0]
     assert verdict.score == 0
-    assert "非法" in verdict.reason
+    assert "非法扣分" in verdict.reason
 
 
 def test_failure_scores_every_guideline_zero() -> None:
@@ -78,7 +78,7 @@ def test_prompt_includes_case_initial_state_without_counting_it_as_coverage() ->
     async def fake_call(prompt: str):
         nonlocal captured
         captured = prompt
-        return {"risk": {"score": 0, "reason": "未覆盖", "evidence": ""}}
+        return {"risk": {"deduction": 3, "reason": "未覆盖", "evidence": ""}}
 
     judge._call = fake_call  # type: ignore[method-assign]
     asyncio.run(judge.judge(TestCase.model_validate(raw), trace()))
@@ -86,3 +86,37 @@ def test_prompt_includes_case_initial_state_without_counting_it_as_coverage() ->
     assert "Case 初始化真值" in captured
     assert "sleep_preference" in captured
     assert "不得直接算作 bot 已覆盖指南" in captured
+
+
+def test_list_guideline_returns_missed_points_and_deduction() -> None:
+    raw = raw_case()
+    raw["evaluation"]["guidelines"][0]["criterion"] = [
+        "应追问医生拟开的具体药名。",
+        "信息不足时不得直接下结论。",
+        "扣分规则：遗漏一项关键要求扣 1 分；遗漏多项关键要求扣 2 分。",
+    ]
+    raw["evaluation"]["guidelines"][0]["max_score"] = 2
+    judge = GuidelineJudge(enabled=False)
+    judge.enabled = True
+    captured = ""
+
+    async def fake_call(prompt: str):
+        nonlocal captured
+        captured = prompt
+        return {
+            "risk": {
+                "deduction": 1,
+                "missed_points": [1],
+                "reason": "未追问具体药名",
+                "evidence": ["请和医生确认一下"],
+            }
+        }
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdict = asyncio.run(judge.judge(TestCase.model_validate(raw), trace()))[0]
+
+    assert verdict.score == 1
+    assert verdict.details["deduction"] == 1
+    assert verdict.details["missed_points"] == ["应追问医生拟开的具体药名。"]
+    assert "检查点" in captured
+    assert "扣分规则" in captured
