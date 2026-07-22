@@ -18,6 +18,7 @@ from ...schemas import (
     RunSummaryOut,
 )
 from ...services.case_query import case_row_or_404
+from ...services.case_retry import CaseRetryError, launch_case_retry
 from ...services.eval_resume import launch_resume_run
 from ...services.rejudge_launch import (
     RejudgeLaunchError,
@@ -62,6 +63,27 @@ async def resume_run(
         job_runner=get_job_runner(),
         build_resume_job=build_resume_job,
     )
+
+
+@router.post("/{run_id}/cases/{sample_id}/retry", response_model=RunSummaryOut, status_code=202)
+async def retry_case(
+    run_id: int,
+    sample_id: str,
+    session: Session = Depends(get_session),
+) -> EvalRun:
+    """重新执行单个用例的 agent 调用和判分，并原位替换该 Case 结果。"""
+    try:
+        from . import build_retry_case_job
+
+        return await launch_case_retry(
+            session,
+            run_id,
+            sample_id,
+            job_runner=get_job_runner(),
+            build_retry_case_job=build_retry_case_job,
+        )
+    except CaseRetryError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
 
 
 @router.post(

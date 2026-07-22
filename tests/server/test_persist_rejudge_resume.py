@@ -7,8 +7,9 @@ import asyncio
 from factories import make_report
 from medeval import trace_store
 from server.db import session_scope
-from server.eval_job import build_eval_job, build_rejudge_job, build_resume_job
-from server.models_db import Benchmark, EvalRun
+from server.eval_job import build_eval_job, build_rejudge_job, build_resume_job, build_retry_case_job
+from server.ingest import ingest_report
+from server.models_db import Benchmark, CaseResultRow, EvalRun
 from server.progress import InMemoryProgress
 
 
@@ -173,6 +174,79 @@ def test_resume_job_passes_resume_dir(initialized_db, settings, monkeypatch):
         row = s.get(EvalRun, new_id)
         assert row.status == "success"
         assert row.has_traces is True
+
+
+# ---------------------------------------------------------------------------
+# 4.5 单 Case 重试：真实调用+判分后原位替换，并同步 report.json
+
+
+def test_retry_case_job_replaces_only_target_case(initialized_db, settings, monkeypatch):
+    source = make_report("retry_2026-07-22_1")
+    out_dir = settings.outputs_dir / source.run_name
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "report.json").write_text(source.model_dump_json(), encoding="utf-8")
+    target_id = source.results[0].case.sample_id
+
+    with session_scope() as s:
+        bm = Benchmark(name="retry-bm", source="uploaded", storage_path="/tmp/none")
+        s.add(bm)
+        s.flush()
+        run = ingest_report(s, source, benchmark_id=bm.id)
+        run_id = run.id
+
+    async def fake_eval(config, cases, adapter, judges, *, progress=None, run_name=None, **kw):
+        assert [case.sample_id for case in cases] == [target_id]
+        retried = make_report(run_name)
+        replacement = retried.results[0].model_copy(deep=True)
+        replacement.case = cases[0]
+        replacement.trace.error = None
+        replacement.trace.messages[-1].content = "这是重试后的回答"
+        retried.results = [replacement]
+        return retried
+
+    async def no_agent_chain(report, _settings):
+        return None
+
+    monkeypatch.setattr("server.eval_job.evaluate", fake_eval)
+    monkeypatch.setattr("server.services.case_retry.build_eval_adapter", lambda config: object())
+    monkeypatch.setattr("server.services.case_retry.build_judge_stack", lambda config: [])
+    monkeypatch.setattr("server.services.case_retry.enrich_report_agent_chains", no_agent_chain)
+
+    job = build_retry_case_job(run_id, sample_id=target_id, settings=settings)
+    asyncio.run(job(InMemoryProgress()))
+
+    with session_scope() as s:
+        rows = s.query(CaseResultRow).filter(CaseResultRow.run_id == run_id).all()
+        target = next(row for row in rows if row.sample_id == target_id)
+        assert target.detail_json["trace"]["messages"][-1]["content"] == "这是重试后的回答"
+        assert len(rows) == len(source.results)
+        assert s.get(EvalRun, run_id).status == "success"
+    persisted = make_report("unused").model_validate_json((out_dir / "report.json").read_text())
+    assert persisted.results[0].trace.messages[-1].content == "这是重试后的回答"
+
+
+def test_retry_case_endpoint_submits_current_run(client, settings, monkeypatch):
+    source = make_report("retry_endpoint_2026-07-22")
+    out_dir = settings.outputs_dir / source.run_name
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "report.json").write_text(source.model_dump_json(), encoding="utf-8")
+    target_id = source.results[0].case.sample_id
+    with session_scope() as s:
+        bm = Benchmark(name="retry-endpoint-bm", source="uploaded", storage_path="/tmp/none")
+        s.add(bm)
+        s.flush()
+        run_id = ingest_report(s, source, benchmark_id=bm.id).id
+
+    def noop_builder(run_id, *, sample_id):
+        async def job(progress):
+            return None
+        return job
+
+    monkeypatch.setattr("server.routers.runs.build_retry_case_job", noop_builder)
+    response = client.post(f"/api/runs/{run_id}/cases/{target_id}/retry")
+
+    assert response.status_code == 202, response.text
+    assert response.json()["id"] == run_id
 
 
 # ---------------------------------------------------------------------------

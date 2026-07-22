@@ -9,6 +9,7 @@ from medeval.reporter.lark_sheet_publisher import publish_xlsx_to_lark
 from ...eval_job import (
     build_eval_job,
     build_rejudge_job,
+    build_retry_case_job,
     build_resume_job,
     preview_rejudge_case,
 )
@@ -24,6 +25,7 @@ __all__ = [
     "router",
     "build_eval_job",
     "build_rejudge_job",
+    "build_retry_case_job",
     "build_resume_job",
     "preview_rejudge_case",
     "publish_xlsx_to_lark",

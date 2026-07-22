@@ -13,6 +13,7 @@ from medeval.service import evaluate, judge_traces
 from .benchmarks import load_benchmark_cases
 from .services.eval_artifacts import persist_outcome as _persist_outcome
 from .services.eval_launch import build_eval_job
+from .services.case_retry import build_retry_case_job
 from .services.eval_rejudge import build_rejudge_job, preview_rejudge_case
 from .services.eval_resume import build_resume_job
 
@@ -20,6 +21,7 @@ __all__ = [
     "build_adapter",
     "build_eval_job",
     "build_rejudge_job",
+    "build_retry_case_job",
     "build_resume_job",
     "evaluate",
     "judge_traces",

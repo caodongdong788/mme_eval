@@ -100,6 +100,8 @@ export default function CaseDetailPage() {
         backTo={backTo}
         backState={backState}
         backLabel={backLabel}
+        retrying={cd.retrying}
+        onRetry={cd.retryCase}
       />
 
       <Row gutter={14}>

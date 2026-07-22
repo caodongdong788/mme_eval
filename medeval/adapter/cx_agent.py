@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 from typing import Any
 
 import httpx
@@ -23,6 +24,34 @@ from .registry import register_adapter
 CX_AGENT_CHAT_ENDPOINT = "/api/test/chat/send"
 CX_AGENT_ACCOUNT_LEASE_ENDPOINT = "/api/test/evaluation/accounts/lease"
 CX_AGENT_ACCOUNT_RELEASE_ENDPOINT = "/api/test/evaluation/accounts/release"
+
+# cx-agent 的测试接口只接受不超过 260,096 个字符的文本。部分 benchmark 会把
+# 报告截图直接内嵌为 data:image/...;base64；这既不是 agent 可理解的文本，也会让
+# 整个请求因为参数过长而被拒绝。因此在 adapter 边界统一将其替换为可读占位符。
+CX_AGENT_MAX_CONTENT_CHARS = 240_000
+_INLINE_IMAGE_DATA_URI_RE = re.compile(
+    r"data:image/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=\s]+",
+    re.IGNORECASE,
+)
+_INLINE_IMAGE_PLACEHOLDER = "[图片附件已省略：cx-agent 测试接口仅支持文本，请结合报告文字说明]"
+
+
+def _sanitize_content(content: str) -> tuple[str, dict[str, Any]]:
+    """把不可发送的内嵌图片和超长文本降级为可执行的 cx-agent 请求。"""
+    original_length = len(content)
+    sanitized, removed_inline_images = _INLINE_IMAGE_DATA_URI_RE.subn(
+        _INLINE_IMAGE_PLACEHOLDER, content
+    )
+    truncated = len(sanitized) > CX_AGENT_MAX_CONTENT_CHARS
+    if truncated:
+        suffix = "\n[内容过长，已截断]"
+        sanitized = sanitized[: CX_AGENT_MAX_CONTENT_CHARS - len(suffix)] + suffix
+    return sanitized, {
+        "removed_inline_images": removed_inline_images,
+        "original_length": original_length,
+        "sent_length": len(sanitized),
+        "truncated": truncated,
+    }
 
 def _json_or_text(data: str) -> Any:
     if not data:
@@ -168,6 +197,7 @@ class CxAgentAdapter(BaseAdapter):
         content = str(latest.get("content") or "")
         if not content.strip():
             return ChatResponse(reply="", error="cx_agent adapter requires non-empty user content")
+        content, input_sanitization = _sanitize_content(content)
 
         cx_session_id = self._sessions.get(req.session_id)
         if cx_session_id is None and len(req.messages) > 1:
@@ -206,10 +236,15 @@ class CxAgentAdapter(BaseAdapter):
             resp.raise_for_status()
             events = _parse_sse(resp.text)
         except Exception as e:  # noqa: BLE001 - adapter failure must be data, not raise
-            return ChatResponse(reply="", error=f"cx_agent error: {e}")
+            raw = {"input_sanitization": input_sanitization}
+            return ChatResponse(reply="", raw=raw, error=f"cx_agent error: {e}")
 
         if not events:
-            return ChatResponse(reply="", error="cx_agent error: empty SSE response")
+            return ChatResponse(
+                reply="",
+                raw={"input_sanitization": input_sanitization},
+                error="cx_agent error: empty SSE response",
+            )
 
         reply_parts: list[str] = []
         raw_events: list[dict[str, Any]] = []
@@ -241,6 +276,8 @@ class CxAgentAdapter(BaseAdapter):
             "events": raw_events,
             "cx_session_id": cx_session_id,
         }
+        if input_sanitization["removed_inline_images"] or input_sanitization["truncated"]:
+            raw["input_sanitization"] = input_sanitization
         if usage:
             raw["usage"] = usage
         if evaluation_context:

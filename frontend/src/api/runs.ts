@@ -41,6 +41,8 @@ export const runsApi = {
         payload ?? {}
       )
       .then((r) => r.data),
+  retryCase: (id: number, sampleId: string) =>
+    http.post<RunSummary>(`/runs/${id}/cases/${sampleId}/retry`).then((r) => r.data),
   getReviewQueue: (id: number, params?: Record<string, any>) =>
     http.get<ReviewQueueItem[]>(`/runs/${id}/review-queue`, { params }).then((r) => r.data),
   getReviewStats: (id: number) =>

@@ -25,6 +25,7 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
   const [previewing, setPreviewing] = useState(false);
   const [previewResult, setPreviewResult] = useState<PreviewRejudgeResult | null>(null);
   const [chainSyncing, setChainSyncing] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const {
     yamlOpen,
@@ -118,6 +119,42 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
     }
   };
 
+  const retryCase = async () => {
+    if (!sampleId || retrying) return;
+    setRetrying(true);
+    try {
+      await api.retryCase(runId, sampleId);
+      message.info("已开始重试该 Case，完成后会自动刷新结果");
+    } catch (e: unknown) {
+      setRetrying(false);
+      message.error(formatApiError(e, "提交重试失败"));
+    }
+  };
+
+  useEffect(() => {
+    if (!retrying || !sampleId) return undefined;
+    const timer = window.setInterval(() => {
+      api.getRun(runId).then(async (next) => {
+        setRun(next);
+        if (next.status === "pending" || next.status === "running") return;
+        window.clearInterval(timer);
+        setRetrying(false);
+        if (next.status === "success") {
+          try {
+            const refreshed = await api.getCaseDetail(runId, sampleId);
+            setDetail(refreshed);
+            message.success("Case 重试完成，已更新结果");
+          } catch (e: unknown) {
+            message.error(formatApiError(e, "重试完成，但刷新结果失败"));
+          }
+        } else {
+          message.error(next.error_msg || "Case 重试失败");
+        }
+      }).catch(() => {});
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [retrying, runId, sampleId]);
+
   const saveYamlAsBenchmark = () =>
     yamlActions.saveAsBenchmark({
       name: yamlName,
@@ -171,6 +208,8 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
     previewResult,
     chainSyncing,
     syncAgentChain,
+    retrying,
+    retryCase,
     openEditor,
     runPreview,
     yamlActions,

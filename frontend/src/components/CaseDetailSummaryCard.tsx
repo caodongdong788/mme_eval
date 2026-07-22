@@ -1,4 +1,4 @@
-import { Descriptions } from "antd";
+import { Button, Descriptions } from "antd";
 import { Link } from "react-router-dom";
 import type { GuidelineScore } from "../api";
 import { STABILITY_LABEL } from "../labels";
@@ -21,16 +21,23 @@ export function CaseDetailSummaryCard({
   backTo,
   backState,
   backLabel,
+  retrying = false,
+  onRetry,
 }: {
   detail: CaseDetailSummary;
   backTo: string;
   backState?: unknown;
   backLabel: string;
+  retrying?: boolean;
+  onRetry?: () => void;
 }) {
   const earned = (detail.guideline_scores || []).reduce((sum, item) => sum + item.score, 0);
   const maximum = (detail.guideline_scores || []).reduce((sum, item) => sum + item.max_score, 0);
   return (
-    <DashPanel title={<Link to={backTo} state={backState} className="dash-table__link">← 返回{backLabel}</Link>}>
+    <DashPanel
+      title={<Link to={backTo} state={backState} className="dash-table__link">← 返回{backLabel}</Link>}
+      extra={onRetry ? <Button type="primary" loading={retrying} onClick={onRetry}>重试此 Case</Button> : undefined}
+    >
       <Descriptions title={`用例 ${detail.case?.sample_id}`} column={3} size="small">
         <Descriptions.Item label="场景">{detail.case?.scenario}</Descriptions.Item>
         <Descriptions.Item label="Level">{detail.case?.level}</Descriptions.Item>

@@ -106,6 +106,43 @@ def test_cx_agent_adapter_reuses_cx_session_for_same_mme_session():
     asyncio.run(adapter.close())
 
 
+def test_cx_agent_adapter_replaces_inline_image_before_sending():
+    bodies: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content.decode()))
+        return httpx.Response(
+            200,
+            text=_sse(
+                ("session", {"sessionId": "cx-image-1"}),
+                ("text_delta", {"content": "已收到"}),
+                ("message_end", {}),
+            ),
+        )
+
+    adapter = _adapter_with_transport(handler)
+    image = "data:image/jpeg;base64," + "a" * 260_100
+    response = asyncio.run(
+        adapter.chat(
+            ChatRequest(
+                messages=[{"role": "user", "content": f"[报告图] ({image})"}],
+                session_id="mme-image-1",
+            )
+        )
+    )
+
+    assert response.reply == "已收到"
+    assert "data:image" not in bodies[0]["content"]
+    assert "图片附件已省略" in bodies[0]["content"]
+    assert response.raw["input_sanitization"] == {
+        "removed_inline_images": 1,
+        "original_length": len(f"[报告图] ({image})"),
+        "sent_length": len(bodies[0]["content"]),
+        "truncated": False,
+    }
+    asyncio.run(adapter.close())
+
+
 def test_cx_agent_adapter_uses_stateless_pool_without_initial_state():
     requests: list[str] = []
 
