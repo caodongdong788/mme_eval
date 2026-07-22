@@ -1,9 +1,8 @@
-import { Button, Col, Result, Row, Spin } from "antd";
+import { Button, Col, Empty, Result, Row, Spin } from "antd";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { CasePreviewRejudgePanel } from "../components/CasePreviewRejudgePanel";
 import { EditCriteriaDrawer } from "../components/EditCriteriaDrawer";
 import { CaseDetailSummary, CaseDetailSummaryCard } from "../components/CaseDetailSummaryCard";
-import { ConversationThread } from "../components/ConversationThread";
 import { ConversationContextReferences } from "../components/ConversationContextReferences";
 import { DashPanel } from "../components/DashPanel";
 import { HumanReviewCard } from "../components/HumanReviewCard";
@@ -85,20 +84,22 @@ export default function CaseDetailPage() {
       <Row gutter={14}>
         <Col xs={24} lg={14}>
           <DashPanel
-            title="对话内容"
+            title="CX 完整回放"
             extra={trace?.cx_evaluation_share_url ? (
               <Button type="link" size="small" href={trace.cx_evaluation_share_url} target="_blank" rel="noreferrer">
-                在 CX 打开完整回放
+                在新窗口打开
               </Button>
             ) : undefined}
           >
-            <ConversationThread
-              messages={messages}
-              maxHeight={640}
-              resolveImageSrc={(imagePath) =>
-                `/api/runs/${id}/cases/${encodeURIComponent(sampleId || "")}/images/${encodeURIComponent(imagePath)}`
-              }
-            />
+            {trace?.cx_evaluation_share_url ? (
+              <iframe
+                title="CX 完整回放"
+                src={trace.cx_evaluation_share_url}
+                style={{ display: "block", width: "100%", height: 640, border: 0, borderRadius: 8 }}
+              />
+            ) : (
+              <Empty description="此用例尚未生成 CX 回放，请重新评测" />
+            )}
           </DashPanel>
         </Col>
         <Col xs={24} lg={10}>
