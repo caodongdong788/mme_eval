@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
@@ -15,7 +16,7 @@ from medeval.service import write_core_artifacts
 
 from ..db import session_scope
 from ..ingest import build_case_row, populate_run_summary
-from ..models_db import CaseResultRow, EvalRun
+from ..models_db import Benchmark, CaseResultRow, EvalRun
 from ..progress import InMemoryProgress
 from ..settings import Settings, get_settings
 from .eval_launch import enrich_report_agent_chains
@@ -120,12 +121,23 @@ def build_retry_case_job(
     async def job(progress: InMemoryProgress) -> None:
         from .. import eval_job as ej
 
-        src_slug, _benchmark_id, judge_ov, adapter_ov = load_source_run(settings, run_id)
+        src_slug, benchmark_id, judge_ov, adapter_ov = load_source_run(settings, run_id)
         src_dir = settings.outputs_dir / src_slug
         cases, _old_traces, n_runs = frozen_cases_and_traces(src_dir, require_traces=False)
         case = next((item for item in cases if item.sample_id == sample_id), None)
         if case is None:
             raise ValueError(f"用例 {sample_id} 不在当前 run 的冻结报告中")
+        # report.json 只保留相对图片路径、不持久化图片 base64；单 Case 重试时从关联
+        # benchmark 重新加载该题，以恢复 ZIP images/ 中的运行时图片内容。
+        if benchmark_id is not None:
+            with session_scope() as source_session:
+                benchmark = source_session.get(Benchmark, benchmark_id)
+                if benchmark is not None and Path(benchmark.storage_path).exists():
+                    current_cases = ej.load_benchmark_cases(benchmark, settings=settings)
+                    case = next(
+                        (item for item in current_cases if item.sample_id == sample_id),
+                        case,
+                    )
 
         config = prepare_run_config(
             settings,

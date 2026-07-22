@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import base64
 import logging
+import mimetypes
 from pathlib import Path
 from typing import Iterable
 
@@ -11,6 +13,39 @@ import yaml
 from .models import TestCase
 
 log = logging.getLogger(__name__)
+
+_SUPPORTED_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+_MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
+
+def _image_data_url(raw_path: str, *, yaml_dir: Path) -> str:
+    """将 ZIP benchmark 中的相对图片路径解析为受控 data URL。"""
+    relative = Path(raw_path)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError(f"图片路径必须位于用例包内：{raw_path}")
+    if not relative.parts or relative.parts[0] != "images":
+        raise ValueError(f"图片必须放在 images/ 目录：{raw_path}")
+    if relative.suffix.lower() not in _SUPPORTED_IMAGE_SUFFIXES:
+        raise ValueError(f"不支持的图片格式：{raw_path}")
+    image_path = (yaml_dir / relative).resolve()
+    root = yaml_dir.resolve()
+    if root not in image_path.parents or not image_path.is_file():
+        raise ValueError(f"未找到图片文件：{raw_path}")
+    size = image_path.stat().st_size
+    if size > _MAX_IMAGE_BYTES:
+        raise ValueError(f"图片超过 10 MiB 限制：{raw_path}")
+    mime = mimetypes.guess_type(image_path.name)[0] or "application/octet-stream"
+    return f"data:{mime};base64,{base64.b64encode(image_path.read_bytes()).decode('ascii')}"
+
+
+def _hydrate_case_images(case: TestCase, *, yaml_dir: Path) -> TestCase:
+    """为 Case 的每个 turn 注入运行时图片内容，序列化时不带出 base64。"""
+    for turn in case.turns:
+        if turn.images:
+            turn.attach_image_data_urls(
+                [_image_data_url(raw_path, yaml_dir=yaml_dir) for raw_path in turn.images]
+            )
+    return case
 
 
 def _deep_merge(base: dict, override: dict) -> dict:
@@ -117,6 +152,7 @@ def load_cases(
                 )
             seen_ids.add(case.sample_id)
             case = case.model_copy(update={"case_file": path.name})
+            case = _hydrate_case_images(case, yaml_dir=path.parent)
             cases.append(case)
 
     log.info("Loaded %d cases", len(cases))

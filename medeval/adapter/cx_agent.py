@@ -195,7 +195,7 @@ class CxAgentAdapter(BaseAdapter):
             return ChatResponse(reply="", error="cx_agent adapter requires latest user turn")
 
         content = str(latest.get("content") or "")
-        if not content.strip():
+        if not content.strip() and not req.images:
             return ChatResponse(reply="", error="cx_agent adapter requires non-empty user content")
         content, input_sanitization = _sanitize_content(content)
 
@@ -215,6 +215,8 @@ class CxAgentAdapter(BaseAdapter):
             return ChatResponse(reply="", error=f"cx_agent account lease error: {e}")
 
         body: dict[str, Any] = {"content": content}
+        if req.images:
+            body["images"] = list(req.images)
         if cx_session_id:
             body["sessionId"] = cx_session_id
         if lease is not None:
@@ -276,6 +278,8 @@ class CxAgentAdapter(BaseAdapter):
             "events": raw_events,
             "cx_session_id": cx_session_id,
         }
+        if req.images:
+            raw["input_images"] = {"count": len(req.images)}
         if input_sanitization["removed_inline_images"] or input_sanitization["truncated"]:
             raw["input_sanitization"] = input_sanitization
         if usage:

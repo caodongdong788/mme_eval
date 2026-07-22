@@ -6,9 +6,13 @@
 
 from __future__ import annotations
 
+import io
 import re
 import shutil
+import stat
+import zipfile
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any
 from uuid import uuid4
 
@@ -41,6 +45,9 @@ _FEISHU_ROUND_LABELS = ("第一", "第二", "第三", "第四", "第五")
 _IMAGE_PLACEHOLDER_RE = re.compile(
     r"\[图片[：:]\s*image_token=[A-Za-z0-9_-]+(?:[，,]\s*尺寸=\d+x\d+)?\]"
 )
+_ZIP_MAX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
+_ZIP_MAX_FILES = 200
+_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
 
 def _literal_representer(dumper: yaml.SafeDumper, data: _LiteralString):
@@ -373,6 +380,16 @@ def _collect_levels(cases: list[TestCase]) -> list[str]:
     return sorted({getattr(c.level, "value", c.level) for c in cases})
 
 
+def _validate_yaml_path(path: Path, settings: Settings) -> list[TestCase]:
+    try:
+        cases = load_cases(include=[str(path)], base_dir=settings.project_root)
+    except Exception as exc:  # noqa: BLE001 —— loader 校验失败统一转领域错误
+        raise BenchmarkValidationError(f"用例校验失败：{exc}") from exc
+    if not cases:
+        raise BenchmarkValidationError("用例集为空或不含合法用例")
+    return cases
+
+
 def _validate_yaml_bytes(content: bytes, settings: Settings) -> tuple[Path, list[TestCase]]:
     """把上传内容写到暂存文件并用 loader 校验。返回 (暂存路径, 用例列表)。"""
     try:
@@ -385,14 +402,72 @@ def _validate_yaml_bytes(content: bytes, settings: Settings) -> tuple[Path, list
     tmp = staging / f"{uuid4().hex}.yaml"
     tmp.write_text(text, encoding="utf-8")
     try:
-        cases = load_cases(include=[str(tmp)], base_dir=settings.project_root)
-    except Exception as exc:  # noqa: BLE001 —— loader 校验失败统一转领域错误
+        cases = _validate_yaml_path(tmp, settings)
+    except BenchmarkValidationError:
         tmp.unlink(missing_ok=True)
-        raise BenchmarkValidationError(f"用例校验失败：{exc}") from exc
-    if not cases:
-        tmp.unlink(missing_ok=True)
-        raise BenchmarkValidationError("用例集为空或不含合法用例")
+        raise
     return tmp, cases
+
+
+def _validate_and_extract_zip(content: bytes, settings: Settings) -> tuple[Path, list[TestCase]]:
+    """安全解压标准 benchmark 包，并校验 cases.yaml 对图片的引用。"""
+    staging = settings.uploads_dir / "_staging" / uuid4().hex
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(content))
+    except zipfile.BadZipFile as exc:
+        raise BenchmarkValidationError("上传文件不是有效 ZIP 包") from exc
+
+    try:
+        infos = archive.infolist()
+        if len(infos) > _ZIP_MAX_FILES:
+            raise BenchmarkValidationError(f"ZIP 文件数超过上限（{_ZIP_MAX_FILES}）")
+        total_size = 0
+        case_found = False
+        for info in infos:
+            raw_name = info.filename.replace("\\", "/")
+            if not raw_name or raw_name.startswith("__MACOSX/") or raw_name == ".DS_Store":
+                continue
+            path = PurePosixPath(raw_name)
+            if path.is_absolute() or ".." in path.parts or raw_name.startswith("/"):
+                raise BenchmarkValidationError(f"ZIP 含不安全路径：{info.filename}")
+            mode = info.external_attr >> 16
+            if stat.S_IFMT(mode) == stat.S_IFLNK:
+                raise BenchmarkValidationError(f"ZIP 不允许符号链接：{info.filename}")
+            if info.is_dir():
+                continue
+            total_size += info.file_size
+            if total_size > _ZIP_MAX_UNCOMPRESSED_BYTES:
+                raise BenchmarkValidationError("ZIP 解压后内容超过 100 MiB 限制")
+            if raw_name == "cases.yaml":
+                case_found = True
+                continue
+            if not raw_name.startswith("images/") or len(path.parts) < 2:
+                raise BenchmarkValidationError("ZIP 仅允许包含 cases.yaml 和 images/ 目录")
+            if path.suffix.lower() not in _IMAGE_SUFFIXES:
+                raise BenchmarkValidationError(f"images/ 中存在不支持的图片格式：{info.filename}")
+            if info.file_size > 10 * 1024 * 1024:
+                raise BenchmarkValidationError(f"单张图片超过 10 MiB 限制：{info.filename}")
+        if not case_found:
+            raise BenchmarkValidationError("ZIP 根目录必须包含 cases.yaml")
+
+        staging.mkdir(parents=True, exist_ok=False)
+        for info in infos:
+            raw_name = info.filename.replace("\\", "/")
+            if not raw_name or raw_name.startswith("__MACOSX/") or raw_name == ".DS_Store":
+                continue
+            if info.is_dir():
+                continue
+            target = staging.joinpath(*PurePosixPath(raw_name).parts)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with archive.open(info) as source, target.open("wb") as dest:
+                shutil.copyfileobj(source, dest)
+        cases = _validate_yaml_path(staging / "cases.yaml", settings)
+        return staging, cases
+    except Exception:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    finally:
+        archive.close()
 
 
 def _create_uploaded_benchmark_from_yaml_bytes(
@@ -436,6 +511,47 @@ def _create_uploaded_benchmark_from_yaml_bytes(
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / _safe_yaml_name(filename)
     tmp.replace(dest)
+    row.storage_path = str(dest_dir)
+    return row
+
+
+def _create_uploaded_benchmark_from_zip_bytes(
+    session: Session,
+    *,
+    name: str,
+    zip_content: bytes,
+    description: str = "",
+    version: str = "v1",
+    created_by: str | None = None,
+    source: str = "offline",
+    settings: Settings | None = None,
+) -> Benchmark:
+    """创建包含 ``cases.yaml`` 与 ``images/`` 的 ZIP benchmark。"""
+    settings = settings or get_settings()
+    name = (name or "").strip() or "未命名 benchmark"
+    existing = session.execute(
+        select(Benchmark).where(Benchmark.name == name)
+    ).scalars().first()
+    if existing is not None:
+        raise BenchmarkValidationError(f"benchmark 名称「{name}」已存在，请换一个名称")
+    staged_dir, cases = _validate_and_extract_zip(zip_content, settings)
+
+    row = Benchmark(
+        name=name,
+        description=description,
+        version=version or "v1",
+        source=source,
+        case_count=len(cases),
+        tags=[],
+        levels=_collect_levels(cases),
+        storage_path="",
+        created_by=created_by,
+    )
+    session.add(row)
+    session.flush()
+    dest_dir = settings.uploads_dir / str(row.id)
+    shutil.rmtree(dest_dir, ignore_errors=True)
+    staged_dir.replace(dest_dir)
     row.storage_path = str(dest_dir)
     return row
 
@@ -624,6 +740,31 @@ def _replace_uploaded_benchmark_with_yaml_bytes(
     return benchmark
 
 
+def _replace_uploaded_benchmark_with_zip_bytes(
+    session: Session,
+    benchmark: Benchmark,
+    *,
+    zip_content: bytes,
+    source: str,
+    settings: Settings | None = None,
+) -> Benchmark:
+    settings = settings or get_settings()
+    if benchmark.source == "builtin":
+        raise BenchmarkValidationError("内置 benchmark 不可覆盖")
+    staged_dir, cases = _validate_and_extract_zip(zip_content, settings)
+    dest_dir = settings.uploads_dir / str(benchmark.id)
+    shutil.rmtree(dest_dir, ignore_errors=True)
+    staged_dir.replace(dest_dir)
+
+    benchmark.case_count = len(cases)
+    benchmark.tags = []
+    benchmark.levels = _collect_levels(cases)
+    benchmark.storage_path = str(dest_dir)
+    benchmark.source = source
+    _invalidate_cases_cache(benchmark.storage_path)
+    return benchmark
+
+
 def replace_uploaded_benchmark_from_feishu_url(
     session: Session,
     benchmark: Benchmark,
@@ -680,6 +821,17 @@ def create_uploaded_benchmark(
     # 文件上传仅支持 offline YAML，不再解析线上 JSONL。
     if source == "online":
         raise BenchmarkValidationError("线上 benchmark 只能通过飞书 Base URL 导入，不支持文件上传")
+    if Path(filename).suffix.lower() == ".zip":
+        return _create_uploaded_benchmark_from_zip_bytes(
+            session,
+            name=name,
+            zip_content=content,
+            description=description,
+            version=version or "v1",
+            source=source,
+            created_by=created_by,
+            settings=settings,
+        )
     return _create_uploaded_benchmark_from_yaml_bytes(
         session,
         name=name,
@@ -913,6 +1065,14 @@ def replace_uploaded_benchmark(
     # 线上 benchmark 只能通过飞书 Base URL 覆盖（见 replace_uploaded_benchmark_from_feishu_url）。
     if next_source == "online":
         raise BenchmarkValidationError("线上 benchmark 只能通过飞书 Base URL 覆盖，不支持文件上传")
+    if Path(filename).suffix.lower() == ".zip":
+        return _replace_uploaded_benchmark_with_zip_bytes(
+            session,
+            benchmark,
+            zip_content=content,
+            source=next_source,
+            settings=settings,
+        )
     return _replace_uploaded_benchmark_with_yaml_bytes(
         session,
         benchmark,
@@ -1019,10 +1179,12 @@ def _parse_single_case_yaml(yaml_text: str, *, expected_sample_id: str) -> dict[
     return item
 
 
-def _validate_case_dict(item: dict[str, Any], settings: Settings) -> TestCase:
-    staging = settings.uploads_dir / "_staging"
+def _validate_case_dict(
+    item: dict[str, Any], settings: Settings, *, yaml_dir: Path | None = None
+) -> TestCase:
+    staging = yaml_dir or (settings.uploads_dir / "_staging")
     staging.mkdir(parents=True, exist_ok=True)
-    tmp = staging / f"{uuid4().hex}.yaml"
+    tmp = staging / f".validate-{uuid4().hex}.yaml"
     tmp.write_text(yaml.safe_dump([item], allow_unicode=True, sort_keys=False), encoding="utf-8")
     try:
         cases = load_cases(include=[str(tmp)], base_dir=settings.project_root)
@@ -1085,8 +1247,8 @@ def save_case_yaml(
     """校验并写回单条用例到其源 YAML 文件（内置/上传均可）。"""
     settings = settings or get_settings()
     item = _parse_single_case_yaml(yaml_text, expected_sample_id=sample_id)
-    case = _validate_case_dict(item, settings)
     path = _locate_case_file(benchmark, sample_id, settings)
+    case = _validate_case_dict(item, settings, yaml_dir=path.parent)
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(raw, list):
         raise BenchmarkValidationError("源 YAML 须为用例列表")

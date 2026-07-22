@@ -177,11 +177,11 @@ export default function BenchmarksPage() {
             </Form.Item>
           ) : (
             <Form.Item
-              label="用例文件 (.yaml)"
-              extra="线下 benchmark 使用标准 YAML 用例集，格式同 cases/。"
+              label="用例文件 (.yaml / .zip)"
+              extra="纯文本用例上传 YAML；含图片请上传 ZIP（根目录 cases.yaml，图片放 images/，在 turn.images 引用相对路径）。"
             >
               <Upload.Dragger
-                accept=".yaml,.yml"
+                accept=".yaml,.yml,.zip"
                 maxCount={1}
                 fileList={bm.fileList}
                 beforeUpload={() => false}
@@ -190,7 +190,7 @@ export default function BenchmarksPage() {
                 <p className="ant-upload-drag-icon">
                   <InboxOutlined />
                 </p>
-                <p>点击或拖拽 YAML 用例文件到此处</p>
+                <p>点击或拖拽 YAML / ZIP benchmark 包到此处</p>
               </Upload.Dragger>
             </Form.Item>
           )}

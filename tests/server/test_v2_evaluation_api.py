@@ -1,6 +1,13 @@
 from __future__ import annotations
 
+import io
+import zipfile
+
 import yaml
+
+from server.benchmarks import load_benchmark_cases
+from server.db import session_scope
+from server.models_db import Benchmark
 
 
 V2_YAML = """
@@ -83,6 +90,58 @@ def test_upload_rejects_removed_guideline_source_field(client) -> None:
     response = upload(client, with_source, name="removed-guideline-source")
     assert response.status_code == 422
     assert "source" in response.json()["detail"]
+
+
+def test_upload_zip_with_relative_images_hydrates_turn_images(client, settings) -> None:
+    case_with_image = V2_YAML.replace(
+        "      content: 乳房摸到硬块怎么办？",
+        "      content: 请结合报告图片判断\n      images:\n        - images/case-api-1.jpg",
+    )
+    package = io.BytesIO()
+    with zipfile.ZipFile(package, "w") as archive:
+        archive.writestr("cases.yaml", case_with_image)
+        archive.writestr("images/case-api-1.jpg", b"fake-jpeg-content")
+
+    response = client.post(
+        "/api/benchmarks",
+        data={"name": "zip-image-benchmark", "source": "offline"},
+        files={"file": ("benchmark.zip", package.getvalue(), "application/zip")},
+    )
+
+    assert response.status_code == 201, response.text
+    benchmark_id = response.json()["id"]
+    assert (settings.uploads_dir / str(benchmark_id) / "cases.yaml").is_file()
+    assert (settings.uploads_dir / str(benchmark_id) / "images" / "case-api-1.jpg").is_file()
+    with session_scope() as session:
+        benchmark = session.get(Benchmark, benchmark_id)
+        cases = load_benchmark_cases(benchmark, settings=settings)
+    turn = cases[0].turns[0]
+    assert turn.images == ["images/case-api-1.jpg"]
+    assert turn.image_data_urls == ["data:image/jpeg;base64,ZmFrZS1qcGVnLWNvbnRlbnQ="]
+
+    exported = client.get(f"/api/benchmarks/{benchmark_id}/cases/api_v2_001/yaml")
+    assert exported.status_code == 200, exported.text
+    saved = client.put(
+        f"/api/benchmarks/{benchmark_id}/cases/api_v2_001/yaml",
+        json={"yaml_text": exported.json()["yaml_text"]},
+    )
+    assert saved.status_code == 200, saved.text
+
+
+def test_upload_zip_rejects_path_traversal(client) -> None:
+    package = io.BytesIO()
+    with zipfile.ZipFile(package, "w") as archive:
+        archive.writestr("cases.yaml", V2_YAML)
+        archive.writestr("../outside.jpg", b"not-allowed")
+
+    response = client.post(
+        "/api/benchmarks",
+        data={"name": "zip-traversal", "source": "offline"},
+        files={"file": ("benchmark.zip", package.getvalue(), "application/zip")},
+    )
+
+    assert response.status_code == 422
+    assert "不安全路径" in response.json()["detail"]
 
 
 def test_evaluation_standard_endpoint(client) -> None:

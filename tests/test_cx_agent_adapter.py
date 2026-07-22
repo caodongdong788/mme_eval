@@ -143,6 +143,37 @@ def test_cx_agent_adapter_replaces_inline_image_before_sending():
     asyncio.run(adapter.close())
 
 
+def test_cx_agent_adapter_sends_turn_images_in_dedicated_field():
+    bodies: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content.decode()))
+        return httpx.Response(
+            200,
+            text=_sse(
+                ("session", {"sessionId": "cx-image-2"}),
+                ("text_delta", {"content": "已收到图片"}),
+                ("message_end", {}),
+            ),
+        )
+
+    adapter = _adapter_with_transport(handler)
+    response = asyncio.run(
+        adapter.chat(
+            ChatRequest(
+                messages=[{"role": "user", "content": "请解读这份报告"}],
+                images=["data:image/jpeg;base64,aGVsbG8="],
+                session_id="mme-image-2",
+            )
+        )
+    )
+
+    assert response.reply == "已收到图片"
+    assert bodies == [{"content": "请解读这份报告", "images": ["data:image/jpeg;base64,aGVsbG8="]}]
+    assert response.raw["input_images"] == {"count": 1}
+    asyncio.run(adapter.close())
+
+
 def test_cx_agent_adapter_uses_stateless_pool_without_initial_state():
     requests: list[str] = []
 

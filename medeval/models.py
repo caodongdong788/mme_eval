@@ -13,7 +13,7 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, PrivateAttr, field_validator, model_validator
 
 from .evaluation import EvaluationDimension
 
@@ -58,6 +58,26 @@ class Source(str, Enum):
 class Turn(BaseModel):
     role: Literal["user", "assistant", "system"] = "user"
     content: str
+    # ZIP benchmark 内的相对图片路径，例如 images/case-001-1.jpg。
+    # 运行时由 loader 读取为 data URL，但原 YAML 路径始终保留在此字段。
+    images: list[str] = Field(default_factory=list, max_length=10)
+    _image_data_urls: list[str] = PrivateAttr(default_factory=list)
+
+    @field_validator("images")
+    @classmethod
+    def _validate_images(cls, value: list[str]) -> list[str]:
+        normalized = [item.strip() for item in value if isinstance(item, str) and item.strip()]
+        if len(normalized) != len(value):
+            raise ValueError("turn.images 必须是非空相对图片路径列表")
+        return normalized
+
+    @property
+    def image_data_urls(self) -> list[str]:
+        """仅供 adapter 调用的已解析图片内容，不写入 YAML/report.json。"""
+        return list(self._image_data_urls)
+
+    def attach_image_data_urls(self, urls: list[str]) -> None:
+        self._image_data_urls = list(urls)
 
 
 class InitialUserProfile(BaseModel):

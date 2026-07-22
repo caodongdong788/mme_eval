@@ -127,6 +127,7 @@ async def _run_one(
                 messages=list(messages),
                 session_id=session_id,
                 metadata=metadata,
+                images=turn.image_data_urls,
             )
 
             last_err: str | None = None

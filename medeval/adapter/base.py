@@ -23,6 +23,8 @@ class ChatRequest:
     messages: list[dict[str, str]]    # OpenAI 风格 [{role, content}]
     session_id: str
     metadata: dict[str, Any] = field(default_factory=dict)
+    # 当前 user turn 的图片 data URL。adapter 可按自身协议转为多模态请求。
+    images: list[str] = field(default_factory=list)
 
 
 @dataclass

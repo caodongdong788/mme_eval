@@ -65,7 +65,7 @@ export function useBenchmarksPage() {
           return;
         }
       } else if (!file) {
-        message.error("请选择一个 YAML 用例文件");
+        message.error("请选择一个 YAML 或 ZIP 用例文件");
         return;
       }
       const fd = new FormData();

@@ -54,3 +54,29 @@ def test_runner_passes_same_initial_state_through_multiturn_metadata() -> None:
     assert first == second
     assert first["user_profile"]["nickname"] == "小橙"
     assert first["long_term_memories"][0]["key"] == "sleep_preference"
+
+
+def test_runner_passes_resolved_turn_images_to_adapter() -> None:
+    case = TestCase.model_validate(
+        {
+            "schema_version": "2.0",
+            "sample_id": "image_case",
+            "scenario": "报告解读",
+            "level": "L2",
+            "turns": [
+                {
+                    "role": "user",
+                    "content": "请解读图片中的报告",
+                    "images": ["images/case-001-1.jpg"],
+                }
+            ],
+            "evaluation": {},
+        }
+    )
+    case.turns[0].attach_image_data_urls(["data:image/jpeg;base64,aGVsbG8="])
+    adapter = _CaptureAdapter()
+
+    trace = asyncio.run(_run_one(case, adapter, timeout_s=5, retry=0))
+
+    assert trace.error is None
+    assert adapter.requests[0].images == ["data:image/jpeg;base64,aGVsbG8="]

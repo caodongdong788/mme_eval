@@ -113,10 +113,10 @@ class Settings:
     env: str = field(
         default_factory=lambda: os.environ.get("MEDEVAL_ENV", "development")
     )
-    # 上传 benchmark 单文件大小上限（字节），默认 5 MiB。
+    # 上传 benchmark 包大小上限（字节），默认 50 MiB；ZIP 内图片另有解压/单张限制。
     max_upload_bytes: int = field(
         default_factory=lambda: int(
-            os.environ.get("MEDEVAL_MAX_UPLOAD_BYTES", str(5 * 1024 * 1024))
+            os.environ.get("MEDEVAL_MAX_UPLOAD_BYTES", str(50 * 1024 * 1024))
         )
     )
 
