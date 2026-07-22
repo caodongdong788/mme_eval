@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -14,11 +16,14 @@ from medeval.service import write_core_artifacts
 from ..db import session_scope
 from ..ingest import finalize_run
 from ..models_db import EvalRun
+from ..paths import safe_join
 from ..settings import Settings
 
 logger = logging.getLogger(__name__)
 
 PLAN = "plan.json"
+CASE_IMAGES_DIR = "case-images"
+_MARKDOWN_IMAGE_PATH_RE = re.compile(r"!\[[^\]]*\]\(\s*(images/[^\s)]+)", re.IGNORECASE)
 
 
 def write_run_plan(out_dir: Path, cases: list[Any], n_runs: int) -> None:
@@ -33,6 +38,39 @@ def write_run_plan(out_dir: Path, cases: list[Any], n_runs: int) -> None:
         )
     except Exception:  # noqa: BLE001
         logger.debug("写入 run plan 失败（%s）", out_dir, exc_info=True)
+
+
+def snapshot_case_images(out_dir: Path, cases: list[Any], benchmark_root: Path) -> None:
+    """冻结本次评测实际引用的图片，避免 benchmark 后续更新影响明细预览。"""
+    snapshot_root = out_dir / CASE_IMAGES_DIR
+    try:
+        for case in cases:
+            for turn in getattr(case, "turns", []):
+                declared = list(getattr(turn, "images", []) or [])
+                content = getattr(turn, "content", "")
+                if isinstance(content, str):
+                    declared.extend(_MARKDOWN_IMAGE_PATH_RE.findall(content))
+                for image_path in dict.fromkeys(declared):
+                    if not isinstance(image_path, str):
+                        continue
+                    source = safe_join(benchmark_root, image_path)
+                    if not source.is_file():
+                        raise FileNotFoundError(f"评测图片不存在：{image_path}")
+                    target = safe_join(snapshot_root, image_path)
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(source, target)
+    except Exception:
+        shutil.rmtree(snapshot_root, ignore_errors=True)
+        raise
+
+
+def copy_case_image_snapshot(source_dir: Path, out_dir: Path) -> None:
+    """派生 Run 复用源 Run 已冻结的图片快照。"""
+    source = source_dir / CASE_IMAGES_DIR
+    if not source.is_dir():
+        return
+    destination = out_dir / CASE_IMAGES_DIR
+    shutil.copytree(source, destination, dirs_exist_ok=True)
 
 
 def read_run_plan(out_dir: Path) -> dict[str, Any] | None:

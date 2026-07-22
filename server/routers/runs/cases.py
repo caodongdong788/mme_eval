@@ -22,9 +22,10 @@ from ...schemas import CaseRowOut, CasesYamlOut
 from ...services.case_export import export_transcripts, get_case_detail_json, get_cases_yaml
 from ...services.case_query import attach_review_summary, filtered_case_rows
 from ...services.case_query import case_row_or_404
+from ...services.eval_artifacts import CASE_IMAGES_DIR
 from ...services.langfuse_trace import sync_conversation_trace
 from ...services.review import pending_review_sample_ids
-from ...services.runs import get_run_or_404
+from ...services.runs import get_run_or_404, source_out_dir
 from ...settings import get_settings
 from ._router import router
 
@@ -169,6 +170,16 @@ def get_case_image(
         raise HTTPException(status_code=404, detail="图片未在该 Case 中声明")
 
     run = get_run_or_404(session, run_id)
+    run_dir = source_out_dir(run)
+    if run_dir is not None:
+        try:
+            image_file = safe_join(run_dir / CASE_IMAGES_DIR, normalized_path)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail="图片不存在") from exc
+        if image_file.is_file():
+            media_type = mimetypes.guess_type(image_file.name)[0] or "application/octet-stream"
+            return FileResponse(image_file, media_type=media_type, headers={"Cache-Control": "private, max-age=3600"})
+
     benchmark = session.get(Benchmark, run.benchmark_id) if run.benchmark_id else None
     if benchmark is None:
         raise HTTPException(status_code=404, detail="该评测关联的 benchmark 不存在")

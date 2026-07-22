@@ -254,6 +254,7 @@ class CxAgentAdapter(BaseAdapter):
         usage: dict[str, int] = {}
         error: str | None = None
         evaluation_context: dict[str, Any] = {}
+        evaluation_share: dict[str, Any] = {}
 
         for item in events:
             event = item["event"]
@@ -266,6 +267,8 @@ class CxAgentAdapter(BaseAdapter):
                     self._sessions[req.session_id] = session_id
             elif event == "evaluation_context" and isinstance(data, dict):
                 evaluation_context = data
+            elif event == "evaluation_share" and isinstance(data, dict):
+                evaluation_share = data
             elif event == "text_delta":
                 reply_parts.append(_extract_delta(data))
             elif event == "message_end":
@@ -289,6 +292,10 @@ class CxAgentAdapter(BaseAdapter):
             trace_id = evaluation_context.get("traceId")
             if isinstance(trace_id, str) and trace_id:
                 raw["cx_langfuse_trace_id"] = trace_id
+        if evaluation_share:
+            share_path = evaluation_share.get("sharePath")
+            if isinstance(share_path, str) and share_path.startswith("/"):
+                raw["cx_evaluation_share_url"] = self.base_url + share_path
         if lease is not None:
             test_user_id = lease.get("userId")
             raw["evaluation_account"] = {

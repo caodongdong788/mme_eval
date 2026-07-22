@@ -36,7 +36,7 @@ describe("ConversationThread", () => {
       />
     );
 
-    expect(screen.getByTestId("case-conversation-image")).toHaveAttribute(
+    expect(screen.getByTestId("case-conversation-image").querySelector("img")).toHaveAttribute(
       "src",
       "/api/runs/1/cases/case_1/images/images%2Freport.jpg"
     );

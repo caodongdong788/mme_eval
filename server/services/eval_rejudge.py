@@ -16,7 +16,7 @@ from ..db import session_scope
 from ..models_db import Benchmark
 from ..progress import InMemoryProgress
 from ..settings import Settings, get_settings
-from .eval_artifacts import apply_retention
+from .eval_artifacts import apply_retention, copy_case_image_snapshot
 from .eval_stack import build_judge_stack, prepare_run_config
 from .eval_source import frozen_cases_and_traces, load_source_run
 
@@ -66,6 +66,7 @@ def build_rejudge_job(
 
         new_slug = make_run_slug(config.run.name)
         out_dir = settings.outputs_dir / new_slug
+        copy_case_image_snapshot(src_dir, out_dir)
 
         src_bundle = trace_store.read_traces(src_dir)
         src_fp = src_bundle.meta.get("adapter_fingerprint", "") if src_bundle else ""

@@ -86,6 +86,7 @@ async def _run_one(
     turn_token_usage: list[dict[str, int]] = []
     error: str | None = None
     cx_langfuse_trace_ids: list[str] = []
+    cx_evaluation_share_url: str | None = None
     # 原始 Case 上的用户档案 / Timeline 需要随评测结果固化：它们是 Agent
     # 的预置上下文，也是平台展示「用户档案和过往事实」及判断其是否注入的依据。
     # 使用 alias 保留 Case YAML 中的 ``Timeline`` 名称与自由 key，不展示
@@ -201,6 +202,10 @@ async def _run_one(
                             cx_session = context.get("sessionId")
                             if isinstance(cx_session, str):
                                 evaluation_identity["cx_session_id"] = cx_session
+                        share_url = resp.raw.get("cx_evaluation_share_url")
+                        if isinstance(share_url, str) and share_url:
+                            # 多轮 Case 每轮都会冻结当时的完整会话，最后一轮即整段最终回放。
+                            cx_evaluation_share_url = share_url
                     # token 用量：在裁剪 raw_responses 之前当场抽取，store_raw=on_error 也不丢
                     usage = _extract_token_usage(resp.raw)
                     turn_token_usage.append(usage)
@@ -239,6 +244,7 @@ async def _run_one(
         error=error,
         langfuse_trace_url=langfuse_trace_url,
         langfuse_trace_ids=cx_langfuse_trace_ids,
+        cx_evaluation_share_url=cx_evaluation_share_url,
         evaluation_identity=evaluation_identity,
     )
 

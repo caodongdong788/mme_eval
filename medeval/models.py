@@ -360,6 +360,8 @@ class ConversationTrace(BaseModel):
     langfuse_trace_url: str | None = None
     # cx-agent 每个 HTTP turn 对应的内部 Langfuse trace id；多轮按首次出现顺序保留。
     langfuse_trace_ids: list[str] = Field(default_factory=list)
+    # 评测完成时由 cx-agent 冻结的原生分享页。它独立于评测账号会话，账号清空后仍可回放。
+    cx_evaluation_share_url: str | None = None
     # 专用测试账号的领取/重置证据与请求前画像快照。仅观测、不参与判分。
     evaluation_identity: dict[str, Any] = Field(default_factory=dict)
     # 从 Langfuse Public API 固化的 Agent/Generation/Tool 调用链快照。

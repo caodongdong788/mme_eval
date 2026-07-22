@@ -1,4 +1,4 @@
-import { Col, Result, Row, Spin } from "antd";
+import { Button, Col, Result, Row, Spin } from "antd";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { CasePreviewRejudgePanel } from "../components/CasePreviewRejudgePanel";
 import { EditCriteriaDrawer } from "../components/EditCriteriaDrawer";
@@ -51,7 +51,10 @@ export default function CaseDetailPage() {
     );
   }
 
-  const trace = cd.detail.trace as (AgentChainTrace & { messages?: Array<{ role: string; content: string }> }) | undefined;
+  const trace = cd.detail.trace as (AgentChainTrace & {
+    messages?: Array<{ role: string; content: string }>;
+    cx_evaluation_share_url?: string | null;
+  }) | undefined;
   const caseInfo = cd.detail.case as {
     sample_id?: string;
     scenario?: string;
@@ -81,7 +84,14 @@ export default function CaseDetailPage() {
 
       <Row gutter={14}>
         <Col xs={24} lg={14}>
-          <DashPanel title="对话内容">
+          <DashPanel
+            title="对话内容"
+            extra={trace?.cx_evaluation_share_url ? (
+              <Button type="link" size="small" href={trace.cx_evaluation_share_url} target="_blank" rel="noreferrer">
+                在 CX 打开完整回放
+              </Button>
+            ) : undefined}
+          >
             <ConversationThread
               messages={messages}
               maxHeight={640}

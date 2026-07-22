@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import io
 import zipfile
+from pathlib import Path
 
 import yaml
 
 from server.benchmarks import load_benchmark_cases
 from server.db import session_scope
 from server.models_db import Benchmark, CaseResultRow, EvalRun
+from server.services.eval_artifacts import snapshot_case_images
 
 
 V2_YAML = """
@@ -254,6 +256,48 @@ def test_run_case_image_endpoint_serves_declared_markdown_image(client, settings
     assert response.status_code == 200, response.text
     assert response.headers["content-type"] == "image/jpeg"
     assert response.content == b"fake-jpeg-content"
+
+
+def test_run_case_image_endpoint_uses_frozen_snapshot_after_benchmark_changes(client, settings) -> None:
+    case_with_markdown_image = V2_YAML.replace(
+        "      content: 乳房摸到硬块怎么办？",
+        "      content: \"![报告图](images/case-snapshot-1.jpg)\"",
+    )
+    package = io.BytesIO()
+    with zipfile.ZipFile(package, "w") as archive:
+        archive.writestr("cases.yaml", case_with_markdown_image)
+        archive.writestr("images/case-snapshot-1.jpg", b"frozen-jpeg-content")
+    uploaded = client.post(
+        "/api/benchmarks",
+        data={"name": "zip-snapshot-image-benchmark", "source": "offline"},
+        files={"file": ("benchmark.zip", package.getvalue(), "application/zip")},
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    benchmark_id = uploaded.json()["id"]
+
+    with session_scope() as session:
+        benchmark = session.get(Benchmark, benchmark_id)
+        cases = load_benchmark_cases(benchmark, settings=settings)
+        run = EvalRun(run_slug="image_snapshot", name="图片快照", status="success", benchmark_id=benchmark_id)
+        session.add(run)
+        session.flush()
+        snapshot_case_images(settings.outputs_dir / run.run_slug, cases, Path(benchmark.storage_path))
+        (Path(benchmark.storage_path) / "images" / "case-snapshot-1.jpg").unlink()
+        session.add(
+            CaseResultRow(
+                run_id=run.id,
+                sample_id="api_v2_001",
+                detail_json={
+                    "case": {"turns": [{"role": "user", "content": "![报告图](images/case-snapshot-1.jpg)"}]},
+                    "trace": {"messages": [{"role": "user", "content": "![报告图](images/case-snapshot-1.jpg)"}]},
+                },
+            )
+        )
+        run_id = run.id
+
+    response = client.get(f"/api/runs/{run_id}/cases/api_v2_001/images/images/case-snapshot-1.jpg")
+    assert response.status_code == 200, response.text
+    assert response.content == b"frozen-jpeg-content"
 
 
 def test_upload_zip_rejects_path_traversal(client) -> None:

@@ -42,6 +42,7 @@ def test_cx_agent_adapter_parses_sse_reply_and_session():
                 ("text_delta", {"content": "你好"}),
                 ("text_delta", {"text": "，请描述症状"}),
                 ("message_end", {"messageId": "m1", "inputTokens": 3, "outputTokens": 5}),
+                ("evaluation_share", {"sharePath": "/s/11111111-1111-1111-1111-111111111111?cx_ui_release=current"}),
             ),
         )
 
@@ -63,6 +64,9 @@ def test_cx_agent_adapter_parses_sse_reply_and_session():
         "completion_tokens": 5,
         "total_tokens": 8,
     }
+    assert resp.raw["cx_evaluation_share_url"] == (
+        "http://cx.local/s/11111111-1111-1111-1111-111111111111?cx_ui_release=current"
+    )
     assert seen == [{"content": "乳房疼痛怎么办"}]
     asyncio.run(adapter.close())
 

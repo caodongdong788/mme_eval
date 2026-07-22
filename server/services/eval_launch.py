@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import Any
 
 from medeval.run_slug import make_run_slug
@@ -12,7 +13,7 @@ from ..db import session_scope
 from ..models_db import Benchmark
 from ..progress import InMemoryProgress
 from ..settings import Settings, get_settings
-from .eval_artifacts import apply_retention, write_run_plan
+from .eval_artifacts import apply_retention, snapshot_case_images, write_run_plan
 from .eval_stack import build_eval_adapter, build_judge_stack, prepare_run_config
 from .langfuse_trace import enrich_report_agent_chains
 
@@ -48,6 +49,7 @@ def build_eval_job(
             if bm is None:
                 raise ValueError(f"benchmark {benchmark_id} 不存在")
             cases = ej.load_benchmark_cases(bm, settings=settings)
+            benchmark_root = Path(bm.storage_path)
         if levels:
             level_set = set(levels)
             cases = [c for c in cases if getattr(c.level, "value", c.level) in level_set]
@@ -60,6 +62,9 @@ def build_eval_job(
         run_slug = make_run_slug(config.run.name)
         out_dir = settings.outputs_dir / run_slug
         write_run_plan(out_dir, cases, config.run.repeat or 1)
+        if not benchmark_root.is_absolute():
+            benchmark_root = settings.project_root / benchmark_root
+        snapshot_case_images(out_dir, cases, benchmark_root)
 
         report = await ej.evaluate(
             config,
