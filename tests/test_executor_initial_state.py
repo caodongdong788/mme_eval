@@ -24,7 +24,7 @@ def test_runner_passes_same_initial_state_through_multiturn_metadata() -> None:
             "scenario": "长期记忆",
             "level": "L2",
             "initial_state": {
-                "user_profile": {"nickname": "小橙"},
+                "user_profile": {"nickname": "小橙", "current_concern": "乳腺结节随访"},
                 "long_term_memories": [
                     {
                         "key": "sleep_preference",
@@ -53,6 +53,8 @@ def test_runner_passes_same_initial_state_through_multiturn_metadata() -> None:
     second = adapter.requests[1].metadata["initial_state"]
     assert first == second
     assert first["user_profile"]["nickname"] == "小橙"
+    assert first["user_profile"]["current_concern"] == "breast_tumor"
+    assert first["user_profile"]["facts"]["当前关注"] == "乳腺结节随访"
     assert first["long_term_memories"][0]["key"] == "sleep_preference"
 
 

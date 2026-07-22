@@ -230,7 +230,7 @@ initial_state:
   user_profile:
     nickname: 小橙
     gender: 女
-    current_concern: breast_cancer
+    current_concern: 乳腺癌诊疗
     facts:
       当前血压: 107/77 mmHg
       其他用药:
@@ -252,7 +252,8 @@ initial_state:
 
 - 固定字段：`nickname`、`birthday`、`gender`、`current_concern`、`medical`、`facts`；
 - `gender` 只能是 `男` 或 `女`；
-- `current_concern` 只能是 `breast_cancer` 或 `breast_tumor`；
+- `current_concern` 可直接使用中文业务描述，例如 `乳腺结节随访`、`乳腺炎`。原文会
+  作为“当前关注”传给 Agent；可识别的乳腺分类会额外映射为 cx-agent 的内部分类；
 - 任意、不固定的画像 Key 放在 `facts`；最多 50 个顶层字段，Key 长度 1～80，
   总 JSON 长度不超过 8000 字符；
 - 需要参与 cx-agent 标准医疗档案逻辑的 canonical 字段放入 `medical`，内部沿用 cx-agent

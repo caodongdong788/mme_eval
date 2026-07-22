@@ -95,6 +95,22 @@ def test_v2_schema_accepts_profile_and_long_term_memory_initial_state() -> None:
     assert case.initial_state.long_term_memories[0].importance == 8
 
 
+def test_v2_schema_accepts_arbitrary_chinese_current_concern() -> None:
+    raw = raw_case()
+    raw["initial_state"] = {
+        "user_profile": {
+            "current_concern": "乳腺炎（当前状态待确认，可能处于急性期或预防咨询阶段）",
+        }
+    }
+
+    case = TestCase.model_validate(raw)
+
+    assert case.initial_state.user_profile.current_concern.startswith("乳腺炎")
+    agent_profile = case.initial_state.to_agent_payload()["user_profile"]
+    assert "current_concern" not in agent_profile
+    assert agent_profile["facts"]["当前关注"].startswith("乳腺炎")
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

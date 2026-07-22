@@ -88,7 +88,10 @@ class InitialUserProfile(BaseModel):
     nickname: str | None = Field(default=None, min_length=1, max_length=80)
     birthday: date | None = None
     gender: Literal["男", "女"] | None = None
-    current_concern: Literal["breast_cancer", "breast_tumor"] | None = None
+    # 标注集是面向业务人员编辑的，关注点允许直接写中文（如“乳腺结节随访”）。
+    # 发送给 cx-agent 时再由 CaseInitialState.to_agent_payload 转成其内部枚举，
+    # 原始文本始终保留为画像事实，供 Agent 理解。
+    current_concern: str | None = Field(default=None, min_length=1, max_length=200)
     medical: dict[str, Any] = Field(default_factory=dict)
     facts: dict[str, JsonValue] = Field(default_factory=dict)
 
@@ -144,6 +147,43 @@ class CaseInitialState(BaseModel):
             self.user_profile == InitialUserProfile()
             and not self.long_term_memories
         )
+
+    def to_agent_payload(self) -> dict[str, Any]:
+        """生成 cx-agent 可接受的初始化数据，不改变 Case 的原始画像。
+
+        cx-agent 的 ``current_concern`` 是数据库内部分类，只接受两个枚举值；
+        Case 中则允许任意中文业务描述。已知的乳腺分类会同步到内部字段，其他
+        描述仅作为 ``facts.当前关注`` 写入评测画像上下文，避免中文被接口拒绝。
+        """
+        payload = self.model_dump(mode="json", exclude_none=True, exclude_defaults=True)
+        profile = payload.get("user_profile")
+        if not isinstance(profile, dict):
+            return payload
+
+        concern = profile.get("current_concern")
+        if not isinstance(concern, str) or concern in {"breast_cancer", "breast_tumor"}:
+            return payload
+
+        facts = profile.get("facts")
+        if not isinstance(facts, dict):
+            facts = {}
+            profile["facts"] = facts
+        facts.setdefault("当前关注", concern)
+
+        concern_aliases = {
+            "乳腺癌": "breast_cancer",
+            "乳腺癌诊疗": "breast_cancer",
+            "乳腺肿瘤诊疗": "breast_cancer",
+            "乳腺肿瘤": "breast_tumor",
+            "乳腺结节": "breast_tumor",
+            "乳腺结节随访": "breast_tumor",
+        }
+        internal_concern = concern_aliases.get(concern)
+        if internal_concern:
+            profile["current_concern"] = internal_concern
+        else:
+            profile.pop("current_concern", None)
+        return payload
 
     @model_validator(mode="after")
     def _reject_overwriting_memories(self) -> "CaseInitialState":

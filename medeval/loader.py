@@ -18,14 +18,6 @@ log = logging.getLogger(__name__)
 _SUPPORTED_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 _MAX_IMAGE_BYTES = 10 * 1024 * 1024
 _MARKDOWN_IMAGE_PATH_RE = re.compile(r"!\[[^\]]*\]\(\s*(images/[^\s)]+)", re.IGNORECASE)
-_CURRENT_CONCERN_ALIASES = {
-    "乳腺癌": "breast_cancer",
-    "乳腺癌诊疗": "breast_cancer",
-    "乳腺肿瘤诊疗": "breast_cancer",
-    "乳腺肿瘤": "breast_tumor",
-    "乳腺结节": "breast_tumor",
-    "乳腺结节随访": "breast_tumor",
-}
 
 
 def _image_data_url(raw_path: str, *, yaml_dir: Path) -> str:
@@ -140,15 +132,6 @@ def _normalize_case_initial_state(item: object) -> object:
 
     if profile.get("gender") is None and isinstance(legacy_profile, dict) and legacy_profile.get("性别") in {"男", "女"}:
         profile["gender"] = legacy_profile["性别"]
-
-    concern = profile.get("current_concern")
-    if isinstance(concern, str) and concern not in {"breast_cancer", "breast_tumor"}:
-        facts.setdefault("当前关注", concern)
-        mapped_concern = _CURRENT_CONCERN_ALIASES.get(concern)
-        if mapped_concern:
-            profile["current_concern"] = mapped_concern
-        else:
-            profile.pop("current_concern", None)
 
     initial_state["user_profile"] = profile
     normalized["initial_state"] = initial_state

@@ -7,7 +7,7 @@ initial_state:
   user_profile:
     nickname: 小橙
     gender: 女
-    current_concern: breast_cancer
+    current_concern: 乳腺癌诊疗
     facts:
       症状: 头晕，早晨起床后明显
       其他用药:

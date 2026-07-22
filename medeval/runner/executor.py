@@ -87,11 +87,7 @@ async def _run_one(
     error: str | None = None
     cx_langfuse_trace_ids: list[str] = []
     evaluation_identity: dict = {}
-    initial_state = case.initial_state.model_dump(
-        mode="json",
-        exclude_none=True,
-        exclude_defaults=True,
-    )
+    initial_state = case.initial_state.to_agent_payload()
 
     start = time.perf_counter()
     # bot 模型名（仅 openai_compat 等有 .model）；用于 Langfuse generation 标注。
