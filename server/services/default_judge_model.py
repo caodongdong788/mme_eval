@@ -32,6 +32,9 @@ def ensure_default_judge_model(session: Session, settings: Settings) -> None:
         select(JudgeModelConfig).where(JudgeModelConfig.name == DEFAULT_JUDGE_MODEL_NAME)
     ).scalar_one_or_none()
     if existing is not None:
+        # 旧的生产配置可能尚未声明该字段；默认模型仍需明确关闭思考。
+        if existing.enable_thinking is None:
+            existing.enable_thinking = False
         return
 
     session.add(
@@ -42,7 +45,7 @@ def ensure_default_judge_model(session: Session, settings: Settings) -> None:
             base_url=judge.base_url or "",
             api_version=judge.api_version or "",
             temperature=judge.temperature,
-            enable_thinking=judge.enable_thinking,
+            enable_thinking=judge.enable_thinking if judge.enable_thinking is not None else False,
             pairwise_concurrency=4,
             # 不落库密钥：LLMBackend 会沿用 config 的 api_key_env（LLM_API_KEY）。
             api_key=None,
