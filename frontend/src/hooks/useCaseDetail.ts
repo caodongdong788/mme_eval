@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Modal, message } from "antd";
 import {
   Annotation,
+  CASE_LIST_LIMIT,
   PreviewRejudgeResult,
   RunDetail,
   api,
@@ -26,6 +27,7 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
   const [previewResult, setPreviewResult] = useState<PreviewRejudgeResult | null>(null);
   const [chainSyncing, setChainSyncing] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [nextSampleId, setNextSampleId] = useState<string | undefined>();
 
   const {
     yamlOpen,
@@ -65,6 +67,22 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runId, sampleId]);
+
+  useEffect(() => {
+    let alive = true;
+    setNextSampleId(undefined);
+    api
+      .listCaseResults(runId, { limit: CASE_LIST_LIMIT })
+      .then((cases) => {
+        if (!alive) return;
+        const index = cases.findIndex((item) => item.sample_id === sampleId);
+        setNextSampleId(index >= 0 ? cases[index + 1]?.sample_id : undefined);
+      })
+      .catch(() => alive && setNextSampleId(undefined));
+    return () => {
+      alive = false;
+    };
   }, [runId, sampleId]);
 
   const submitAnnotation = async () => {
@@ -210,6 +228,7 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
     syncAgentChain,
     retrying,
     retryCase,
+    nextSampleId,
     openEditor,
     runPreview,
     yamlActions,

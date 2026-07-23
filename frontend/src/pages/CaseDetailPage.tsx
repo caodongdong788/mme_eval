@@ -1,5 +1,5 @@
 import { Button, Col, Empty, Result, Row, Spin } from "antd";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { CasePreviewRejudgePanel } from "../components/CasePreviewRejudgePanel";
 import { EditCriteriaDrawer } from "../components/EditCriteriaDrawer";
 import { CaseDetailSummary, CaseDetailSummaryCard } from "../components/CaseDetailSummaryCard";
@@ -17,6 +17,7 @@ import { CaseVerdict } from "../utils/caseJudging";
 export default function CaseDetailPage() {
   const { runId, sampleId } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const tagLabel = useFailureTagLabels();
   const id = Number(runId);
   const backFrom = (location.state as { from?: { to: string; state?: unknown; label?: string } } | null)?.from;
@@ -79,6 +80,13 @@ export default function CaseDetailPage() {
         backLabel={backLabel}
         retrying={cd.retrying}
         onRetry={cd.retryCase}
+        nextSampleId={cd.nextSampleId}
+        onNext={() => {
+          if (!cd.nextSampleId) return;
+          navigate(`/runs/${id}/cases/${cd.nextSampleId}`, {
+            state: { from: { to: backTo, state: backState, label: backLabel } },
+          });
+        }}
       />
 
       <Row gutter={14}>
