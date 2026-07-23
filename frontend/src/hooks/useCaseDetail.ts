@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Modal, message } from "antd";
 import {
   Annotation,
@@ -28,6 +28,8 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
   const [chainSyncing, setChainSyncing] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [nextSampleId, setNextSampleId] = useState<string | undefined>();
+  // 每次进入一个 Case 最多自动补同步一次；避免 Langfuse 仍在 ingest 时反复请求。
+  const autoChainSyncKeyRef = useRef<string | null>(null);
 
   const {
     yamlOpen,
@@ -68,6 +70,34 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId, sampleId]);
+
+  useEffect(() => {
+    if (!sampleId || !detail) return;
+    const trace = detail.trace as Record<string, unknown> | undefined;
+    const chain = trace?.agent_chain as Record<string, unknown> | undefined;
+    const traceIds = Array.isArray(chain?.trace_ids)
+      ? chain.trace_ids
+      : Array.isArray(trace?.langfuse_trace_ids)
+        ? trace.langfuse_trace_ids
+        : [];
+    const status = typeof chain?.status === "string" ? chain.status : "";
+    const canRetry = traceIds.length > 0 && status !== "synced" && status !== "unconfigured";
+    const syncKey = `${runId}:${sampleId}`;
+    if (!canRetry || autoChainSyncKeyRef.current === syncKey) return;
+
+    autoChainSyncKeyRef.current = syncKey;
+    let alive = true;
+    setChainSyncing(true);
+    api
+      .syncCaseAgentChain(runId, sampleId)
+      .then((next) => alive && setDetail(next))
+      // 自动补同步失败时保留当前状态；用户仍可点击“重新同步”查看或手动重试。
+      .catch(() => undefined)
+      .finally(() => alive && setChainSyncing(false));
+    return () => {
+      alive = false;
+    };
+  }, [detail, runId, sampleId]);
 
   useEffect(() => {
     let alive = true;

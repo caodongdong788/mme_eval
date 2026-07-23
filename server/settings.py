@@ -136,7 +136,14 @@ class Settings:
         default_factory=lambda: float(os.environ.get("LANGFUSE_SYNC_TIMEOUT_SECONDS", "8"))
     )
     langfuse_sync_attempts: int = field(
-        default_factory=lambda: int(os.environ.get("LANGFUSE_SYNC_ATTEMPTS", "3"))
+        # cx-agent 的 Langfuse observation 可能在请求完成后延迟写入；默认给
+        # 15 秒的指数退避窗口，而不是首次读空就把链路标为失败。
+        default_factory=lambda: int(os.environ.get("LANGFUSE_SYNC_ATTEMPTS", "5"))
+    )
+    langfuse_sync_initial_backoff_seconds: float = field(
+        default_factory=lambda: float(
+            os.environ.get("LANGFUSE_SYNC_INITIAL_BACKOFF_SECONDS", "1")
+        )
     )
 
     @property

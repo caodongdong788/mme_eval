@@ -103,7 +103,7 @@ interface AgentChainSummary {
 }
 
 interface AgentChainSnapshot {
-  status?: "synced" | "partial" | "failed" | "unconfigured";
+  status?: "synced" | "partial" | "pending" | "failed" | "unconfigured";
   synced_at?: string;
   trace_ids?: string[];
   traces?: Array<{ trace_id?: string; trace_url?: string | null }>;
@@ -226,9 +226,10 @@ function formatCount(value?: number | null): string {
 
 function statusAlert(chain: AgentChainSnapshot) {
   if (chain.status === "synced") return null;
-  const type = chain.status === "partial" ? "warning" : "info";
+  const type = chain.status === "partial" || chain.status === "pending" ? "warning" : "info";
   const label = {
     partial: "部分 Trace 已同步",
+    pending: "Langfuse 链路仍在写入，正在补同步",
     failed: "Langfuse 链路同步失败",
     unconfigured: "Langfuse 读取尚未配置",
   }[chain.status || "failed"];

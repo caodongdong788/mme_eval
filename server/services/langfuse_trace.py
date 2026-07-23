@@ -177,7 +177,10 @@ class LangfuseTraceReader:
             except Exception as exc:  # noqa: BLE001 - observability is fail-soft
                 last_error = exc
             if attempt + 1 < attempts:
-                await asyncio.sleep(0.5 * (2**attempt))
+                # Langfuse 的异步 ingest 在 cx-agent 请求刚结束时可能仍未可读。
+                # 退避上限控制在 8 秒，避免单条链路无限拖慢评测收尾。
+                initial = max(0.0, self.settings.langfuse_sync_initial_backoff_seconds)
+                await asyncio.sleep(min(8.0, initial * (2**attempt)))
         if last_error is not None:
             raise last_error
         raise RuntimeError("Langfuse trace 暂未写入完成")
@@ -225,8 +228,19 @@ async def sync_conversation_trace(
         first_url = next((item.get("trace_url") for item in traces if item.get("trace_url")), None)
         if first_url and not trace.langfuse_trace_url:
             trace.langfuse_trace_url = str(first_url)
+        # 读空通常不代表调用或凭据失败，而是 Langfuse 尚未完成异步写入。
+        # 单独标为 pending，前端会在打开用例时自动补同步一次。
+        all_pending = bool(errors) and all("Langfuse trace 暂未写入完成" in error for error in errors)
         snapshot = {
-            "status": "synced" if not errors else "partial" if traces else "failed",
+            "status": (
+                "synced"
+                if not errors
+                else "partial"
+                if traces
+                else "pending"
+                if all_pending
+                else "failed"
+            ),
             "synced_at": datetime.now(timezone.utc).isoformat(),
             "trace_ids": trace_ids,
             "traces": [

@@ -132,3 +132,26 @@ def test_reader_falls_back_to_v1_when_v2_has_ingestion_delay():
         "/api/public/v2/observations",
         "/api/public/observations",
     ]
+
+
+def test_sync_marks_not_yet_ingested_trace_as_pending():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path in {"/api/public/v2/observations", "/api/public/observations"}:
+            return httpx.Response(200, json={"data": []})
+        return httpx.Response(404)
+
+    settings = Settings(
+        langfuse_host="https://langfuse.example",
+        langfuse_public_key="pk-test",
+        langfuse_secret_key="sk-test",
+        langfuse_sync_attempts=1,
+    )
+    reader = LangfuseTraceReader(settings, transport=httpx.MockTransport(handler))
+    trace = ConversationTrace(messages=[], langfuse_trace_ids=["trace-delayed"])
+
+    snapshot = asyncio.run(sync_conversation_trace(trace, settings, reader=reader))
+    asyncio.run(reader.close())
+
+    assert snapshot["status"] == "pending"
+    assert snapshot["nodes"] == []
+    assert "暂未写入完成" in snapshot["error"]
