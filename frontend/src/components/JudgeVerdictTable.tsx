@@ -8,6 +8,7 @@ const { Text } = Typography;
 export interface JudgeVerdictTableProps {
   verdicts: CaseVerdict[];
   tagLabel: (tag: string) => string;
+  dimensionRawScores?: Record<string, number | null>;
   dimensionScores?: Record<string, number | null>;
   dimensionMax?: Record<string, number>;
   scoreDeductions?: string[];
@@ -24,6 +25,7 @@ function escapeRegExp(value: string): string {
 export function JudgeVerdictTable({
   verdicts,
   tagLabel,
+  dimensionRawScores = {},
   dimensionScores = {},
   dimensionMax = {},
   scoreDeductions = [],
@@ -70,9 +72,20 @@ export function JudgeVerdictTable({
         const key = dimensionKey(v.name);
         if (!key) return v.max_score ? `${v.score}/${v.max_score}` : "-";
         const finalScore = dimensionScores[key] ?? v.score;
+        const rawScore = dimensionRawScores[key] ?? v.score;
         const maxScore = dimensionMax[key] ?? v.max_score;
         if (finalScore == null || maxScore == null) return "-";
-        return `${finalScore}/${maxScore}`;
+        const guidelineDeduction = rawScore == null ? 0 : Math.max(0, rawScore - finalScore);
+        return (
+          <Space direction="vertical" size={0}>
+            <span>{`最终 ${finalScore}/${maxScore}`}</span>
+            {guidelineDeduction > 0 ? (
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {`维度原始 ${rawScore}/${maxScore} · 指南 -${guidelineDeduction}分`}
+              </Text>
+            ) : null}
+          </Space>
+        );
       },
     },
     {

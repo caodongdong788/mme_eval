@@ -8,6 +8,7 @@ describe("JudgeVerdictTable", () => {
     renderWithProviders(
       <JudgeVerdictTable
         tagLabel={(t) => t}
+        dimensionRawScores={{ empathy: 4 }}
         dimensionScores={{ empathy: 3 }}
         dimensionMax={{ empathy: 5 }}
         scoreDeductions={["empathy 指南 warm_response -1分：缺少针对性情绪承接"]}
@@ -32,7 +33,8 @@ describe("JudgeVerdictTable", () => {
       />
     );
 
-    expect(screen.getByText("3/5")).toBeInTheDocument();
+    expect(screen.getByText("最终 3/5")).toBeInTheDocument();
+    expect(screen.getByText("维度原始 4/5 · 指南 -1分")).toBeInTheDocument();
     expect(screen.getByText("扣分原因")).toBeInTheDocument();
     expect(screen.getByText("指南 warm_response -1分：缺少针对性情绪承接")).toBeInTheDocument();
     expect(screen.getByText("维度评分")).toBeInTheDocument();

@@ -130,6 +130,7 @@ export default function CaseDetailPage() {
       <JudgeVerdictTable
         verdicts={verdicts}
         tagLabel={tagLabel}
+        dimensionRawScores={cd.detail.dimension_raw_scores as Record<string, number | null> | undefined}
         dimensionScores={cd.detail.dimension_scores as Record<string, number | null> | undefined}
         dimensionMax={cd.detail.dimension_max as Record<string, number> | undefined}
         scoreDeductions={cd.detail.score_deductions as string[] | undefined}
