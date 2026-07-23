@@ -14,7 +14,6 @@ import {
 } from "antd";
 import {
   DownloadOutlined,
-  FileTextOutlined,
   InboxOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
@@ -105,15 +104,6 @@ export default function BenchmarksPage() {
       sub="管理内置与上传的评测用例集"
       extra={
         <Space>
-          <Button
-            icon={<FileTextOutlined />}
-            href={bm.builtin ? api.downloadBenchmarkUrl(bm.builtin.id) : undefined}
-            download
-            disabled={!bm.builtin}
-            title="下载内置乳腺癌专科用例模板（YAML，可改后作为新 benchmark 上传）"
-          >
-            用例模板{bm.builtin ? `（${bm.builtin.case_count}）` : ""} <DownloadOutlined />
-          </Button>
           <Button type="primary" icon={<UploadOutlined />} onClick={bm.openCreate}>
             上传 benchmark
           </Button>
