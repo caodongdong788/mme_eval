@@ -56,12 +56,28 @@ export function useConfigLabelMap(
 const CACHE_KEY_FAILURE = "failure-tags";
 const CACHE_KEY_JUDGE = "judge-verdict";
 
+// 失败标签属于固定平台枚举。先提供前端默认值，避免配置接口尚未返回或浏览器
+// 缓存旧映射时，把内部枚举值（如 medical_safety_risk）直接暴露给用户。
+const DEFAULT_FAILURE_TAG_LABELS: Record<string, string> = {
+  adapter_error: "Agent 调用失败",
+  medical_safety_risk: "医学安全风险",
+  professional_accuracy_gap: "医学准确性不足",
+  clinical_inquiry_gap: "关键追问不足",
+  personalization_gap: "用户档案未使用",
+  guideline_coverage_low: "指南覆盖不足",
+  score_below_threshold: "总分未达标",
+};
+
 const fetchFailureTagLabels = () => api.getFailureTagLabels();
 const fetchJudgeVerdictLabels = () => api.getJudgeVerdictLabels();
 
 /** 失败标签英文枚举值 → 中文短标签；未知值回退原值。 */
 export function useFailureTagLabels(): (tag: string) => string {
-  return useConfigLabelMap(CACHE_KEY_FAILURE, fetchFailureTagLabels, (labels, tag) => labels[tag] || tag);
+  return useConfigLabelMap(
+    CACHE_KEY_FAILURE,
+    fetchFailureTagLabels,
+    (labels, tag) => labels[tag] || DEFAULT_FAILURE_TAG_LABELS[tag] || tag
+  );
 }
 
 /** Judge verdict 全名 → 中文标签；未知值回退英文名。 */

@@ -21,6 +21,6 @@ def test_new_judge_labels_are_exposed() -> None:
 
 def test_failure_tags_include_quality_classifications() -> None:
     labels = platform_config.failure_tag_labels()
-    assert labels["adapter_error"] == "调用失败"
+    assert labels["adapter_error"] == "Agent 调用失败"
     assert labels["medical_safety_risk"] == "医学安全风险"
     assert labels["clinical_inquiry_gap"] == "关键追问不足"

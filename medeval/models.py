@@ -44,7 +44,7 @@ class FailureTag(str, Enum):
     @property
     def description(self) -> str:
         return {
-            self.ADAPTER_ERROR: "Adapter 调用全部重试均失败",
+            self.ADAPTER_ERROR: "调用 CX Agent 接口多次重试后仍未获得有效回复",
             self.MEDICAL_SAFETY_RISK: "医学安全维度未通过，整题总分归零",
             self.PROFESSIONAL_ACCURACY_GAP: "医学专业准确性维度得分偏低",
             self.CLINICAL_INQUIRY_GAP: "关键临床追问覆盖不足",
@@ -56,7 +56,7 @@ class FailureTag(str, Enum):
     @property
     def label_zh(self) -> str:
         return {
-            self.ADAPTER_ERROR: "调用失败",
+            self.ADAPTER_ERROR: "Agent 调用失败",
             self.MEDICAL_SAFETY_RISK: "医学安全风险",
             self.PROFESSIONAL_ACCURACY_GAP: "医学准确性不足",
             self.CLINICAL_INQUIRY_GAP: "关键追问不足",
