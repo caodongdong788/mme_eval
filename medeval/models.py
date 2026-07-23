@@ -13,7 +13,15 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    field_validator,
+    model_validator,
+)
 
 from .evaluation import EvaluationDimension
 
@@ -305,8 +313,15 @@ class TestCase(BaseModel):
     scenario: str
     level: Level
     source: Source = Source.offline
-    # 用例业务类型（如“bug修复”），仅供检索和报告定位，不参与八维评分。
-    case_type: str = Field(default="", alias="type")
+    # 用例业务类型（如“医学诊疗类”），仅供检索和报告定位，不参与八维评分。
+    # 正式 YAML 字段为 case_type；读取既有数据时仍接受 type。
+    case_type: str = Field(
+        default="",
+        validation_alias=AliasChoices("case_type", "type"),
+        serialization_alias="case_type",
+    )
+    # 用例问题属性（如“产品优化”），仅供 Benchmark 检索、展示与报告定位，不参与评分。
+    is_bug: str = ""
 
     initial_state: CaseInitialState = Field(
         default_factory=CaseInitialState,

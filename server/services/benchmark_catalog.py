@@ -81,6 +81,7 @@ def list_benchmark_case_briefs(session: Session, benchmark_id: int) -> list[Case
             sample_id=c.sample_id,
             scenario=c.scenario,
             case_type=c.case_type,
+            is_bug=c.is_bug,
             level=getattr(c.level, "value", c.level),
         )
         for c in cases

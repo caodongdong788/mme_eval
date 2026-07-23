@@ -48,7 +48,11 @@ def test_upload_and_read_v2_benchmark(client, settings) -> None:
     stale_dir.mkdir(parents=True, exist_ok=True)
     (stale_dir / "stale.yaml").write_text("legacy: true\n", encoding="utf-8")
 
-    created = upload(client, V2_YAML)
+    yaml_with_case_metadata = V2_YAML.replace(
+        "  scenario: 症状识别",
+        "  scenario: 症状识别\n  case_type: 医学诊疗类\n  is_bug: 产品优化",
+    )
+    created = upload(client, yaml_with_case_metadata)
     assert created.status_code == 201, created.text
     benchmark_id = created.json()["id"]
     assert created.json()["case_count"] == 1
@@ -57,6 +61,8 @@ def test_upload_and_read_v2_benchmark(client, settings) -> None:
     cases = client.get(f"/api/benchmarks/{benchmark_id}/cases")
     assert cases.status_code == 200
     assert cases.json()[0]["sample_id"] == "api_v2_001"
+    assert cases.json()[0]["case_type"] == "医学诊疗类"
+    assert cases.json()[0]["is_bug"] == "产品优化"
 
     exported = client.get(
         f"/api/benchmarks/{benchmark_id}/cases/api_v2_001/yaml"
@@ -67,6 +73,8 @@ def test_upload_and_read_v2_benchmark(client, settings) -> None:
     if isinstance(parsed, list):
         parsed = parsed[0]
     assert parsed["schema_version"] == "2.0"
+    assert parsed["case_type"] == "医学诊疗类"
+    assert parsed["is_bug"] == "产品优化"
     assert parsed["evaluation"]["guidelines"][0]["max_score"] == 3
 
 

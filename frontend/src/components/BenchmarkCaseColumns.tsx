@@ -36,6 +36,12 @@ export function createBenchmarkCaseColumns({
       render: (value: string) => value || <Typography.Text type="secondary">—</Typography.Text>,
     },
     {
+      title: "问题属性",
+      dataIndex: "is_bug",
+      width: 110,
+      render: (value: string) => value || <Typography.Text type="secondary">—</Typography.Text>,
+    },
+    {
       title: "操作",
       width: 90,
       render: (_: unknown, row: CaseBrief) =>

@@ -90,6 +90,7 @@ export interface CaseBrief {
   sample_id: string;
   scenario: string;
   case_type: string;
+  is_bug: string;
   level: string;
 }
 

@@ -127,6 +127,7 @@ class CaseBrief(BaseModel):
     sample_id: str
     scenario: str
     case_type: str = ""
+    is_bug: str = ""
     level: str
 
 

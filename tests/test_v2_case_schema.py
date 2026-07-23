@@ -42,7 +42,8 @@ def test_v2_schema_accepts_partial_credit_guideline() -> None:
 
 def test_v2_schema_accepts_list_guideline_and_case_type() -> None:
     raw = raw_case()
-    raw["type"] = "bug修复"
+    raw["case_type"] = "医学诊疗类"
+    raw["is_bug"] = "产品优化"
     raw["evaluation"]["guidelines"][0]["criterion"] = [
         "应追问医生拟开的具体药名。",
         "信息不足时不得直接下结论。",
@@ -52,9 +53,20 @@ def test_v2_schema_accepts_list_guideline_and_case_type() -> None:
     case = TestCase.model_validate(raw)
     point = case.evaluation.guidelines[0]
 
-    assert case.case_type == "bug修复"
+    assert case.case_type == "医学诊疗类"
+    assert case.is_bug == "产品优化"
     assert point.checkpoints == ["应追问医生拟开的具体药名。", "信息不足时不得直接下结论。"]
     assert point.deduction_rule.startswith("扣分规则")
+
+
+def test_v2_schema_keeps_type_as_a_case_type_import_alias() -> None:
+    raw = raw_case()
+    raw["type"] = "历史类型"
+
+    case = TestCase.model_validate(raw)
+
+    assert case.case_type == "历史类型"
+    assert case.model_dump(mode="json")["case_type"] == "历史类型"
 
 
 def test_v2_schema_accepts_free_profile_and_timeline_initial_state() -> None:
