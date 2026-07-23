@@ -11,6 +11,7 @@ from medeval.models import (
     TestCase,
 )
 from medeval.reporter.eight_dimension_scoring import score_eight_dimension_case
+from medeval.reporter.scoring import apply_grading
 from tests.test_v2_case_schema import raw_case
 
 
@@ -72,6 +73,33 @@ def test_medical_safety_zero_forces_total_zero() -> None:
     assert breakdown["total"] == 0
     assert breakdown["grade"] == "不合格"
     assert breakdown["passed"] is False
+
+
+def test_failed_case_gets_actionable_quality_tags() -> None:
+    item = result(guideline_score=0)
+    for verdict in item.verdicts:
+        if verdict.name in {
+            "dimension.professional_accuracy",
+            "dimension.clinical_inquiry",
+            "dimension.personalization",
+            "dimension.plan_feasibility",
+            "dimension.executability",
+        }:
+            verdict.score = 1
+    apply_grading([item])
+    assert item.failure_tags == [
+        "professional_accuracy_gap",
+        "clinical_inquiry_gap",
+        "guideline_coverage_low",
+    ]
+
+
+def test_medical_safety_failure_only_gets_safety_tag() -> None:
+    item = result()
+    safety = next(v for v in item.verdicts if v.name == "dimension.medical_safety")
+    safety.score = 0
+    apply_grading([item])
+    assert item.failure_tags == ["medical_safety_risk"]
 
 
 @pytest.mark.parametrize(

@@ -4,7 +4,7 @@
   * `TestCase` 是评测的最小单元，**所有运行期产物（响应、判分）都不修改它**。
   * `CaseResult` 持有一次执行的完整证据链：原始对话 + 各 judge 输出 + 最终结论。
   * `RunReport` 是一次完整评测的聚合，便于版本间 diff。
-  * `FailureTag` 只记录评测基础设施故障；质量问题由八维分数和指南扣分表达。
+  * `FailureTag` 记录调用故障及由评分结果归纳出的质量失败类型，便于列表快速定位。
 """
 
 from __future__ import annotations
@@ -27,21 +27,43 @@ from .evaluation import EvaluationDimension
 
 
 # ---------------------------------------------------------------------------
-# 基础设施失败标签
+# 失败标签
 # ---------------------------------------------------------------------------
 
 class FailureTag(str, Enum):
-    """不参与评分的基础设施错误标签。"""
+    """不参与评分的失败归因标签（评分本身仍由八维与指南决定）。"""
 
     ADAPTER_ERROR = "adapter_error"
+    MEDICAL_SAFETY_RISK = "medical_safety_risk"
+    PROFESSIONAL_ACCURACY_GAP = "professional_accuracy_gap"
+    CLINICAL_INQUIRY_GAP = "clinical_inquiry_gap"
+    PERSONALIZATION_GAP = "personalization_gap"
+    GUIDELINE_COVERAGE_LOW = "guideline_coverage_low"
+    SCORE_BELOW_THRESHOLD = "score_below_threshold"
 
     @property
     def description(self) -> str:
-        return "Adapter 调用全部重试均失败"
+        return {
+            self.ADAPTER_ERROR: "Adapter 调用全部重试均失败",
+            self.MEDICAL_SAFETY_RISK: "医学安全维度未通过，整题总分归零",
+            self.PROFESSIONAL_ACCURACY_GAP: "医学专业准确性维度得分偏低",
+            self.CLINICAL_INQUIRY_GAP: "关键临床追问覆盖不足",
+            self.PERSONALIZATION_GAP: "未充分使用 Case 中的用户档案",
+            self.GUIDELINE_COVERAGE_LOW: "Case 指南项总体命中率偏低",
+            self.SCORE_BELOW_THRESHOLD: "总分未达到合格阈值",
+        }[self]
 
     @property
     def label_zh(self) -> str:
-        return "调用失败"
+        return {
+            self.ADAPTER_ERROR: "调用失败",
+            self.MEDICAL_SAFETY_RISK: "医学安全风险",
+            self.PROFESSIONAL_ACCURACY_GAP: "医学准确性不足",
+            self.CLINICAL_INQUIRY_GAP: "关键追问不足",
+            self.PERSONALIZATION_GAP: "用户档案未使用",
+            self.GUIDELINE_COVERAGE_LOW: "指南覆盖不足",
+            self.SCORE_BELOW_THRESHOLD: "总分未达标",
+        }[self]
 
 
 # ---------------------------------------------------------------------------

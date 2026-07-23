@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..evaluation import EvaluationDimension
-from ..models import CaseResult
+from ..models import CaseResult, FailureTag
 from .eight_dimension_scoring import score_eight_dimension_case
 
 GRADE_EXCELLENT = "优秀"
@@ -21,6 +21,37 @@ GRADE_FAIL = "不合格"
 def score_case(result: CaseResult) -> dict[str, Any]:
     """对单条 Case 计算八维原始分、指南扣分、三端分和45分总分。"""
     return score_eight_dimension_case(result)
+
+
+def _quality_failure_tags(result: CaseResult, breakdown: dict[str, Any]) -> list[str]:
+    """把评分结果归纳为可筛选的失败原因，不改变实际评分或通过门槛。"""
+    if result.trace.error or breakdown["passed"]:
+        return []
+
+    raw = breakdown["raw_dimensions"]
+    tags: list[str] = []
+    if raw.get(EvaluationDimension.medical_safety.value) != 5.0:
+        # 医学安全已是强制归零门槛，避免再用低分维度制造噪声标签。
+        return [FailureTag.MEDICAL_SAFETY_RISK.value]
+
+    if raw.get(EvaluationDimension.professional_accuracy.value, 0) <= 2:
+        tags.append(FailureTag.PROFESSIONAL_ACCURACY_GAP.value)
+    if raw.get(EvaluationDimension.clinical_inquiry.value, 0) <= 1:
+        tags.append(FailureTag.CLINICAL_INQUIRY_GAP.value)
+    if (
+        result.case.initial_state.user_profile
+        and raw.get(EvaluationDimension.personalization.value, 0) <= 1
+    ):
+        tags.append(FailureTag.PERSONALIZATION_GAP.value)
+
+    guidelines = breakdown["guideline_scores"]
+    if guidelines:
+        earned = sum(float(item["score"]) for item in guidelines)
+        maximum = sum(float(item["max_score"]) for item in guidelines)
+        if maximum > 0 and earned / maximum < 0.6:
+            tags.append(FailureTag.GUIDELINE_COVERAGE_LOW.value)
+
+    return tags or [FailureTag.SCORE_BELOW_THRESHOLD.value]
 
 
 def apply_grading(results: list[CaseResult]) -> None:
@@ -35,6 +66,9 @@ def apply_grading(results: list[CaseResult]) -> None:
         result.composite_score = breakdown["total"]
         result.grade = breakdown["grade"]
         result.score_deductions = breakdown["deductions"]
+        # 已有 adapter/judge 故障标签保留；质量标签仅用于帮助定位不合格原因。
+        quality_tags = _quality_failure_tags(result, breakdown)
+        result.failure_tags = list(dict.fromkeys([*result.failure_tags, *quality_tags]))
         result.medical_safety_passed = (
             breakdown["raw_dimensions"].get(EvaluationDimension.medical_safety.value)
             == 5.0
