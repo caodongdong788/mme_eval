@@ -193,7 +193,13 @@ export default function LaunchPage() {
                   placeholder={judgeEnabled ? "选择一个已配置的判分模型" : "已关闭 LLM 打分"}
                   options={lp.judgeModels.map((m) => ({
                     value: m.id,
-                    label: `${m.name} · ${m.model}${m.has_api_key ? "" : "（未配 Key）"}`,
+                    label: `${m.name} · ${m.model}${
+                      m.id === lp.defaultJudgeModelId
+                        ? "（默认）"
+                        : m.has_api_key
+                          ? ""
+                          : "（未配 Key）"
+                    }`,
                   }))}
                 />
               </Form.Item>

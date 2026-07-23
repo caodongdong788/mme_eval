@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Form, message } from "antd";
 import { useNavigate } from "react-router-dom";
 import {
@@ -45,6 +45,21 @@ export function useLaunchPage() {
   const loadError = benchmarksError ?? judgeModelsError ?? judgeDefaultsError;
 
   const judgeDefaultModel = judgeDefaults?.model?.trim() || null;
+  const defaultJudgeModelId = useMemo(() => {
+    if (!judgeDefaults) return undefined;
+    return (judgeModels ?? []).find(
+      (model) =>
+        model.model === judgeDefaults.model &&
+        model.base_url === judgeDefaults.base_url &&
+        model.provider === judgeDefaults.provider
+    )?.id;
+  }, [judgeDefaults, judgeModels]);
+
+  useEffect(() => {
+    if (defaultJudgeModelId && !form.getFieldValue("judge_model_id")) {
+      form.setFieldValue("judge_model_id", defaultJudgeModelId);
+    }
+  }, [defaultJudgeModelId, form]);
 
   const benchmarkId = Form.useWatch("benchmark_id", form);
   const selectedLevels = Form.useWatch("levels", form) ?? [];
@@ -105,6 +120,7 @@ export function useLaunchPage() {
     benchmarks: benchmarks ?? [],
     judgeModels: (judgeModels ?? []) as JudgeModel[],
     judgeDefaultModel,
+    defaultJudgeModelId,
     benchmarksLoading,
     loadError,
     reloadLaunchData,

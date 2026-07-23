@@ -67,6 +67,16 @@ def test_crud_and_key_masking(client, settings):
     assert all(r["id"] != mid for r in client.get("/api/judge-models").json())
 
 
+def test_default_dashscope_judge_is_available_without_storing_a_key(client):
+    models = client.get("/api/judge-models").json()
+    default = next(m for m in models if m["name"] == "百炼 DashScope · kimi-k2.6")
+    assert default["provider"] == "openai"
+    assert default["model"] == "kimi-k2.6"
+    assert default["base_url"] == "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    assert default["enable_thinking"] is False
+    assert default["has_api_key"] is False
+
+
 def test_pairwise_concurrency_default_and_update(client, settings):
     # 未提供 → 默认 4
     resp = client.post("/api/judge-models", json={"name": "并发默认", "model": "m"})

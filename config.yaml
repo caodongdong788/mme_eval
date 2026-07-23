@@ -53,25 +53,27 @@ judges:
   eight_dimension:
     enabled: true
     provider: "openai"
-    model: "gpt-5.4-pro"
-    api_key_env: "POE_API_KEY"
+    model: "kimi-k2.6"
+    api_key_env: "LLM_API_KEY"
     api_key: ""
-    base_url: "https://api.poe.com/v1"
+    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
     api_version: ""
     default_headers: {}
     temperature: 0.0
+    enable_thinking: false
 
   # 按 Case guidelines 的 max_score 给部分分，缺分扣到绑定维度。
   guideline:
     enabled: true
     provider: "openai"
-    model: "gpt-5.4-pro"
-    api_key_env: "POE_API_KEY"
+    model: "kimi-k2.6"
+    api_key_env: "LLM_API_KEY"
     api_key: ""
-    base_url: "https://api.poe.com/v1"
+    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
     api_version: ""
     default_headers: {}
     temperature: 0.0
+    enable_thinking: false
 
 reporter:
   # html 已下线、json 始终写盘；formats 只控制人类可读输出（目前仅 markdown）

@@ -7,6 +7,7 @@ import {
   Row,
   Select,
   Slider,
+  Switch,
 } from "antd";
 import type { FormInstance } from "antd";
 
@@ -112,6 +113,14 @@ export function JudgeModelEditModal({
             </Form.Item>
           </Col>
         </Row>
+        <Form.Item
+          name="enable_thinking"
+          label="启用思考"
+          valuePropName="checked"
+          extra="DashScope 等兼容接口可通过该选项控制是否输出思考过程。"
+        >
+          <Switch />
+        </Form.Item>
         <Form.Item
           name="api_key"
           label={editId != null ? "API Key（留空=保持不变）" : "API Key"}

@@ -44,6 +44,11 @@ async def _lifespan(app: FastAPI):
     # 生产环境安全前置校验（默认密钥禁止上线）；dev/test 始终通过。
     get_settings().check_production_security()
     init_db()
+    # 注册可直接选择的默认模型；密钥仅保留在运行环境的 LLM_API_KEY 中。
+    from .services.default_judge_model import ensure_default_judge_model
+
+    with session_scope() as session:
+        ensure_default_judge_model(session, get_settings())
     # 回收孤儿任务：进程重启后内存任务态丢失，DB 中残留的 running/pending 置为 failed。
     from .jobs import reconcile_orphaned_runs
     from .pairwise_job import reconcile_orphaned_pairwise

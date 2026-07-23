@@ -13,6 +13,7 @@ export function useJudgeModelsPage() {
       provider: "openai",
       pairwise_concurrency: 4,
       temperature: 0,
+      enable_thinking: false,
     });
   };
 
@@ -24,6 +25,7 @@ export function useJudgeModelsPage() {
       base_url: m.base_url,
       api_version: m.api_version,
       temperature: m.temperature ?? 0,
+      enable_thinking: m.enable_thinking ?? false,
       pairwise_concurrency: m.pairwise_concurrency ?? 4,
       api_key: "",
     });
@@ -43,6 +45,7 @@ export function useJudgeModelsPage() {
       base_url: (v.base_url as string) || undefined,
       api_version: (v.api_version as string) || undefined,
       temperature: (v.temperature as number) ?? undefined,
+      enable_thinking: v.enable_thinking as boolean | undefined,
       pairwise_concurrency: (v.pairwise_concurrency as number) ?? undefined,
       api_key: v.api_key ? (v.api_key as string) : undefined,
     };
