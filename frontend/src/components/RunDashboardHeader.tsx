@@ -59,10 +59,13 @@ export function RunDashboardHeader({
             </Tooltip>
           )}
           <RunStatusTag status={run.status} bordered={false} />
-        </div>
-        <div className="run-meta">
-          <span className="chip">judge {run.judge_overrides?.model || "config 默认"}</span>
-          <span className="chip">N={run.n_runs}</span>
+          <span className="run-meta">
+            <span className="chip">
+              {"judge\u00a0"}
+              {run.judge_overrides?.model || "config 默认"}
+            </span>
+            <span className="chip">N={run.n_runs}</span>
+          </span>
         </div>
       </div>
       <Space>

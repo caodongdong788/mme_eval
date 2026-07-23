@@ -547,10 +547,10 @@ a.ant-typography-secondary:hover {
   gap: 10px;
 }
 .run-meta {
-  margin-top: 8px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  white-space: nowrap;
 }
 /* 元数据 chip：去底色去边框，浅灰等宽小字（靠间距分隔） */
 .run-meta .chip,

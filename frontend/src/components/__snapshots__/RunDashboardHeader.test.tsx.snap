@@ -19,21 +19,21 @@ exports[`RunDashboardHeader > matches snapshot 1`] = `
       >
         成功
       </span>
-    </div>
-    <div
-      class="run-meta"
-    >
       <span
-        class="chip"
+        class="run-meta"
       >
-        judge 
-        gpt-4
-      </span>
-      <span
-        class="chip"
-      >
-        N=
-        3
+        <span
+          class="chip"
+        >
+          judge 
+          gpt-4
+        </span>
+        <span
+          class="chip"
+        >
+          N=
+          3
+        </span>
       </span>
     </div>
   </div>
