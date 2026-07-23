@@ -4,6 +4,7 @@ import { CasePreviewRejudgePanel } from "../components/CasePreviewRejudgePanel";
 import { EditCriteriaDrawer } from "../components/EditCriteriaDrawer";
 import { CaseDetailSummary, CaseDetailSummaryCard } from "../components/CaseDetailSummaryCard";
 import { ConversationContextReferences } from "../components/ConversationContextReferences";
+import { ConversationThread } from "../components/ConversationThread";
 import { DashPanel } from "../components/DashPanel";
 import { HumanReviewCard } from "../components/HumanReviewCard";
 import { JudgeVerdictTable } from "../components/JudgeVerdictTable";
@@ -84,21 +85,23 @@ export default function CaseDetailPage() {
       <Row gutter={14}>
         <Col xs={24} lg={14}>
           <DashPanel
-            title="CX 完整回放"
+            title="对话回放"
             extra={trace?.cx_evaluation_share_url ? (
               <Button type="link" size="small" href={trace.cx_evaluation_share_url} target="_blank" rel="noreferrer">
-                在新窗口打开
+                在新窗口打开 CX 原生回放
               </Button>
             ) : undefined}
           >
-            {trace?.cx_evaluation_share_url ? (
-              <iframe
-                title="CX 完整回放"
-                src={trace.cx_evaluation_share_url}
-                style={{ display: "block", width: "100%", height: 640, border: 0, borderRadius: 8 }}
+            {messages.length ? (
+              <ConversationThread
+                messages={messages}
+                maxHeight={640}
+                resolveImageSrc={(imagePath) =>
+                  `/api/runs/${id}/cases/${encodeURIComponent(sampleId || "")}/images/${encodeURIComponent(imagePath)}`
+                }
               />
             ) : (
-              <Empty description="此用例尚未生成 CX 回放，请重新评测" />
+              <Empty description="此用例尚未生成可回放的对话，请重新评测" />
             )}
           </DashPanel>
         </Col>

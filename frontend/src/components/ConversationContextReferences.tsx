@@ -172,6 +172,26 @@ function ReferenceRows({ references, kind }: { references: ContextReference[]; k
   );
 }
 
+function InjectedRows({
+  entries,
+  emptyText,
+}: {
+  entries: Array<{ label: string; content: unknown }>;
+  emptyText: string;
+}) {
+  if (!entries.length) return <div className="conversation-context-empty">{emptyText}</div>;
+  return (
+    <div className="conversation-context-rows conversation-context-rows--injected">
+      {entries.map((entry, index) => (
+        <article className="conversation-context-row" key={`${entry.label}-${index}`}>
+          <div className="conversation-context-row__head"><strong>{entry.label}</strong><Tag color="blue">已注入</Tag></div>
+          <p>{renderValue(entry.content)}</p>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 export function ConversationContextReferences({
   initialState,
   messages,
@@ -182,16 +202,22 @@ export function ConversationContextReferences({
   const references = findConversationContextReferences(initialState, messages);
   const profileCount = references.filter((reference) => reference.kind === "profile").length;
   const factCount = references.filter((reference) => reference.kind === "fact").length;
+  const profileEntries = Object.entries(initialState?.user_profile || {})
+    .filter(([, content]) => hasContent(content))
+    .map(([label, content]) => ({ label, content }));
+  const factEntries = timelineFacts(initialState?.Timeline ?? initialState?.timeline);
   return (
     <div className="conversation-context-references">
-      <p className="conversation-context-note">按关键片段模糊匹配展示回复中可确认的预置上下文；未命中不代表未注入。</p>
+      <p className="conversation-context-note">先展示本轮已注入的上下文；“回答命中”仅在回复中可核对到对应内容时标记，不把注入误报为引用。</p>
       <section>
-        <header><Typography.Text strong>引用的用户档案</Typography.Text><span>{profileCount} 项</span></header>
-        <ReferenceRows references={references} kind="profile" />
+        <header><Typography.Text strong>用户档案</Typography.Text><span>已注入 {profileEntries.length} 项 · 回答命中 {profileCount} 项</span></header>
+        <InjectedRows entries={profileEntries} emptyText="该 Case 未配置用户档案" />
+        {profileEntries.length > 0 && <ReferenceRows references={references} kind="profile" />}
       </section>
       <section>
-        <header><Typography.Text strong>引用的过往事实</Typography.Text><span>{factCount} 条</span></header>
-        <ReferenceRows references={references} kind="fact" />
+        <header><Typography.Text strong>过往事实</Typography.Text><span>已注入 {factEntries.length} 条 · 回答命中 {factCount} 条</span></header>
+        <InjectedRows entries={factEntries} emptyText="该 Case 未配置过往事实" />
+        {factEntries.length > 0 && <ReferenceRows references={references} kind="fact" />}
       </section>
     </div>
   );
