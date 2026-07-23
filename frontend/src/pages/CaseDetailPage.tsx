@@ -4,6 +4,7 @@ import { CasePreviewRejudgePanel } from "../components/CasePreviewRejudgePanel";
 import { EditCriteriaDrawer } from "../components/EditCriteriaDrawer";
 import { CaseDetailSummary, CaseDetailSummaryCard } from "../components/CaseDetailSummaryCard";
 import { ConversationContextReferences } from "../components/ConversationContextReferences";
+import { CxReplayEmbed } from "../components/CxReplayEmbed";
 import { DashPanel } from "../components/DashPanel";
 import { HumanReviewCard } from "../components/HumanReviewCard";
 import { JudgeVerdictTable } from "../components/JudgeVerdictTable";
@@ -100,10 +101,12 @@ export default function CaseDetailPage() {
             ) : undefined}
           >
             {trace?.cx_evaluation_share_url ? (
-              <iframe
-                title="CX 完整回放"
+              <CxReplayEmbed
                 src={trace.cx_evaluation_share_url}
-                style={{ display: "block", width: "100%", height: 640, border: 0, borderRadius: 8 }}
+                messages={messages}
+                resolveImageSrc={(imagePath) =>
+                  `/api/runs/${id}/cases/${encodeURIComponent(sampleId || "")}/images/${encodeURIComponent(imagePath)}`
+                }
               />
             ) : (
               <Empty description="此用例尚未生成 CX 回放，请重新评测" />
