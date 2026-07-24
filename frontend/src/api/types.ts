@@ -167,6 +167,8 @@ export interface GuidelineScore {
   criterion: string[];
   checkpoints?: string[];
   deduction_rule?: string;
+  trigger?: string;
+  applicable?: boolean;
   score: number;
   max_score: number;
   deduction?: number;

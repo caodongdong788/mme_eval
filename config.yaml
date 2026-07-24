@@ -75,6 +75,21 @@ judges:
     temperature: 0.0
     enable_thinking: false
 
+# 动态多轮 Case：规则未命中时由该模型模拟用户继续回答。模型补全的运行态事实
+# 会缓存在 outputs/.simulation_cache，后续同 Case 默认复用。
+user_simulator:
+  enabled: true
+  provider: "openai"
+  model: "kimi-k2.6"
+  api_key_env: "LLM_API_KEY"
+  api_key: ""
+  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  api_version: ""
+  default_headers: {}
+  temperature: 0.0
+  enable_thinking: false
+  cache_subdir: ".simulation_cache"
+
 reporter:
   # html 已下线、json 始终写盘；formats 只控制人类可读输出（目前仅 markdown）
   formats: ["markdown"]

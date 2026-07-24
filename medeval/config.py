@@ -188,6 +188,16 @@ class JudgesCfg(_Strict):
     guideline: GuidelineCfg = Field(default_factory=GuidelineCfg)
 
 
+class UserSimulatorCfg(_LLMClientCfg):
+    """动态多轮 Case 的用户模拟模型。
+
+    规则和原 Benchmark 脚本不依赖该模型；只有 Agent 的合理追问未被 Case
+    显式覆盖时才调用。生成的运行态事实默认缓存在 output_dir 下，供后续重跑复用。
+    """
+
+    cache_subdir: str = ".simulation_cache"
+
+
 # ---------------------------------------------------------------------------
 # reporter / thresholds
 
@@ -259,6 +269,7 @@ class Config(_Strict):
     cases: CasesCfg = Field(default_factory=CasesCfg)
     adapter: AdapterCfg  # 必填：adapter.type 必须显式声明
     judges: JudgesCfg = Field(default_factory=JudgesCfg)
+    user_simulator: UserSimulatorCfg = Field(default_factory=UserSimulatorCfg)
     reporter: ReporterCfg = Field(default_factory=ReporterCfg)
     thresholds: ThresholdsCfg = Field(default_factory=ThresholdsCfg)
     observability: ObservabilityCfg = Field(default_factory=ObservabilityCfg)

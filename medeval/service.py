@@ -35,6 +35,7 @@ from .reporter import build_report, diff_runs, write_json, write_transcripts_xls
 from .reporter.scoring import apply_grading
 from .run_slug import make_run_slug
 from .runner import fold_n_runs, run_cases
+from .runner.user_simulator import UserSimulator
 
 
 # ---------------------------------------------------------------------------
@@ -90,6 +91,24 @@ def build_judges(jcfg: JudgesCfg) -> list:
                 )
             )
     return judges
+
+
+def build_user_simulator(config: Config) -> UserSimulator:
+    """构造动态多轮用户模拟器；规则/脚本模式在 disabled 时仍可工作。"""
+    cfg = config.user_simulator
+    return UserSimulator(
+        enabled=cfg.enabled,
+        provider=cfg.provider,
+        model=cfg.model,
+        api_key_env=cfg.api_key_env,
+        api_key=cfg.api_key,
+        base_url=cfg.base_url,
+        temperature=cfg.temperature,
+        api_version=cfg.api_version,
+        default_headers=cfg.default_headers,
+        enable_thinking=cfg.enable_thinking,
+        cache_dir=Path(config.run.output_dir) / cfg.cache_subdir,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -203,6 +222,7 @@ async def run_traces(
                 ray_num_workers=config.run.ray_num_workers,
                 resume_index=resume_index,
                 run_name=run_name,
+                user_simulator=build_user_simulator(config),
             )
     finally:
         if writer is not None:

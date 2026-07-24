@@ -29,9 +29,11 @@ export function GuidelineScoresTable({ scores }: { scores: GuidelineScore[] }) {
             title: "得分",
             width: 100,
             render: (_, row) => (
-              <Tag color={row.score === row.max_score ? "green" : "orange"}>
-                {row.score}/{row.max_score}{row.deduction ? `（扣 ${row.deduction}）` : ""}
-              </Tag>
+              row.applicable === false ? <Tag>未触发</Tag> : (
+                <Tag color={row.score === row.max_score ? "green" : "orange"}>
+                  {row.score}/{row.max_score}{row.deduction ? `（扣 ${row.deduction}）` : ""}
+                </Tag>
+              )
             ),
           },
           {

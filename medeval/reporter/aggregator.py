@@ -126,8 +126,9 @@ def build_report(
     guideline_rates: list[float] = []
     for r in results:
         if r.guideline_scores:
-            earned = sum(float(item.get("score", 0)) for item in r.guideline_scores)
-            maximum = sum(float(item.get("max_score", 0)) for item in r.guideline_scores)
+            applicable = [item for item in r.guideline_scores if item.get("applicable", True)]
+            earned = sum(float(item.get("score", 0)) for item in applicable)
+            maximum = sum(float(item.get("max_score", 0)) for item in applicable)
             if maximum > 0:
                 guideline_rates.append(earned / maximum)
         if r.release_passed:

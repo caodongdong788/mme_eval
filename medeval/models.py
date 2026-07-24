@@ -269,6 +269,9 @@ class GuidelineItem(BaseModel):
 
     id: str = Field(min_length=1)
     dimension: EvaluationDimension
+    # ``trigger`` 为空时，指南沿用“整段对话均适用”的语义；填写后先由 Judge 判断
+    # 是否在实际对话中被触发。未触发的扣分项不参与分母、也绝不扣分。
+    trigger: str = ""
     criterion: list[str] = Field(min_length=1)
     max_score: int = Field(ge=1, le=5, strict=True)
 
@@ -287,6 +290,11 @@ class GuidelineItem(BaseModel):
         if len(normalized) != len(value) or not normalized:
             raise ValueError("guideline.criterion 必须是非空字符串或非空字符串列表")
         return normalized
+
+    @field_validator("trigger")
+    @classmethod
+    def _validate_trigger(cls, value: str) -> str:
+        return value.strip()
 
     @property
     def checkpoints(self) -> list[str]:
@@ -326,6 +334,59 @@ class CaseEvaluation(BaseModel):
         return self
 
 
+class SimulatedUserTurn(BaseModel):
+    """动态用户模拟器可发送的一条用户消息。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1)
+    role: Literal["user"] = "user"
+    content: str = Field(min_length=1)
+    images: list[str] = Field(default_factory=list, max_length=10)
+    _image_data_urls: list[str] = PrivateAttr(default_factory=list)
+
+    @property
+    def image_data_urls(self) -> list[str]:
+        return list(self._image_data_urls)
+
+    def attach_image_data_urls(self, urls: list[str]) -> None:
+        self._image_data_urls = list(urls)
+
+
+class DynamicReplyRule(BaseModel):
+    """由模拟用户模型按语义选择的确定用户回复。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1)
+    when: str = Field(min_length=1)
+    reply: SimulatedUserTurn
+
+
+class DynamicConversation(BaseModel):
+    """模型语义决策、预设测试点兜底的多轮用户模拟计划。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["hybrid"] = "hybrid"
+    max_turns: int = Field(default=3, ge=1, le=3)
+    opening: SimulatedUserTurn
+    reply_rules: list[DynamicReplyRule] = Field(default_factory=list)
+    follow_ups: list[SimulatedUserTurn] = Field(default_factory=list, max_length=2)
+
+    @model_validator(mode="after")
+    def _validate_plan(self) -> "DynamicConversation":
+        ids = [self.opening.id]
+        ids.extend(rule.id for rule in self.reply_rules)
+        ids.extend(rule.reply.id for rule in self.reply_rules)
+        ids.extend(turn.id for turn in self.follow_ups)
+        if len(ids) != len(set(ids)):
+            raise ValueError("conversation 内的 turn/rule id 必须唯一")
+        if len(self.follow_ups) + 1 > self.max_turns:
+            raise ValueError("conversation.opening + follow_ups 不能超过 max_turns")
+        return self
+
+
 class TestCase(BaseModel):
     # 运行期 report.json 会以内部字段名序列化；同时接受 YAML 的 `type` 别名。
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
@@ -350,7 +411,9 @@ class TestCase(BaseModel):
         exclude_if=lambda value: value.is_empty(),
     )
 
-    turns: list[Turn]
+    # 普通 Case 使用固定 turns；动态 Case 使用 conversation。两者不能同时为空。
+    turns: list[Turn] = Field(default_factory=list)
+    conversation: DynamicConversation | None = None
 
     evaluation: CaseEvaluation
 
@@ -362,6 +425,16 @@ class TestCase(BaseModel):
     )
     # 来源 YAML 文件名（仅 loader 注入，用例作者不必写）；供报告定位用例
     case_file: str = ""
+
+    @model_validator(mode="after")
+    def _validate_dialogue(self) -> "TestCase":
+        if not self.turns and self.conversation is None:
+            raise ValueError("Case 必须提供 turns 或 conversation")
+        if self.turns:
+            user_turns = sum(turn.role == "user" for turn in self.turns)
+            if user_turns > 3:
+                raise ValueError("每个 Case 最多 3 个用户回合")
+        return self
 
 # ---------------------------------------------------------------------------
 # 运行期数据
@@ -401,6 +474,10 @@ class ConversationTrace(BaseModel):
     cx_evaluation_share_url: str | None = None
     # 专用测试账号的领取/重置证据与请求前画像快照。仅观测、不参与判分。
     evaluation_identity: dict[str, Any] = Field(default_factory=dict)
+    # 动态多轮的用户模拟留痕：本轮采用规则、原 Benchmark 脚本还是模型补全，
+    # 以及模型在 Case 内复用的运行态事实。只用于回放/审计，不参与评分。
+    simulation_trace: list[dict[str, Any]] = Field(default_factory=list)
+    simulation_facts: dict[str, Any] = Field(default_factory=dict)
     # 从 Langfuse Public API 固化的 Agent/Generation/Tool 调用链快照。
     agent_chain: dict[str, Any] = Field(default_factory=dict)
 

@@ -2519,3 +2519,7 @@ a.ant-typography-secondary:hover {
 .judge-model-modal .ant-form-item {
   margin-bottom: 16px;
 }
+.simulation-trace { display: grid; gap: 10px; }
+.simulation-trace__row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid #f0f0f0; }
+.simulation-trace__row:last-child { border-bottom: 0; padding-bottom: 0; }
+.simulation-trace__content { flex-basis: 100%; color: #303846; line-height: 1.65; }

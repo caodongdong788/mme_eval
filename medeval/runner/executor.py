@@ -22,6 +22,7 @@ from ..models import ChatMessage, ConversationTrace, TestCase
 from ..observability import langfuse_tracing as lf
 from ..observability.tracing import set_attribute, span
 from ..retry import backoff_delay
+from .user_simulator import SimulationState, UserSimulator
 
 log = logging.getLogger(__name__)
 
@@ -71,6 +72,7 @@ async def _run_one(
     backoff_max_s: float = 40.0,
     run_idx: int = 0,
     run_name: str = "",
+    user_simulator: UserSimulator | None = None,
 ) -> ConversationTrace:
     """跑一条用例的完整多轮对话。
 
@@ -87,6 +89,11 @@ async def _run_one(
     error: str | None = None
     cx_langfuse_trace_ids: list[str] = []
     cx_evaluation_share_url: str | None = None
+    simulation_trace: list[dict] = []
+    simulation_state: SimulationState | None = None
+    if case.conversation is not None and user_simulator is None:
+        # 未配置模型时，动态 Case 仍必须可通过规则与原 Benchmark 脚本运行。
+        user_simulator = UserSimulator(enabled=False)
     # 原始 Case 上的用户档案 / Timeline 需要随评测结果固化：它们是 Agent
     # 的预置上下文，也是平台展示「用户档案和过往事实」及判断其是否注入的依据。
     # 使用 alias 保留 Case YAML 中的 ``Timeline`` 名称与自由 key，不展示
@@ -115,13 +122,37 @@ async def _run_one(
         if conv is not None:
             # 进入 trace 后当场捕获其深链，落到 ConversationTrace 供平台用例明细跳转。
             langfuse_trace_url = lf.trace_url(lf.current_trace_id())
-        for turn_index, turn in enumerate(case.turns):
+        # 动态 Case 的首轮来自 conversation.opening；普通 Case 保持已有 turns
+        # 原样执行。队列让每次 Agent 回复后可以追加一条规则/脚本/模型用户消息。
+        pending: list[tuple[object, dict[str, str]]] = []
+        if case.conversation is not None:
+            simulation_state = (
+                await user_simulator.start(case)
+                if user_simulator is not None
+                else SimulationState()
+            )
+            pending.append((case.conversation.opening, {"source": "opening", "id": case.conversation.opening.id}))
+        else:
+            pending.extend((turn, {}) for turn in case.turns)
+
+        user_turn_index = 0
+        while pending:
+            turn, simulation_event = pending.pop(0)
             chat_msgs.append(ChatMessage(role=turn.role, content=turn.content))
             if turn.role != "user":
                 messages.append({"role": turn.role, "content": turn.content})
                 continue
 
+            user_turn_index += 1
             messages.append({"role": "user", "content": turn.content})
+            if simulation_event:
+                simulation_trace.append(
+                    {
+                        "turn": user_turn_index,
+                        **simulation_event,
+                        "content": turn.content,
+                    }
+                )
             metadata = {
                 "eval_run_id": run_name,
                 "sample_id": case.sample_id,
@@ -153,14 +184,14 @@ async def _run_one(
             with span(
                 "adapter.chat",
                 sample_id=case.sample_id,
-                turn_index=turn_index,
+                turn_index=user_turn_index - 1,
                 session_id=session_id,
             ) as sp, lf.generation(
                 "adapter.chat",
                 input=list(messages),
                 model=bot_model,
                 sample_id=case.sample_id,
-                turn_index=turn_index,
+                turn_index=user_turn_index - 1,
                 session_id=session_id,
             ) as gen:
                 for attempt in range(retry + 1):
@@ -218,6 +249,43 @@ async def _run_one(
                         gen, output=resp.reply, usage=usage, latency_ms=turn_latency
                     )
                     last_err = None
+
+                    # 完成一轮 Agent 回复后，由动态用户模拟器决定下一句。规则、
+                    # 原 benchmark 脚本和模型补全均只会追加到当前 Case 的会话队列。
+                    if (
+                        case.conversation is not None
+                        and simulation_state is not None
+                        and user_turn_index < case.conversation.max_turns
+                    ):
+                        decision = (
+                            await user_simulator.next_reply(
+                                case,
+                                simulation_state,
+                                messages=list(messages),
+                                agent_reply=resp.reply,
+                            )
+                            if user_simulator is not None
+                            else None
+                        )
+                        if decision is not None:
+                            simulation_state.trace.append(
+                                {
+                                    "turn": user_turn_index + 1,
+                                    "source": decision.source,
+                                    "id": decision.rule_id or decision.turn.id,
+                                    "facts_added": decision.facts_added,
+                                }
+                            )
+                            pending.append(
+                                (
+                                    decision.turn,
+                                    {
+                                        "source": decision.source,
+                                        "id": decision.rule_id or decision.turn.id,
+                                        "facts_added": decision.facts_added,
+                                    },
+                                )
+                            )
                     break
                 else:
                     set_attribute(sp, "error", last_err)
@@ -246,6 +314,8 @@ async def _run_one(
         langfuse_trace_ids=cx_langfuse_trace_ids,
         cx_evaluation_share_url=cx_evaluation_share_url,
         evaluation_identity=evaluation_identity,
+        simulation_trace=simulation_trace,
+        simulation_facts=simulation_state.facts if simulation_state is not None else {},
     )
 
 
@@ -267,6 +337,7 @@ async def run_cases(
     ray_num_workers: int = 0,
     resume_index: dict[tuple[str, int], ConversationTrace] | None = None,
     run_name: str = "",
+    user_simulator: UserSimulator | None = None,
 ) -> list[list[ConversationTrace]]:
     """并发执行所有用例。
 
@@ -284,6 +355,8 @@ async def run_cases(
         raise ValueError(f"repeat must be a positive integer (got {repeat})")
 
     if executor == "ray":
+        if any(case.conversation is not None for case in cases):
+            raise RuntimeError("动态多轮 Case 暂仅支持 run.executor=local")
         if resume_index:
             raise RuntimeError(
                 "断点续跑（resume）暂仅支持 run.executor=local；ray 后端逐 run 跳过需另行设计。"
@@ -335,6 +408,7 @@ async def run_cases(
                         backoff_max_s=retry_backoff_max_s,
                         run_idx=run_idx,
                         run_name=run_name,
+                        user_simulator=user_simulator,
                     )
                 except Exception as e:
                     log.exception(
