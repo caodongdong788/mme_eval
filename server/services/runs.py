@@ -118,7 +118,10 @@ def prepare_create_run(session: Session, payload: RunCreate) -> CreateRunPlan:
         )
     has_judge = payload.judge is not None or payload.judge_model_id is not None
     judge_public = judge_ov.public_dict() if has_judge else {}
+    # 复用已有 JSON 覆盖字段持久化 Run 级执行模式，避免给已有 SQLite 数据库增加迁移。
+    # apply_adapter_overrides 只处理白名单字段，因此该元数据不会传给被测 Agent。
     adapter_public = payload.adapter.public_dict() if payload.adapter else {}
+    adapter_public["evaluation_mode"] = payload.evaluation_mode
 
     run = EvalRun(
         run_slug="(pending)",
@@ -134,9 +137,8 @@ def prepare_create_run(session: Session, payload: RunCreate) -> CreateRunPlan:
     session.commit()
 
     judge_full = judge_ov.model_dump(exclude_none=True) if has_judge else None
-    adapter_full = (
-        payload.adapter.model_dump(exclude_none=True) if payload.adapter else None
-    )
+    adapter_full = payload.adapter.model_dump(exclude_none=True) if payload.adapter else {}
+    adapter_full["evaluation_mode"] = payload.evaluation_mode
     return CreateRunPlan(
         run=run,
         benchmark_id=bm.id,

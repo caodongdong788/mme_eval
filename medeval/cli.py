@@ -243,7 +243,10 @@ def run(config_path: Path, adapter_override, run_name, limit, dry_run, repeat, d
     except ValueError as e:
         # fail-fast：adapter.type 缺失或不识别 → 友好报错而非 traceback
         raise click.UsageError(str(e)) from e
-    judges = build_judges(config.judges)
+    judges = build_judges(
+        config.judges,
+        trigger_aware=config.run.evaluation_mode == "multi_turn",
+    )
     _print_judge_fingerprints(judges)
 
     # 开跑前确定 run slug 与输出目录，使会话留痕可在 run 阶段增量落盘（崩溃也留得下），
@@ -483,7 +486,10 @@ def rejudge(run_dir: Path, config_path: Path, run_name, diff_against_cli):
     # fold / 进度口径以原 run 的 n_runs 为准
     config.run.repeat = n_runs
 
-    judges = build_judges(config.judges)
+    judges = build_judges(
+        config.judges,
+        trigger_aware=config.run.evaluation_mode == "multi_turn",
+    )
     _print_judge_fingerprints(judges)
 
     new_slug = make_run_slug(run_name or f"{config.run.name}_rejudge")

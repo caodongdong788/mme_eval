@@ -120,6 +120,7 @@ export interface RunSummary {
   has_traces: boolean;
   pinned: boolean;
   parent_run_id?: number | null;
+  evaluation_mode: "single_turn" | "multi_turn";
 }
 
 export interface RunDetail extends RunSummary {
@@ -237,6 +238,7 @@ export interface ProgressInfo {
 export interface RunCreatePayload {
   benchmark_id: number;
   run_name?: string;
+  evaluation_mode?: "single_turn" | "multi_turn";
   levels?: string[];
   limit?: number;
   repeat?: number;

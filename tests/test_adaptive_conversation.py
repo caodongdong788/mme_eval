@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 
 import pytest
 
@@ -8,6 +9,7 @@ from medeval.adapter.base import BaseAdapter, ChatRequest, ChatResponse
 from medeval.models import TestCase
 from medeval.runner.executor import _run_one
 from medeval.runner.user_simulator import UserSimulator
+from medeval.service import execution_cases_for_mode
 
 
 class _Adapter(BaseAdapter):
@@ -109,3 +111,25 @@ def test_unmodelled_question_generates_and_reuses_runtime_facts(tmp_path) -> Non
     assert reply.source == "model"
     assert state.facts == {"胸闷": "否"}
     assert asyncio.run(simulator.start(case)).facts == {"胸闷": "否"}
+
+
+def test_single_turn_mode_flattens_dynamic_case_for_main_executor() -> None:
+    case = _case()
+    config = SimpleNamespace(run=SimpleNamespace(evaluation_mode="single_turn"))
+
+    execution_case = execution_cases_for_mode(config, [case])[0]
+
+    assert execution_case.conversation is None
+    assert [turn.content for turn in execution_case.turns] == [
+        "我总是潮热",
+        "我能自行补雌激素吗？",
+    ]
+    # 原 Case 仍保留动态结构，供 Judge 和报告展示。
+    assert case.conversation is not None
+
+
+def test_multi_turn_mode_keeps_dynamic_case() -> None:
+    case = _case()
+    config = SimpleNamespace(run=SimpleNamespace(evaluation_mode="multi_turn"))
+
+    assert execution_cases_for_mode(config, [case])[0] is case

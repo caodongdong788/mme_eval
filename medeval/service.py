@@ -28,7 +28,7 @@ from .judges import (
     GuidelineJudge,
     judge_all,
 )
-from .models import CaseResult, ConversationTrace, RunReport, TestCase
+from .models import CaseResult, ConversationTrace, RunReport, TestCase, Turn
 from .observability import langfuse_tracing as lf
 from .observability.tracing import configure_tracing, span
 from .reporter import build_report, diff_runs, write_json, write_transcripts_xlsx
@@ -69,27 +69,28 @@ class NullProgress:
 # 构造器：从 typed config 装配判官（迁自 cli）。
 
 
-def build_judges(jcfg: JudgesCfg) -> list:
+def build_judges(jcfg: JudgesCfg, *, trigger_aware: bool = True) -> list:
     judges: list = []
     for cfg, judge_type in (
         (jcfg.eight_dimension, EightDimensionJudge),
         (jcfg.guideline, GuidelineJudge),
     ):
         if cfg.enabled:
-            judges.append(
-                judge_type(
-                    enabled=True,
-                    provider=cfg.provider,
-                    model=cfg.model,
-                    api_key_env=cfg.api_key_env,
-                    api_key=cfg.api_key,
-                    base_url=cfg.base_url,
-                    temperature=cfg.temperature,
-                    api_version=cfg.api_version,
-                    default_headers=cfg.default_headers,
-                    enable_thinking=cfg.enable_thinking,
-                )
-            )
+            options = {
+                "enabled": True,
+                "provider": cfg.provider,
+                "model": cfg.model,
+                "api_key_env": cfg.api_key_env,
+                "api_key": cfg.api_key,
+                "base_url": cfg.base_url,
+                "temperature": cfg.temperature,
+                "api_version": cfg.api_version,
+                "default_headers": cfg.default_headers,
+                "enable_thinking": cfg.enable_thinking,
+            }
+            if judge_type is GuidelineJudge:
+                options["trigger_aware"] = trigger_aware
+            judges.append(judge_type(**options))
     return judges
 
 
@@ -109,6 +110,31 @@ def build_user_simulator(config: Config) -> UserSimulator:
         enable_thinking=cfg.enable_thinking,
         cache_dir=Path(config.run.output_dir) / cfg.cache_subdir,
     )
+
+
+def execution_cases_for_mode(config: Config, cases: list[TestCase]) -> list[TestCase]:
+    """按本次 Run 的对话模式准备执行用例，不改写原始 Case 或判分依据。
+
+    ``single_turn`` 保留 main 分支的固定 turns 执行器语义。动态 Case 会被临时展平为
+    opening + follow_ups，忽略语义路由和用户模拟器；Judge 仍拿原始 Case 与真实 trace
+    判分，因此 YAML、画像和指南均完整保留在报告中。
+    """
+    if config.run.evaluation_mode != "single_turn":
+        return cases
+
+    converted: list[TestCase] = []
+    for case in cases:
+        plan = case.conversation
+        if plan is None:
+            converted.append(case)
+            continue
+        static_turns: list[Turn] = []
+        for source_turn in (plan.opening, *plan.follow_ups):
+            turn = Turn(role="user", content=source_turn.content, images=list(source_turn.images))
+            turn.attach_image_data_urls(source_turn.image_data_urls)
+            static_turns.append(turn)
+        converted.append(case.model_copy(update={"turns": static_turns, "conversation": None}))
+    return converted
 
 
 # ---------------------------------------------------------------------------
@@ -152,9 +178,10 @@ async def run_traces(
     * ``resume_dir`` → 加载其成功留痕做断点续跑（adapter 指纹不一致则拒绝）。
     """
     progress = progress or NullProgress()
+    execution_cases = execution_cases_for_mode(config, cases)
     n_runs = config.run.repeat
     concurrency = config.run.concurrency
-    n_cases = len(cases)
+    n_cases = len(execution_cases)
     adapter_cfg = adapter_config if adapter_config is not None else config.adapter.model_dump()
     fp = trace_store.adapter_fingerprint(config.adapter.type, adapter_cfg)
 
@@ -188,7 +215,7 @@ async def run_traces(
         writer = trace_store.PartialTraceWriter(
             Path(out_dir), store_raw=config.run.store_raw, meta=meta
         )
-    index_by_id = {c.sample_id: i for i, c in enumerate(cases)}
+    index_by_id = {c.sample_id: i for i, c in enumerate(execution_cases)}
 
     progress.start_phase("run", "调用 chatbot", n_cases * n_runs)
 
@@ -206,7 +233,7 @@ async def run_traces(
             executor=config.run.executor,
         ):
             per_case_traces = await run_cases(
-                cases,
+                execution_cases,
                 adapter,
                 concurrency=concurrency,
                 timeout_s=config.run.timeout_s,

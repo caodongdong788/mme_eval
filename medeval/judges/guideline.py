@@ -36,12 +36,14 @@ _PROMPT = """\
 """
 
 
-def _format_guideline(item) -> str:
+def _format_guideline(item, *, trigger_aware: bool) -> str:
     checkpoints = "\n".join(
         f"  {index}. {point}" for index, point in enumerate(item.checkpoints, start=1)
     )
     rule = item.deduction_rule or "未单列扣分规则：遗漏一个检查点扣 1 分，最多扣至 max_score"
-    trigger = f"\n  触发条件：{item.trigger}" if item.trigger else "\n  触发条件：整段对话均适用"
+    trigger = (
+        f"\n  触发条件：{item.trigger}" if trigger_aware and item.trigger else ""
+    )
     return (
         f"- id={item.id}; dimension={item.dimension.value}; max_score={item.max_score}\n"
         f"  检查点：\n{checkpoints}{trigger}\n"
@@ -64,12 +66,14 @@ class GuidelineJudge(BaseJudge):
         api_version: str = "",
         default_headers: dict[str, str] | None = None,
         enable_thinking: bool | None = None,
+        trigger_aware: bool = True,
     ) -> None:
         self.enabled = enabled
         self.provider = provider
         self.model = model
         self.temperature = temperature
         self.enable_thinking = enable_thinking
+        self.trigger_aware = trigger_aware
         self._backend = (
             LLMBackend(
                 provider=provider,
@@ -93,6 +97,7 @@ class GuidelineJudge(BaseJudge):
                 "model": self.model,
                 "temperature": self.temperature,
                 "enable_thinking": self.enable_thinking,
+                "trigger_aware": self.trigger_aware,
             }
         )
 
@@ -103,7 +108,9 @@ class GuidelineJudge(BaseJudge):
         prompt = _PROMPT.format(
             conversation=format_conversation(trace),
             initial_state=format_initial_state(case),
-            guidelines="\n".join(_format_guideline(item) for item in guidelines),
+            guidelines="\n".join(
+                _format_guideline(item, trigger_aware=self.trigger_aware) for item in guidelines
+            ),
         )
         try:
             results = await self._call(prompt)
@@ -117,7 +124,7 @@ class GuidelineJudge(BaseJudge):
         verdicts: list[JudgeVerdict] = []
         for item in guidelines:
             result = results.get(item.id, {})
-            applicable = True if not item.trigger else result.get("applicable")
+            applicable = True if not self.trigger_aware or not item.trigger else result.get("applicable")
             valid_applicable = isinstance(applicable, bool)
             if not valid_applicable:
                 # 触发条件存在却没有有效判定时按“适用 + 最多扣分”保守处理，避免

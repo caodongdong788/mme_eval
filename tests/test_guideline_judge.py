@@ -131,3 +131,19 @@ def test_untriggered_guideline_does_not_deduct() -> None:
     verdict = asyncio.run(judge.judge(TestCase.model_validate(raw), trace()))[0]
     assert verdict.score == 3
     assert verdict.details["applicable"] is False
+
+
+def test_single_turn_mode_uses_main_guideline_semantics() -> None:
+    raw = raw_case()
+    raw["evaluation"]["guidelines"][0]["trigger"] = "用户询问是否自行加药"
+    judge = GuidelineJudge(enabled=False, trigger_aware=False)
+    judge.enabled = True
+
+    async def fake_call(prompt: str):
+        return {"risk": {"applicable": False, "deduction": 1, "reason": "遗漏", "evidence": []}}
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdict = asyncio.run(judge.judge(TestCase.model_validate(raw), trace()))[0]
+
+    assert verdict.score == 2
+    assert verdict.details["applicable"] is True

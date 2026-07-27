@@ -65,6 +65,9 @@ class RunCfg(_Strict):
     timeout_s: float = 90.0
     retry: int = 2
     repeat: int = Field(1, ge=1)
+    # single_turn：沿用 main 的固定 turns 执行；multi_turn：启用 conversation
+    # 与动态用户模拟器。页面发起 Run 时可覆盖，且随 config_snapshot 固化。
+    evaluation_mode: Literal["single_turn", "multi_turn"] = "single_turn"
     # 重试间指数退避：base<=0（默认）= 关闭，保持立即重试行为；>0 时按 backoff_delay 等待。
     retry_backoff_base_s: float = 0.0
     retry_backoff_max_s: float = 40.0

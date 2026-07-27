@@ -7,6 +7,7 @@ import {
   Form,
   Input,
   InputNumber,
+  Radio,
   Row,
   Select,
   Switch,
@@ -65,7 +66,7 @@ export default function LaunchPage() {
           layout="vertical"
           className="dash-launch-form"
           onFinish={lp.onFinish}
-          initialValues={{ judge_enabled: true, repeat: 1, limit: 0 }}
+          initialValues={{ judge_enabled: true, evaluation_mode: "single_turn", repeat: 1, limit: 0 }}
           requiredMark
         >
           <div className="dash-form-card dash-launch-card">
@@ -103,6 +104,25 @@ export default function LaunchPage() {
                   maxLength={80}
                   showCount
                 />
+              </Form.Item>
+
+              <Form.Item
+                name="evaluation_mode"
+                label="对话评测模式"
+                extra={
+                  <FieldHint>
+                    单轮使用 main 的固定 turns 逻辑；多轮启用本分支的语义追问与用户模拟。
+                  </FieldHint>
+                }
+              >
+                <Radio.Group className="dash-option-cards dash-evaluation-mode" optionType="button" buttonStyle="solid">
+                  <Radio.Button value="single_turn">
+                    单轮对话评测（main 逻辑）
+                  </Radio.Button>
+                  <Radio.Button value="multi_turn">
+                    多轮对话评测（动态逻辑）
+                  </Radio.Button>
+                </Radio.Group>
               </Form.Item>
 
               <Row gutter={16}>

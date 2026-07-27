@@ -1449,6 +1449,32 @@ a.ant-typography-secondary:hover {
   color: var(--runs-text-muted);
   background: var(--runs-bg);
 }
+.dash-evaluation-mode {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.dash-evaluation-mode .ant-radio-button-wrapper {
+  height: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--runs-border) !important;
+  border-radius: 8px !important;
+  color: var(--runs-text-secondary);
+  line-height: 1.45;
+  text-align: center;
+}
+.dash-evaluation-mode .ant-radio-button-wrapper:not(:first-child)::before {
+  display: none;
+}
+.dash-evaluation-mode .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled) {
+  color: var(--runs-purple);
+  border-color: var(--runs-purple) !important;
+  background: var(--runs-purple-soft);
+  box-shadow: 0 0 0 1px rgba(124, 92, 252, 0.12);
+}
+@media (max-width: 520px) {
+  .dash-evaluation-mode {
+    grid-template-columns: 1fr;
+  }
+}
 .dash-toggle-card {
   display: flex;
   align-items: center;

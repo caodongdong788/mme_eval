@@ -17,6 +17,7 @@ run:
   timeout_s: 90                # 单轮调用超时
   retry: 2                     # 失败重试次数
   repeat: 1                    # 每条 case 重复跑 N 次；N>1 时做 majority voting（基线可用 --repeat 3）
+  evaluation_mode: single_turn # single_turn=main 固定 turns；multi_turn=动态用户模拟（页面可覆盖）
   executor: local             # 执行后端：local（默认单进程并发）或 ray（分布式，需 pip install 'medeval[ray]'）
 
   # 会话留痕落盘与存储治理（参见 OpenSpec change persist-traces-rejudge）。

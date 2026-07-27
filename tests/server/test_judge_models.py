@@ -172,3 +172,26 @@ def test_launch_unknown_judge_model_404(client, settings):
         "/api/runs", json={"benchmark_id": bid, "judge_model_id": 987654}
     )
     assert resp.status_code == 404
+
+
+def test_launch_persists_selected_evaluation_mode(client, settings, monkeypatch):
+    bid = _seed_benchmark(settings)
+
+    async def _noop(progress):
+        return None
+
+    monkeypatch.setattr("server.routers.runs.build_eval_job", lambda *args, **kwargs: _noop)
+    resp = client.post(
+        "/api/runs",
+        json={
+            "benchmark_id": bid,
+            "run_name": "动态多轮模式",
+            "evaluation_mode": "multi_turn",
+        },
+    )
+
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["evaluation_mode"] == "multi_turn"
+    detail = client.get(f"/api/runs/{resp.json()['id']}").json()
+    assert detail["evaluation_mode"] == "multi_turn"
+    assert detail["adapter_overrides"]["evaluation_mode"] == "multi_turn"
