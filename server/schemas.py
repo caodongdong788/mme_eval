@@ -195,6 +195,9 @@ class RunCreate(BaseModel):
     adapter: Optional[AdapterOverride] = None
     # 选用已保存的判分模型配置（连接信息 + Key 由服务端注入）；为空=沿用 config.yaml 默认。
     judge_model_id: Optional[int] = None
+    # 多轮对话的语义追问/模拟用户模型；为空则使用 config.yaml 默认配置。
+    user_simulator: Optional[JudgeOverride] = None
+    user_simulator_model_id: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------

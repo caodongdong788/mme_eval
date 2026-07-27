@@ -103,6 +103,10 @@ export function useLaunchPage() {
       repeat: (values.repeat as number) || undefined,
       judge: { enabled: values.judge_enabled as boolean },
       judge_model_id: (values.judge_model_id as number) || undefined,
+      user_simulator_model_id:
+        values.evaluation_mode === "multi_turn"
+          ? (values.user_simulator_model_id as number) || undefined
+          : undefined,
     };
     setSubmitting(true);
     try {

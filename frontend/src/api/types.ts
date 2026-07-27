@@ -259,6 +259,7 @@ export interface RunCreatePayload {
     api_key?: string;
   };
   judge_model_id?: number;
+  user_simulator_model_id?: number;
 }
 
 export interface JudgeDefaults {

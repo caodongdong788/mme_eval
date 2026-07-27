@@ -50,6 +50,7 @@ function benchmarkSourceLabel(source: string) {
 export default function LaunchPage() {
   const lp = useLaunchPage();
   const judgeEnabled = Form.useWatch("judge_enabled", lp.form) ?? true;
+  const evaluationMode = Form.useWatch("evaluation_mode", lp.form) ?? "single_turn";
 
   return (
     <DashboardPageShell
@@ -124,6 +125,30 @@ export default function LaunchPage() {
                   </Radio.Button>
                 </Radio.Group>
               </Form.Item>
+
+              {evaluationMode === "multi_turn" && (
+                <Form.Item
+                  name="user_simulator_model_id"
+                  label="语义追问模型"
+                  extra={
+                    <FieldHint>
+                      用于识别 Agent 的语义追问并生成未预设的用户回复；不选则使用 config.yaml 的默认模型。
+                    </FieldHint>
+                  }
+                >
+                  <Select
+                    size="large"
+                    allowClear
+                    showSearch
+                    optionFilterProp="label"
+                    placeholder="选择已配置的模型（可选）"
+                    options={lp.judgeModels.map((m) => ({
+                      value: m.id,
+                      label: `${m.name} · ${m.model}${m.has_api_key ? "" : "（未配 Key）"}`,
+                    }))}
+                  />
+                </Form.Item>
+              )}
 
               <Row gutter={16}>
                 <Col xs={24} sm={12}>

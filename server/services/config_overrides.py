@@ -38,6 +38,18 @@ def apply_judge_overrides(config: Config, judge: dict[str, Any] | None) -> None:
                 setattr(target, k, v)
 
 
+def apply_user_simulator_overrides(
+    config: Config, simulator: dict[str, Any] | None
+) -> None:
+    """仅覆盖动态用户模拟器；与判官复用同一类 LLM 连接配置。"""
+    if not simulator:
+        return
+    for k in JUDGE_OVERRIDE_KEYS:
+        v = simulator.get(k)
+        if v is not None and hasattr(config.user_simulator, k):
+            setattr(config.user_simulator, k, v)
+
+
 def apply_adapter_overrides(config: Config, adapter: dict[str, Any] | None) -> None:
     if not adapter:
         return
