@@ -432,8 +432,11 @@ class TestCase(BaseModel):
             raise ValueError("Case 必须提供 turns 或 conversation")
         if self.turns:
             user_turns = sum(turn.role == "user" for turn in self.turns)
-            if user_turns > 3:
-                raise ValueError("每个 Case 最多 3 个用户回合")
+            # ``conversation`` 是动态用户模拟方案，受控于 3 轮以保证每题聚焦；
+            # ``turns`` 则是导入的既有脚本式上下文，允许保留完整多轮会话，避免
+            # 上传时静默截断标注数据。长会话会在发起评测页按用例数/轮数显式计入成本。
+            if user_turns > 20:
+                raise ValueError("固定脚本 Case 最多 20 个用户回合")
         return self
 
 # ---------------------------------------------------------------------------

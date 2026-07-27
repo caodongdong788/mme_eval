@@ -76,6 +76,8 @@ export function useLaunchPage() {
   );
 
   const onBenchmarkChange = async (id: number) => {
+    const benchmark = (benchmarks ?? []).find((item) => item.id === id);
+    form.setFieldValue("evaluation_mode", benchmark?.default_evaluation_mode || "single_turn");
     form.setFieldValue("levels", []);
     setLevelOptions([]);
     setBenchmarkCases([]);

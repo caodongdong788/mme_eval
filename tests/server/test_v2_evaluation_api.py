@@ -78,6 +78,37 @@ def test_upload_and_read_v2_benchmark(client, settings) -> None:
     assert parsed["evaluation"]["guidelines"][0]["max_score"] == 3
 
 
+def test_upload_keeps_scripted_multiturn_context_and_mode_default(client) -> None:
+    """旧格式脚本式多轮可导入；动态 conversation 的三轮限制不受影响。"""
+    payload = yaml.safe_load(V2_YAML)
+    payload[0]["turns"] = [
+        {"role": "user", "content": f"第 {index} 轮用户追问"}
+        for index in range(1, 19)
+    ]
+    response = client.post(
+        "/api/benchmarks",
+        data={
+            "name": "scripted-multiturn",
+            "source": "offline",
+            "default_evaluation_mode": "multi_turn",
+        },
+        files={
+            "file": (
+                "cases.yaml",
+                yaml.safe_dump(payload, allow_unicode=True).encode(),
+                "application/x-yaml",
+            )
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["default_evaluation_mode"] == "multi_turn"
+    benchmark_id = response.json()["id"]
+    cases = client.get(f"/api/benchmarks/{benchmark_id}/cases")
+    assert cases.status_code == 200
+    assert len(cases.json()) == 1
+
+
 def test_upload_rejects_legacy_case_without_compatibility(client) -> None:
     legacy = """
 - sample_id: legacy_001

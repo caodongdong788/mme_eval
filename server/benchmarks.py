@@ -48,6 +48,7 @@ _IMAGE_PLACEHOLDER_RE = re.compile(
 _ZIP_MAX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
 _ZIP_MAX_FILES = 200
 _IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+_EVALUATION_MODES = {"single_turn", "multi_turn"}
 
 
 def _literal_representer(dumper: yaml.SafeDumper, data: _LiteralString):
@@ -380,6 +381,13 @@ def _collect_levels(cases: list[TestCase]) -> list[str]:
     return sorted({getattr(c.level, "value", c.level) for c in cases})
 
 
+def _normalise_default_evaluation_mode(value: str | None) -> str:
+    mode = str(value or "single_turn").strip()
+    if mode not in _EVALUATION_MODES:
+        raise BenchmarkValidationError("默认对话模式必须是单轮或多轮")
+    return mode
+
+
 def _validate_yaml_path(path: Path, settings: Settings) -> list[TestCase]:
     try:
         cases = load_cases(include=[str(path)], base_dir=settings.project_root)
@@ -503,6 +511,7 @@ def _create_uploaded_benchmark_from_yaml_bytes(
     version: str = "v1",
     created_by: str | None = None,
     source: str = "offline",
+    default_evaluation_mode: str = "single_turn",
     settings: Settings | None = None,
 ) -> Benchmark:
     settings = settings or get_settings()
@@ -514,6 +523,7 @@ def _create_uploaded_benchmark_from_yaml_bytes(
         raise BenchmarkValidationError(f"benchmark 名称「{name}」已存在，请换一个名称")
     tmp, cases = _validate_yaml_bytes(yaml_content, settings)
 
+    default_evaluation_mode = _normalise_default_evaluation_mode(default_evaluation_mode)
     row = Benchmark(
         name=name,
         description=description,
@@ -525,6 +535,7 @@ def _create_uploaded_benchmark_from_yaml_bytes(
         storage_path="",
         created_by=created_by,
     )
+    row.default_evaluation_mode = default_evaluation_mode
     session.add(row)
     session.flush()
 
@@ -547,6 +558,7 @@ def _create_uploaded_benchmark_from_zip_bytes(
     version: str = "v1",
     created_by: str | None = None,
     source: str = "offline",
+    default_evaluation_mode: str = "single_turn",
     settings: Settings | None = None,
 ) -> Benchmark:
     """创建包含 ``cases.yaml`` 与 ``images/`` 的 ZIP benchmark。"""
@@ -559,6 +571,7 @@ def _create_uploaded_benchmark_from_zip_bytes(
         raise BenchmarkValidationError(f"benchmark 名称「{name}」已存在，请换一个名称")
     staged_dir, cases = _validate_and_extract_zip(zip_content, settings)
 
+    default_evaluation_mode = _normalise_default_evaluation_mode(default_evaluation_mode)
     row = Benchmark(
         name=name,
         description=description,
@@ -570,6 +583,7 @@ def _create_uploaded_benchmark_from_zip_bytes(
         storage_path="",
         created_by=created_by,
     )
+    row.default_evaluation_mode = default_evaluation_mode
     session.add(row)
     session.flush()
     dest_dir = settings.uploads_dir / str(row.id)
@@ -695,6 +709,7 @@ def create_uploaded_benchmark_from_feishu_url(
     description: str = "",
     version: str = "v1",
     created_by: str | None = None,
+    default_evaluation_mode: str = "single_turn",
     settings: Settings | None = None,
 ) -> Benchmark:
     yaml_content = feishu_url_to_yaml_bytes(access_token, source_url)
@@ -707,6 +722,7 @@ def create_uploaded_benchmark_from_feishu_url(
         version=version,
         created_by=created_by,
         source="online",
+        default_evaluation_mode=default_evaluation_mode,
         settings=settings,
     )
 
@@ -720,6 +736,7 @@ def create_uploaded_benchmark_from_feishu_base(
     description: str = "",
     version: str = "v1",
     created_by: str | None = None,
+    default_evaluation_mode: str = "single_turn",
     settings: Settings | None = None,
 ) -> Benchmark:
     return create_uploaded_benchmark_from_feishu_url(
@@ -730,6 +747,7 @@ def create_uploaded_benchmark_from_feishu_base(
         description=description,
         version=version,
         created_by=created_by,
+        default_evaluation_mode=default_evaluation_mode,
         settings=settings,
     )
 
@@ -741,6 +759,7 @@ def _replace_uploaded_benchmark_with_yaml_bytes(
     yaml_content: bytes,
     filename: str,
     source: str,
+    default_evaluation_mode: str | None = None,
     settings: Settings | None = None,
 ) -> Benchmark:
     settings = settings or get_settings()
@@ -755,7 +774,8 @@ def _replace_uploaded_benchmark_with_yaml_bytes(
     tmp.replace(dest)
 
     benchmark.case_count = len(cases)
-    benchmark.tags = []
+    if default_evaluation_mode is not None:
+        benchmark.default_evaluation_mode = _normalise_default_evaluation_mode(default_evaluation_mode)
     benchmark.levels = _collect_levels(cases)
     benchmark.storage_path = str(dest_dir)
     benchmark.source = source
@@ -769,6 +789,7 @@ def _replace_uploaded_benchmark_with_zip_bytes(
     *,
     zip_content: bytes,
     source: str,
+    default_evaluation_mode: str | None = None,
     settings: Settings | None = None,
 ) -> Benchmark:
     settings = settings or get_settings()
@@ -780,7 +801,8 @@ def _replace_uploaded_benchmark_with_zip_bytes(
     staged_dir.replace(dest_dir)
 
     benchmark.case_count = len(cases)
-    benchmark.tags = []
+    if default_evaluation_mode is not None:
+        benchmark.default_evaluation_mode = _normalise_default_evaluation_mode(default_evaluation_mode)
     benchmark.levels = _collect_levels(cases)
     benchmark.storage_path = str(dest_dir)
     benchmark.source = source
@@ -794,6 +816,7 @@ def replace_uploaded_benchmark_from_feishu_url(
     *,
     source_url: str,
     access_token: str,
+    default_evaluation_mode: str | None = None,
     settings: Settings | None = None,
 ) -> Benchmark:
     yaml_content = feishu_url_to_yaml_bytes(access_token, source_url)
@@ -803,6 +826,7 @@ def replace_uploaded_benchmark_from_feishu_url(
         yaml_content=yaml_content,
         filename=f"{benchmark.name}.yaml",
         source="online",
+        default_evaluation_mode=default_evaluation_mode,
         settings=settings,
     )
 
@@ -834,6 +858,7 @@ def create_uploaded_benchmark(
     version: str = "v1",
     created_by: str | None = None,
     source: str = "offline",
+    default_evaluation_mode: str = "single_turn",
     settings: Settings | None = None,
 ) -> Benchmark:
     """校验并保存一个上传的 benchmark；校验失败抛 BenchmarkValidationError。"""
@@ -853,6 +878,7 @@ def create_uploaded_benchmark(
             version=version or "v1",
             source=source,
             created_by=created_by,
+            default_evaluation_mode=default_evaluation_mode,
             settings=settings,
         )
     return _create_uploaded_benchmark_from_yaml_bytes(
@@ -864,6 +890,7 @@ def create_uploaded_benchmark(
         version=version or "v1",
         source=source,
         created_by=created_by,
+        default_evaluation_mode=default_evaluation_mode,
         settings=settings,
     )
 
@@ -1077,6 +1104,7 @@ def replace_uploaded_benchmark(
     content: bytes,
     filename: str = "cases.yaml",
     source: str | None = None,
+    default_evaluation_mode: str | None = None,
     settings: Settings | None = None,
 ) -> Benchmark:
     """用新内容覆盖一个已上传的 benchmark（保留 id/name）。builtin 不可覆盖。"""
@@ -1094,6 +1122,7 @@ def replace_uploaded_benchmark(
             benchmark,
             zip_content=content,
             source=next_source,
+            default_evaluation_mode=default_evaluation_mode,
             settings=settings,
         )
     return _replace_uploaded_benchmark_with_yaml_bytes(
@@ -1102,6 +1131,7 @@ def replace_uploaded_benchmark(
         yaml_content=content,
         filename=filename,
         source=next_source,
+        default_evaluation_mode=default_evaluation_mode,
         settings=settings,
     )
 

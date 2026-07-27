@@ -144,6 +144,19 @@ export default function BenchmarksPage() {
               </Form.Item>
             </>
           )}
+          <Form.Item
+            name="default_evaluation_mode"
+            label="默认对话模式"
+            initialValue="single_turn"
+            extra="作为发起评测时的默认值，仍可在发起页手动切换。动态多轮 Case 最多 3 轮；固定脚本式多轮最多 20 轮。"
+          >
+            <Segmented
+              options={[
+                { label: "单轮对话", value: "single_turn" },
+                { label: "多轮对话", value: "multi_turn" },
+              ]}
+            />
+          </Form.Item>
           <Form.Item name="source" label="来源" initialValue="offline">
             <Segmented
               onChange={() => {

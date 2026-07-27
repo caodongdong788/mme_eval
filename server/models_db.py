@@ -25,6 +25,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
 
+_EVALUATION_MODE_TAG_PREFIX = "__mme_evaluation_mode:"
+_EVALUATION_MODES = {"single_turn", "multi_turn"}
+
 
 class Benchmark(Base):
     """一个可复用的评测用例集（内置 builtin 或用户上传）。"""
@@ -47,6 +50,28 @@ class Benchmark(Base):
     created_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     runs: Mapped[list["EvalRun"]] = relationship(back_populates="benchmark")
+
+    @property
+    def default_evaluation_mode(self) -> str:
+        """Benchmark 推荐的发起模式，复用 tags 持久化以免新增生产库迁移。"""
+        for tag in self.tags or []:
+            if isinstance(tag, str) and tag.startswith(_EVALUATION_MODE_TAG_PREFIX):
+                mode = tag.removeprefix(_EVALUATION_MODE_TAG_PREFIX)
+                if mode in _EVALUATION_MODES:
+                    return mode
+        return "single_turn"
+
+    @default_evaluation_mode.setter
+    def default_evaluation_mode(self, mode: str) -> None:
+        if mode not in _EVALUATION_MODES:
+            raise ValueError("default_evaluation_mode 必须是 single_turn 或 multi_turn")
+        tags = [
+            tag
+            for tag in (self.tags or [])
+            if not (isinstance(tag, str) and tag.startswith(_EVALUATION_MODE_TAG_PREFIX))
+        ]
+        tags.append(f"{_EVALUATION_MODE_TAG_PREFIX}{mode}")
+        self.tags = tags
 
 
 class EvalRun(Base):

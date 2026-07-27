@@ -41,7 +41,7 @@ export function useBenchmarksPage() {
     setReplaceId(null);
     setFileList([]);
     form.resetFields();
-    form.setFieldsValue({ source: "offline" });
+    form.setFieldsValue({ source: "offline", default_evaluation_mode: "single_turn" });
     setModalOpen(true);
   };
 
@@ -49,7 +49,10 @@ export function useBenchmarksPage() {
     setReplaceId(b.id);
     setFileList([]);
     form.resetFields();
-    form.setFieldsValue({ source: b.source === "online" ? "online" : "offline" });
+    form.setFieldsValue({
+      source: b.source === "online" ? "online" : "offline",
+      default_evaluation_mode: b.default_evaluation_mode || "single_turn",
+    });
     setModalOpen(true);
   };
 
@@ -72,6 +75,7 @@ export function useBenchmarksPage() {
       // 线上只走飞书 URL，不再上传文件；线下才带 YAML 文件。
       if (source !== "online" && file) fd.append("file", file);
       fd.append("source", source);
+      fd.append("default_evaluation_mode", values.default_evaluation_mode || "single_turn");
       if (sourceUrl) fd.append("source_url", sourceUrl);
       if (replaceId != null) {
         await api.replaceBenchmark(replaceId, fd);

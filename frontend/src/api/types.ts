@@ -12,6 +12,7 @@ export interface Benchmark {
   case_count: number;
   tags: string[];
   levels: string[];
+  default_evaluation_mode: "single_turn" | "multi_turn";
   created_by?: string | null;
   created_at?: string | null;
 }

@@ -78,11 +78,13 @@ def test_dynamic_case_rejects_more_than_three_turns() -> None:
         TestCase.model_validate(raw)
 
 
-def test_static_case_rejects_more_than_three_user_turns() -> None:
+def test_static_case_allows_legacy_scripted_turns_but_caps_them() -> None:
     raw = _case().model_dump(mode="json")
     raw.pop("conversation")
-    raw["turns"] = [{"role": "user", "content": str(index)} for index in range(4)]
-    with pytest.raises(ValueError, match="最多 3"):
+    raw["turns"] = [{"role": "user", "content": str(index)} for index in range(20)]
+    assert len(TestCase.model_validate(raw).turns) == 20
+    raw["turns"].append({"role": "user", "content": "too many"})
+    with pytest.raises(ValueError, match="最多 20"):
         TestCase.model_validate(raw)
 
 

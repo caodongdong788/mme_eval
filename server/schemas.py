@@ -30,6 +30,8 @@ class BenchmarkOut(BaseModel):
     case_count: int
     tags: list[str]
     levels: list[str] = Field(default_factory=list)
+    # 仅作为发起页的预设值；用户可在发起评测时覆盖。
+    default_evaluation_mode: Literal["single_turn", "multi_turn"] = "single_turn"
     created_by: Optional[str] = None
     created_at: Optional[ApiDateTime] = None
 

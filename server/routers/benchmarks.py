@@ -58,6 +58,7 @@ def upload_benchmark(
     version: str = Form("v1"),
     source: str = Form("offline"),
     source_url: str = Form(""),
+    default_evaluation_mode: str = Form("single_turn"),
     session: Session = Depends(get_session),
     current_user: Optional[FeishuUser] = Depends(get_current_user_optional),
 ) -> Benchmark:
@@ -73,6 +74,7 @@ def upload_benchmark(
                 description=description,
                 version=version,
                 created_by=current_user.name if current_user else None,
+                default_evaluation_mode=default_evaluation_mode,
             )
         else:
             if source == "online":
@@ -89,6 +91,7 @@ def upload_benchmark(
                 version=version,
                 source=source,
                 created_by=current_user.name if current_user else None,
+                default_evaluation_mode=default_evaluation_mode,
             )
     except BenchmarkValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -170,6 +173,7 @@ def replace_benchmark(
     file: UploadFile | None = File(None),
     source: str = Form("offline"),
     source_url: str = Form(""),
+    default_evaluation_mode: str = Form("single_turn"),
     session: Session = Depends(get_session),
     current_user: Optional[FeishuUser] = Depends(get_current_user_optional),
 ) -> Benchmark:
@@ -185,6 +189,7 @@ def replace_benchmark(
                 bm,
                 source_url=source_url,
                 access_token=current_user.access_token,
+                default_evaluation_mode=default_evaluation_mode,
             )
         else:
             if source == "online":
@@ -198,6 +203,7 @@ def replace_benchmark(
                 content=content,
                 filename=file.filename or "cases.yaml",
                 source=source,
+                default_evaluation_mode=default_evaluation_mode,
             )
     except BenchmarkValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
