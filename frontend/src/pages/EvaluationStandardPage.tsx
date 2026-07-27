@@ -14,7 +14,7 @@ export default function EvaluationStandardPage() {
       <Alert
         type="info"
         showIcon
-        message="指南项由模型在 0 到 max_score 之间给整数分，缺少的分数从其绑定维度扣除。"
+        message="指南未触发时不扣分；触发后由模型在 0 到 max_score 之间给整数分，缺少的分数从其绑定维度扣除。"
         description={`扣分公式：${data.guideline_rule}`}
       />
       <Row gutter={16}>

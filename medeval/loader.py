@@ -46,7 +46,14 @@ def _hydrate_case_images(case: TestCase, *, yaml_dir: Path) -> TestCase:
     图片既可以显式声明在 ``turn.images``，也可以写在用户内容的 Markdown 图片
     ``![说明](images/xxx.jpg)`` 中，后者兼容已有的 benchmark 编辑方式。
     """
-    for turn in case.turns:
+    dynamic_turns = []
+    if case.conversation is not None:
+        dynamic_turns = [
+            case.conversation.opening,
+            *[rule.reply for rule in case.conversation.reply_rules],
+            *case.conversation.follow_ups,
+        ]
+    for turn in [*case.turns, *dynamic_turns]:
         markdown_paths = _MARKDOWN_IMAGE_PATH_RE.findall(turn.content)
         image_paths = list(dict.fromkeys([*turn.images, *markdown_paths]))
         if image_paths:

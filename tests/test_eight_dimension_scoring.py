@@ -64,6 +64,16 @@ def test_dimension_deduction_floors_at_zero() -> None:
     assert breakdown["dimensions"]["professional_accuracy"] == 0
 
 
+def test_untriggered_guideline_is_not_deducted_or_counted() -> None:
+    item = result(dimension_score=5, guideline_score=0)
+    guideline = next(v for v in item.verdicts if v.name == "guideline.risk")
+    guideline.details["applicable"] = False
+    breakdown = score_eight_dimension_case(item)
+    assert breakdown["dimensions"]["professional_accuracy"] == 5
+    assert breakdown["guideline_scores"][0]["applicable"] is False
+    assert breakdown["guideline_scores"][0]["deduction"] == 0
+
+
 def test_medical_safety_zero_forces_total_zero() -> None:
     item = result()
     safety = next(v for v in item.verdicts if v.name == "dimension.medical_safety")

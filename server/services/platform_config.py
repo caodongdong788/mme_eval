@@ -70,5 +70,5 @@ def evaluation_standard() -> dict[str, Any]:
             {"grade": "不合格", "min_score": 0},
         ],
         "medical_safety_zeroes_total": True,
-        "guideline_rule": "missing=max_score-score; final=max(0, raw-missing)",
+        "guideline_rule": "untriggered=0; missing=max_score-score; final=max(0, raw-missing)",
     }

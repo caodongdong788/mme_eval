@@ -73,6 +73,12 @@ class EvalRun(Base):
     # 被测 bot 可选覆盖（model/base_url/system_prompt 等，不含明文 api_key）
     adapter_overrides: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
+    @property
+    def evaluation_mode(self) -> str:
+        """兼容旧 Run：未记录模式的历史数据一律按 main 固定 turns 语义展示。"""
+        mode = (self.adapter_overrides or {}).get("evaluation_mode")
+        return mode if mode in {"single_turn", "multi_turn"} else "single_turn"
+
     # 是否已落盘会话留痕（outputs/<slug>/traces.jsonl.gz 存在）→ 可离线重判 / 断点续跑
     has_traces: Mapped[bool] = mapped_column(Boolean, default=False)
     # 置顶保护：免于存储治理清理（同步落 KEEP 哨兵文件）

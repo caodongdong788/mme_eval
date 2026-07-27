@@ -185,6 +185,8 @@ class AdapterOverride(BaseModel):
 class RunCreate(BaseModel):
     benchmark_id: int
     run_name: Optional[str] = None
+    # single_turn = main 的固定 turns 逻辑；multi_turn = 动态用户模拟逻辑。
+    evaluation_mode: Literal["single_turn", "multi_turn"] = "single_turn"
     # 按 level 过滤（如 ["L1","L3"]）；为空 = 全部 level。
     levels: list[str] = Field(default_factory=list)
     limit: int = 0
@@ -193,6 +195,9 @@ class RunCreate(BaseModel):
     adapter: Optional[AdapterOverride] = None
     # 选用已保存的判分模型配置（连接信息 + Key 由服务端注入）；为空=沿用 config.yaml 默认。
     judge_model_id: Optional[int] = None
+    # 多轮对话的语义追问/模拟用户模型；为空则使用 config.yaml 默认配置。
+    user_simulator: Optional[JudgeOverride] = None
+    user_simulator_model_id: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------
@@ -286,6 +291,7 @@ class RunSummaryOut(BaseModel):
     has_traces: bool = False
     pinned: bool = False
     parent_run_id: Optional[int] = None
+    evaluation_mode: Literal["single_turn", "multi_turn"] = "single_turn"
 
 
 class RunDetailOut(RunSummaryOut):

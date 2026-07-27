@@ -120,6 +120,7 @@ export interface RunSummary {
   has_traces: boolean;
   pinned: boolean;
   parent_run_id?: number | null;
+  evaluation_mode: "single_turn" | "multi_turn";
 }
 
 export interface RunDetail extends RunSummary {
@@ -167,6 +168,8 @@ export interface GuidelineScore {
   criterion: string[];
   checkpoints?: string[];
   deduction_rule?: string;
+  trigger?: string;
+  applicable?: boolean;
   score: number;
   max_score: number;
   deduction?: number;
@@ -235,6 +238,7 @@ export interface ProgressInfo {
 export interface RunCreatePayload {
   benchmark_id: number;
   run_name?: string;
+  evaluation_mode?: "single_turn" | "multi_turn";
   levels?: string[];
   limit?: number;
   repeat?: number;
@@ -255,6 +259,7 @@ export interface RunCreatePayload {
     api_key?: string;
   };
   judge_model_id?: number;
+  user_simulator_model_id?: number;
 }
 
 export interface JudgeDefaults {

@@ -57,8 +57,10 @@ notes: 可选说明
 - `Timeline`：完全自由的对象列表。每个对象中的任意键都会作为一条历史事实写入 Agent
   Timeline；不用填写 `key`、`category`、`label`、`content` 等内部字段。
 
-多轮问题继续写在 `turns` 中。指南可以明确“第 1 轮应召回什么、第 2 轮应如何承接”，
-Judge 会同时看到完整对话与 `initial_state` 真值。
+固定多轮继续写在 `turns` 中；需要随 Agent 实际追问变化的多轮使用 `conversation`。
+动态模式每轮由模型按 `reply_rules.when` 作语义判断，未追问时按 `follow_ups` 推进，未覆盖的合理追问由
+用户模拟模型补全并复用运行态事实。每个 Case 最多 3 个用户回合；详情页会展示实际的
+“用户模拟路径”。完整格式见 `cases/examples/adaptive_tamoxifen_hot_flush.yaml`。
 
 ## 八维评分
 
@@ -79,7 +81,8 @@ Judge 会同时看到完整对话与 `initial_state` 真值。
 
 ## 指南部分分与扣分
 
-每条指南的 `criterion` 是字符串列表：除以“扣分规则”开头的条目外，其余均为
+每条指南可选写 `trigger`。触发条件未在完整对话发生时，该指南显示“未触发”，不扣分；
+发生后才按其 `criterion` 判定。`criterion` 是字符串列表：除以“扣分规则”开头的条目外，其余均为
 必须逐项核对的检查点。`max_score` 是该条指南的最高扣分（1～5 整数）。
 
 评测时 judge 会对每个检查点判断是否满足，输出遗漏检查点、bot 原文证据和实际扣分；

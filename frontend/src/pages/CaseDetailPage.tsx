@@ -10,6 +10,7 @@ import { HumanReviewCard } from "../components/HumanReviewCard";
 import { JudgeVerdictTable } from "../components/JudgeVerdictTable";
 import { GuidelineScoresTable } from "../components/GuidelineScoresTable";
 import { AgentChainPanel } from "../components/AgentChainPanel";
+import { SimulationTracePanel } from "../components/SimulationTracePanel";
 import type { AgentChainTrace } from "../components/AgentChainPanel";
 import { useFailureTagLabels } from "../hooks/useConfigLabelMap";
 import { useCaseDetail } from "../hooks/useCaseDetail";
@@ -55,6 +56,7 @@ export default function CaseDetailPage() {
   const trace = cd.detail.trace as (AgentChainTrace & {
     messages?: Array<{ role: string; content: string }>;
     cx_evaluation_share_url?: string | null;
+    simulation_trace?: Array<{ turn?: number; source?: string; id?: string; content?: string; facts_added?: Record<string, unknown> }>;
   }) | undefined;
   const caseInfo = cd.detail.case as {
     sample_id?: string;
@@ -129,6 +131,8 @@ export default function CaseDetailPage() {
         onSync={cd.syncAgentChain}
         caseInitialState={caseInfo?.initial_state}
       />
+
+      <SimulationTracePanel events={trace?.simulation_trace} />
 
       <JudgeVerdictTable
         verdicts={verdicts}

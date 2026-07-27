@@ -7,6 +7,7 @@ import {
   Form,
   Input,
   InputNumber,
+  Radio,
   Row,
   Select,
   Switch,
@@ -49,6 +50,7 @@ function benchmarkSourceLabel(source: string) {
 export default function LaunchPage() {
   const lp = useLaunchPage();
   const judgeEnabled = Form.useWatch("judge_enabled", lp.form) ?? true;
+  const evaluationMode = Form.useWatch("evaluation_mode", lp.form) ?? "single_turn";
 
   return (
     <DashboardPageShell
@@ -65,7 +67,7 @@ export default function LaunchPage() {
           layout="vertical"
           className="dash-launch-form"
           onFinish={lp.onFinish}
-          initialValues={{ judge_enabled: true, repeat: 1, limit: 0 }}
+          initialValues={{ judge_enabled: true, evaluation_mode: "single_turn", repeat: 1, limit: 0 }}
           requiredMark
         >
           <div className="dash-form-card dash-launch-card">
@@ -104,6 +106,49 @@ export default function LaunchPage() {
                   showCount
                 />
               </Form.Item>
+
+              <Form.Item
+                name="evaluation_mode"
+                label="对话评测模式"
+                extra={
+                  <FieldHint>
+                    单轮使用 main 的固定 turns 逻辑；多轮启用本分支的语义追问与用户模拟。
+                  </FieldHint>
+                }
+              >
+                <Radio.Group className="dash-option-cards dash-evaluation-mode" optionType="button" buttonStyle="solid">
+                  <Radio.Button value="single_turn">
+                    单轮对话评测（main 逻辑）
+                  </Radio.Button>
+                  <Radio.Button value="multi_turn">
+                    多轮对话评测（动态逻辑）
+                  </Radio.Button>
+                </Radio.Group>
+              </Form.Item>
+
+              {evaluationMode === "multi_turn" && (
+                <Form.Item
+                  name="user_simulator_model_id"
+                  label="语义追问模型"
+                  extra={
+                    <FieldHint>
+                      用于识别 Agent 的语义追问并生成未预设的用户回复；不选则使用 config.yaml 的默认模型。
+                    </FieldHint>
+                  }
+                >
+                  <Select
+                    size="large"
+                    allowClear
+                    showSearch
+                    optionFilterProp="label"
+                    placeholder="选择已配置的模型（可选）"
+                    options={lp.judgeModels.map((m) => ({
+                      value: m.id,
+                      label: `${m.name} · ${m.model}${m.has_api_key ? "" : "（未配 Key）"}`,
+                    }))}
+                  />
+                </Form.Item>
+              )}
 
               <Row gutter={16}>
                 <Col xs={24} sm={12}>

@@ -26,23 +26,27 @@ _PROMPT = """\
 {guidelines}
 
 对每条指南：
-1. 必须逐个检查“检查点”，列出未满足或与回答相反的检查点编号；
-2. 严格执行该条“扣分规则”。没有明确扣分规则时，遗漏一个检查点扣 1 分、最多扣至 max_score；
-3. ``deduction`` 必须是 0 到 max_score 的整数。只有全部检查点满足且无相反表述时 deduction 才能为 0；
-4. evidence 只能引用 bot 原文，不能虚构。
+1. 若有“触发条件”，先判断该条件是否在完整对话中实际发生。未发生时 applicable=false，deduction=0，不能因 bot 未主动提及未发生的话题扣分；
+2. applicable=true 时，逐个检查“检查点”，列出未满足或与回答相反的检查点编号；
+3. applicable=true 时严格执行该条“扣分规则”。没有明确扣分规则时，遗漏一个检查点扣 1 分、最多扣至 max_score；
+4. ``deduction`` 必须是 0 到 max_score 的整数。只有全部检查点满足且无相反表述时 deduction 才能为 0；
+5. evidence 只能引用 bot 原文，不能虚构。
 
-仅输出 JSON：{{"results": [{{"id": "...", "deduction": 0, "missed_points": [1], "reason": "≤50字", "evidence": ["bot原文短证据"]}}]}}
+仅输出 JSON：{{"results": [{{"id": "...", "applicable": true, "deduction": 0, "missed_points": [1], "reason": "≤50字", "evidence": ["bot原文短证据"]}}]}}
 """
 
 
-def _format_guideline(item) -> str:
+def _format_guideline(item, *, trigger_aware: bool) -> str:
     checkpoints = "\n".join(
         f"  {index}. {point}" for index, point in enumerate(item.checkpoints, start=1)
     )
     rule = item.deduction_rule or "未单列扣分规则：遗漏一个检查点扣 1 分，最多扣至 max_score"
+    trigger = (
+        f"\n  触发条件：{item.trigger}" if trigger_aware and item.trigger else ""
+    )
     return (
         f"- id={item.id}; dimension={item.dimension.value}; max_score={item.max_score}\n"
-        f"  检查点：\n{checkpoints}\n"
+        f"  检查点：\n{checkpoints}{trigger}\n"
         f"  {rule}"
     )
 
@@ -62,12 +66,14 @@ class GuidelineJudge(BaseJudge):
         api_version: str = "",
         default_headers: dict[str, str] | None = None,
         enable_thinking: bool | None = None,
+        trigger_aware: bool = True,
     ) -> None:
         self.enabled = enabled
         self.provider = provider
         self.model = model
         self.temperature = temperature
         self.enable_thinking = enable_thinking
+        self.trigger_aware = trigger_aware
         self._backend = (
             LLMBackend(
                 provider=provider,
@@ -91,6 +97,7 @@ class GuidelineJudge(BaseJudge):
                 "model": self.model,
                 "temperature": self.temperature,
                 "enable_thinking": self.enable_thinking,
+                "trigger_aware": self.trigger_aware,
             }
         )
 
@@ -101,7 +108,9 @@ class GuidelineJudge(BaseJudge):
         prompt = _PROMPT.format(
             conversation=format_conversation(trace),
             initial_state=format_initial_state(case),
-            guidelines="\n".join(_format_guideline(item) for item in guidelines),
+            guidelines="\n".join(
+                _format_guideline(item, trigger_aware=self.trigger_aware) for item in guidelines
+            ),
         )
         try:
             results = await self._call(prompt)
@@ -115,16 +124,24 @@ class GuidelineJudge(BaseJudge):
         verdicts: list[JudgeVerdict] = []
         for item in guidelines:
             result = results.get(item.id, {})
+            applicable = True if not self.trigger_aware or not item.trigger else result.get("applicable")
+            valid_applicable = isinstance(applicable, bool)
+            if not valid_applicable:
+                # 触发条件存在却没有有效判定时按“适用 + 最多扣分”保守处理，避免
+                # 模型格式错误静默放过真实扣分项。
+                applicable = True
             raw_deduction = result.get("deduction")
             valid = (
                 isinstance(raw_deduction, int)
                 and not isinstance(raw_deduction, bool)
                 and 0 <= raw_deduction <= item.max_score
             )
-            deduction = int(raw_deduction) if valid else item.max_score
+            deduction = 0 if not applicable else (int(raw_deduction) if valid else item.max_score)
             score = item.max_score - deduction
             reason = failure_reason or str(result.get("reason", ""))
-            if not failure_reason and not valid:
+            if not failure_reason and not valid_applicable:
+                reason = "模型未返回有效 applicable，保守按已触发处理；" + reason
+            if not failure_reason and applicable and not valid:
                 reason = f"模型返回非法扣分 {raw_deduction!r}，保守按最多扣分"
             raw_evidence = result.get("evidence", [])
             if isinstance(raw_evidence, str):
@@ -150,6 +167,8 @@ class GuidelineJudge(BaseJudge):
                     reason=reason,
                     evidence=evidence,
                     details={
+                        "applicable": applicable,
+                        "trigger": item.trigger,
                         "checkpoints": item.checkpoints,
                         "deduction_rule": item.deduction_rule,
                         "deduction": deduction,

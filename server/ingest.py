@@ -54,12 +54,9 @@ def build_case_row(
     """从一条 CaseResult 构造 case_result 行（标量列 + detail_json）。"""
     case = cr.case
     total_tokens, cost = case_token_cost(cr, pricing)
-    guideline_earned = sum(
-        float(item.get("score", 0)) for item in cr.guideline_scores
-    )
-    guideline_max = sum(
-        float(item.get("max_score", 0)) for item in cr.guideline_scores
-    )
+    applicable_guidelines = [item for item in cr.guideline_scores if item.get("applicable", True)]
+    guideline_earned = sum(float(item.get("score", 0)) for item in applicable_guidelines)
+    guideline_max = sum(float(item.get("max_score", 0)) for item in applicable_guidelines)
     return CaseResultRow(
         run_id=run_id,
         sample_id=case.sample_id,

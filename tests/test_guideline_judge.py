@@ -116,3 +116,34 @@ def test_list_guideline_returns_missed_points_and_deduction() -> None:
     assert verdict.details["missed_points"] == ["应追问医生拟开的具体药名。"]
     assert "检查点" in captured
     assert "扣分规则" in captured
+
+
+def test_untriggered_guideline_does_not_deduct() -> None:
+    raw = raw_case()
+    raw["evaluation"]["guidelines"][0]["trigger"] = "用户询问是否自行加药"
+    judge = GuidelineJudge(enabled=False)
+    judge.enabled = True
+
+    async def fake_call(prompt: str):
+        return {"risk": {"applicable": False, "deduction": 3, "reason": "未触发", "evidence": []}}
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdict = asyncio.run(judge.judge(TestCase.model_validate(raw), trace()))[0]
+    assert verdict.score == 3
+    assert verdict.details["applicable"] is False
+
+
+def test_single_turn_mode_uses_main_guideline_semantics() -> None:
+    raw = raw_case()
+    raw["evaluation"]["guidelines"][0]["trigger"] = "用户询问是否自行加药"
+    judge = GuidelineJudge(enabled=False, trigger_aware=False)
+    judge.enabled = True
+
+    async def fake_call(prompt: str):
+        return {"risk": {"applicable": False, "deduction": 1, "reason": "遗漏", "evidence": []}}
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdict = asyncio.run(judge.judge(TestCase.model_validate(raw), trace()))[0]
+
+    assert verdict.score == 2
+    assert verdict.details["applicable"] is True

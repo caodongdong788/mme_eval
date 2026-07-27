@@ -53,11 +53,12 @@ def case_trace_url(row: CaseResultRow) -> Optional[str]:
 def guideline_counts(row: CaseResultRow) -> Optional[tuple[float, float]]:
     detail = row.detail_json or {}
     scores = detail.get("guideline_scores") or []
-    if not scores:
+    applicable = [item for item in scores if item.get("applicable", True)]
+    if not applicable:
         return None
     return (
-        sum(float(item.get("score", 0)) for item in scores),
-        sum(float(item.get("max_score", 0)) for item in scores),
+        sum(float(item.get("score", 0)) for item in applicable),
+        sum(float(item.get("max_score", 0)) for item in applicable),
     )
 
 

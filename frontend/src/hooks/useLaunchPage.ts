@@ -97,11 +97,16 @@ export function useLaunchPage() {
     const payload: RunCreatePayload = {
       benchmark_id: values.benchmark_id as number,
       run_name: (values.run_name as string) || undefined,
+      evaluation_mode: (values.evaluation_mode as "single_turn" | "multi_turn") || "single_turn",
       levels: (values.levels as string[]) || [],
       limit: (values.limit as number) || 0,
       repeat: (values.repeat as number) || undefined,
       judge: { enabled: values.judge_enabled as boolean },
       judge_model_id: (values.judge_model_id as number) || undefined,
+      user_simulator_model_id:
+        values.evaluation_mode === "multi_turn"
+          ? (values.user_simulator_model_id as number) || undefined
+          : undefined,
     };
     setSubmitting(true);
     try {

@@ -1449,6 +1449,32 @@ a.ant-typography-secondary:hover {
   color: var(--runs-text-muted);
   background: var(--runs-bg);
 }
+.dash-evaluation-mode {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.dash-evaluation-mode .ant-radio-button-wrapper {
+  height: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--runs-border) !important;
+  border-radius: 8px !important;
+  color: var(--runs-text-secondary);
+  line-height: 1.45;
+  text-align: center;
+}
+.dash-evaluation-mode .ant-radio-button-wrapper:not(:first-child)::before {
+  display: none;
+}
+.dash-evaluation-mode .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled) {
+  color: var(--runs-purple);
+  border-color: var(--runs-purple) !important;
+  background: var(--runs-purple-soft);
+  box-shadow: 0 0 0 1px rgba(124, 92, 252, 0.12);
+}
+@media (max-width: 520px) {
+  .dash-evaluation-mode {
+    grid-template-columns: 1fr;
+  }
+}
 .dash-toggle-card {
   display: flex;
   align-items: center;
@@ -2519,3 +2545,7 @@ a.ant-typography-secondary:hover {
 .judge-model-modal .ant-form-item {
   margin-bottom: 16px;
 }
+.simulation-trace { display: grid; gap: 10px; }
+.simulation-trace__row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid #f0f0f0; }
+.simulation-trace__row:last-child { border-bottom: 0; padding-bottom: 0; }
+.simulation-trace__content { flex-basis: 100%; color: #303846; line-height: 1.65; }

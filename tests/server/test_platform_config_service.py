@@ -10,7 +10,7 @@ def test_evaluation_standard_is_complete() -> None:
     assert standard["dimensions"][0]["binary"] is True
     assert standard["end_max_scores"] == {"doctor": 15, "nurse": 15, "user": 15}
     assert standard["total_max_score"] == 45
-    assert standard["guideline_rule"] == "missing=max_score-score; final=max(0, raw-missing)"
+    assert standard["guideline_rule"] == "untriggered=0; missing=max_score-score; final=max(0, raw-missing)"
 
 
 def test_new_judge_labels_are_exposed() -> None:

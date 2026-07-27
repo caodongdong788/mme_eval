@@ -9,7 +9,11 @@ from medeval.config import Config, load_config
 from medeval.service import build_judges
 
 from ..settings import Settings
-from .config_overrides import apply_adapter_overrides, apply_judge_overrides
+from .config_overrides import (
+    apply_adapter_overrides,
+    apply_judge_overrides,
+    apply_user_simulator_overrides,
+)
 
 
 def prepare_run_config(
@@ -27,6 +31,12 @@ def prepare_run_config(
     if repeat:
         config.run.repeat = repeat
     apply_judge_overrides(config, judge_ov)
+    mode = (adapter_ov or {}).get("evaluation_mode")
+    if mode in {"single_turn", "multi_turn"}:
+        config.run.evaluation_mode = mode
+    simulator_ov = (adapter_ov or {}).get("user_simulator")
+    if isinstance(simulator_ov, dict):
+        apply_user_simulator_overrides(config, simulator_ov)
     apply_adapter_overrides(config, adapter_ov)
     if extra_judge_ov:
         apply_judge_overrides(config, extra_judge_ov)
@@ -34,7 +44,10 @@ def prepare_run_config(
 
 
 def build_judge_stack(config: Config):
-    return build_judges(config.judges)
+    return build_judges(
+        config.judges,
+        trigger_aware=config.run.evaluation_mode == "multi_turn",
+    )
 
 
 def build_eval_adapter(config: Config):

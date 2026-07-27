@@ -172,3 +172,61 @@ def test_launch_unknown_judge_model_404(client, settings):
         "/api/runs", json={"benchmark_id": bid, "judge_model_id": 987654}
     )
     assert resp.status_code == 404
+
+
+def test_launch_persists_selected_evaluation_mode(client, settings, monkeypatch):
+    bid = _seed_benchmark(settings)
+
+    async def _noop(progress):
+        return None
+
+    monkeypatch.setattr("server.routers.runs.build_eval_job", lambda *args, **kwargs: _noop)
+    resp = client.post(
+        "/api/runs",
+        json={
+            "benchmark_id": bid,
+            "run_name": "动态多轮模式",
+            "evaluation_mode": "multi_turn",
+        },
+    )
+
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["evaluation_mode"] == "multi_turn"
+    detail = client.get(f"/api/runs/{resp.json()['id']}").json()
+    assert detail["evaluation_mode"] == "multi_turn"
+    assert detail["adapter_overrides"]["evaluation_mode"] == "multi_turn"
+
+
+def test_launch_injects_selected_user_simulator_model(client, settings, monkeypatch):
+    bid = _seed_benchmark(settings)
+    captured: dict = {}
+
+    async def _noop(progress):
+        return None
+
+    def _fake_build(*args, **kwargs):
+        captured.update(kwargs)
+        return _noop
+
+    monkeypatch.setattr("server.routers.runs.build_eval_job", _fake_build)
+    model_id = client.post(
+        "/api/judge-models",
+        json={"name": "语义追问模型", "model": "simulator-model", "api_key": "SIMULATOR-KEY"},
+    ).json()["id"]
+    resp = client.post(
+        "/api/runs",
+        json={
+            "benchmark_id": bid,
+            "run_name": "指定语义模型",
+            "evaluation_mode": "multi_turn",
+            "user_simulator_model_id": model_id,
+        },
+    )
+
+    assert resp.status_code == 201, resp.text
+    simulator_full = captured["adapter_full"]["user_simulator"]
+    assert simulator_full["model"] == "simulator-model"
+    assert simulator_full["api_key"] == "SIMULATOR-KEY"
+    detail = client.get(f"/api/runs/{resp.json()['id']}").json()
+    assert detail["adapter_overrides"]["user_simulator"]["model"] == "simulator-model"
+    assert "api_key" not in detail["adapter_overrides"]["user_simulator"]

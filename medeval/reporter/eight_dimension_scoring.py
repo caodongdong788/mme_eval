@@ -40,7 +40,10 @@ def score_eight_dimension_case(result: CaseResult) -> dict[str, Any]:
         verdict = by_name.get(f"guideline.{guideline.id}")
         score = float(verdict.score) if verdict is not None else 0.0
         score = max(0.0, min(float(guideline.max_score), score))
-        missing = float(guideline.max_score) - score
+        details = verdict.details if verdict is not None else {}
+        applicable = bool(details.get("applicable", True))
+        # 未触发的指南保留审计行，但不扣分、也不参与指南覆盖分母。
+        missing = float(guideline.max_score) - score if applicable else 0.0
         dimension = guideline.dimension.value
         final[dimension] = max(0.0, final[dimension] - missing)
         row = {
@@ -49,10 +52,12 @@ def score_eight_dimension_case(result: CaseResult) -> dict[str, Any]:
             "criterion": guideline.criterion,
             "checkpoints": guideline.checkpoints,
             "deduction_rule": guideline.deduction_rule,
+            "trigger": guideline.trigger,
+            "applicable": applicable,
             "score": score,
             "max_score": float(guideline.max_score),
             "deduction": missing,
-            "missed_points": list((verdict.details if verdict is not None else {}).get("missed_points", [])),
+            "missed_points": list(details.get("missed_points", [])),
             "reason": verdict.reason if verdict is not None else "缺少指南判分结果",
             "evidence": list(verdict.evidence) if verdict is not None else [],
         }
