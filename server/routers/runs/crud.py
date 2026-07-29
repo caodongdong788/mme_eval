@@ -93,3 +93,19 @@ def diff_run(
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     return runs_svc.diff_runs(session, run_id, against)
+
+
+@router.get("/{run_id}/release-gate")
+def get_release_gate(
+    run_id: int,
+    baseline_run_id: int = Query(..., description="回归基线 run id"),
+    max_pass_rate_drop: float = Query(0.0, ge=0.0, le=1.0),
+    max_regressions: int = Query(0, ge=0),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """供 GitLab CI/发布流程调用的确定性回归门禁。"""
+    return runs_svc.release_gate(
+        session, run_id, baseline_run_id,
+        max_pass_rate_drop=max_pass_rate_drop,
+        max_regressions=max_regressions,
+    )

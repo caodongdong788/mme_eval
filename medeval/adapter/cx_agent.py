@@ -145,6 +145,7 @@ class CxAgentAdapter(BaseAdapter):
         test_token: str = "",
         timeout_s: float = 120.0,
         isolated_accounts: bool = False,
+        enable_rag: bool = False,
     ):
         token = test_token or os.environ.get(test_token_env, "")
         if not token:
@@ -157,6 +158,7 @@ class CxAgentAdapter(BaseAdapter):
         self._client = httpx.AsyncClient(timeout=timeout_s)
         self._sessions: dict[str, str] = {}
         self._isolated_accounts = isolated_accounts
+        self._enable_rag = enable_rag
         self._leases: dict[str, dict[str, Any]] = {}
         self._lease_locks: dict[str, asyncio.Lock] = {}
 
@@ -214,7 +216,8 @@ class CxAgentAdapter(BaseAdapter):
         except Exception as e:  # noqa: BLE001 - lifecycle failure is per-case evidence
             return ChatResponse(reply="", error=f"cx_agent account lease error: {e}")
 
-        body: dict[str, Any] = {"content": content}
+        # 明确携带开关，保证 RAG / 非 RAG 两次 run 的请求语义可追溯、可复现。
+        body: dict[str, Any] = {"content": content, "enableRag": self._enable_rag}
         if req.images:
             body["images"] = list(req.images)
         if cx_session_id:
@@ -238,13 +241,19 @@ class CxAgentAdapter(BaseAdapter):
             resp.raise_for_status()
             events = _parse_sse(resp.text)
         except Exception as e:  # noqa: BLE001 - adapter failure must be data, not raise
-            raw = {"input_sanitization": input_sanitization}
+            raw = {
+                "input_sanitization": input_sanitization,
+                "rag_enabled": self._enable_rag,
+            }
             return ChatResponse(reply="", raw=raw, error=f"cx_agent error: {e}")
 
         if not events:
             return ChatResponse(
                 reply="",
-                raw={"input_sanitization": input_sanitization},
+                raw={
+                    "input_sanitization": input_sanitization,
+                    "rag_enabled": self._enable_rag,
+                },
                 error="cx_agent error: empty SSE response",
             )
 
@@ -280,6 +289,7 @@ class CxAgentAdapter(BaseAdapter):
         raw: dict[str, Any] = {
             "events": raw_events,
             "cx_session_id": cx_session_id,
+            "rag_enabled": self._enable_rag,
         }
         if req.images:
             raw["input_images"] = {"count": len(req.images)}

@@ -962,7 +962,7 @@ def derive_benchmark_with_overrides(
         d.pop("case_file", None)
         payload.append(d)
     text = yaml.safe_dump(payload, allow_unicode=True, sort_keys=False)
-    return create_uploaded_benchmark(
+    derived = create_uploaded_benchmark(
         session,
         name=name,
         content=text.encode("utf-8"),
@@ -971,6 +971,9 @@ def derive_benchmark_with_overrides(
         created_by=created_by,
         settings=settings,
     )
+    derived.default_evaluation_mode = source.default_evaluation_mode
+    derived.suite_type = source.suite_type
+    return derived
 
 
 def _yaml_to_case_overrides(yaml_text: str) -> list[dict[str, Any]]:

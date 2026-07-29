@@ -20,6 +20,8 @@ from ..models_db import Benchmark, CaseResultRow, EvalRun
 from ..progress import InMemoryProgress
 from ..settings import Settings, get_settings
 from .eval_launch import enrich_report_agent_chains
+from medeval.assertions import refresh_result_assertions
+from medeval.reporter.aggregator import refresh_report
 from .eval_source import frozen_cases_and_traces, load_source_run
 from .eval_stack import build_eval_adapter, build_judge_stack, prepare_run_config
 from .runs import get_run_or_404, source_out_dir
@@ -158,6 +160,9 @@ def build_retry_case_job(
         )
         new_result = retried.results[0]
         await enrich_report_agent_chains(retried, settings)
+        for result in retried.results:
+            refresh_result_assertions(result)
+        refresh_report(retried)
         new_result = retried.results[0]
 
         with session_scope() as db_session:

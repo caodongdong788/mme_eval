@@ -13,8 +13,21 @@ export interface Benchmark {
   tags: string[];
   levels: string[];
   default_evaluation_mode: "single_turn" | "multi_turn";
+  suite_type: "capability" | "regression";
   created_by?: string | null;
   created_at?: string | null;
+}
+
+export interface BenchmarkCoverage {
+  total: number;
+  by_level: Record<string, number>;
+  by_scenario: Record<string, number>;
+  by_source: Record<string, number>;
+  by_case_type: Record<string, number>;
+  dimensions: Record<string, number>;
+  assertion_types: Record<string, number>;
+  mechanisms: Record<string, number>;
+  coverage_rate: Record<string, number>;
 }
 
 export interface RejudgePayload {
@@ -258,6 +271,7 @@ export interface RunCreatePayload {
     base_url?: string;
     system_prompt?: string;
     api_key?: string;
+    enable_rag?: boolean;
   };
   judge_model_id?: number;
   user_simulator_model_id?: number;

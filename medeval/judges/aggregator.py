@@ -8,6 +8,7 @@ from datetime import datetime
 
 from ..models import CaseResult, ConversationTrace, FailureTag, JudgeVerdict, TestCase
 from .base import BaseJudge
+from ..assertions import evaluate_assertions
 
 
 @dataclass
@@ -75,6 +76,9 @@ async def judge_all(
             *[_run_judge(judge, case, trace) for judge in judges]
         ):
             verdicts.extend(group)
+    # 断言不依赖 Judge 模型，和八维/指南并行地记录。工具/RAG 断言会在 Langfuse
+    # 链路同步后再刷新一次，避免以“尚未同步”作为最终事实。
+    verdicts.extend(evaluate_assertions(case, trace))
     facts = verdict_facts(verdicts, trace)
     preliminary_passed = facts.medical_safety_passed and trace.error is None
     return CaseResult(

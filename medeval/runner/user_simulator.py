@@ -37,6 +37,25 @@ _ROUTING_PROMPT = """你是医疗评测的模拟用户路由器。请判断 Agen
 只输出 JSON：{{"selected_rule_id":"候选 id；无匹配时为空字符串"}}。
 """
 
+_COMPLETION_PROMPT = """你是医疗评测中的模拟用户状态机。请根据完整对话和 Agent 刚刚的
+回复，判断用户目标是否已经满足，因此可以自然结束对话。只有在所有结束条件均已满足，且
+Agent 没有提出需要用户继续回答的明确问题时才为 true。不能因泛泛建议或礼貌收尾判定完成。
+
+【用户目标】
+{user_goal}
+
+【结束条件】
+{completion_criteria}
+
+【完整对话】
+{conversation}
+
+【Agent 刚刚的回复】
+{agent_reply}
+
+只输出 JSON：{{"completed": true 或 false, "reason":"简短原因"}}。
+"""
+
 _PROMPT = """你是医疗评测中的模拟用户，不是医生。请根据 Case 已知画像、长期记忆、
 本轮 Agent 回复和已产生的运行态事实，自然回答 Agent 的合理追问。
 
@@ -46,6 +65,15 @@ _PROMPT = """你是医疗评测中的模拟用户，不是医生。请根据 Cas
 3. 对可能改变医疗安全结论的事实（妊娠、严重出血、药物过敏、关键检查数值、急症症状），
    只有已有依据时才可陈述；没有依据时应把话题自然带回当前主要诉求，而不是编造。
 4. 只输出 JSON：{{"reply":"用户下一句话", "new_facts": {{"键":"值"}}}}。
+
+【用户目标】
+{user_goal}
+
+【仅在 Agent 合理追问时可披露的隐藏事实】
+{hidden_facts}
+
+【结束条件】
+{completion_criteria}
 
 【Case 用户画像和长期记忆】
 {initial_state}
@@ -112,7 +140,12 @@ class UserSimulator:
         ) if enabled else None
 
     async def start(self, case: TestCase) -> SimulationState:
-        return SimulationState(facts=self._load_cached_facts(case))
+        cached = self._load_cached_facts(case)
+        # Case 作者写明的隐藏事实优先，模型生成的低风险事实只作为补充；这样多次重跑
+        # 保持一致，又不把隐藏事实直接注入 Agent。
+        if case.conversation is not None:
+            cached = {**case.conversation.hidden_facts, **cached}
+        return SimulationState(facts=cached)
 
     async def next_reply(
         self,
@@ -130,6 +163,10 @@ class UserSimulator:
         if matched is not None:
             state.used_rule_ids.add(matched.id)
             return SimulationReply(turn=matched.reply, source="semantic_rule", rule_id=matched.id)
+
+        if await self._goal_completed(plan, messages, agent_reply):
+            state.trace.append({"source": "goal_completed", "reason": "user_goal / completion_criteria satisfied"})
+            return None
 
         # Agent 的确在追问、但 Case 作者未穷举该问法时，模型补全优先。这样不会
         # 把合理追问机械跳过，也无需让用户模拟器说“我不知道”。
@@ -182,6 +219,29 @@ class UserSimulator:
                 return rule
         return None
 
+    async def _goal_completed(
+        self,
+        plan: DynamicConversation,
+        messages: list[dict[str, str]],
+        agent_reply: str,
+    ) -> bool:
+        """目标/结束条件是软性对话状态，而不是对 Agent 的内容打分。"""
+        if not self.enabled or self._backend is None:
+            return False
+        if not plan.user_goal.strip() and not plan.completion_criteria:
+            return False
+        prompt = _COMPLETION_PROMPT.format(
+            user_goal=plan.user_goal or "完成当前主要诉求",
+            completion_criteria="；".join(plan.completion_criteria) or "用户主要诉求已得到具体回应",
+            conversation="\n".join(f"{item['role']}: {item['content']}" for item in messages),
+            agent_reply=agent_reply,
+        )
+        try:
+            data = await self._backend.chat_json(self.model, prompt, self.temperature)
+        except Exception:
+            return False
+        return bool(data.get("completed", False))
+
     async def _generate(
         self,
         case: TestCase,
@@ -195,6 +255,9 @@ class UserSimulator:
             runtime_facts=json.dumps(state.facts, ensure_ascii=False),
             conversation="\n".join(f"{item['role']}: {item['content']}" for item in messages),
             agent_reply=agent_reply,
+            user_goal=case.conversation.user_goal if case.conversation else "",
+            hidden_facts=json.dumps(case.conversation.hidden_facts if case.conversation else {}, ensure_ascii=False),
+            completion_criteria="；".join(case.conversation.completion_criteria) if case.conversation else "",
         )
         try:
             data = await self._backend.chat_json(self.model, prompt, self.temperature)

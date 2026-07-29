@@ -27,6 +27,8 @@ from .db import Base
 
 _EVALUATION_MODE_TAG_PREFIX = "__mme_evaluation_mode:"
 _EVALUATION_MODES = {"single_turn", "multi_turn"}
+_SUITE_TYPE_TAG_PREFIX = "__mme_suite_type:"
+_SUITE_TYPES = {"capability", "regression"}
 
 
 class Benchmark(Base):
@@ -72,6 +74,24 @@ class Benchmark(Base):
         ]
         tags.append(f"{_EVALUATION_MODE_TAG_PREFIX}{mode}")
         self.tags = tags
+
+    @property
+    def suite_type(self) -> str:
+        """能力集用于探索，回归集用于发布门禁；同样通过 tags 兼容已有生产库。"""
+        for tag in self.tags or []:
+            if isinstance(tag, str) and tag.startswith(_SUITE_TYPE_TAG_PREFIX):
+                value = tag.removeprefix(_SUITE_TYPE_TAG_PREFIX)
+                if value in _SUITE_TYPES:
+                    return value
+        return "capability"
+
+    @suite_type.setter
+    def suite_type(self, value: str) -> None:
+        if value not in _SUITE_TYPES:
+            raise ValueError("suite_type 必须是 capability 或 regression")
+        self.tags = [tag for tag in (self.tags or []) if not (
+            isinstance(tag, str) and tag.startswith(_SUITE_TYPE_TAG_PREFIX)
+        )] + [f"{_SUITE_TYPE_TAG_PREFIX}{value}"]
 
 
 class EvalRun(Base):

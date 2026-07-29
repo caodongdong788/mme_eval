@@ -197,6 +197,27 @@ def test_launch_persists_selected_evaluation_mode(client, settings, monkeypatch)
     assert detail["adapter_overrides"]["evaluation_mode"] == "multi_turn"
 
 
+def test_launch_persists_rag_toggle(client, settings, monkeypatch):
+    bid = _seed_benchmark(settings)
+
+    async def _noop(progress):
+        return None
+
+    monkeypatch.setattr("server.routers.runs.build_eval_job", lambda *args, **kwargs: _noop)
+    resp = client.post(
+        "/api/runs",
+        json={
+            "benchmark_id": bid,
+            "run_name": "开启 RAG 的评测",
+            "adapter": {"enable_rag": True},
+        },
+    )
+
+    assert resp.status_code == 201, resp.text
+    detail = client.get(f"/api/runs/{resp.json()['id']}").json()
+    assert detail["adapter_overrides"]["enable_rag"] is True
+
+
 def test_launch_injects_selected_user_simulator_model(client, settings, monkeypatch):
     bid = _seed_benchmark(settings)
     captured: dict = {}

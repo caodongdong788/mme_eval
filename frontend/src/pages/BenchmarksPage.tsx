@@ -2,6 +2,7 @@ import {
   Alert,
   Button,
   Drawer,
+  Descriptions,
   Form,
   Input,
   Modal,
@@ -79,6 +80,7 @@ export default function BenchmarksPage() {
       render: (_: unknown, b: (typeof bm.uploaded)[0]) => (
         <DashTableActions>
           <DashTableLink onClick={() => bm.viewCases(b)}>查看用例</DashTableLink>
+          <DashTableLink onClick={() => bm.viewCoverage(b)}>覆盖度</DashTableLink>
           <DashTableLink onClick={() => bm.openEdit(b)}>编辑</DashTableLink>
           <DashTableLink href={api.downloadBenchmarkUrl(b.id)} download>
             <DownloadOutlined /> 下载
@@ -154,6 +156,19 @@ export default function BenchmarksPage() {
               options={[
                 { label: "单轮对话", value: "single_turn" },
                 { label: "多轮对话", value: "multi_turn" },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item
+            name="suite_type"
+            label="评测集用途"
+            initialValue="capability"
+            extra="能力集用于发现能力边界；回归集会在运行详情中提供与基线对比的发布门禁。"
+          >
+            <Segmented
+              options={[
+                { label: "能力评测", value: "capability" },
+                { label: "回归门禁", value: "regression" },
               ]}
             />
           </Form.Item>
@@ -234,6 +249,29 @@ export default function BenchmarksPage() {
           dataSource={bm.cases}
           pagination={{ pageSize: 20 }}
         />
+      </Drawer>
+
+      <Drawer title="评测集覆盖度" width={640} open={bm.coverageOpen} onClose={() => bm.setCoverageOpen(false)}>
+        {bm.coverageLoading ? "正在统计…" : bm.coverage ? (
+          <Space direction="vertical" size={18} style={{ width: "100%" }}>
+            <Descriptions size="small" column={1} bordered title={`共 ${bm.coverage.total} 条用例`}>
+              {Object.entries(bm.coverage.coverage_rate).map(([key, value]) => (
+                <Descriptions.Item key={key} label={key}>{(value * 100).toFixed(0)}%</Descriptions.Item>
+              ))}
+            </Descriptions>
+            {[
+              ["八维评分覆盖", bm.coverage.dimensions],
+              ["断言类型", bm.coverage.assertion_types],
+              ["评测机制", bm.coverage.mechanisms],
+              ["场景分布", bm.coverage.by_scenario],
+            ].map(([title, values]) => (
+              <div key={String(title)}>
+                <div style={{ marginBottom: 8, fontWeight: 600 }}>{String(title)}</div>
+                {Object.entries(values as Record<string, number>).map(([key, value]) => <Tag key={key}>{key} · {value}</Tag>)}
+              </div>
+            ))}
+          </Space>
+        ) : <span>暂无统计数据</span>}
       </Drawer>
 
       <Drawer

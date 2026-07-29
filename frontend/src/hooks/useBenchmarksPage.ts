@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { UploadFile } from "antd";
 import { Form, message } from "antd";
-import { api, Benchmark, CaseBrief } from "../api/index";
+import { api, Benchmark, BenchmarkCoverage, CaseBrief } from "../api/index";
 import { formatApiError } from "../utils/apiError";
 import { useAsyncData } from "./useAsyncData";
 import { useEditModal } from "./useEditModal";
@@ -23,6 +23,9 @@ export function useBenchmarksPage() {
   const [casesError, setCasesError] = useState<string | null>(null);
   const [casesTitle, setCasesTitle] = useState("");
   const [casesBenchmark, setCasesBenchmark] = useState<Benchmark | null>(null);
+  const [coverage, setCoverage] = useState<BenchmarkCoverage | null>(null);
+  const [coverageOpen, setCoverageOpen] = useState(false);
+  const [coverageLoading, setCoverageLoading] = useState(false);
 
   const [caseYamlOpen, setCaseYamlOpen] = useState(false);
   const [caseYamlLoading, setCaseYamlLoading] = useState(false);
@@ -41,7 +44,7 @@ export function useBenchmarksPage() {
     setReplaceId(null);
     setFileList([]);
     form.resetFields();
-    form.setFieldsValue({ source: "offline", default_evaluation_mode: "single_turn" });
+    form.setFieldsValue({ source: "offline", default_evaluation_mode: "single_turn", suite_type: "capability" });
     setModalOpen(true);
   };
 
@@ -52,6 +55,7 @@ export function useBenchmarksPage() {
     form.setFieldsValue({
       source: b.source === "online" ? "online" : "offline",
       default_evaluation_mode: b.default_evaluation_mode || "single_turn",
+      suite_type: b.suite_type || "capability",
     });
     setModalOpen(true);
   };
@@ -76,6 +80,7 @@ export function useBenchmarksPage() {
       if (source !== "online" && file) fd.append("file", file);
       fd.append("source", source);
       fd.append("default_evaluation_mode", values.default_evaluation_mode || "single_turn");
+      fd.append("suite_type", values.suite_type || "capability");
       if (sourceUrl) fd.append("source_url", sourceUrl);
       if (replaceId != null) {
         await api.replaceBenchmark(replaceId, fd);
@@ -110,6 +115,19 @@ export function useBenchmarksPage() {
       setCasesError(formatApiError(e, "用例解析失败"));
     } finally {
       setCasesLoading(false);
+    }
+  };
+
+  const viewCoverage = async (b: Benchmark) => {
+    setCoverageOpen(true);
+    setCoverage(null);
+    setCoverageLoading(true);
+    try {
+      setCoverage(await api.getBenchmarkCoverage(b.id));
+    } catch (e: unknown) {
+      message.error(formatApiError(e, "读取覆盖度失败"));
+    } finally {
+      setCoverageLoading(false);
     }
   };
 
@@ -231,6 +249,10 @@ export function useBenchmarksPage() {
     casesError,
     casesTitle,
     casesBenchmark,
+    coverage,
+    coverageOpen,
+    coverageLoading,
+    setCoverageOpen,
     caseYamlOpen,
     setCaseYamlOpen,
     caseYamlLoading,
@@ -248,6 +270,7 @@ export function useBenchmarksPage() {
     openReplace,
     submit,
     viewCases,
+    viewCoverage,
     openEdit,
     submitEdit,
     deleteBenchmark,

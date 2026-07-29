@@ -1,0 +1,31 @@
+# 在业务仓库的 .gitlab-ci.yml 中引用：
+# include:
+#   - project: cx/cx-mme
+#     ref: main
+#     file: /deploy/gitlab/mme-release-gate.yml
+# 并在变量中提供 MME_BASE_URL、MME_RUN_ID、MME_BASELINE_RUN_ID。
+
+mme_release_gate:
+  stage: test
+  image: python:3.12-alpine
+  rules:
+    - if: '$MME_BASE_URL && $MME_RUN_ID && $MME_BASELINE_RUN_ID'
+  script:
+    - |
+      python - <<'PY'
+      import json, os, sys
+      from urllib.parse import urlencode
+      from urllib.request import urlopen
+
+      base = os.environ["MME_BASE_URL"].rstrip("/")
+      run_id = os.environ["MME_RUN_ID"]
+      query = urlencode({
+          "baseline_run_id": os.environ["MME_BASELINE_RUN_ID"],
+          "max_pass_rate_drop": os.getenv("MME_MAX_PASS_RATE_DROP", "0"),
+          "max_regressions": os.getenv("MME_MAX_REGRESSIONS", "0"),
+      })
+      with urlopen(f"{base}/api/runs/{run_id}/release-gate?{query}", timeout=30) as response:
+          gate = json.load(response)
+      print(json.dumps(gate, ensure_ascii=False, indent=2))
+      sys.exit(0 if gate.get("passed") else 1)
+      PY
