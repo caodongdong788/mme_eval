@@ -67,7 +67,13 @@ export default function LaunchPage() {
           layout="vertical"
           className="dash-launch-form"
           onFinish={lp.onFinish}
-          initialValues={{ judge_enabled: true, evaluation_mode: "single_turn", repeat: 1, limit: 0 }}
+          initialValues={{
+            judge_enabled: true,
+            evaluation_mode: "single_turn",
+            enable_rag: false,
+            repeat: 1,
+            limit: 0,
+          }}
           requiredMark
         >
           <div className="dash-form-card dash-launch-card">
@@ -149,6 +155,21 @@ export default function LaunchPage() {
                   />
                 </Form.Item>
               )}
+
+              <Form.Item
+                name="enable_rag"
+                label="医学文献 RAG 召回"
+                extra={
+                  <FieldHint>
+                    开启后允许被测 Agent 调用医学文献知识库；关闭时不暴露该工具。不会影响用户画像、长期记忆和历史对话。
+                  </FieldHint>
+                }
+              >
+                <Radio.Group className="dash-option-cards" optionType="button" buttonStyle="solid">
+                  <Radio.Button value={false}>不启用 RAG</Radio.Button>
+                  <Radio.Button value={true}>启用 RAG</Radio.Button>
+                </Radio.Group>
+              </Form.Item>
 
               <Row gutter={16}>
                 <Col xs={24} sm={12}>

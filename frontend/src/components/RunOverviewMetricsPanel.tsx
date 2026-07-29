@@ -8,6 +8,8 @@ const D = palette.dashboard;
 export function RunOverviewMetricsPanel({ run }: { run: RunDetail }) {
   const hasLatency = run.latency_summary && Object.keys(run.latency_summary).length > 0;
   const hasToken = run.token_summary && Object.keys(run.token_summary).length > 0;
+  const reliability = run.grading?.reliability || {};
+  const hasReliability = Object.keys(reliability).length > 0;
 
   return (
     <div className="runs-duo-charts runs-duo-charts--metrics">
@@ -74,6 +76,24 @@ export function RunOverviewMetricsPanel({ run }: { run: RunDetail }) {
                 precision={0}
                 valueStyle={{ color: D.text, fontSize: 20 }}
               />
+            </Col>
+          </Row>
+        )}
+      </RunsChartCard>
+      <RunsChartCard title="可靠性（重复运行）" empty={!hasReliability} metric>
+        {hasReliability && (
+          <Row gutter={[12, 16]}>
+            <Col span={12}>
+              <Statistic title="重复次数 k" value={reliability.k ?? "—"} valueStyle={{ color: D.text, fontSize: 20 }} />
+            </Col>
+            <Col span={12}>
+              <Statistic title="波动用例" value={reliability.flaky_cases ?? "—"} valueStyle={{ color: D.text, fontSize: 20 }} />
+            </Col>
+            <Col span={12}>
+              <Statistic title="pass@k" value={reliability.pass_at_k ?? "—"} precision={3} valueStyle={{ color: D.text, fontSize: 20 }} />
+            </Col>
+            <Col span={12}>
+              <Statistic title="pass^k（全成功）" value={reliability.pass_all_k ?? "—"} precision={3} valueStyle={{ color: D.text, fontSize: 20 }} />
             </Col>
           </Row>
         )}

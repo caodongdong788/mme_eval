@@ -84,3 +84,24 @@ def test_prompt_includes_case_initial_state_as_scoring_truth() -> None:
     assert "Case 初始化真值" in captured
     assert "他莫昔芬服药时间" in captured
     assert "晚上九点服用后恶心减轻" in captured
+
+
+def test_prompt_enforces_role_boundaries_and_evidence_based_reasons() -> None:
+    judge = EightDimensionJudge(enabled=False)
+    judge.enabled = True
+    captured = ""
+
+    async def fake_call(prompt: str):
+        nonlocal captured
+        captured = prompt
+        scores = {dimension.value: 5 for dimension in EvaluationDimension}
+        return scores, {key: "stub" for key in scores}
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    asyncio.run(judge.judge(case(), trace()))
+
+    assert "医生只评医学安全性、专业准确性与边界、临床追问充分性和必要性" in captured
+    assert "护士只评个性化相关性、方案可行性与依从引导" in captured
+    assert "患者只评被理解与共情、可执行性、沟通体验与继续意愿" in captured
+    assert "至少一处具体表述作为证据" in captured
+    assert "重复或过度的追问要扣分" in captured

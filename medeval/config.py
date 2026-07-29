@@ -124,6 +124,8 @@ class CxAgentCfg(_Strict):
     test_token: str = ""
     timeout_s: float = 120.0
     isolated_accounts: bool = False
+    # 仅影响 cx-agent 测试接口是否向模型暴露医学文献 RAG 工具；不影响画像、长期记忆或聊天历史。
+    enable_rag: bool = False
 
 
 class AdapterCfg(_Strict):

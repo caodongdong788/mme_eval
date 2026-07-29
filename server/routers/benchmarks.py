@@ -34,6 +34,7 @@ from ..schemas import (
     OverwriteBenchmarkYamlRequest,
 )
 from ..services import benchmark_catalog as bm_svc
+from ..services.coverage import benchmark_coverage
 
 router = APIRouter(prefix="/api/benchmarks", tags=["benchmarks"])
 
@@ -59,6 +60,7 @@ def upload_benchmark(
     source: str = Form("offline"),
     source_url: str = Form(""),
     default_evaluation_mode: str = Form("single_turn"),
+    suite_type: str = Form("capability"),
     session: Session = Depends(get_session),
     current_user: Optional[FeishuUser] = Depends(get_current_user_optional),
 ) -> Benchmark:
@@ -95,6 +97,10 @@ def upload_benchmark(
             )
     except BenchmarkValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    try:
+        bm.suite_type = suite_type
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="评测集类型必须是 capability 或 regression") from exc
     return bm
 
 
@@ -174,6 +180,7 @@ def replace_benchmark(
     source: str = Form("offline"),
     source_url: str = Form(""),
     default_evaluation_mode: str = Form("single_turn"),
+    suite_type: str = Form("capability"),
     session: Session = Depends(get_session),
     current_user: Optional[FeishuUser] = Depends(get_current_user_optional),
 ) -> Benchmark:
@@ -207,6 +214,10 @@ def replace_benchmark(
             )
     except BenchmarkValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    try:
+        bm.suite_type = suite_type
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="评测集类型必须是 capability 或 regression") from exc
     return bm
 
 
@@ -252,6 +263,15 @@ def list_benchmark_cases(
     benchmark_id: int, session: Session = Depends(get_session)
 ) -> list[CaseBrief]:
     return bm_svc.list_benchmark_case_briefs(session, benchmark_id)
+
+
+@router.get("/{benchmark_id}/coverage")
+def get_benchmark_coverage(
+    benchmark_id: int, session: Session = Depends(get_session)
+) -> dict:
+    """用例集覆盖度：评测维度、断言、记忆、多轮和业务切片。"""
+    benchmark = bm_svc.get_benchmark_or_404(session, benchmark_id)
+    return benchmark_coverage(bm_svc.bm_domain.load_benchmark_cases(benchmark))
 
 
 @router.get("/{benchmark_id}/cases/{sample_id}/yaml", response_model=BenchmarkCaseYamlOut)

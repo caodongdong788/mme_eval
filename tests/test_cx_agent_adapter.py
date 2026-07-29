@@ -67,7 +67,7 @@ def test_cx_agent_adapter_parses_sse_reply_and_session():
     assert resp.raw["cx_evaluation_share_url"] == (
         "http://cx.local/s/11111111-1111-1111-1111-111111111111?cx_ui_release=current"
     )
-    assert seen == [{"content": "乳房疼痛怎么办"}]
+    assert seen == [{"content": "乳房疼痛怎么办", "enableRag": False}]
     asyncio.run(adapter.close())
 
 
@@ -104,8 +104,8 @@ def test_cx_agent_adapter_reuses_cx_session_for_same_mme_session():
     assert asyncio.run(adapter.chat(first)).reply == "reply-1"
     assert asyncio.run(adapter.chat(second)).reply == "reply-2"
     assert bodies == [
-        {"content": "第一轮"},
-        {"content": "第二轮", "sessionId": "cx-new"},
+        {"content": "第一轮", "enableRag": False},
+        {"content": "第二轮", "enableRag": False, "sessionId": "cx-new"},
     ]
     asyncio.run(adapter.close())
 
@@ -173,7 +173,13 @@ def test_cx_agent_adapter_sends_turn_images_in_dedicated_field():
     )
 
     assert response.reply == "已收到图片"
-    assert bodies == [{"content": "请解读这份报告", "images": ["data:image/jpeg;base64,aGVsbG8="]}]
+    assert bodies == [
+        {
+            "content": "请解读这份报告",
+            "enableRag": False,
+            "images": ["data:image/jpeg;base64,aGVsbG8="],
+        }
+    ]
     assert response.raw["input_images"] == {"count": 1}
     asyncio.run(adapter.close())
 
@@ -397,6 +403,7 @@ def test_cx_agent_adapter_leases_blank_account_and_exposes_trace_context(
             "/api/test/chat/send",
             {
                 "content": "这是全新账户吗",
+                "enableRag": False,
                 "testUserId": "00000000-0000-0000-0000-000000000201",
                 "evaluationLeaseId": "mme-isolated-1",
                 "evalRunId": "run-1",
@@ -412,4 +419,29 @@ def test_cx_agent_adapter_leases_blank_account_and_exposes_trace_context(
             },
         ),
     ]
+    asyncio.run(adapter.close())
+
+
+def test_cx_agent_adapter_sends_explicit_rag_flag_and_records_it():
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content.decode()))
+        return httpx.Response(
+            200,
+            text=_sse(
+                ("session", {"sessionId": "cx-rag-1"}),
+                ("text_delta", {"content": "已检索"}),
+                ("message_end", {}),
+            ),
+        )
+
+    adapter = CxAgentAdapter(base_url="http://cx.local", test_token="token-1", enable_rag=True)
+    adapter._client = httpx.AsyncClient(transport=httpx.MockTransport(handler), timeout=10)
+    response = asyncio.run(
+        adapter.chat(ChatRequest(messages=[{"role": "user", "content": "药物说明书"}], session_id="mme-rag-1"))
+    )
+
+    assert seen == [{"content": "药物说明书", "enableRag": True}]
+    assert response.raw["rag_enabled"] is True
     asyncio.run(adapter.close())

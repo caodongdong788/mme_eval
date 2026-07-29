@@ -35,7 +35,7 @@ def populate_run_summary(row: EvalRun, report: RunReport) -> None:
     row.n_runs = report.n_runs
     row.started_at = report.started_at
     row.finished_at = report.finished_at
-    row.grading = report.grading
+    row.grading = {**(report.grading or {}), "reliability": report.reliability}
     row.stability_distribution = report.stability_distribution
     row.latency_summary = report.latency_summary
     row.token_summary = report.token_summary

@@ -40,6 +40,7 @@ class FailureTag(str, Enum):
     PERSONALIZATION_GAP = "personalization_gap"
     GUIDELINE_COVERAGE_LOW = "guideline_coverage_low"
     SCORE_BELOW_THRESHOLD = "score_below_threshold"
+    ASSERTION_FAILED = "assertion_failed"
 
     @property
     def description(self) -> str:
@@ -51,6 +52,7 @@ class FailureTag(str, Enum):
             self.PERSONALIZATION_GAP: "未充分使用 Case 中的用户档案",
             self.GUIDELINE_COVERAGE_LOW: "Case 指南项总体命中率偏低",
             self.SCORE_BELOW_THRESHOLD: "总分未达到合格阈值",
+            self.ASSERTION_FAILED: "可验证断言未满足",
         }[self]
 
     @property
@@ -63,6 +65,7 @@ class FailureTag(str, Enum):
             self.PERSONALIZATION_GAP: "用户档案未使用",
             self.GUIDELINE_COVERAGE_LOW: "指南覆盖不足",
             self.SCORE_BELOW_THRESHOLD: "总分未达标",
+            self.ASSERTION_FAILED: "关键断言未满足",
         }[self]
 
 
@@ -307,9 +310,15 @@ class GuidelineItem(BaseModel):
         return next((item for item in self.criterion if item.startswith("扣分规则")), "")
 
     @model_validator(mode="after")
-    def _not_safety(self) -> "GuidelineItem":
-        if self.dimension == EvaluationDimension.medical_safety:
-            raise ValueError("guideline.dimension 不能为 medical_safety（二值安全底线）")
+    def _validate_semantics(self) -> "GuidelineItem":
+        # 医学安全指南是允许的，但它不是普通的线性扣分项：一旦 Judge 判定有遗漏或
+        # 相反表述，评分层会把 medical_safety 直接置 0，进而令整题归零。
+        # 固定为 5 分，以便 YAML 中的“扣 5 分/医学安全性判 0 分”语义一致。
+        if (
+            self.dimension == EvaluationDimension.medical_safety
+            and self.max_score != 5
+        ):
+            raise ValueError("medical_safety 指南的 max_score 必须为 5（违反即安全性判 0 分）")
         if not self.checkpoints:
             raise ValueError("guideline.criterion 至少需要一个检查点，不能只写扣分规则")
         return self
@@ -322,6 +331,7 @@ class CaseEvaluation(BaseModel):
         default_factory=dict
     )
     guidelines: list[GuidelineItem] = Field(default_factory=list)
+    assertions: list["EvaluationAssertion"] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _validate_content(self) -> "CaseEvaluation":
@@ -331,6 +341,52 @@ class CaseEvaluation(BaseModel):
         ids = [item.id for item in self.guidelines]
         if len(ids) != len(set(ids)):
             raise ValueError("evaluation.guidelines 的 id 必须在 Case 内唯一")
+        assertion_ids = [item.id for item in self.assertions]
+        if len(assertion_ids) != len(set(assertion_ids)):
+            raise ValueError("evaluation.assertions 的 id 必须在 Case 内唯一")
+        return self
+
+
+class EvaluationAssertion(BaseModel):
+    """无需 LLM 判官、可由真实运行证据直接验证的一条断言。
+
+    ``tool_call`` / ``retrieval`` 读 Langfuse 汇总，``state`` 读用例和运行态，
+    ``transcript`` 读完整对话，``performance`` 读本次会话观测。证据暂不可用时默认
+    ``warn``，不会把“没有接通追踪”误判为 Agent 失败；关键生产门禁可显式设为 ``fail``。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1)
+    type: Literal["tool_call", "retrieval", "state", "transcript", "performance"]
+    description: str = Field(min_length=1)
+    blocking: bool = True
+    on_unavailable: Literal["warn", "fail"] = "warn"
+    # tool_call/retrieval：工具或来源标识。名称可对应 Langfuse 节点、摘要 action/source。
+    name: str = ""
+    # state：点路径；transcript：需在用户/Agent 任一消息中出现的文字。
+    path: str = ""
+    contains: str = ""
+    equals: Any = None
+    min_count: int = Field(default=1, ge=1)
+    # performance：可设置任意一个或多个上限。
+    max_duration_ms: float | None = Field(default=None, gt=0)
+    max_total_tokens: int | None = Field(default=None, gt=0)
+    max_tool_calls: int | None = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def _validate_shape(self) -> "EvaluationAssertion":
+        if self.type in {"tool_call", "retrieval"} and not self.name.strip():
+            raise ValueError(f"assertion {self.id}: {self.type} 必须填写 name")
+        if self.type == "state" and not self.path.strip():
+            raise ValueError(f"assertion {self.id}: state 必须填写 path")
+        if self.type == "transcript" and not self.contains.strip():
+            raise ValueError(f"assertion {self.id}: transcript 必须填写 contains")
+        if self.type == "performance" and not any(
+            value is not None
+            for value in (self.max_duration_ms, self.max_total_tokens, self.max_tool_calls)
+        ):
+            raise ValueError(f"assertion {self.id}: performance 至少填写一个性能上限")
         return self
 
 
@@ -373,6 +429,11 @@ class DynamicConversation(BaseModel):
     opening: SimulatedUserTurn
     reply_rules: list[DynamicReplyRule] = Field(default_factory=list)
     follow_ups: list[SimulatedUserTurn] = Field(default_factory=list, max_length=2)
+    # 面向目标的模拟：不替代脚本化追问，而是在 Case 作者未写到的合理追问出现时，
+    # 给模拟器一个明确的用户目标和可披露事实边界。
+    user_goal: str = ""
+    hidden_facts: dict[str, Any] = Field(default_factory=dict)
+    completion_criteria: list[str] = Field(default_factory=list, max_length=5)
 
     @model_validator(mode="after")
     def _validate_plan(self) -> "DynamicConversation":
@@ -569,6 +630,10 @@ class RunReport(BaseModel):
     # 基于各用例 release_passed 估计。仅统计度量、不参与任何判分/否决。
     # 关闭统计（run.stats.enabled=false）或无结果时为空 dict。
     pass_rate_ci: dict[str, Any] = Field(default_factory=dict)
+
+    # N-run 可靠性：pass_at_k 表示至少一次成功，pass_all_k 表示每次均成功。
+    # 二者都只做可观测性与发布门禁输入，不改变单条 Case 的评分。
+    reliability: dict[str, Any] = Field(default_factory=dict)
 
     # 指南得分率聚合；缺分已在单题评分中扣到绑定维度。
     guideline_match: dict[str, Any] = Field(default_factory=dict)

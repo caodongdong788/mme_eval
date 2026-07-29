@@ -16,7 +16,7 @@ from medeval import retention
 
 from ..compare import compare_runs
 from ..constants import LIST_LIMIT_DEFAULT
-from ..models_db import Benchmark, CaseAnnotation, EvalRun, JudgeModelConfig, PairwiseComparison
+from ..models_db import Benchmark, CaseAnnotation, CaseResultRow, EvalRun, JudgeModelConfig, PairwiseComparison
 from ..paths import safe_join
 from ..schemas import JudgeOverride, RunCreate, RunRenameRequest
 from ..settings import get_settings
@@ -27,6 +27,50 @@ def get_run_or_404(session: Session, run_id: int) -> EvalRun:
     if run is None:
         raise HTTPException(status_code=404, detail=f"run {run_id} 不存在")
     return run
+
+
+def release_gate(
+    session: Session,
+    run_id: int,
+    baseline_run_id: int,
+    *,
+    max_pass_rate_drop: float = 0.0,
+    max_regressions: int = 0,
+) -> dict[str, Any]:
+    """回归门禁：只比较同 sample_id 的真实 Case 结果，输出可被 CI 直接消费的 JSON。"""
+    current = get_run_or_404(session, run_id)
+    baseline = get_run_or_404(session, baseline_run_id)
+    if current.status != "success" or baseline.status != "success":
+        raise HTTPException(status_code=422, detail="仅已完成的 run 可做发布门禁")
+    current_rows = session.execute(select(CaseResultRow).where(CaseResultRow.run_id == run_id)).scalars().all()
+    baseline_rows = session.execute(select(CaseResultRow).where(CaseResultRow.run_id == baseline_run_id)).scalars().all()
+    now = {row.sample_id: row for row in current_rows}
+    before = {row.sample_id: row for row in baseline_rows}
+    shared = sorted(set(now) & set(before))
+    regressions = [sample_id for sample_id in shared if before[sample_id].release_passed and not now[sample_id].release_passed]
+    improvements = [sample_id for sample_id in shared if not before[sample_id].release_passed and now[sample_id].release_passed]
+    pass_rate_drop = float(baseline.pass_rate or 0) - float(current.pass_rate or 0)
+    comparable = bool(shared) and not (set(now) - set(before) or set(before) - set(now))
+    checks = {
+        "same_case_set": comparable,
+        "pass_rate_drop": pass_rate_drop <= max_pass_rate_drop,
+        "regressions": len(regressions) <= max_regressions,
+        "medical_safety": current.medical_safety_failed <= baseline.medical_safety_failed,
+    }
+    return {
+        "passed": all(checks.values()),
+        "checks": checks,
+        "current_run_id": current.id,
+        "baseline_run_id": baseline.id,
+        "case_count": len(shared),
+        "new_cases": sorted(set(now) - set(before)),
+        "missing_cases": sorted(set(before) - set(now)),
+        "regressions": regressions,
+        "improvements": improvements,
+        "pass_rate_drop": pass_rate_drop,
+        "thresholds": {"max_pass_rate_drop": max_pass_rate_drop, "max_regressions": max_regressions},
+        "reliability": (current.grading or {}).get("reliability", {}),
+    }
 
 
 def source_out_dir(run: EvalRun) -> Optional[Path]:

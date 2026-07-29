@@ -44,6 +44,20 @@ def pass_agreement(pairs: list[tuple[bool, bool]]) -> float | None:
     return agree / len(pairs)
 
 
+def cohen_kappa(pairs: list[tuple[bool, bool]]) -> float | None:
+    """二分类人审/自动判定 Cohen's kappa，排除随机一致性的虚高。"""
+    if len(pairs) < 2:
+        return None
+    observed = pass_agreement(pairs)
+    assert observed is not None
+    human_true = sum(h for h, _ in pairs) / len(pairs)
+    auto_true = sum(a for _, a in pairs) / len(pairs)
+    expected = human_true * auto_true + (1 - human_true) * (1 - auto_true)
+    if expected == 1:
+        return None
+    return (observed - expected) / (1 - expected)
+
+
 def load_human_scores(path: Path) -> list[dict[str, Any]]:
     text = path.read_text(encoding="utf-8")
     if path.suffix in (".yaml", ".yml"):
@@ -92,6 +106,13 @@ def compute_agreement(
         "unmatched": unmatched,
         "pass_agreement": pass_agreement(pass_pairs),
         "pass_n": len(pass_pairs),
+        "cohen_kappa": cohen_kappa(pass_pairs),
+        "confusion": {
+            "human_pass_auto_pass": sum(h and a for h, a in pass_pairs),
+            "human_pass_auto_fail": sum(h and not a for h, a in pass_pairs),
+            "human_fail_auto_pass": sum(not h and a for h, a in pass_pairs),
+            "human_fail_auto_fail": sum(not h and not a for h, a in pass_pairs),
+        },
         "spearman": spearman([p[0] for p in score_pairs], [p[1] for p in score_pairs]),
         "spearman_n": len(score_pairs),
     }

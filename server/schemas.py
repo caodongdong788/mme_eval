@@ -32,6 +32,7 @@ class BenchmarkOut(BaseModel):
     levels: list[str] = Field(default_factory=list)
     # 仅作为发起页的预设值；用户可在发起评测时覆盖。
     default_evaluation_mode: Literal["single_turn", "multi_turn"] = "single_turn"
+    suite_type: Literal["capability", "regression"] = "capability"
     created_by: Optional[str] = None
     created_at: Optional[ApiDateTime] = None
 
@@ -177,6 +178,8 @@ class AdapterOverride(BaseModel):
     api_key_env: Optional[str] = None
     api_key: Optional[str] = None
     temperature: Optional[float] = None
+    # cx-agent 专用：本次评测是否暴露医学文献 RAG 工具。
+    enable_rag: Optional[bool] = None
 
     def public_dict(self) -> dict[str, Any]:
         d = self.model_dump(exclude_none=True)

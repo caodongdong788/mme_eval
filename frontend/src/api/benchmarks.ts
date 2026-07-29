@@ -1,6 +1,7 @@
 import { http } from "./client";
 import type {
   Benchmark,
+  BenchmarkCoverage,
   BenchmarkCaseYaml,
   CaseBrief,
   DeriveBenchmarkYamlPayload,
@@ -18,6 +19,8 @@ export const benchmarksApi = {
     http
       .get<BenchmarkCaseYaml>(`/benchmarks/${benchmarkId}/cases/${sampleId}/yaml`)
       .then((r) => r.data),
+  getBenchmarkCoverage: (id: number) =>
+    http.get<BenchmarkCoverage>(`/benchmarks/${id}/coverage`).then((r) => r.data),
   saveBenchmarkCaseYaml: (benchmarkId: number, sampleId: string, yaml_text: string) =>
     http
       .put<BenchmarkCaseYaml>(`/benchmarks/${benchmarkId}/cases/${sampleId}/yaml`, {

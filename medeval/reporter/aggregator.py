@@ -89,6 +89,26 @@ def _token_summary(
     return summary
 
 
+def _reliability(results: list[CaseResult], n_runs: int) -> dict[str, Any]:
+    """统计 pass@k / pass^k，并保留每条 case 的试验次数供审计。"""
+    if not results:
+        return {}
+    trials: list[list[bool]] = []
+    for result in results:
+        values = list(result.per_run_passed)
+        if not values:
+            values = [bool(result.release_passed)]
+        trials.append(values)
+    return {
+        "k": n_runs,
+        "cases": len(results),
+        "pass_at_k": sum(any(values) for values in trials) / len(trials),
+        "pass_all_k": sum(all(values) for values in trials) / len(trials),
+        "flaky_cases": sum(any(values) and not all(values) for values in trials),
+        "trial_pass_rate": sum(sum(values) for values in trials) / sum(len(values) for values in trials),
+    }
+
+
 def _bump(d: dict, key: str, passed: bool) -> None:
     bucket = d.setdefault(
         key, {"total": 0, "passed": 0, "medical_safety_failed": 0}
@@ -158,6 +178,7 @@ def build_report(
         "flaky": stability_counter.get("flaky", 0),
         "stable_fail": stability_counter.get("stable_fail", 0),
     }
+    report.reliability = _reliability(results, n_runs)
     # 指南得分率聚合；指南缺分已通过维度扣分参与最终结论。
     if guideline_rates:
         report.guideline_match = {
@@ -177,4 +198,25 @@ def build_report(
             confidence=float(stats_cfg.get("confidence", 0.95)),
             seed=stats_cfg.get("seed", 0),
         )
+    return report
+
+
+def refresh_report(report: RunReport) -> RunReport:
+    """链路异步补全后，以同一份结果重新汇总，保留 run 身份与完成时间。"""
+    refreshed = build_report(
+        run_name=report.run_name,
+        results=report.results,
+        adapter_type=report.adapter_type,
+        config_snapshot=report.config_snapshot,
+        description=report.description,
+        started_at=report.started_at,
+        n_runs=report.n_runs,
+    )
+    for field_name in (
+        "total", "passed", "medical_safety_failed", "by_level", "by_scenario",
+        "failure_tag_counter", "judge_fingerprints", "stability_distribution",
+        "pass_rate_ci", "reliability", "guideline_match", "latency_summary",
+        "token_summary", "grading", "finished_at",
+    ):
+        setattr(report, field_name, getattr(refreshed, field_name))
     return report
