@@ -524,6 +524,23 @@ a.ant-typography-secondary:hover {
   background: var(--axis);
 }
 
+.rag-audit-modal { display: grid; gap: 16px; }
+.rag-audit-call { border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.rag-audit-call h3 { margin: 0 0 12px; font-size: 15px; }
+.rag-audit-call dl, .rag-audit-source dl { display: grid; grid-template-columns: 150px 1fr; gap: 6px 12px; margin: 12px 0; }
+.rag-audit-call dt, .rag-audit-source dt { color: var(--muted); }
+.rag-audit-call dd, .rag-audit-source dd { margin: 0; overflow-wrap: anywhere; }
+.rag-audit-counts { padding: 10px 12px; border-radius: 6px; background: var(--bg-soft); font-weight: 600; }
+.rag-audit-note { color: var(--muted); font-size: 12px; }
+.rag-audit-stage { margin-top: 16px; }
+.rag-audit-stage h4, .rag-audit-source h5 { margin: 0 0 8px; font-size: 14px; }
+.rag-audit-source { margin-bottom: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; }
+.rag-audit-source summary { cursor: pointer; display: flex; justify-content: space-between; gap: 12px; }
+.rag-audit-source summary span { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.rag-audit-chunk { margin-top: 8px; padding: 10px; background: var(--bg-soft); border-radius: 6px; }
+.rag-audit-chunk div { color: var(--muted); font-size: 12px; }
+.rag-audit-chunk p { white-space: pre-wrap; margin: 6px 0 0; line-height: 1.6; }
+
 /* run 页头（Dashboard 风） */
 .run-head {
   display: flex;

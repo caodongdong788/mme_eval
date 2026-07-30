@@ -137,6 +137,63 @@ def _literature_titles(payload: dict[str, Any], raw: str) -> list[str]:
     return titles
 
 
+def _literature_sources(payload: dict[str, Any], key: str) -> list[dict[str, Any]]:
+    """保留 RAG 审计所需的文献与 chunk，供前端逐篇展开。
+
+    不用摘要替代原始内容：评测需要审计「检索到什么、经过什么筛选、最终用了什么」。
+    """
+    values = payload.get(key)
+    if not isinstance(values, list):
+        return []
+    return [item for item in values if isinstance(item, dict)]
+
+
+def _literature_audit(
+    node: dict[str, Any], payload: dict[str, Any], raw: str
+) -> dict[str, Any]:
+    """构造单次 RAG 调用的可审计明细；截断时明确报告而不伪造文献。"""
+    input_value = _record(node.get("input"))
+    parsed = bool(payload)
+    search = _record(payload)
+    original_query = next(
+        (
+            str(input_value[key]).strip()
+            for key in ("originalQuery", "original_query", "userQuery", "user_query")
+            if input_value.get(key) not in (None, "")
+        ),
+        "",
+    )
+    rewritten_query = str(
+        input_value.get("query") or search.get("query") or ""
+    ).strip()
+    return {
+        "id": str(node.get("id") or ""),
+        "status": "available" if parsed else "truncated",
+        "unavailable_reason": (
+            "Langfuse 保存的该工具输出已截断，无法可靠还原全部文献与 chunk"
+            if not parsed and raw
+            else "该工具未返回可解析的结构化检索结果"
+            if not parsed
+            else ""
+        ),
+        "original_query": original_query,
+        "rewritten_query": rewritten_query,
+        "mode": input_value.get("mode"),
+        "counts": {
+            "searched": _number(search.get("searchedCount")) or _regex_number(raw, "searchedCount"),
+            "qualified": _number(search.get("scoreQualifiedCount")) or _regex_number(raw, "scoreQualifiedCount"),
+            "candidates": _number(search.get("candidateCount")) or _regex_number(raw, "candidateCount"),
+            "selected": _number(search.get("selectedCount")) or _regex_number(raw, "selectedCount"),
+            "threshold": _number(search.get("scoreThreshold")) or _regex_number(raw, "scoreThreshold"),
+        },
+        # 上游有对应数组就原样保存；没有数组时只展示计数，绝不猜测具体哪些文献被筛掉。
+        "all_sources": _literature_sources(search, "allSources"),
+        "qualified_sources": _literature_sources(search, "qualifiedSources"),
+        "candidate_sources": _literature_sources(search, "candidateSources"),
+        "selected_sources": _literature_sources(search, "selectedSources"),
+    }
+
+
 def _source_items() -> list[dict[str, Any]]:
     return [
         {
@@ -244,6 +301,7 @@ def _summarize_source(
         source["mode"] = input_value.get("mode")
         source["metrics"] = metrics
         source["details"] = _literature_titles(payload, raw)
+        source.setdefault("rag_audit", []).append(_literature_audit(node, payload, raw))
         return
 
     if tool == "medical_report_consultation_board":

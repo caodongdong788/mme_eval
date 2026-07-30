@@ -94,7 +94,9 @@ def test_summarizes_literature_recall_risk_actions_and_chain_quality():
                 output=(
                     '{"literatureSearch":{"searchedCount":25,"scoreThreshold":0.65,'
                     '"scoreQualifiedCount":17,"candidateCount":17,"selectedCount":2,'
-                    '"allSources":[{"title":"药品说明书"},{"title":"临床研究"}]...[TRUNCATED]'
+                    '"allSources":[{"id":"drug-label","title":"药品说明书",'
+                    '"chunks":[{"content":"每日一次","sectionName":"用法"}]}],'
+                    '"selectedSources":[{"id":"drug-label","title":"药品说明书"}]}}'
                 ),
             ),
             _tool(
@@ -125,7 +127,10 @@ def test_summarizes_literature_recall_risk_actions_and_chain_quality():
         "selected": 2,
         "threshold": 0.65,
     }
-    assert rag["details"] == ["药品说明书", "临床研究"]
+    assert rag["details"] == ["药品说明书"]
+    assert rag["rag_audit"][0]["status"] == "available"
+    assert rag["rag_audit"][0]["rewritten_query"] == "他莫昔芬漏服"
+    assert rag["rag_audit"][0]["all_sources"][0]["chunks"][0]["content"] == "每日一次"
     assert summary["risks"][0]["level"] == "B0"
     assert summary["actions"][0]["label"] == "更新用户画像"
     assert [step["title"] for step in summary["steps"]] == [

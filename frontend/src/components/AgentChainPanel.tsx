@@ -59,6 +59,41 @@ interface SourceSummary {
     selected?: number | null;
     threshold?: number | null;
   };
+  rag_audit?: RagAuditCall[];
+}
+
+interface RagSource {
+  id?: string;
+  title?: string;
+  doi?: string;
+  journal?: string;
+  pubYear?: number | string;
+  score?: number;
+  articleClass?: string;
+  sourceTier?: string;
+  confidenceLevel?: string;
+  chunks?: Array<{
+    title?: string;
+    content?: string;
+    sectionName?: string;
+    score?: number;
+    sourceRank?: number;
+    chunkType?: string;
+  }>;
+}
+
+interface RagAuditCall {
+  id: string;
+  status: "available" | "truncated";
+  unavailable_reason?: string;
+  original_query?: string;
+  rewritten_query?: string;
+  mode?: string;
+  counts?: SourceSummary["metrics"];
+  all_sources?: RagSource[];
+  qualified_sources?: RagSource[];
+  candidate_sources?: RagSource[];
+  selected_sources?: RagSource[];
 }
 
 interface RiskSummary {
@@ -334,6 +369,67 @@ function RecallFlow({ source }: { source: SourceSummary }) {
   );
 }
 
+function RagSourceList({ title, sources }: { title: string; sources: RagSource[] }) {
+  if (!sources.length) return <div className="agent-insight-empty">上游未提供该阶段的文献清单</div>;
+  return (
+    <section className="rag-audit-stage">
+      <h4>{title}（{sources.length} 篇）</h4>
+      {sources.map((source, sourceIndex) => (
+        <details className="rag-audit-source" key={source.id || `${title}-${sourceIndex}`}>
+          <summary>
+            <strong>{sourceIndex + 1}. {source.title || "未命名文献"}</strong>
+            <span>评分 {source.score ?? "—"} · {source.sourceTier || "未分级"}</span>
+          </summary>
+          <dl>
+            <div><dt>文献 ID</dt><dd>{source.id || "—"}</dd></div>
+            <div><dt>期刊 / 年份</dt><dd>{[source.journal, source.pubYear].filter(Boolean).join(" · ") || "—"}</dd></div>
+            <div><dt>DOI / 链接</dt><dd>{source.doi || "—"}</dd></div>
+            <div><dt>类型 / 证据等级</dt><dd>{[source.articleClass, source.confidenceLevel].filter(Boolean).join(" · ") || "—"}</dd></div>
+          </dl>
+          <h5>召回 Chunk（{source.chunks?.length || 0} 个）</h5>
+          {(source.chunks || []).length ? source.chunks?.map((chunk, chunkIndex) => (
+            <article className="rag-audit-chunk" key={`${source.id || sourceIndex}-${chunkIndex}`}>
+              <div>#{chunk.sourceRank ?? chunkIndex + 1} · {chunk.sectionName || "未标注章节"} · 分数 {chunk.score ?? "—"}</div>
+              <p>{chunk.content || "Chunk 内容为空"}</p>
+            </article>
+          )) : <div className="agent-insight-empty">该文献未返回 Chunk 内容</div>}
+        </details>
+      ))}
+    </section>
+  );
+}
+
+function RagAuditButton({ calls }: { calls: RagAuditCall[] }) {
+  const [open, setOpen] = useState(false);
+  if (!calls.length) return null;
+  return (
+    <>
+      <Button type="link" size="small" onClick={() => setOpen(true)}>查看 RAG 明细</Button>
+      <Modal open={open} onCancel={() => setOpen(false)} footer={null} width={1080} title={`医学文献 RAG 调用明细（${calls.length} 次）`}>
+        <div className="rag-audit-modal">
+          {calls.map((call, index) => (
+            <section className="rag-audit-call" key={call.id || index}>
+              <h3>第 {index + 1} 次检索 · {call.status === "available" ? "完整数据" : "数据截断"}</h3>
+              {call.status !== "available" ? <Alert type="warning" showIcon message={call.unavailable_reason} /> : null}
+              <dl>
+                <div><dt>触发前 Query</dt><dd>{call.original_query || "上游未记录"}</dd></div>
+                <div><dt>改写后检索 Query</dt><dd>{call.rewritten_query || "上游未记录"}</dd></div>
+                <div><dt>检索模式</dt><dd>{call.mode || "—"}</dd></div>
+              </dl>
+              <div className="rag-audit-counts">检索 {formatCount(call.counts?.searched)} → 过阈值 {formatCount(call.counts?.qualified)} → 候选 {formatCount(call.counts?.candidates)} → 采用 {formatCount(call.counts?.selected)}{call.counts?.threshold != null ? ` · 阈值 ≥ ${call.counts.threshold}` : ""}</div>
+              <p className="rag-audit-note">筛选逻辑以 cx-agent 返回的阶段数组为准；未提供数组时仅展示计数，不推测具体文献归属。</p>
+              <RagSourceList title="全部检索文献" sources={call.all_sources || []} />
+              <RagSourceList title="过阈值文献" sources={call.qualified_sources || []} />
+              <RagSourceList title="候选文献" sources={call.candidate_sources || []} />
+              <RagSourceList title="最终采用文献" sources={call.selected_sources || []} />
+            </section>
+          ))}
+        </div>
+      </Modal>
+    </>
+  );
+}
+
 function displaySources(sources: SourceSummary[], initialState?: CaseInitialState): SourceSummary[] {
   const profile = record(initialState?.user_profile);
   const profileDetails = Object.entries(profile)
@@ -386,6 +482,7 @@ function SourceGrid({ sources, initialState }: { sources: SourceSummary[]; initi
             <p>{source.summary}</p>
             {hasContent(source.query) ? <div className="agent-source-card__query">查询：{inlineText(source.query)}</div> : null}
             <RecallFlow source={source} />
+            {source.key === "literature_rag" ? <RagAuditButton calls={source.rag_audit || []} /> : null}
             {source.details.length ? (
               <ul>{source.details.slice(0, 3).map((detail) => <li key={detail}>{detail}</li>)}</ul>
             ) : null}
