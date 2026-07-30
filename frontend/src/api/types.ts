@@ -441,8 +441,15 @@ export interface PairwiseCalibratePayload {
   reason: string;
 }
 
+export interface PairwiseRunObservability {
+  latency_summary: Record<string, number>;
+  token_summary: Record<string, number | string>;
+}
+
 export interface PairwiseDetail extends PairwiseComparison {
   verdicts: PairwiseCaseVerdict[];
+  run_a_observability: PairwiseRunObservability;
+  run_b_observability: PairwiseRunObservability;
 }
 
 export interface PairwiseCreatePayload {

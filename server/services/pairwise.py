@@ -169,10 +169,20 @@ def get_pairwise_detail(session: Session, comparison_id: int) -> PairwiseDetailO
         ).scalars().all()
     )
     attach_run_names(session, [comp])
+    run_a = session.get(EvalRun, comp.run_a_id)
+    run_b = session.get(EvalRun, comp.run_b_id)
     base = PairwiseComparisonOut.model_validate(comp)
     return PairwiseDetailOut(
         **base.model_dump(),
         verdicts=[pairwise_verdict_to_out(v) for v in verdicts],
+        run_a_observability={
+            "latency_summary": dict(run_a.latency_summary or {}) if run_a else {},
+            "token_summary": dict(run_a.token_summary or {}) if run_a else {},
+        },
+        run_b_observability={
+            "latency_summary": dict(run_b.latency_summary or {}) if run_b else {},
+            "token_summary": dict(run_b.token_summary or {}) if run_b else {},
+        },
     )
 
 

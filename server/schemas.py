@@ -502,7 +502,20 @@ class PairwiseCaseVerdictOut(BaseModel):
     confidence: str = "low"
 
 
+class PairwiseRunObservabilityOut(BaseModel):
+    """Pairwise 两侧 Run 的性能与 token 聚合；仅观测，不参与胜负判定。"""
+
+    latency_summary: dict[str, Any] = Field(default_factory=dict)
+    token_summary: dict[str, Any] = Field(default_factory=dict)
+
+
 class PairwiseDetailOut(PairwiseComparisonOut):
     """对比结果详情：汇总 + 逐用例列表。"""
 
     verdicts: list[PairwiseCaseVerdictOut] = Field(default_factory=list)
+    run_a_observability: PairwiseRunObservabilityOut = Field(
+        default_factory=PairwiseRunObservabilityOut
+    )
+    run_b_observability: PairwiseRunObservabilityOut = Field(
+        default_factory=PairwiseRunObservabilityOut
+    )

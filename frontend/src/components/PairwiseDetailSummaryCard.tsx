@@ -7,6 +7,38 @@ import { RunsKpi } from "./RunsKpi";
 
 const { Text, Title } = Typography;
 
+function numeric(value: unknown): number | null {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatDuration(value: number | null): string {
+  if (value == null) return "N/A";
+  if (value >= 1000) return `${(value / 1000).toFixed(value >= 10_000 ? 1 : 2)} s`;
+  return `${Math.round(value)} ms`;
+}
+
+function formatTokens(value: number | null): string {
+  if (value == null) return "N/A";
+  return Math.round(value).toLocaleString("zh-CN");
+}
+
+function comparisonSub(
+  a: number | null,
+  b: number | null,
+  formatter: (value: number | null) => string,
+): { sub: string; accent?: string } {
+  if (a == null || b == null) return { sub: "A/B 任一侧无可用数据" };
+  const delta = b - a;
+  if (delta === 0) return { sub: `A ${formatter(a)} · B 持平` };
+  const pct = a ? `（${delta > 0 ? "+" : ""}${((delta / a) * 100).toFixed(1)}%）` : "";
+  return {
+    sub: `A ${formatter(a)} · B ${delta > 0 ? "+" : ""}${formatter(Math.abs(delta))} ${pct}`,
+    // 耗时或 token 增长均表示更多资源消耗；仅提示，不影响 Pairwise 胜负。
+    accent: delta > 0 ? "var(--runs-red)" : "var(--runs-green)",
+  };
+}
+
 export function PairwiseDetailSummaryCard({
   detail,
   conclusion,
@@ -45,6 +77,40 @@ export function PairwiseDetailSummaryCard({
     { label: "低置信 · 安全存疑", value: safetyDoubtN, accent: "var(--runs-red)" },
     { label: "人工校准", value: humanCalibratedN, accent: "var(--runs-purple)" },
   ];
+  const latencyA = detail.run_a_observability?.latency_summary || {};
+  const latencyB = detail.run_b_observability?.latency_summary || {};
+  const tokenA = detail.run_a_observability?.token_summary || {};
+  const tokenB = detail.run_b_observability?.token_summary || {};
+  const observabilityItems = [
+    {
+      label: "平均会话耗时",
+      tip: "端到端会话耗时；仅观测，不参与 Pairwise 胜负。",
+      value: formatDuration(numeric(latencyB.avg_ms)),
+      ...comparisonSub(numeric(latencyA.avg_ms), numeric(latencyB.avg_ms), formatDuration),
+    },
+    {
+      label: "P90 会话耗时",
+      tip: "90% 会话不超过该耗时；仅观测，不参与 Pairwise 胜负。",
+      value: formatDuration(numeric(latencyB.p90_ms)),
+      ...comparisonSub(numeric(latencyA.p90_ms), numeric(latencyB.p90_ms), formatDuration),
+    },
+    {
+      label: "总 Token",
+      tip: "仅统计被测 Agent，不含 Pairwise Judge；仅观测，不参与胜负。",
+      value: formatTokens(numeric(tokenB.total_tokens)),
+      ...comparisonSub(numeric(tokenA.total_tokens), numeric(tokenB.total_tokens), formatTokens),
+    },
+    {
+      label: "平均 Token / 次",
+      tip: "每次 Agent 会话的平均 Token；仅观测，不参与 Pairwise 胜负。",
+      value: formatTokens(numeric(tokenB.avg_tokens_per_run)),
+      ...comparisonSub(
+        numeric(tokenA.avg_tokens_per_run),
+        numeric(tokenB.avg_tokens_per_run),
+        formatTokens,
+      ),
+    },
+  ];
 
   return (
     <>
@@ -81,6 +147,22 @@ export function PairwiseDetailSummaryCard({
             ))}
           </div>
         )}
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--runs-border)" }}>
+          <Text strong>性能与 Token 对比</Text>
+          <Text type="secondary">（仅观测，不影响 Pairwise 胜负）</Text>
+          <div className="runs-kpi-row runs-kpi-row--overview" style={{ marginTop: 12, marginBottom: 0 }}>
+            {observabilityItems.map((item) => (
+              <RunsKpi
+                key={item.label}
+                title={item.label}
+                tip={item.tip}
+                value={item.value}
+                sub={item.sub}
+                valueStyle={item.accent ? { color: item.accent } : undefined}
+              />
+            ))}
+          </div>
+        </div>
       </DashPanel>
 
       <Row gutter={14}>
