@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, Optional
 
 import yaml
@@ -20,14 +21,62 @@ _LIST_CASE_COLUMNS = tuple(
 )
 
 
-def _attach_row_display_fields(row: CaseResultRow, *, load_detail_json: bool) -> None:
+def _json_fragment(value: Any) -> Any:
+    """兼容 PostgreSQL JSONB 与 SQLite JSON 提取结果。"""
+    if not isinstance(value, str):
+        return value
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return value
+
+
+def _count_user_turns(turns: Any) -> int:
+    turns = _json_fragment(turns)
+    if not isinstance(turns, list):
+        return 1
+    n = sum(1 for turn in turns if isinstance(turn, dict) and turn.get("role") == "user")
+    return n or 1
+
+
+def _rag_status_from_summary(summary: Any, chain_status: Any = None) -> str:
+    summary = _json_fragment(summary)
+    sources = summary.get("sources") if isinstance(summary, dict) else None
+    if isinstance(sources, list):
+        rag = next(
+            (item for item in sources if isinstance(item, dict) and item.get("key") == "literature_rag"),
+            None,
+        )
+        if rag is not None:
+            calls = rag.get("calls")
+            if isinstance(calls, (int, float)) and calls > 0:
+                status = str(rag.get("status") or "").lower()
+                if status in {"hit", "miss", "failed"}:
+                    return status
+                return "triggered"
+            if chain_status in {"synced", "partial"}:
+                return "not_triggered"
+    return "unknown"
+
+
+def _attach_row_display_fields(
+    row: CaseResultRow,
+    *,
+    load_detail_json: bool,
+    turns: Any = None,
+    chain_summary: Any = None,
+    chain_status: Any = None,
+    compact: bool = False,
+) -> None:
     if load_detail_json:
-        row.n_turns = case_n_turns(row)
-        row.langfuse_trace_url = case_trace_url(row)
-        row.rag_status = case_rag_status(row)
-        gc = guideline_counts(row)
-        row.guideline_earned = gc[0] if gc else None
-        row.guideline_max = gc[1] if gc else None
+        row.n_turns = _count_user_turns(turns) if compact else case_n_turns(row)
+        row.langfuse_trace_url = None if compact else case_trace_url(row)
+        row.rag_status = (
+            _rag_status_from_summary(chain_summary, chain_status)
+            if chain_summary is not None or chain_status is not None
+            else case_rag_status(row)
+        )
+        # 入库时已持久化指南得分；列表不再为此读取整条 detail_json。
     else:
         row.n_turns = 1
         row.langfuse_trace_url = None
@@ -64,31 +113,9 @@ def case_rag_status(row: CaseResultRow) -> str:
     if not isinstance(chain, dict):
         return "unknown"
 
-    summary = chain.get("summary")
-    sources = summary.get("sources") if isinstance(summary, dict) else None
-    if isinstance(sources, list):
-        rag = next(
-            (
-                item
-                for item in sources
-                if isinstance(item, dict) and item.get("key") == "literature_rag"
-            ),
-            None,
-        )
-        if rag is not None:
-            calls = rag.get("calls")
-            if isinstance(calls, (int, float)) and calls > 0:
-                status = str(rag.get("status") or "").lower()
-                if status == "hit":
-                    return "hit"
-                if status == "miss":
-                    return "miss"
-                if status == "failed":
-                    return "failed"
-                return "triggered"
-            # 已完成 Langfuse 同步但没有该工具调用，才可认定为未触发。
-            if chain.get("status") in {"synced", "partial"}:
-                return "not_triggered"
+    status = _rag_status_from_summary(chain.get("summary"), chain.get("status"))
+    if status != "unknown":
+        return status
 
     nodes = chain.get("nodes")
     if isinstance(nodes, list):
@@ -129,11 +156,14 @@ def filtered_case_rows(
     turns: Optional[str] = None,
     guideline: Optional[str] = None,
     load_detail_json: bool = True,
+    load_full_detail_json: bool = False,
 ) -> list[CaseResultRow]:
     if turns and not load_detail_json:
         load_detail_json = True
     stmt = select(CaseResultRow).where(CaseResultRow.run_id == run_id)
-    if not load_detail_json:
+    if load_full_detail_json:
+        load_detail_json = True
+    if not load_full_detail_json:
         stmt = stmt.options(load_only(*_LIST_CASE_COLUMNS))
     if level:
         stmt = stmt.where(CaseResultRow.level == level)
@@ -144,9 +174,29 @@ def filtered_case_rows(
     if scenario:
         stmt = stmt.where(CaseResultRow.scenario == scenario)
     stmt = stmt.order_by(CaseResultRow.sample_id)
-    rows = list(session.execute(stmt).scalars().all())
-    for r in rows:
-        _attach_row_display_fields(r, load_detail_json=load_detail_json)
+    if load_detail_json and not load_full_detail_json:
+        # 只取列表所需的三个 JSON 片段，避免把每个 Observation 的原始 prompt / output
+        # （常为数百 KB）从 Postgres 取出再丢弃。
+        stmt = stmt.add_columns(
+            CaseResultRow.detail_json["case"]["turns"].label("case_turns"),
+            CaseResultRow.detail_json["trace"]["agent_chain"]["summary"].label("chain_summary"),
+            CaseResultRow.detail_json["trace"]["agent_chain"]["status"].label("chain_status"),
+        )
+        rows = []
+        for row, case_turns, chain_summary, chain_status in session.execute(stmt).all():
+            _attach_row_display_fields(
+                row,
+                load_detail_json=True,
+                turns=case_turns,
+                chain_summary=chain_summary,
+                chain_status=_json_fragment(chain_status),
+                compact=True,
+            )
+            rows.append(row)
+    else:
+        rows = list(session.execute(stmt).scalars().all())
+        for row in rows:
+            _attach_row_display_fields(row, load_detail_json=load_detail_json)
     if guideline == "full":
         rows = [r for r in rows if r.guideline_max and r.guideline_earned == r.guideline_max]
     elif guideline == "partial":
@@ -254,3 +304,17 @@ def case_row_or_404(session: Session, run_id: int, sample_id: str) -> CaseResult
     if row is None:
         raise HTTPException(status_code=404, detail=f"run {run_id} 中无用例 {sample_id}")
     return row
+
+
+def next_case_sample_id(session: Session, run_id: int, sample_id: str) -> str | None:
+    """按当前列表排序取下一题，只读取一个标量字段。"""
+    row = session.execute(
+        select(CaseResultRow.sample_id)
+        .where(
+            CaseResultRow.run_id == run_id,
+            CaseResultRow.sample_id > sample_id,
+        )
+        .order_by(CaseResultRow.sample_id)
+        .limit(1)
+    ).scalar_one_or_none()
+    return str(row) if row is not None else None

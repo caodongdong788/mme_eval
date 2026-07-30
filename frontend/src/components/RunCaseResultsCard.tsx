@@ -16,6 +16,7 @@ export interface RunCaseResultsCardProps {
   setFilterConditions: Dispatch<SetStateAction<CaseFilterCondition[]>>;
   filterValueOptions: CaseFilterValueOptions;
   exporting: boolean;
+  loading?: boolean;
   onOpenYamlEditor: () => void;
   onOpenExport: () => void;
 }
@@ -30,6 +31,7 @@ export function RunCaseResultsCard({
   setFilterConditions,
   filterValueOptions,
   exporting,
+  loading = false,
   onOpenYamlEditor,
   onOpenExport,
 }: RunCaseResultsCardProps) {
@@ -80,6 +82,7 @@ export function RunCaseResultsCard({
           tableLayout="auto"
           columns={columns}
           dataSource={shownCases}
+          loading={loading}
           pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }}
         />
       </div>

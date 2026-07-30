@@ -2970,6 +2970,23 @@ a.ant-typography-secondary:hover {
   color: var(--runs-teal);
 }
 
+.case-retry-progress {
+  margin-top: 14px;
+  padding: 10px 12px 4px;
+  border: 1px solid #d9ccff;
+  border-radius: 8px;
+  background: #fbfaff;
+}
+
+.case-retry-progress__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 5px;
+  color: #4c3d88;
+  font-size: 13px;
+}
+
 @media (max-width: 1180px) {
   .evaluation-standard-hero {
     grid-template-columns: 1fr;

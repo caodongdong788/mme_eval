@@ -242,6 +242,36 @@ def test_create_pairwise_201(client, session, monkeypatch):
     assert body["run_a_id"] == a.id
 
 
+def test_pairwise_default_judge_falls_back_to_llm_api_key_env(session, monkeypatch):
+    """默认判分模型不落库密钥时，也必须和常规评测使用同一个环境变量。"""
+    from server import pairwise_job
+
+    captured: dict = {}
+
+    class _CaptureComparator:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr("medeval.pairwise.PairwiseComparator", _CaptureComparator)
+    model = JudgeModelConfig(
+        name="默认环境变量判官",
+        provider="openai",
+        model="kimi-k2.6",
+        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        api_key=None,
+    )
+    session.add(model)
+    session.commit()
+
+    comparator, label, concurrency = pairwise_job._build_comparator(model.id)
+
+    assert isinstance(comparator, _CaptureComparator)
+    assert label == "kimi-k2.6"
+    assert concurrency == 4
+    assert captured["api_key"] == ""
+    assert captured["api_key_env"] == "LLM_API_KEY"
+
+
 def test_pairwise_note_create_patch_delete(client, session, monkeypatch):
     from server.routers import compare as compare_router
 

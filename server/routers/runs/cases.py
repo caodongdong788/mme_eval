@@ -19,9 +19,14 @@ from ...db import get_session
 from ...models_db import Benchmark, CaseResultRow, FeishuUser
 from ...paths import safe_join
 from ...schemas import CaseRowOut, CasesYamlOut
-from ...services.case_export import export_transcripts, get_case_detail_json, get_cases_yaml
+from ...services.case_export import (
+    export_transcripts,
+    get_case_detail_json,
+    get_case_rag_audit_json,
+    get_cases_yaml,
+)
 from ...services.case_query import attach_review_summary, filtered_case_rows
-from ...services.case_query import case_row_or_404
+from ...services.case_query import case_row_or_404, next_case_sample_id
 from ...services.eval_artifacts import CASE_IMAGES_DIR
 from ...services.langfuse_trace import sync_conversation_trace
 from ...services.review import pending_review_sample_ids
@@ -154,6 +159,25 @@ def get_case_detail(
     run_id: int, sample_id: str, session: Session = Depends(get_session)
 ) -> dict[str, Any]:
     return get_case_detail_json(session, run_id, sample_id)
+
+
+@router.get("/{run_id}/cases/{sample_id}/next")
+def get_next_case(
+    run_id: int,
+    sample_id: str,
+    session: Session = Depends(get_session),
+) -> dict[str, str | None]:
+    get_run_or_404(session, run_id)
+    return {"sample_id": next_case_sample_id(session, run_id, sample_id)}
+
+
+@router.get("/{run_id}/cases/{sample_id}/agent-chain/rag-audit")
+def get_case_rag_audit(
+    run_id: int,
+    sample_id: str,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    return get_case_rag_audit_json(session, run_id, sample_id)
 
 
 @router.get("/{run_id}/cases/{sample_id}/images/{image_path:path}")

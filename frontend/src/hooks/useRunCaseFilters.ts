@@ -22,7 +22,11 @@ function readSavedFilters(filtersKey: string): {
   return { conditions: [] };
 }
 
-export function useRunCaseFilters(runId: number, failureTagLabel: (tag: string) => string) {
+export function useRunCaseFilters(
+  runId: number,
+  failureTagLabel: (tag: string) => string,
+  enabled = true,
+) {
   const filtersKey = `run:${runId}:caseFilters`;
   const saved = readSavedFilters(filtersKey);
 
@@ -32,19 +36,31 @@ export function useRunCaseFilters(runId: number, failureTagLabel: (tag: string) 
   );
   const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
   const [queueIds, setQueueIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     sessionStorage.setItem(filtersKey, JSON.stringify({ conditions: filterConditions }));
   }, [filtersKey, filterConditions]);
 
   useEffect(() => {
-    api.listCaseResults(runId, { limit: CASE_LIST_LIMIT }).then(setCases);
     api.getReviewStats(runId).then(setReviewStats).catch(() => setReviewStats(null));
+  }, [runId]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    setLoading(true);
+    api.listCaseResults(runId, { limit: CASE_LIST_LIMIT })
+      .then((items) => alive && setCases(items))
+      .finally(() => alive && setLoading(false));
     api
       .getReviewQueue(runId, {})
-      .then((q) => setQueueIds(new Set(q.map((it) => it.sample_id))))
-      .catch(() => setQueueIds(new Set()));
-  }, [runId]);
+      .then((q) => alive && setQueueIds(new Set(q.map((it) => it.sample_id))))
+      .catch(() => alive && setQueueIds(new Set()));
+    return () => {
+      alive = false;
+    };
+  }, [runId, enabled]);
 
   const shownCases = useMemo(
     () => filterCaseRows(cases, filterConditions, queueIds, failureTagLabel),
@@ -69,6 +85,7 @@ export function useRunCaseFilters(runId: number, failureTagLabel: (tag: string) 
     filterValueOptions,
     reviewStats,
     queueIds,
+    loading,
     activeFilterCount,
     resetFilters,
   };

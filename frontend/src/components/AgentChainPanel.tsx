@@ -83,7 +83,7 @@ interface RagSource {
   }>;
 }
 
-interface RagAuditCall {
+export interface RagAuditCall {
   id: string;
   status: "available" | "truncated";
   unavailable_reason?: string;
@@ -406,15 +406,41 @@ function RagSourceList({ title, sources }: { title: string; sources: RagSource[]
   );
 }
 
-function RagAuditButton({ calls }: { calls: RagAuditCall[] }) {
+function RagAuditButton({
+  calls,
+  loadCalls,
+}: {
+  calls: RagAuditCall[];
+  loadCalls?: () => Promise<RagAuditCall[]>;
+}) {
   const [open, setOpen] = useState(false);
-  if (!calls.length) return null;
+  const [loadedCalls, setLoadedCalls] = useState<RagAuditCall[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const auditCalls = loadedCalls ?? calls;
+  if (!auditCalls.length && !loadCalls) return null;
+  const openAudit = async () => {
+    setOpen(true);
+    if (loadedCalls || calls.length || !loadCalls) return;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      setLoadedCalls(await loadCalls());
+    } catch {
+      setLoadError("RAG 审计明细加载失败，请稍后重试。");
+    } finally {
+      setLoading(false);
+    }
+  };
   return (
     <>
-      <Button type="link" size="small" onClick={() => setOpen(true)}>查看 RAG 明细</Button>
-      <Modal open={open} onCancel={() => setOpen(false)} footer={null} width={1080} title={`医学文献 RAG 调用明细（${calls.length} 次）`}>
+      <Button type="link" size="small" onClick={() => void openAudit()}>查看 RAG 明细</Button>
+      <Modal open={open} onCancel={() => setOpen(false)} footer={null} width={1080} title={`医学文献 RAG 调用明细（${auditCalls.length || "加载中"} 次）`}>
         <div className="rag-audit-modal">
-          {calls.map((call, index) => (
+          {loading ? <div className="agent-insight-empty">正在加载完整检索文献与 Chunk…</div> : null}
+          {loadError ? <Alert type="error" showIcon message={loadError} /> : null}
+          {!loading && !loadError && !auditCalls.length ? <div className="agent-insight-empty">该次调用未保存完整 RAG 审计快照</div> : null}
+          {auditCalls.map((call, index) => (
             <section className="rag-audit-call" key={call.id || index}>
               <h3>第 {index + 1} 次检索 · {call.status === "available" ? "完整数据" : "数据截断"}</h3>
               {call.status !== "available" ? <Alert type="warning" showIcon message={call.unavailable_reason} /> : null}
@@ -474,7 +500,15 @@ function displaySources(sources: SourceSummary[], initialState?: CaseInitialStat
     : withoutUnusedHistory;
 }
 
-function SourceGrid({ sources, initialState }: { sources: SourceSummary[]; initialState?: CaseInitialState }) {
+function SourceGrid({
+  sources,
+  initialState,
+  loadRagAudit,
+}: {
+  sources: SourceSummary[];
+  initialState?: CaseInitialState;
+  loadRagAudit?: () => Promise<RagAuditCall[]>;
+}) {
   const visibleSources = displaySources(sources, initialState);
   return (
     <section className="agent-insight-block agent-insight-block--wide">
@@ -489,7 +523,9 @@ function SourceGrid({ sources, initialState }: { sources: SourceSummary[]; initi
             <p>{source.summary}</p>
             {hasContent(source.query) ? <div className="agent-source-card__query">查询：{inlineText(source.query)}</div> : null}
             <RecallFlow source={source} />
-            {source.key === "literature_rag" ? <RagAuditButton calls={source.rag_audit || []} /> : null}
+            {source.key === "literature_rag" && source.calls > 0 ? (
+              <RagAuditButton calls={source.rag_audit || []} loadCalls={loadRagAudit} />
+            ) : null}
             {source.details.length ? (
               <ul>{source.details.slice(0, 3).map((detail) => <li key={detail}>{detail}</li>)}</ul>
             ) : null}
@@ -547,11 +583,13 @@ export function AgentChainPanel({
   syncing,
   onSync,
   caseInitialState,
+  loadRagAudit,
 }: {
   trace?: AgentChainTrace;
   syncing?: boolean;
   onSync: () => void;
   caseInitialState?: CaseInitialState;
+  loadRagAudit?: () => Promise<RagAuditCall[]>;
 }) {
   const identity = trace?.evaluation_identity || {};
   const chain = trace?.agent_chain || {};
@@ -586,7 +624,7 @@ export function AgentChainPanel({
           <Alert type="info" showIcon message="该 Case 没有 cx-agent traceId" description="需要部署支持 evaluation_context SSE 的 cx-agent 版本后重新评测。" />
         ) : null}
 
-        {nodes.length && summary ? (
+        {summary ? (
           <>
             <div className="agent-insight-metrics">
               <Metric label="总耗时" value={formatDuration(summary.quality.total_duration_ms)} />
@@ -600,7 +638,7 @@ export function AgentChainPanel({
             <div className="agent-insight-layout">
               <CallPath steps={summary.steps} />
               <ContextCard initialState={initialState} fallbackProfile={candidateProfile} />
-              <SourceGrid sources={summary.sources} initialState={initialState} />
+              <SourceGrid sources={summary.sources} initialState={initialState} loadRagAudit={loadRagAudit} />
               <Decisions risks={summary.risks} actions={summary.actions} />
               <ChainQuality quality={summary.quality} />
             </div>

@@ -1,6 +1,6 @@
-import { Button, Descriptions, Space } from "antd";
+import { Button, Descriptions, Progress, Space } from "antd";
 import { Link } from "react-router-dom";
-import type { GuidelineScore } from "../api";
+import type { GuidelineScore, ProgressInfo } from "../api";
 import { STABILITY_LABEL } from "../labels";
 import { DashPanel } from "./DashPanel";
 
@@ -22,6 +22,7 @@ export function CaseDetailSummaryCard({
   backState,
   backLabel,
   retrying = false,
+  retryProgress,
   onRetry,
   nextSampleId,
   onNext,
@@ -31,19 +32,24 @@ export function CaseDetailSummaryCard({
   backState?: unknown;
   backLabel: string;
   retrying?: boolean;
+  retryProgress?: ProgressInfo | null;
   onRetry?: () => void;
   nextSampleId?: string;
   onNext?: () => void;
 }) {
   const earned = (detail.guideline_scores || []).reduce((sum, item) => sum + item.score, 0);
   const maximum = (detail.guideline_scores || []).reduce((sum, item) => sum + item.max_score, 0);
+  const progress = retryProgress?.progress;
+  const retryPercent = Math.min(100, Math.max(0, progress?.percent ?? 0));
+  const retryLabel = progress?.current_label || "等待开始重试";
+  const retryCount = progress?.total ? `${progress.done ?? 0}/${progress.total}` : "准备中";
   return (
     <DashPanel
       title={<Link to={backTo} state={backState} className="dash-table__link">← 返回{backLabel}</Link>}
       extra={
         onRetry ? (
           <Space size={12}>
-            <Button disabled={!nextSampleId} onClick={onNext}>
+            <Button disabled={!nextSampleId || retrying} onClick={onNext}>
               下一题
             </Button>
             <Button type="primary" loading={retrying} onClick={onRetry}>重试此 Case</Button>
@@ -71,6 +77,15 @@ export function CaseDetailSummaryCard({
           <Descriptions.Item label="追踪链路"><a href={detail.trace.langfuse_trace_url} target="_blank" rel="noreferrer">在 Langfuse 查看</a></Descriptions.Item>
         ) : null}
       </Descriptions>
+      {retrying ? (
+        <div className="case-retry-progress" role="status" aria-live="polite">
+          <div className="case-retry-progress__meta">
+            <span>正在重试此 Case：{retryLabel}</span>
+            <span>{retryCount}</span>
+          </div>
+          <Progress percent={retryPercent} status="active" strokeColor="var(--runs-purple)" />
+        </div>
+      ) : null}
     </DashPanel>
   );
 }

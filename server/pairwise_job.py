@@ -91,6 +91,11 @@ def _build_comparator(judge_model_id: int):
             model=jm.model,
             base_url=jm.base_url or "",
             api_version=jm.api_version or "",
+            # 默认模型不把密钥落库，和常规评测一样由 LLMBackend 从
+            # LLM_API_KEY 读取；手工配置的模型密钥仍优先使用 jm.api_key。
+            # 不传这个参数时 PairwiseComparator 会默认查 OPENAI_API_KEY，
+            # 导致 DashScope 默认模型在对比链路中拿到空 Key。
+            api_key_env="LLM_API_KEY",
             api_key=jm.api_key or "",
             temperature=jm.temperature if jm.temperature is not None else 0.0,
             enable_thinking=jm.enable_thinking,

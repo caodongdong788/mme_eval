@@ -82,6 +82,7 @@ export default function CaseDetailPage() {
         backState={backState}
         backLabel={backLabel}
         retrying={cd.retrying}
+        retryProgress={cd.retryProgress}
         onRetry={cd.retryCase}
         nextSampleId={cd.nextSampleId}
         onNext={() => {
@@ -130,6 +131,7 @@ export default function CaseDetailPage() {
         syncing={cd.chainSyncing}
         onSync={cd.syncAgentChain}
         caseInitialState={caseInfo?.initial_state}
+        loadRagAudit={cd.loadRagAudit}
       />
 
       <SimulationTracePanel events={trace?.simulation_trace} />

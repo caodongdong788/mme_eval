@@ -84,6 +84,7 @@ export default function RunDashboardPage() {
                 setFilterConditions={dash.setFilterConditions}
                 filterValueOptions={dash.filterValueOptions}
                 exporting={dash.exporting}
+                loading={dash.loading}
                 onOpenYamlEditor={dash.openYamlEditor}
                 onOpenExport={() => dash.setExportOpen(true)}
               />

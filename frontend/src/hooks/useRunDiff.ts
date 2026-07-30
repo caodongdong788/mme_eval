@@ -3,19 +3,20 @@ import { message } from "antd";
 import { api, RunDiff, RunSummary } from "../api/index";
 import { formatApiError } from "../utils/apiError";
 
-export function useRunDiff(runId: number, onBaselineSelected?: () => void) {
+export function useRunDiff(runId: number, onBaselineSelected?: () => void, enabled = true) {
   const [otherRuns, setOtherRuns] = useState<RunSummary[]>([]);
   const [diff, setDiff] = useState<RunDiff | null>(null);
   const [diffBaselineId, setDiffBaselineId] = useState<number | null>(null);
   const [diffLoading, setDiffLoading] = useState(false);
 
   useEffect(() => {
+    if (!enabled) return;
     api
       .listRuns()
       .then((rs) =>
         setOtherRuns(rs.filter((r) => r.id !== runId && r.status === "success"))
       );
-  }, [runId]);
+  }, [runId, enabled]);
 
   const selectDiffBaseline = async (againstId: number) => {
     setDiffBaselineId(againstId);

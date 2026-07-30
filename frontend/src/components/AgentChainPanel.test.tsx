@@ -110,7 +110,7 @@ describe("AgentChainPanel", () => {
     expect(onSync).toHaveBeenCalledOnce();
   });
 
-  it("does not render a user profile section when the profile is empty", () => {
+  it("renders a compact chain summary without raw Langfuse nodes", () => {
     renderWithProviders(
       <AgentChainPanel
         onSync={vi.fn()}
@@ -147,6 +147,7 @@ describe("AgentChainPanel", () => {
     );
 
     expect(screen.queryByText("用户画像")).not.toBeInTheDocument();
-    expect(screen.getByText("Trace 中暂无 observation")).toBeInTheDocument();
+    expect(screen.getByText("调用路径")).toBeInTheDocument();
+    expect(screen.queryByText("Trace 中暂无 observation")).not.toBeInTheDocument();
   });
 });

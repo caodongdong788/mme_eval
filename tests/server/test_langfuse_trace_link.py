@@ -60,6 +60,53 @@ def test_case_detail_includes_trace_url(client, settings):
     assert detail["trace"]["langfuse_trace_url"] == "https://lf.example/trace/abc"
 
 
+def test_case_detail_defers_raw_agent_chain_and_rag_audit(client, settings):
+    rid = _seed(settings)
+    audit = {
+        "id": "rag-1",
+        "status": "available",
+        "counts": {"searched": 25, "qualified": 20, "candidates": 5, "selected": 2},
+        "selected_sources": [{"id": "doc-1", "title": "指南", "chunks": [{"content": "x" * 2000}]}],
+    }
+    with session_scope() as session:
+        row = session.query(CaseResultRow).filter_by(run_id=rid, sample_id="bc_with").one()
+        detail = dict(row.detail_json)
+        detail["trace"] = {
+            **detail["trace"],
+            "cx_literature_audits": [audit],
+            "agent_chain": {
+                "status": "synced",
+                "trace_ids": ["trace-1"],
+                "nodes": [{"id": "raw", "input": "x" * 100_000, "output": "y" * 100_000}],
+                "summary": {
+                    "steps": [],
+                    "sources": [{"key": "literature_rag", "calls": 1, "rag_audit": [audit]}],
+                    "risks": [],
+                    "actions": [],
+                    "quality": {},
+                },
+            },
+        }
+        row.detail_json = detail
+
+    compact = client.get(f"/api/runs/{rid}/cases/bc_with")
+    assert compact.status_code == 200
+    chain = compact.json()["trace"]["agent_chain"]
+    assert "nodes" not in chain
+    assert "rag_audit" not in chain["summary"]["sources"][0]
+    assert "cx_literature_audits" not in compact.json()["trace"]
+
+    full = client.get(f"/api/runs/{rid}/cases/bc_with/agent-chain/rag-audit")
+    assert full.status_code == 200
+    assert full.json()["calls"][0]["id"] == "rag-1"
+
+
+def test_next_case_endpoint_reads_only_next_sample(client, settings):
+    rid = _seed(settings)
+    assert client.get(f"/api/runs/{rid}/cases/bc_with/next").json() == {"sample_id": "bc_without"}
+    assert client.get(f"/api/runs/{rid}/cases/bc_without/next").json() == {"sample_id": None}
+
+
 def test_case_detail_exposes_login_account_and_verification_code_for_existing_result(
     client, settings, monkeypatch
 ):

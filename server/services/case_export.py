@@ -53,6 +53,7 @@ def get_cases_yaml(
         scenario=scenario,
         guideline=guideline,
         load_detail_json=True,
+        load_full_detail_json=True,
     )
     hit_ids = {r.sample_id for r in rows}
     if sample_id is not None:
@@ -74,9 +75,52 @@ def get_cases_yaml(
     return CasesYamlOut(benchmark_id=bm.id, count=len(cases), yaml_text=text)
 
 
+def _compact_agent_chain_detail(detail: dict[str, Any]) -> dict[str, Any]:
+    """移除首屏不消费的原始链路大字段。
+
+    Langfuse observation 的 input/output 可能包含完整系统提示词和 RAG chunk，单个 Case
+    可达数百 KB。详情页首屏只使用链路摘要；RAG 全量审计数据改由专用接口按点击加载。
+    没有摘要的旧数据才即时补一次，避免每次打开都深拷贝完整节点。
+    """
+    trace_raw = detail.get("trace")
+    trace_raw = trace_raw if isinstance(trace_raw, dict) else {}
+    chain_raw = trace_raw.get("agent_chain")
+    chain_raw = chain_raw if isinstance(chain_raw, dict) else {}
+    source = detail
+    if chain_raw and not isinstance(chain_raw.get("summary"), dict):
+        source = ensure_agent_chain_summary(detail)
+        trace_raw = source.get("trace") if isinstance(source.get("trace"), dict) else {}
+        chain_raw = trace_raw.get("agent_chain") if isinstance(trace_raw.get("agent_chain"), dict) else {}
+
+    compact = dict(source)
+    if not trace_raw:
+        return compact
+    trace = dict(trace_raw)
+    # 审计快照仅供「查看 RAG 明细」按需读取，首屏不传输。
+    trace.pop("cx_literature_audits", None)
+    if chain_raw:
+        chain = dict(chain_raw)
+        chain.pop("nodes", None)
+        summary_raw = chain.get("summary")
+        if isinstance(summary_raw, dict):
+            summary = dict(summary_raw)
+            sources_raw = summary.get("sources")
+            if isinstance(sources_raw, list):
+                summary["sources"] = [
+                    {key: value for key, value in source_item.items() if key != "rag_audit"}
+                    if isinstance(source_item, dict)
+                    else source_item
+                    for source_item in sources_raw
+                ]
+            chain["summary"] = summary
+        trace["agent_chain"] = chain
+    compact["trace"] = trace
+    return compact
+
+
 def get_case_detail_json(session: Session, run_id: int, sample_id: str) -> dict[str, Any]:
     row = case_row_or_404(session, run_id, sample_id)
-    detail = ensure_agent_chain_summary(row.detail_json or {})
+    detail = _compact_agent_chain_detail(row.detail_json or {})
     trace = detail.get("trace")
     if isinstance(trace, dict):
         identity = trace.get("evaluation_identity")
@@ -88,6 +132,26 @@ def get_case_detail_json(session: Session, run_id: int, sample_id: str) -> dict[
             for key, value in credentials.items():
                 identity.setdefault(key, value)
     return detail
+
+
+def get_case_rag_audit_json(session: Session, run_id: int, sample_id: str) -> dict[str, Any]:
+    """按需返回完整 RAG 审计快照，不拖慢 Case 明细首屏。"""
+    row = case_row_or_404(session, run_id, sample_id)
+    detail = ensure_agent_chain_summary(row.detail_json or {})
+    trace = detail.get("trace") if isinstance(detail.get("trace"), dict) else {}
+    chain = trace.get("agent_chain") if isinstance(trace.get("agent_chain"), dict) else {}
+    summary = chain.get("summary") if isinstance(chain.get("summary"), dict) else {}
+    sources = summary.get("sources") if isinstance(summary.get("sources"), list) else []
+    rag = next(
+        (
+            item
+            for item in sources
+            if isinstance(item, dict) and item.get("key") == "literature_rag"
+        ),
+        {},
+    )
+    audits = rag.get("rag_audit") if isinstance(rag.get("rag_audit"), list) else []
+    return {"calls": audits}
 
 
 def export_transcripts(
@@ -113,6 +177,7 @@ def export_transcripts(
         stability=stability,
         scenario=scenario,
         guideline=guideline,
+        load_full_detail_json=True,
     )
     if not rows:
         raise HTTPException(status_code=400, detail="当前过滤条件下没有用例可导出")

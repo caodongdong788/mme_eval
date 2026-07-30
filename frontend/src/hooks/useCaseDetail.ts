@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Modal, message } from "antd";
 import {
   Annotation,
-  CASE_LIST_LIMIT,
   PreviewRejudgeResult,
+  ProgressInfo,
   RunDetail,
   api,
 } from "../api/index";
@@ -27,6 +27,7 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
   const [previewResult, setPreviewResult] = useState<PreviewRejudgeResult | null>(null);
   const [chainSyncing, setChainSyncing] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [retryProgress, setRetryProgress] = useState<ProgressInfo | null>(null);
   const [nextSampleId, setNextSampleId] = useState<string | undefined>();
   // 每次进入一个 Case 最多自动补同步一次；避免 Langfuse 仍在 ingest 时反复请求。
   const autoChainSyncKeyRef = useRef<string | null>(null);
@@ -103,17 +104,19 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
     let alive = true;
     setNextSampleId(undefined);
     api
-      .listCaseResults(runId, { limit: CASE_LIST_LIMIT })
-      .then((cases) => {
-        if (!alive) return;
-        const index = cases.findIndex((item) => item.sample_id === sampleId);
-        setNextSampleId(index >= 0 ? cases[index + 1]?.sample_id : undefined);
-      })
+      .getNextCase(runId, sampleId || "")
+      .then((next) => alive && setNextSampleId(next.sample_id || undefined))
       .catch(() => alive && setNextSampleId(undefined));
     return () => {
       alive = false;
     };
   }, [runId, sampleId]);
+
+  const loadRagAudit = async () => {
+    if (!sampleId) return [];
+    const result = await api.getCaseRagAudit(runId, sampleId);
+    return result.calls as import("../components/AgentChainPanel").RagAuditCall[];
+  };
 
   const submitAnnotation = async () => {
     if (!sampleId) return;
@@ -170,37 +173,70 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
   const retryCase = async () => {
     if (!sampleId || retrying) return;
     setRetrying(true);
+    setRetryProgress({
+      status: "pending",
+      progress: { current_label: "等待开始重试", done: 0, total: 0, percent: 0 },
+    });
     try {
       await api.retryCase(runId, sampleId);
-      message.info("已开始重试该 Case，完成后会自动刷新结果");
+      message.info("已开始重试该 Case，完成后会自动刷新页面结果");
     } catch (e: unknown) {
       setRetrying(false);
+      setRetryProgress(null);
       message.error(formatApiError(e, "提交重试失败"));
     }
   };
 
   useEffect(() => {
     if (!retrying || !sampleId) return undefined;
-    const timer = window.setInterval(() => {
-      api.getRun(runId).then(async (next) => {
-        setRun(next);
-        if (next.status === "pending" || next.status === "running") return;
-        window.clearInterval(timer);
-        setRetrying(false);
-        if (next.status === "success") {
-          try {
-            const refreshed = await api.getCaseDetail(runId, sampleId);
-            setDetail(refreshed);
-            message.success("Case 重试完成，已更新结果");
-          } catch (e: unknown) {
-            message.error(formatApiError(e, "重试完成，但刷新结果失败"));
+    let alive = true;
+    let finishing = false;
+    const finish = async (status: string) => {
+      if (finishing || !alive) return;
+      finishing = true;
+      window.clearInterval(timer);
+      setRetrying(false);
+      setRetryProgress(null);
+      if (status !== "success") {
+        try {
+          const next = await api.getRun(runId);
+          if (alive) {
+            setRun(next);
+            message.error(next.error_msg || "Case 重试失败");
           }
-        } else {
-          message.error(next.error_msg || "Case 重试失败");
+        } catch {
+          if (alive) message.error("Case 重试失败");
         }
-      }).catch(() => {});
-    }, 1500);
-    return () => window.clearInterval(timer);
+        return;
+      }
+      try {
+        const [refreshed, nextRun] = await Promise.all([
+          api.getCaseDetail(runId, sampleId),
+          api.getRun(runId),
+        ]);
+        if (!alive) return;
+        // 新一次执行可能产生新的 Langfuse 链路，允许自动补同步重新执行。
+        autoChainSyncKeyRef.current = null;
+        setDetail(refreshed);
+        setRun(nextRun);
+        message.success("Case 重试完成，页面结果已更新");
+      } catch (e: unknown) {
+        if (alive) message.error(formatApiError(e, "重试完成，但刷新结果失败"));
+      }
+    };
+    const poll = () => {
+      api.getProgress(runId).then((next) => {
+        if (!alive) return;
+        setRetryProgress(next);
+        if (next.status !== "pending" && next.status !== "running") void finish(next.status);
+      }).catch(() => undefined);
+    };
+    poll();
+    const timer = window.setInterval(poll, 1200);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
   }, [retrying, runId, sampleId]);
 
   const saveYamlAsBenchmark = () =>
@@ -257,7 +293,9 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
     chainSyncing,
     syncAgentChain,
     retrying,
+    retryProgress,
     retryCase,
+    loadRagAudit,
     nextSampleId,
     openEditor,
     runPreview,

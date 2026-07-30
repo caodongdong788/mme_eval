@@ -49,6 +49,7 @@ def get_review_queue(
         release_passed=release_passed,
         stability=stability,
         scenario=scenario,
+        load_detail_json=False,
     )
     anns_by_sample = _annotations_by_sample(session, run_id)
 
@@ -162,7 +163,8 @@ def get_review_stats(session: Session, run_id: int) -> ReviewStatsOut:
     run = get_run_or_404(session, run_id)
     baseline_by_sample = baseline_case_map(session, run)
     cross_comparable = bool(baseline_by_sample)
-    rows = filtered_case_rows(session, run_id)
+    # 审核统计只使用结果表的标量列，不读取每个 Case 的完整对话/链路 JSON。
+    rows = filtered_case_rows(session, run_id, load_detail_json=False)
     queued = [
         r.sample_id
         for r in rows

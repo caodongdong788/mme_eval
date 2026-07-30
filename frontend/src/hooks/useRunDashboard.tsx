@@ -49,8 +49,8 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
   const [nameDraft, setNameDraft] = useState("");
   const [savingName, setSavingName] = useState(false);
 
-  const caseFilters = useRunCaseFilters(runId, failureTagLabel);
-  const runDiff = useRunDiff(runId, () => setActiveTab("diff"));
+  const caseFilters = useRunCaseFilters(runId, failureTagLabel, activeTab === "detail");
+  const runDiff = useRunDiff(runId, () => setActiveTab("diff"), activeTab === "diff");
 
   const isBuiltinBenchmark =
     benchmarks.find((b) => b.id === run?.benchmark_id)?.source === "builtin";
