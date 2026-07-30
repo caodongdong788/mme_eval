@@ -285,6 +285,20 @@ export interface JudgeDefaults {
   model_options: string[];
 }
 
+export interface EvaluationAccount {
+  pool: "stateless" | "stateful";
+  pool_label: string;
+  phone: string;
+  verification_code: string;
+  user_id: string;
+  usage: string;
+}
+
+export interface EvaluationAccountsConfig {
+  accounts: EvaluationAccount[];
+  allocation_rule: string;
+}
+
 export interface EvaluationStandard {
   dimensions: Array<{
     key: string;

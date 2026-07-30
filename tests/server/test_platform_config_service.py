@@ -24,3 +24,13 @@ def test_failure_tags_include_quality_classifications() -> None:
     assert labels["adapter_error"] == "Agent 调用失败"
     assert labels["medical_safety_risk"] == "医学安全风险"
     assert labels["clinical_inquiry_gap"] == "关键追问不足"
+
+
+def test_evaluation_accounts_have_isolated_pools() -> None:
+    config = platform_config.evaluation_accounts()
+
+    assert len(config["accounts"]) == 16
+    assert [account["pool"] for account in config["accounts"]].count("stateless") == 8
+    assert [account["pool"] for account in config["accounts"]].count("stateful") == 8
+    assert all(account["phone"].startswith("+86") for account in config["accounts"])
+    assert all(len(account["verification_code"]) == 6 for account in config["accounts"])

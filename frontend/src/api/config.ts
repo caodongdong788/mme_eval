@@ -1,5 +1,5 @@
 import { http } from "./client";
-import type { EvaluationStandard, JudgeDefaults } from "./types";
+import type { EvaluationAccountsConfig, EvaluationStandard, JudgeDefaults } from "./types";
 
 export const configApi = {
   getEvaluationStandard: () =>
@@ -10,4 +10,6 @@ export const configApi = {
     http.get<Record<string, string>>(`/config/judge-verdict-labels`).then((r) => r.data),
   getJudgeDefaults: () =>
     http.get<JudgeDefaults>("/config/judge-defaults").then((r) => r.data),
+  getEvaluationAccounts: () =>
+    http.get<EvaluationAccountsConfig>("/config/evaluation-accounts").then((r) => r.data),
 };
