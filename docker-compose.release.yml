@@ -1,0 +1,7 @@
+# 生产部署覆盖层：使用国内镜像加速首次构建；不改变默认开发环境行为。
+services:
+  app:
+    build:
+      args:
+        APT_DEBIAN_MIRROR: mirrors.aliyun.com/debian
+        PIP_INDEX_URL: https://mirrors.aliyun.com/pypi/simple

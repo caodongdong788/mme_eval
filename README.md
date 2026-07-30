@@ -130,6 +130,17 @@ cd frontend && npm install && npm run dev
 cd frontend && npm run build
 ```
 
+### 生产部署
+
+生产机使用 `scripts/deploy_release.sh` 部署：它会拉取当前分支、复用 Docker 依赖层缓存、仅重建 `app` 容器并等待健康检查，数据库与数据卷不会被重建。
+
+```bash
+cd /opt/mme_eval
+scripts/deploy_release.sh
+```
+
+首次构建会下载依赖；后续仅修改后端源码时会复用第三方依赖层，通常只需重新打包源码并重启应用。生产覆盖层 `docker-compose.release.yml` 使用就近的软件源；本地开发继续执行默认的 `docker compose up -d --build` 即可。
+
 ## 验证
 
 ```bash
