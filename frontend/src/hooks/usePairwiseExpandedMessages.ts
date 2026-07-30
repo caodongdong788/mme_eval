@@ -55,8 +55,8 @@ export function usePairwiseExpandedMessages(runAId: number, runBId: number, samp
 
   useEffect(() => {
     if (!sampleId) {
-      setMessagesA([]);
-      setMessagesB([]);
+      setConversationA({ messages: [] });
+      setConversationB({ messages: [] });
       return;
     }
     let cancelled = false;

@@ -46,4 +46,12 @@ describe("usePairwiseExpandedMessages", () => {
     renderHook(() => usePairwiseExpandedMessages(1, 2, "bc_001"));
     await waitFor(() => expect(mockedApi.getCaseDetail).not.toHaveBeenCalled());
   });
+
+  it("does not request an empty sample id", async () => {
+    const { result } = renderHook(() => usePairwiseExpandedMessages(1, 2, ""));
+
+    await waitFor(() => expect(result.current.messagesA).toEqual([]));
+    expect(result.current.messagesB).toEqual([]);
+    expect(mockedApi.getCaseDetail).not.toHaveBeenCalled();
+  });
 });
