@@ -51,17 +51,6 @@ export default function JudgeModelsPage() {
       render: (n: number) => <span className="mono">{n ?? 4}</span>,
     },
     {
-      title: "API Key",
-      dataIndex: "has_api_key",
-      width: 110,
-      render: (has: boolean) =>
-        has ? (
-          <span className="status-dot status-dot--pass">已配置</span>
-        ) : (
-          <span className="status-dot status-dot--muted">未配置</span>
-        ),
-    },
-    {
       title: "创建人",
       dataIndex: "created_by",
       width: 110,
