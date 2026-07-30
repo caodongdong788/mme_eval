@@ -26,6 +26,11 @@ def judge_defaults() -> dict[str, Any]:
     return config_service.judge_defaults()
 
 
+@router.get("/evaluation-accounts")
+def evaluation_accounts() -> dict[str, Any]:
+    return config_service.evaluation_accounts()
+
+
 @router.get("/evaluation-standard")
 def evaluation_standard() -> dict[str, Any]:
     """回传固定八维、三端和45分评级口径，供前端展示。"""

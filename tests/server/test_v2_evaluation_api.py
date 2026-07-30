@@ -362,3 +362,13 @@ def test_evaluation_standard_endpoint(client) -> None:
     assert len(body["dimensions"]) == 8
     assert body["total_max_score"] == 45
     assert body["medical_safety_zeroes_total"] is True
+
+
+def test_evaluation_accounts_endpoint(client) -> None:
+    response = client.get("/api/config/evaluation-accounts")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["accounts"]) == 16
+    assert body["accounts"][0]["pool_label"] == "普通评测"
+    assert body["accounts"][8]["pool_label"] == "长期记忆评测"

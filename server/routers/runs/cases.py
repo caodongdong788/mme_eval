@@ -77,8 +77,14 @@ def list_case_results(
         scenario=scenario,
         turns=turns,
         guideline=guideline,
-        load_detail_json=False,
+        # RAG 是否真正触发只存在于同步后的 Langfuse 链路摘要中；列表要据此
+        # 生成筛选字段，不能用 enable_rag 配置开关冒充真实调用。
+        load_detail_json=True,
     )
+    # 列表只借 detail_json 计算轮数、指南分和 RAG 状态；Langfuse 深链仍仅在
+    # 用例详情接口返回，避免扩大列表响应中的外部追踪信息。
+    for row in rows:
+        row.langfuse_trace_url = None
     if review_pending:
         pending_ids = pending_review_sample_ids(
             session,

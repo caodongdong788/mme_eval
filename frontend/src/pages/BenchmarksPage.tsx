@@ -2,7 +2,6 @@ import {
   Alert,
   Button,
   Drawer,
-  Descriptions,
   Form,
   Input,
   Modal,
@@ -13,31 +12,25 @@ import {
   Tag,
   Upload,
 } from "antd";
-import {
-  DownloadOutlined,
-  InboxOutlined,
-  UploadOutlined,
-} from "@ant-design/icons";
+import { DownloadOutlined, InboxOutlined, UploadOutlined } from "@ant-design/icons";
 import { api } from "../api/index";
 import { AsyncLoadError } from "../components/AsyncLoadError";
+import { BenchmarkCoverageDrawer } from "../components/BenchmarkCoverageDrawer";
 import { DashTableActions, DashTableDangerLink, DashTableLink } from "../components/DashTableActions";
 import { DashboardPageShell } from "../components/DashboardPageShell";
 import { createBenchmarkCaseColumns } from "../components/BenchmarkCaseColumns";
 import { OnlineCasePreview } from "../components/OnlineCasePreview";
 import { useBenchmarksPage } from "../hooks/useBenchmarksPage";
-
 function benchmarkSourceLabel(source: string) {
   if (source === "builtin") return "内置";
   if (source === "online") return "线上";
   return "线下";
 }
-
 function benchmarkSourceColor(source: string) {
   if (source === "builtin") return "blue";
   if (source === "online") return "purple";
   return "green";
 }
-
 export default function BenchmarksPage() {
   const bm = useBenchmarksPage();
   const isOnlineCase = bm.casesBenchmark?.source === "online";
@@ -251,28 +244,12 @@ export default function BenchmarksPage() {
         />
       </Drawer>
 
-      <Drawer title="评测集覆盖度" width={640} open={bm.coverageOpen} onClose={() => bm.setCoverageOpen(false)}>
-        {bm.coverageLoading ? "正在统计…" : bm.coverage ? (
-          <Space direction="vertical" size={18} style={{ width: "100%" }}>
-            <Descriptions size="small" column={1} bordered title={`共 ${bm.coverage.total} 条用例`}>
-              {Object.entries(bm.coverage.coverage_rate).map(([key, value]) => (
-                <Descriptions.Item key={key} label={key}>{(value * 100).toFixed(0)}%</Descriptions.Item>
-              ))}
-            </Descriptions>
-            {[
-              ["八维评分覆盖", bm.coverage.dimensions],
-              ["断言类型", bm.coverage.assertion_types],
-              ["评测机制", bm.coverage.mechanisms],
-              ["场景分布", bm.coverage.by_scenario],
-            ].map(([title, values]) => (
-              <div key={String(title)}>
-                <div style={{ marginBottom: 8, fontWeight: 600 }}>{String(title)}</div>
-                {Object.entries(values as Record<string, number>).map(([key, value]) => <Tag key={key}>{key} · {value}</Tag>)}
-              </div>
-            ))}
-          </Space>
-        ) : <span>暂无统计数据</span>}
-      </Drawer>
+      <BenchmarkCoverageDrawer
+        coverage={bm.coverage}
+        loading={bm.coverageLoading}
+        open={bm.coverageOpen}
+        onClose={() => bm.setCoverageOpen(false)}
+      />
 
       <Drawer
         title={`${isOnlineCase ? "线上对话" : "用例 YAML"} · ${bm.caseYamlMeta?.caseId ?? ""}`}

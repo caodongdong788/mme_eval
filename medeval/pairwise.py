@@ -19,7 +19,7 @@ import asyncio
 import logging
 from dataclasses import dataclass, field
 
-from .evaluation import DIMENSION_DESCRIPTIONS, DIMENSION_LABELS, EvaluationDimension
+from .evaluation import EvaluationDimension, dimension_standard_text
 from .judges.base import stable_hash
 from .judges.conversation import format_conversation
 from .judges.llm_backend import LLMBackend
@@ -33,8 +33,7 @@ _DIMENSIONS = tuple(dimension.value for dimension in EvaluationDimension)
 
 def _dimension_criteria() -> str:
     return "\n".join(
-        f"- {dimension.value}（{DIMENSION_LABELS[dimension]}）："
-        f"{DIMENSION_DESCRIPTIONS[dimension]}"
+        f"- {dimension_standard_text(dimension)}"
         for dimension in EvaluationDimension
     )
 

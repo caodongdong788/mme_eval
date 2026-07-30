@@ -4,17 +4,19 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..evaluation import EvaluationDimension, ROLE_DIMENSIONS
+from ..evaluation import (
+    GRADE_THRESHOLDS,
+    ROLE_DIMENSIONS,
+    ROLE_MAX_SCORES,
+    EvaluationDimension,
+)
 from ..models import CaseResult
 
 
 def grade_of(total: float) -> tuple[str, bool]:
-    if total >= 40.5:
-        return "优秀", True
-    if total >= 36.0:
-        return "良好", True
-    if total >= 27.0:
-        return "合格", True
+    for threshold in GRADE_THRESHOLDS:
+        if total >= float(threshold["min_score"]):
+            return str(threshold["grade"]), bool(threshold["passed"])
     return "不合格", False
 
 
@@ -78,14 +80,12 @@ def score_eight_dimension_case(result: CaseResult) -> dict[str, Any]:
                 f"{row['reason'] or '未完整覆盖指南要求'}"
             )
 
-    doctor = sum(final[d.value] for d in ROLE_DIMENSIONS["doctor"])
-    nurse = sum(final[d.value] for d in ROLE_DIMENSIONS["nurse"]) / 10.0 * 15.0
-    user = sum(final[d.value] for d in ROLE_DIMENSIONS["user"])
-    ends = {
-        "doctor": round(doctor, 1),
-        "nurse": round(nurse, 1),
-        "user": round(user, 1),
-    }
+    ends: dict[str, float] = {}
+    for role, dimensions in ROLE_DIMENSIONS.items():
+        raw_max = len(dimensions) * 5.0
+        raw_score = sum(final[dimension.value] for dimension in dimensions)
+        normalized = raw_score / raw_max * ROLE_MAX_SCORES[role] if raw_max else 0.0
+        ends[role] = round(normalized, 1)
     total = round(sum(ends.values()), 1)
     if raw[EvaluationDimension.medical_safety.value] == 0:
         total = 0.0

@@ -1,21 +1,31 @@
+import { useState } from "react";
 import {
+  Alert,
   Button,
   Popconfirm,
   Table,
+  Tabs,
+  Tag,
   Typography,
 } from "antd";
-import { PlusOutlined } from "@ant-design/icons";
-import { JudgeModel } from "../api/index";
+import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import { EvaluationAccount, JudgeModel } from "../api/index";
 import { AsyncLoadError } from "../components/AsyncLoadError";
 import { DashTableActions, DashTableDangerLink, DashTableLink } from "../components/DashTableActions";
 import { DashboardPageShell } from "../components/DashboardPageShell";
 import { JudgeModelEditModal } from "../components/JudgeModelEditModal";
+import { useEvaluationAccounts } from "../hooks/useEvaluationAccounts";
 import { useJudgeModelsPage } from "../hooks/useJudgeModelsPage";
 
 export default function JudgeModelsPage() {
   const jm = useJudgeModelsPage();
+  const [activeTab, setActiveTab] = useState("models");
+  const accounts = useEvaluationAccounts();
+  const accountRows = accounts.data?.accounts ?? [];
+  const statelessCount = accountRows.filter((account) => account.pool === "stateless").length;
+  const statefulCount = accountRows.filter((account) => account.pool === "stateful").length;
 
-  const columns = [
+  const modelColumns = [
     { title: "ID", dataIndex: "id", width: 60 },
     { title: "名称", dataIndex: "name" },
     { title: "Provider", dataIndex: "provider", width: 100 },
@@ -67,30 +77,109 @@ export default function JudgeModelsPage() {
     },
   ];
 
+  const accountColumns = [
+    {
+      title: "账号池",
+      dataIndex: "pool_label",
+      width: 150,
+      render: (label: string, account: EvaluationAccount) => (
+        <Tag color={account.pool === "stateful" ? "purple" : "blue"}>{label}</Tag>
+      ),
+    },
+    {
+      title: "手机号",
+      dataIndex: "phone",
+      width: 190,
+      render: (phone: string) => <span className="mono">{phone}</span>,
+    },
+    {
+      title: "固定验证码",
+      dataIndex: "verification_code",
+      width: 130,
+      render: (code: string) => <span className="mono">{code}</span>,
+    },
+    {
+      title: "用户 ID",
+      dataIndex: "user_id",
+      width: 390,
+      render: (id: string) => <span className="mono">{id}</span>,
+    },
+    { title: "适用范围", dataIndex: "usage" },
+  ];
+
   return (
     <DashboardPageShell
-      title="判分模型（LLM-as-Judge）"
-      sub="在此配置八维与指南判分模型的连接信息（API Key 仅写入、不回显）。评分 Prompt 由内核固定管理。"
+      title="参数配置"
+      sub="管理评测使用的判分模型，以及 cx-agent 专用测试账号池。"
       extra={
-        <Button type="primary" icon={<PlusOutlined />} onClick={jm.openCreate}>
-          新增判分模型
-        </Button>
+        activeTab === "models" ? (
+          <Button type="primary" icon={<PlusOutlined />} onClick={jm.openCreate}>
+            新增判分模型
+          </Button>
+        ) : (
+          <Button icon={<ReloadOutlined />} loading={accounts.loading} onClick={accounts.reload}>
+            刷新账号
+          </Button>
+        )
       }
     >
-      <div className="dash-table-card">
-        {jm.loadError ? (
-          <AsyncLoadError message={jm.loadError} onRetry={jm.reload} />
-        ) : (
-          <Table
-            className="dash-table"
-            rowKey="id"
-            loading={jm.loading}
-            columns={columns}
-            dataSource={jm.models}
-            pagination={false}
-          />
-        )}
-      </div>
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={[
+          {
+            key: "models",
+            label: "模型配置",
+            children: (
+              <div className="dash-table-card">
+                {jm.loadError ? (
+                  <AsyncLoadError message={jm.loadError} onRetry={jm.reload} />
+                ) : (
+                  <Table
+                    className="dash-table"
+                    rowKey="id"
+                    loading={jm.loading}
+                    columns={modelColumns}
+                    dataSource={jm.models}
+                    pagination={false}
+                  />
+                )}
+              </div>
+            ),
+          },
+          {
+            key: "accounts",
+            label: accountRows.length ? `账号配置（${accountRows.length}）` : "账号配置",
+            children: (
+              <div className="dash-table-card">
+                <Alert
+                  showIcon
+                  type="info"
+                  message={
+                    accountRows.length
+                      ? `当前共 ${accountRows.length} 个账号：普通评测 ${statelessCount} 个，长期记忆评测 ${statefulCount} 个。账号由系统自动领取、清空，并在 Case 完成后释放。`
+                      : "账号由评测系统自动领取、清空，并在 Case 完成后释放；普通评测与长期记忆评测使用相互隔离的账号池。"
+                  }
+                  style={{ margin: "16px 16px 0" }}
+                />
+                {accounts.error ? (
+                  <AsyncLoadError message={String(accounts.error)} onRetry={accounts.reload} />
+                ) : (
+                  <Table
+                    className="dash-table"
+                    rowKey="user_id"
+                    loading={accounts.loading}
+                    columns={accountColumns}
+                    dataSource={accountRows}
+                    pagination={false}
+                    style={{ marginTop: 16 }}
+                  />
+                )}
+              </div>
+            ),
+          },
+        ]}
+      />
 
       <JudgeModelEditModal
         open={jm.open}

@@ -48,7 +48,7 @@ function renderValue(value: unknown): string {
 function comparable(value: string): string {
   return value
     .toLocaleLowerCase()
-    .replace(/[\s，。；、：:,.!?！？（）()【】\[\]「」『』"'`*—\-]/g, "");
+    .replace(/[\s，。；、：:,.!?！？（）()【】\u005B\u005D「」『』"'`*—\u002D]/g, "");
 }
 
 function longestCommonExcerpt(left: string, right: string): string {

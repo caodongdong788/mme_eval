@@ -20,11 +20,9 @@ import { AsyncLoadError } from "../components/AsyncLoadError";
 import { useLaunchPage } from "../hooks/useLaunchPage";
 
 const { Text } = Typography;
-
 function FieldHint({ children }: { children: ReactNode }) {
   return <p className="dash-field-hint">{children}</p>;
 }
-
 function judgeModelHint(lp: ReturnType<typeof useLaunchPage>) {
   const defaultHint = lp.judgeDefaultModel ? `默认使用 ${lp.judgeDefaultModel}。` : "";
   if (lp.judgeModels.length === 0) {
@@ -40,7 +38,6 @@ function judgeModelHint(lp: ReturnType<typeof useLaunchPage>) {
   }
   return <>可选；不选则{defaultHint || "沿用服务器 config.yaml 默认打分模型。"}</>;
 }
-
 function benchmarkSourceLabel(source: string) {
   if (source === "builtin") return "内置";
   if (source === "online") return "线上";

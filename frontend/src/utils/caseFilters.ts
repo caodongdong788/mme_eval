@@ -7,6 +7,7 @@ export type CaseFilterField =
   | "n_turns"
   | "composite_score"
   | "guideline_score"
+  | "rag_status"
   | "release_passed"
   | "stability"
   | "failure_tags"
@@ -56,6 +57,19 @@ export const CASE_FILTER_FIELDS: CaseFilterFieldDefinition[] = [
   { value: "n_turns", label: "轮数", kind: "number" },
   { value: "composite_score", label: "总分", kind: "number" },
   { value: "guideline_score", label: "指南得分", kind: "text" },
+  {
+    value: "rag_status",
+    label: "医学文献 RAG",
+    kind: "select",
+    options: [
+      { value: "hit", label: "已触发并命中" },
+      { value: "miss", label: "已触发未命中" },
+      { value: "failed", label: "调用失败" },
+      { value: "triggered", label: "已触发（结果待解析）" },
+      { value: "not_triggered", label: "未触发" },
+      { value: "unknown", label: "链路未同步" },
+    ],
+  },
   {
     value: "release_passed",
     label: "最终结论",
@@ -161,6 +175,8 @@ function displayValue(
       return row.guideline_max
         ? `${row.guideline_earned ?? 0}/${row.guideline_max}`
         : "";
+    case "rag_status":
+      return row.rag_status || "unknown";
     case "release_passed":
       return String(row.release_passed);
     case "stability":
@@ -243,6 +259,7 @@ export function buildCaseFilterValueOptions(
         row.guideline_max ? `${row.guideline_earned ?? 0}/${row.guideline_max}` : ""
       )
     ),
+    rag_status: unique(rows.map((row) => row.rag_status || "unknown")),
     failure_tags: unique(
       rows.flatMap((row) => (row.failure_tags || []).map((tag) => failureTagLabel(tag)))
     ),

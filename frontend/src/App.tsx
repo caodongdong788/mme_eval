@@ -47,7 +47,7 @@ const MENU = [
     label: "资源",
     children: [
       { key: "/benchmarks", icon: <DatabaseOutlined />, label: <Link to="/benchmarks">Benchmark 库</Link> },
-      { key: "/judge-models", icon: <ExperimentOutlined />, label: <Link to="/judge-models">判分模型</Link> },
+      { key: "/judge-models", icon: <ExperimentOutlined />, label: <Link to="/judge-models">参数配置</Link> },
       { key: "/evaluation-standard", icon: <SlidersOutlined />, label: <Link to="/evaluation-standard">评分标准</Link> },
     ],
   },
@@ -64,7 +64,7 @@ const SECTION_LABEL: Record<string, string> = {
   runs: "评测列表",
   trends: "趋势看板",
   benchmarks: "Benchmark 库",
-  "judge-models": "判分模型",
+  "judge-models": "参数配置",
   "evaluation-standard": "评分标准",
   launch: "发起评测",
   pairwise: "Pairwise 对比",

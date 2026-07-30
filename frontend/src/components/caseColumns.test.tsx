@@ -19,6 +19,7 @@ const row: CaseRow = {
   stability: "stable_pass",
   guideline_earned: 6,
   guideline_max: 6,
+  rag_status: "hit",
   failure_tags: [],
 };
 
@@ -37,6 +38,8 @@ describe("buildCaseColumns", () => {
 
     expect(screen.getByText("综合评级")).toBeInTheDocument();
     expect(screen.getByText("优秀")).toBeInTheDocument();
+    expect(screen.getByText("医学文献 RAG")).toBeInTheDocument();
+    expect(screen.getByText("已触发并命中")).toBeInTheDocument();
     expect(screen.queryByText("最终结论")).not.toBeInTheDocument();
   });
 });

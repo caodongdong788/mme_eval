@@ -2549,3 +2549,471 @@ a.ant-typography-secondary:hover {
 .simulation-trace__row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid #f0f0f0; }
 .simulation-trace__row:last-child { border-bottom: 0; padding-bottom: 0; }
 .simulation-trace__content { flex-basis: 100%; color: #303846; line-height: 1.65; }
+
+/* 评分标准：与 Judge 同源的长文本阅读面板。 */
+.evaluation-standard-loading {
+  min-height: 50vh;
+  display: grid;
+  place-items: center;
+}
+.evaluation-standard-sync {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--runs-teal-soft);
+  color: var(--runs-text-secondary);
+  font-size: 13px;
+}
+.evaluation-standard-sync::before {
+  display: none;
+}
+.evaluation-standard-sync .anticon {
+  color: var(--runs-teal);
+}
+.evaluation-standard-hero {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.72fr) minmax(0, 2fr);
+  background: var(--runs-card);
+  border-radius: 14px;
+  box-shadow: var(--runs-shadow);
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.evaluation-standard-total {
+  min-height: 168px;
+  padding: 24px 28px;
+  border-right: 1px solid var(--runs-border);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-content: center;
+  align-items: baseline;
+}
+.evaluation-standard-eyebrow {
+  grid-column: 1 / -1;
+  color: var(--runs-text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+.evaluation-standard-total__value {
+  margin-top: 8px;
+  color: var(--runs-text);
+  font-size: 54px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+.evaluation-standard-total__unit {
+  margin-left: 8px;
+  color: var(--runs-text-secondary);
+  font-size: 14px;
+}
+.evaluation-standard-total p {
+  grid-column: 1 / -1;
+  margin: 14px 0 0;
+  color: var(--runs-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.evaluation-standard-roles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: center;
+  padding: 20px 10px;
+}
+.evaluation-standard-role-summary {
+  min-width: 0;
+  padding: 12px 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.evaluation-standard-role-summary + .evaluation-standard-role-summary {
+  border-left: 1px solid var(--runs-border);
+}
+.evaluation-standard-role-summary > div:last-child {
+  min-width: 0;
+  display: grid;
+}
+.evaluation-standard-role-summary span {
+  color: var(--runs-text-secondary);
+  font-size: 13px;
+}
+.evaluation-standard-role-summary strong {
+  margin-top: 5px;
+  color: var(--runs-text);
+  font-size: 22px;
+  line-height: 1.2;
+}
+.evaluation-standard-role-summary small {
+  margin-top: 6px;
+  color: var(--runs-text-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.evaluation-standard-role-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  font-size: 16px;
+}
+.evaluation-standard-role-icon--doctor {
+  color: var(--runs-purple);
+  background: var(--runs-purple-soft);
+}
+.evaluation-standard-role-icon--nurse {
+  color: var(--runs-teal);
+  background: var(--runs-teal-soft);
+}
+.evaluation-standard-role-icon--user {
+  color: var(--runs-red);
+  background: var(--runs-red-soft);
+}
+.evaluation-standard-gate-alert {
+  margin-bottom: 14px;
+  background: var(--runs-card) !important;
+  box-shadow: var(--runs-shadow);
+}
+.evaluation-standard-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+  gap: 14px;
+  align-items: start;
+}
+.evaluation-standard-main {
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+}
+.evaluation-standard-role {
+  min-width: 0;
+  background: var(--runs-card);
+  border-radius: 12px;
+  box-shadow: var(--runs-shadow);
+  overflow: hidden;
+}
+.evaluation-standard-role__head {
+  min-height: 74px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--runs-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.evaluation-standard-role__head > div {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.evaluation-standard-role__head h2 {
+  margin: 0;
+  color: var(--runs-text);
+  font-size: 16px;
+  font-weight: 600;
+}
+.evaluation-standard-role__head p {
+  margin: 4px 0 0;
+  color: var(--runs-text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.evaluation-standard-role__head > strong {
+  flex: none;
+  color: var(--runs-text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+}
+.evaluation-standard-dimensions {
+  min-width: 0;
+}
+.evaluation-standard-dimension {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.38fr) minmax(0, 1fr);
+  gap: 24px;
+  padding: 20px;
+}
+.evaluation-standard-dimension + .evaluation-standard-dimension {
+  border-top: 1px solid var(--runs-border);
+}
+.evaluation-standard-dimension--gate {
+  background: linear-gradient(90deg, var(--runs-red-soft), var(--runs-card) 28%);
+}
+.evaluation-standard-dimension__identity {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.evaluation-standard-dimension__number {
+  color: var(--runs-text-muted);
+  font-size: 11px;
+  line-height: 22px;
+}
+.evaluation-standard-dimension__identity h3 {
+  margin: 0 0 5px;
+  color: var(--runs-text);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.evaluation-standard-score-range {
+  color: var(--runs-purple);
+  font-size: 11px;
+}
+.evaluation-standard-dimension--gate .evaluation-standard-score-range {
+  color: var(--runs-red);
+}
+.evaluation-standard-dimension__criteria {
+  min-width: 0;
+}
+.evaluation-standard-dimension__description {
+  margin: 0 0 14px;
+  color: var(--runs-text-secondary);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.evaluation-standard-boundaries {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.evaluation-standard-boundaries > div {
+  min-width: 0;
+  padding: 11px 12px;
+  border-radius: 8px;
+  background: var(--runs-bg);
+}
+.evaluation-standard-boundary-label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.evaluation-standard-boundary-label--zero {
+  color: var(--runs-red);
+}
+.evaluation-standard-boundary-label--full {
+  color: var(--runs-teal);
+}
+.evaluation-standard-boundaries p {
+  margin: 0;
+  color: var(--runs-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.evaluation-standard-aside {
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+  position: sticky;
+  top: 16px;
+}
+.evaluation-standard-side-card {
+  min-width: 0;
+  padding: 18px 20px;
+  background: var(--runs-card);
+  border-radius: 12px;
+  box-shadow: var(--runs-shadow);
+}
+.evaluation-standard-side-card__head {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.evaluation-standard-side-card__head > span {
+  color: var(--runs-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+.evaluation-standard-side-card__head small {
+  color: var(--runs-text-muted);
+  font-size: 11px;
+}
+.evaluation-standard-anchor-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.evaluation-standard-anchor-list li {
+  min-height: 36px;
+  border-top: 1px solid var(--runs-border);
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.evaluation-standard-anchor-list li:first-child {
+  border-top: 0;
+}
+.evaluation-standard-anchor-list strong {
+  color: var(--runs-purple);
+  font-size: 13px;
+}
+.evaluation-standard-anchor-list span {
+  color: var(--runs-text-secondary);
+  font-size: 12px;
+}
+.evaluation-standard-grade-list {
+  display: grid;
+}
+.evaluation-standard-grade-list > div {
+  min-height: 38px;
+  border-top: 1px solid var(--runs-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.evaluation-standard-grade-list > div:first-child {
+  border-top: 0;
+}
+.evaluation-standard-grade-list .status-dot {
+  font-size: 12px;
+}
+.evaluation-standard-grade-list strong {
+  color: var(--runs-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+.evaluation-standard-guideline-card > p {
+  margin: 0;
+  color: var(--runs-text-secondary);
+  font-size: 12px;
+  line-height: 1.65;
+}
+.evaluation-standard-guideline-card > code {
+  display: block;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--runs-bg);
+  color: var(--runs-text-secondary);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.evaluation-standard-enhancements {
+  margin-top: 14px;
+  padding: 22px 24px;
+  background: var(--runs-card);
+  border-radius: 12px;
+  box-shadow: var(--runs-shadow);
+  display: grid;
+  grid-template-columns: minmax(210px, 0.7fr) minmax(0, 1.3fr);
+  gap: 32px;
+}
+.evaluation-standard-enhancements h2 {
+  margin: 7px 0 8px;
+  color: var(--runs-text);
+  font-size: 16px;
+}
+.evaluation-standard-enhancements > div > p {
+  margin: 0;
+  color: var(--runs-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.evaluation-standard-enhancements .ant-collapse {
+  border-top: 1px solid var(--runs-border);
+}
+.evaluation-standard-enhancements .ant-collapse-item {
+  border-bottom-color: var(--runs-border);
+}
+.evaluation-standard-enhancements .ant-collapse-header {
+  padding-inline: 0 !important;
+  color: var(--runs-text) !important;
+  font-size: 13px;
+}
+.evaluation-standard-enhancements .ant-collapse-content-box {
+  padding: 0 0 14px !important;
+}
+.evaluation-standard-enhancements .ant-collapse-content-box p {
+  margin: 0;
+  color: var(--runs-text-secondary);
+  font-size: 12px;
+  line-height: 1.65;
+}
+.evaluation-standard-source-note {
+  margin: 12px 2px 0;
+  color: var(--runs-text-muted);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.evaluation-standard-source-note .anticon {
+  color: var(--runs-teal);
+}
+
+@media (max-width: 1180px) {
+  .evaluation-standard-hero {
+    grid-template-columns: 1fr;
+  }
+  .evaluation-standard-total {
+    min-height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--runs-border);
+  }
+  .evaluation-standard-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .evaluation-standard-aside {
+    position: static;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 820px) {
+  .evaluation-standard-roles {
+    grid-template-columns: 1fr;
+    padding: 8px 20px;
+  }
+  .evaluation-standard-role-summary {
+    padding: 14px 4px;
+  }
+  .evaluation-standard-role-summary + .evaluation-standard-role-summary {
+    border-left: 0;
+    border-top: 1px solid var(--runs-border);
+  }
+  .evaluation-standard-dimension {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .evaluation-standard-aside {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .evaluation-standard-enhancements {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+}
+@media (max-width: 560px) {
+  .evaluation-standard-total {
+    padding: 20px;
+  }
+  .evaluation-standard-total__value {
+    font-size: 46px;
+  }
+  .evaluation-standard-role__head {
+    align-items: flex-start;
+  }
+  .evaluation-standard-role__head > strong {
+    margin-top: 7px;
+  }
+  .evaluation-standard-dimension {
+    padding: 18px 16px;
+  }
+  .evaluation-standard-boundaries {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .evaluation-standard-enhancements {
+    padding: 20px;
+  }
+}

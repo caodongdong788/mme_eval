@@ -3,6 +3,15 @@ import { Tooltip, Typography } from "antd";
 import { Link } from "react-router-dom";
 import { CaseRow } from "../api/index";
 
+const RAG_STATUS: Record<NonNullable<CaseRow["rag_status"]>, { label: string; kind: string }> = {
+  hit: { label: "已触发并命中", kind: "pass" },
+  miss: { label: "已触发未命中", kind: "warn" },
+  failed: { label: "调用失败", kind: "fail" },
+  triggered: { label: "已触发", kind: "warn" },
+  not_triggered: { label: "未触发", kind: "muted" },
+  unknown: { label: "链路未同步", kind: "muted" },
+};
+
 // 状态圆点 + 文字（去面状彩色 Tag；样式见 styles.css .status-dot）。
 function Dot({ kind, children }: { kind: string; children: ReactNode }) {
   return <span className={`status-dot status-dot--${kind}`}>{children}</span>;
@@ -36,6 +45,14 @@ export function buildCaseColumns(runId: number, tagLabel: (k: string) => string)
         ) : (
           <Typography.Text type="secondary">单轮</Typography.Text>
         );
+      },
+    },
+    {
+      title: "医学文献 RAG",
+      dataIndex: "rag_status",
+      render: (value?: CaseRow["rag_status"]) => {
+        const item = RAG_STATUS[value || "unknown"];
+        return <Dot kind={item.kind}>{item.label}</Dot>;
       },
     },
     {
