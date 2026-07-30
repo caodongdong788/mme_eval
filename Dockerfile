@@ -15,19 +15,39 @@ RUN npm run build
 # --- Stage 2: Python 运行时 ---
 FROM python:3.12-slim-bookworm AS runtime
 
+# 生产部署可通过 build arg 切换到就近镜像；开发环境不传该参数时仍使用官方源。
+ARG APT_DEBIAN_MIRROR=""
+RUN if [ -n "$APT_DEBIAN_MIRROR" ]; then \
+      sed -i "s|deb.debian.org/debian|$APT_DEBIAN_MIRROR|g" /etc/apt/sources.list.d/debian.sources; \
+    fi
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /app
 
-RUN apt-get update \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# 先复制依赖描述与源码，再安装（利于层缓存）
-COPY pyproject.toml README.md ./
+# 依赖描述与业务源码分层：通常的代码改动不会再次解析、下载完整依赖。
+# 依赖清单由 pyproject 自动导出，避免维护第二份易漂移的 requirements 文件。
+COPY pyproject.toml ./
+COPY scripts/export_docker_requirements.py /usr/local/bin/export_docker_requirements.py
+ARG PIP_INDEX_URL=""
+RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
+    python /usr/local/bin/export_docker_requirements.py pyproject.toml > /tmp/requirements.production.txt \
+    && \
+    if [ -n "$PIP_INDEX_URL" ]; then \
+      pip install --index-url "$PIP_INDEX_URL" -r /tmp/requirements.production.txt; \
+    else \
+      pip install -r /tmp/requirements.production.txt; \
+    fi
+
+COPY README.md ./
 COPY medeval/ medeval/
 COPY server/ server/
 COPY cases/ cases/
@@ -35,7 +55,8 @@ COPY config.yaml ./config.yaml
 
 COPY --from=frontend-build /frontend/dist frontend/dist/
 
-RUN pip install -e ".[server,llm-openai,langfuse,postgres]"
+# 仅安装当前项目本身；第三方依赖已在上一层缓存。
+RUN pip install --no-deps -e .
 
 COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
