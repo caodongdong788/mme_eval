@@ -242,6 +242,26 @@ def test_create_pairwise_201(client, session, monkeypatch):
     assert body["run_a_id"] == a.id
 
 
+def test_pairwise_detail_includes_performance_and_token_observability(client, session):
+    a = _mk_run(session, name="A")
+    b = _mk_run(session, name="B")
+    a.latency_summary = {"avg_ms": 1200, "p90_ms": 1800}
+    a.token_summary = {"total_tokens": 1000, "avg_tokens_per_run": 500}
+    b.latency_summary = {"avg_ms": 900, "p90_ms": 1500}
+    b.token_summary = {"total_tokens": 1400, "avg_tokens_per_run": 700}
+    comp = PairwiseComparison(run_a_id=a.id, run_b_id=b.id, judge_model="m", status="done")
+    session.add(comp)
+    session.commit()
+
+    body = client.get(f"/api/compare/pairwise/{comp.id}").json()
+    assert body["run_a_observability"] == {
+        "latency_summary": {"avg_ms": 1200, "p90_ms": 1800},
+        "token_summary": {"total_tokens": 1000, "avg_tokens_per_run": 500},
+    }
+    assert body["run_b_observability"]["latency_summary"]["avg_ms"] == 900
+    assert body["run_b_observability"]["token_summary"]["total_tokens"] == 1400
+
+
 def test_pairwise_default_judge_falls_back_to_llm_api_key_env(session, monkeypatch):
     """默认判分模型不落库密钥时，也必须和常规评测使用同一个环境变量。"""
     from server import pairwise_job

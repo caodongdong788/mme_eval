@@ -61,3 +61,10 @@ def test_spa_root(spa_client):
     resp = spa_client.get("/")
     assert resp.status_code == 200
     assert "mme-spa-test" in resp.text
+    assert resp.headers["cache-control"] == "no-cache"
+
+
+def test_spa_index_entry_is_not_cached(spa_client):
+    resp = spa_client.get("/index.html")
+    assert resp.status_code == 200
+    assert resp.headers["cache-control"] == "no-cache"
