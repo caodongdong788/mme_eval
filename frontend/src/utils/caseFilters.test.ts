@@ -21,6 +21,7 @@ const rows: CaseRow[] = [
     guideline_earned: 6,
     guideline_max: 6,
     n_turns: 1,
+    rag_status: "hit",
     failure_tags: [],
   },
   {
@@ -37,6 +38,7 @@ const rows: CaseRow[] = [
     guideline_earned: 5,
     guideline_max: 6,
     n_turns: 2,
+    rag_status: "not_triggered",
     failure_tags: ["missing_followup"],
     review: { verdict: "override", count: 1 },
   },
@@ -81,6 +83,15 @@ describe("filterCaseRows", () => {
       filterCaseRows(rows, [condition("review", "equals", "pending")], new Set(["a"]))
     ).toEqual([rows[0]]);
   });
+
+  it("filters by real RAG invocation state", () => {
+    expect(
+      filterCaseRows(rows, [condition("rag_status", "equals", "hit")], new Set())
+    ).toEqual([rows[0]]);
+    expect(
+      filterCaseRows(rows, [condition("rag_status", "equals", "not_triggered")], new Set())
+    ).toEqual([rows[1]]);
+  });
 });
 
 describe("buildCaseFilterValueOptions", () => {
@@ -94,5 +105,6 @@ describe("buildCaseFilterValueOptions", () => {
     ]);
     expect(options.guideline_score?.map((item) => item.value)).toEqual(["6/6", "5/6"]);
     expect(options.failure_tags?.map((item) => item.value)).toEqual(["追问不足"]);
+    expect(options.rag_status?.map((item) => item.value)).toEqual(["hit", "not_triggered"]);
   });
 });

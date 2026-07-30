@@ -23,6 +23,7 @@ function run(partial: Partial<RunSummary> & { id: number; created_at: string }):
     error_msg: "",
     has_traces: true,
     pinned: false,
+    evaluation_mode: "single_turn",
     ...partial,
   };
 }

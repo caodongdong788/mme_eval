@@ -1,4 +1,4 @@
-from medeval.evaluation import EvaluationDimension
+from medeval.evaluation import DIMENSION_STANDARDS, SCORE_ANCHORS, EvaluationDimension
 from server.services import platform_config
 
 
@@ -11,6 +11,14 @@ def test_evaluation_standard_is_complete() -> None:
     assert standard["end_max_scores"] == {"doctor": 15, "nurse": 15, "user": 15}
     assert standard["total_max_score"] == 45
     assert standard["guideline_rule"] == "untriggered=0; missing=max_score-score; final=max(0, raw-missing)"
+    assert [item["score"] for item in standard["score_anchors"]] == list(SCORE_ANCHORS)
+    assert [item["key"] for item in standard["roles"]] == ["doctor", "nurse", "user"]
+    assert standard["roles"][1]["raw_max_score"] == 10
+    assert standard["roles"][1]["normalized"] is True
+    assert standard["dimensions"][2]["full_score_description"] == (
+        DIMENSION_STANDARDS[EvaluationDimension.clinical_inquiry]["full_score"]
+    )
+    assert "重复或过度" in standard["dimensions"][2]["description"]
 
 
 def test_new_judge_labels_are_exposed() -> None:

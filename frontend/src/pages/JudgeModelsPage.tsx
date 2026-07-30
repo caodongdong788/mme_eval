@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Alert, Button, Popconfirm, Table, Tabs, Tag, Typography } from "antd";
 import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
-import { api, EvaluationAccount, JudgeModel } from "../api/index";
+import { EvaluationAccount, JudgeModel } from "../api/index";
 import { AsyncLoadError } from "../components/AsyncLoadError";
 import {
   DashTableActions,
@@ -10,13 +10,13 @@ import {
 } from "../components/DashTableActions";
 import { DashboardPageShell } from "../components/DashboardPageShell";
 import { JudgeModelEditModal } from "../components/JudgeModelEditModal";
-import { useAsyncData } from "../hooks/useAsyncData";
+import { useEvaluationAccounts } from "../hooks/useEvaluationAccounts";
 import { useJudgeModelsPage } from "../hooks/useJudgeModelsPage";
 
 export default function JudgeModelsPage() {
   const jm = useJudgeModelsPage();
   const [activeTab, setActiveTab] = useState("models");
-  const accounts = useAsyncData(() => api.getEvaluationAccounts(), []);
+  const accounts = useEvaluationAccounts();
   const accountRows = accounts.data?.accounts ?? [];
   const statelessCount = accountRows.filter(
     (account) => account.pool === "stateless"
@@ -172,7 +172,7 @@ export default function JudgeModelsPage() {
                 />
                 {accounts.error ? (
                   <AsyncLoadError
-                    message={accounts.error}
+                    message={String(accounts.error)}
                     onRetry={accounts.reload}
                   />
                 ) : (

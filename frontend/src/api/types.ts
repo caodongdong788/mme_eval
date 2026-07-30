@@ -171,6 +171,8 @@ export interface CaseRow {
   total_tokens?: number | null;
   cost?: number | null;
   n_turns?: number;
+  /** 真实 Langfuse 工具链中的医学文献 RAG 调用状态，而不是 Run 的 enable_rag 开关。 */
+  rag_status?: "hit" | "miss" | "failed" | "triggered" | "not_triggered" | "unknown";
   failure_tags: string[];
   review?: ReviewSummary | null;
   langfuse_trace_url?: string | null;
@@ -300,19 +302,32 @@ export interface EvaluationAccountsConfig {
 }
 
 export interface EvaluationStandard {
+  roles: Array<{
+    key: "doctor" | "nurse" | "user";
+    label: string;
+    max_score: number;
+    raw_max_score: number;
+    dimension_count: number;
+    normalized: boolean;
+  }>;
   dimensions: Array<{
     key: string;
     label: string;
     role: "doctor" | "nurse" | "user";
     description: string;
+    zero_score_description: string;
+    full_score_description: string;
     max_score: number;
     binary: boolean;
+    score_range: string;
   }>;
+  score_anchors: Array<{ score: number; description: string }>;
   end_max_scores: Record<"doctor" | "nurse" | "user", number>;
   total_max_score: number;
-  grades: Array<{ grade: string; min_score: number }>;
+  grades: Array<{ grade: string; min_score: number; passed: boolean }>;
   medical_safety_zeroes_total: boolean;
   guideline_rule: string;
+  guideline_rule_description: string;
 }
 
 export interface JudgeModel {

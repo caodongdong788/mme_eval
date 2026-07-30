@@ -24,12 +24,14 @@ def _attach_row_display_fields(row: CaseResultRow, *, load_detail_json: bool) ->
     if load_detail_json:
         row.n_turns = case_n_turns(row)
         row.langfuse_trace_url = case_trace_url(row)
+        row.rag_status = case_rag_status(row)
         gc = guideline_counts(row)
         row.guideline_earned = gc[0] if gc else None
         row.guideline_max = gc[1] if gc else None
     else:
         row.n_turns = 1
         row.langfuse_trace_url = None
+        row.rag_status = "unknown"
 
 
 def case_n_turns(row: CaseResultRow) -> int:
@@ -48,6 +50,60 @@ def case_trace_url(row: CaseResultRow) -> Optional[str]:
     detail = row.detail_json or {}
     url = ((detail.get("trace") or {}).get("langfuse_trace_url"))
     return url if isinstance(url, str) and url else None
+
+
+def case_rag_status(row: CaseResultRow) -> str:
+    """返回医学文献 RAG 的真实调用状态，而非本次 Run 的开关状态。
+
+    ``enable_rag`` 仅表示 Agent 可以使用 RAG；是否真的触发，必须以 Langfuse
+    同步后固化的 ``medical_literature_search`` 工具节点为准。
+    """
+    detail = row.detail_json or {}
+    trace = detail.get("trace") if isinstance(detail, dict) else {}
+    chain = trace.get("agent_chain") if isinstance(trace, dict) else {}
+    if not isinstance(chain, dict):
+        return "unknown"
+
+    summary = chain.get("summary")
+    sources = summary.get("sources") if isinstance(summary, dict) else None
+    if isinstance(sources, list):
+        rag = next(
+            (
+                item
+                for item in sources
+                if isinstance(item, dict) and item.get("key") == "literature_rag"
+            ),
+            None,
+        )
+        if rag is not None:
+            calls = rag.get("calls")
+            if isinstance(calls, (int, float)) and calls > 0:
+                status = str(rag.get("status") or "").lower()
+                if status == "hit":
+                    return "hit"
+                if status == "miss":
+                    return "miss"
+                if status == "failed":
+                    return "failed"
+                return "triggered"
+            # 已完成 Langfuse 同步但没有该工具调用，才可认定为未触发。
+            if chain.get("status") in {"synced", "partial"}:
+                return "not_triggered"
+
+    nodes = chain.get("nodes")
+    if isinstance(nodes, list):
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            name = str(node.get("name") or "").removeprefix("tool.")
+            if name == "medical_literature_search":
+                level = str(node.get("level") or "").upper()
+                if level == "ERROR" or node.get("status_message"):
+                    return "failed"
+                return "triggered"
+        if chain.get("status") in {"synced", "partial"}:
+            return "not_triggered"
+    return "unknown"
 
 
 def guideline_counts(row: CaseResultRow) -> Optional[tuple[float, float]]:

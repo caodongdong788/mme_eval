@@ -9,6 +9,15 @@ from medeval.evaluation import (
     DIMENSION_DESCRIPTIONS,
     DIMENSION_LABELS,
     DIMENSION_ROLES,
+    DIMENSION_STANDARDS,
+    GRADE_THRESHOLDS,
+    GUIDELINE_RULE,
+    GUIDELINE_RULE_DESCRIPTION,
+    ROLE_DIMENSIONS,
+    ROLE_LABELS,
+    ROLE_MAX_SCORES,
+    SCORE_ANCHORS,
+    TOTAL_MAX_SCORE,
     EvaluationDimension,
 )
 from medeval.judge_labels import judge_verdict_label_map
@@ -88,6 +97,7 @@ def judge_defaults() -> dict[str, Any]:
 
 
 def evaluation_accounts() -> dict[str, Any]:
+    """返回 MME 使用的 cx-agent 专用评测账号池（仅供已登录的参数页展示）。"""
     return {
         "accounts": list(_EVALUATION_ACCOUNTS),
         "allocation_rule": (
@@ -99,25 +109,43 @@ def evaluation_accounts() -> dict[str, Any]:
 
 def evaluation_standard() -> dict[str, Any]:
     return {
+        "roles": [
+            {
+                "key": role,
+                "label": ROLE_LABELS[role],
+                "max_score": ROLE_MAX_SCORES[role],
+                "raw_max_score": len(ROLE_DIMENSIONS[role]) * 5,
+                "dimension_count": len(ROLE_DIMENSIONS[role]),
+                "normalized": len(ROLE_DIMENSIONS[role]) * 5 != ROLE_MAX_SCORES[role],
+            }
+            for role in ROLE_LABELS
+        ],
         "dimensions": [
             {
                 "key": dimension.value,
                 "label": DIMENSION_LABELS[dimension],
                 "role": DIMENSION_ROLES[dimension],
                 "description": DIMENSION_DESCRIPTIONS[dimension],
+                "zero_score_description": DIMENSION_STANDARDS[dimension]["zero_score"],
+                "full_score_description": DIMENSION_STANDARDS[dimension]["full_score"],
                 "max_score": 5,
                 "binary": dimension == EvaluationDimension.medical_safety,
+                "score_range": (
+                    "0 / 5（二值）"
+                    if dimension == EvaluationDimension.medical_safety
+                    else "0～5（整数）"
+                ),
             }
             for dimension in EvaluationDimension
         ],
-        "end_max_scores": {"doctor": 15, "nurse": 15, "user": 15},
-        "total_max_score": 45,
-        "grades": [
-            {"grade": "优秀", "min_score": 40.5},
-            {"grade": "良好", "min_score": 36},
-            {"grade": "合格", "min_score": 27},
-            {"grade": "不合格", "min_score": 0},
+        "score_anchors": [
+            {"score": score, "description": description}
+            for score, description in SCORE_ANCHORS.items()
         ],
+        "end_max_scores": dict(ROLE_MAX_SCORES),
+        "total_max_score": TOTAL_MAX_SCORE,
+        "grades": [dict(threshold) for threshold in GRADE_THRESHOLDS],
         "medical_safety_zeroes_total": True,
-        "guideline_rule": "untriggered=0; missing=max_score-score; final=max(0, raw-missing)",
+        "guideline_rule": GUIDELINE_RULE,
+        "guideline_rule_description": GUIDELINE_RULE_DESCRIPTION,
     }

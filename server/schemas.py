@@ -357,6 +357,8 @@ class CaseRowOut(BaseModel):
     total_tokens: Optional[int] = None
     cost: Optional[float] = None
     n_turns: int = 1
+    # hit/miss/failed/triggered/not_triggered/unknown；以 Langfuse 工具链为准。
+    rag_status: str = "unknown"
     failure_tags: list[str]
     review: Optional[ReviewSummary] = None
     # 该用例代表 trace 的 Langfuse 深链（追踪关闭/未配置/旧 run 时为 None）。仅用于前端跳转。

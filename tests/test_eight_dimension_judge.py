@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from medeval.evaluation import EvaluationDimension
+from medeval.evaluation import DIMENSION_STANDARDS, EvaluationDimension
 from medeval.judges.eight_dimension import EightDimensionJudge
 from medeval.models import ChatMessage, ConversationTrace, TestCase
 from tests.test_v2_case_schema import raw_case
@@ -105,3 +105,24 @@ def test_prompt_enforces_role_boundaries_and_evidence_based_reasons() -> None:
     assert "患者只评被理解与共情、可执行性、沟通体验与继续意愿" in captured
     assert "至少一处具体表述作为证据" in captured
     assert "重复或过度的追问要扣分" in captured
+
+
+def test_prompt_uses_shared_dimension_standards() -> None:
+    judge = EightDimensionJudge(enabled=False)
+    judge.enabled = True
+    captured = ""
+
+    async def fake_call(prompt: str):
+        nonlocal captured
+        captured = prompt
+        scores = {dimension.value: 5 for dimension in EvaluationDimension}
+        return scores, {key: "stub" for key in scores}
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    asyncio.run(judge.judge(case(), trace()))
+
+    for dimension in EvaluationDimension:
+        standard = DIMENSION_STANDARDS[dimension]
+        assert standard["description"] in captured
+        assert standard["zero_score"] in captured
+        assert standard["full_score"] in captured
