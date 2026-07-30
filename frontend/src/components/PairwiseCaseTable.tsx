@@ -1,11 +1,12 @@
-import { Select, Table, Tag, Typography } from "antd";
-import { FilterOutlined } from "@ant-design/icons";
+import { useState } from "react";
+import { Button, Select, Space, Table, Tag, Typography } from "antd";
+import { EyeOutlined, FilterOutlined } from "@ant-design/icons";
 import type { PairwiseCaseVerdict, PairwiseDetail } from "../api/index";
 import { DIM_LABEL } from "../labels";
 import type { usePairwiseDetail } from "../hooks/usePairwiseDetail";
 import { DashTableLink } from "./DashTableActions";
 import { DashPanel } from "./DashPanel";
-import { PairwiseExpandedRow } from "./PairwiseExpandedRow";
+import { PairwiseCaseDetailDrawer } from "./PairwiseCaseDetailDrawer";
 import {
   PAIRWISE_CONFIDENCE_HINT,
   PAIRWISE_DIMENSION_HINT,
@@ -17,31 +18,6 @@ import {
 const { Text } = Typography;
 
 type PairwiseDetailState = ReturnType<typeof usePairwiseDetail>;
-
-function PairwiseReasonCell({ r }: { r: PairwiseCaseVerdict }) {
-  const sensitive =
-    !r.human_calibrated && r.confidence_kind === "order" && r.winner === "tie";
-  const runs = r.order_runs || [];
-  if (sensitive && runs.length === 2) {
-    const phrase = (w: string) => (w === "A" ? "判 A 更优" : w === "B" ? "判 B 更优" : "判持平");
-    return (
-      <div style={{ fontSize: 13 }}>
-        <div>
-          <Tag color="default">顺序① 上=A</Tag>
-          {phrase(runs[0].winner)}：{runs[0].reason || "—"}
-        </div>
-        <div style={{ marginTop: 4 }}>
-          <Tag color="green">顺序② 上=B</Tag>
-          {phrase(runs[1].winner)}：{runs[1].reason || "—"}
-        </div>
-        <Text type="secondary" style={{ fontSize: 11 }}>
-          两次判定不一致（顺序敏感）→ 判持平，建议人工复核
-        </Text>
-      </div>
-    );
-  }
-  return <>{r.reason}</>;
-}
 
 export function PairwiseCaseTable({
   comparisonId,
@@ -55,11 +31,9 @@ export function PairwiseCaseTable({
   resetFilters,
   tablePage,
   setTablePage,
-  expandedKeys,
-  setExpandedKeys,
-  setCalibrateVerdict,
   runAName,
   runBName,
+  onSaved,
 }: {
   comparisonId: number;
   detail: PairwiseDetail;
@@ -74,12 +48,11 @@ export function PairwiseCaseTable({
   | "resetFilters"
   | "tablePage"
   | "setTablePage"
-  | "expandedKeys"
-  | "setExpandedKeys"
-  | "setCalibrateVerdict"
   | "runAName"
   | "runBName"
->) {
+> & { onSaved: () => void }) {
+  const [detailVerdict, setDetailVerdict] = useState<PairwiseCaseVerdict | null>(null);
+
   return (
     <DashPanel title="逐用例对比" bodyClassName="dash-panel__body--flush">
       <div className="case-toolbar dash-filter-bar">
@@ -115,10 +88,11 @@ export function PairwiseCaseTable({
         </div>
       </div>
       <Table<PairwiseCaseVerdict>
-        className="dash-table"
+        className="dash-table pairwise-case-table"
         rowKey="sample_id"
         dataSource={filtered}
         size="small"
+        tableLayout="auto"
         pagination={{
           pageSize: 20,
           current: tablePage,
@@ -151,40 +125,41 @@ export function PairwiseCaseTable({
           {
             title: <PairwiseHeaderHint label="维度" hint={PAIRWISE_DIMENSION_HINT} />,
             render: (_, r) =>
-              Object.entries(r.dimension_winners || {})
-                .filter(([, w]) => w !== "tie")
-                .map(([dim, w]) => (
-                  <Tag key={dim} color={w === "B" ? "green" : "default"}>
-                    {DIM_LABEL[dim] || dim}={w}
-                  </Tag>
-                )),
+              Object.entries(r.dimension_winners || {}).filter(([, w]) => w !== "tie").length ? (
+                <Space size={[2, 4]} wrap>
+                  {Object.entries(r.dimension_winners || {})
+                    .filter(([, w]) => w !== "tie")
+                    .map(([dim, w]) => (
+                      <Tag key={dim} color={w === "B" ? "green" : "default"}>
+                        {DIM_LABEL[dim] || dim}={w}
+                      </Tag>
+                    ))}
+                </Space>
+              ) : (
+                <Text type="secondary">—</Text>
+              ),
           },
           {
             title: "操作",
-            width: 72,
+            width: 112,
             render: (_, r) => (
-              <DashTableLink onClick={() => setCalibrateVerdict(r)}>校准</DashTableLink>
+              <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => setDetailVerdict(r)}>
+                查看明细
+              </Button>
             ),
           },
-          {
-            title: "理由",
-            render: (_, r) => <PairwiseReasonCell r={r} />,
-          },
         ]}
-        expandable={{
-          expandedRowKeys: expandedKeys,
-          onExpandedRowsChange: (keys) => setExpandedKeys(keys as string[]),
-          expandedRowRender: (r) => (
-            <PairwiseExpandedRow
-              runAId={detail.run_a_id}
-              runBId={detail.run_b_id}
-              sampleId={r.sample_id}
-              runAName={runAName}
-              runBName={runBName}
-              comparisonId={comparisonId}
-            />
-          ),
-        }}
+      />
+      <PairwiseCaseDetailDrawer
+        open={detailVerdict != null}
+        verdict={detailVerdict}
+        comparisonId={comparisonId}
+        runAId={detail.run_a_id}
+        runBId={detail.run_b_id}
+        runAName={runAName}
+        runBName={runBName}
+        onClose={() => setDetailVerdict(null)}
+        onSaved={onSaved}
       />
     </DashPanel>
   );

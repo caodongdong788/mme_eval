@@ -37,6 +37,11 @@ export function usePairwiseExpandedMessages(runAId: number, runBId: number, samp
   );
 
   useEffect(() => {
+    if (!sampleId) {
+      setMessagesA([]);
+      setMessagesB([]);
+      return;
+    }
     let cancelled = false;
     Promise.all([fetchMessages(runAId, sampleId), fetchMessages(runBId, sampleId)]).then(
       ([a, b]) => {

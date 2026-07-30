@@ -684,6 +684,144 @@ a.ant-typography-secondary:hover {
   background: color-mix(in srgb, var(--fail) 6%, transparent);
 }
 
+/* Pairwise：外层仅保留结论摘要，详情在三栏抽屉中阅读与校准。 */
+.pairwise-case-table .ant-table-cell {
+  vertical-align: middle;
+}
+.pairwise-case-table .ant-btn-link {
+  padding-inline: 0;
+}
+.pairwise-case-drawer .ant-drawer-header {
+  padding: 16px 20px;
+  border-bottom-color: var(--runs-border);
+}
+.pairwise-case-drawer .ant-drawer-body {
+  padding: 16px 20px 24px;
+  background: var(--runs-bg);
+}
+.pairwise-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr) minmax(320px, 0.92fr);
+  gap: 14px;
+  align-items: start;
+}
+.pairwise-detail-conversation,
+.pairwise-detail-judge {
+  min-width: 0;
+  background: var(--runs-card);
+  border: 1px solid var(--runs-border);
+  border-radius: 10px;
+}
+.pairwise-detail-conversation__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 48px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--runs-border);
+}
+.pairwise-detail-conversation__head > div {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 2px;
+}
+.pairwise-detail-conversation__head .ant-typography {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pairwise-detail-conversation__head a {
+  flex: none;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.pairwise-detail-conversation__body {
+  min-height: 320px;
+  padding: 14px 12px 10px;
+}
+.pairwise-detail-conversation__body .ant-empty {
+  margin-top: 120px;
+}
+.pairwise-detail-judge {
+  padding: 14px;
+}
+.pairwise-detail-judge .ant-alert {
+  margin-bottom: 14px;
+}
+.pairwise-detail-reason__head,
+.pairwise-calibration__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.pairwise-detail-reason__content {
+  margin-bottom: 0;
+  color: var(--runs-text-secondary);
+  white-space: pre-wrap;
+  line-height: 1.65;
+}
+.pairwise-order-attempts {
+  display: grid;
+  gap: 8px;
+}
+.pairwise-order-attempt {
+  padding: 10px;
+  border: 1px solid var(--runs-border);
+  border-radius: 8px;
+  background: #fafbfc;
+}
+.pairwise-order-attempt .ant-typography {
+  margin: 6px 0 0;
+  color: var(--runs-text-secondary);
+  line-height: 1.55;
+}
+.pairwise-calibration {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--runs-border);
+}
+.pairwise-calibration__head .ant-typography-secondary {
+  font-size: 12px;
+  text-align: right;
+}
+.pairwise-calibration .ant-form-item {
+  margin-bottom: 12px;
+}
+.pairwise-calibration .ant-form-item-label {
+  padding-bottom: 4px;
+}
+.pairwise-calibration__dimensions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 10px;
+}
+@media (max-width: 1180px) {
+  .pairwise-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pairwise-detail-judge {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 760px) {
+  .pairwise-case-drawer .ant-drawer-body {
+    padding: 12px;
+  }
+  .pairwise-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pairwise-detail-judge {
+    grid-column: auto;
+  }
+  .pairwise-calibration__dimensions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* Pairwise 进行中卡片 */
 .pw-running__head {
   display: flex;
