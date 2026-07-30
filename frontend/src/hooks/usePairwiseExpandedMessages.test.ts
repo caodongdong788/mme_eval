@@ -19,7 +19,10 @@ describe("usePairwiseExpandedMessages", () => {
     vi.clearAllMocks();
     clearPairwiseMessagesCache();
     mockedApi.getCaseDetail.mockImplementation(async (runId: number) => ({
-      trace: { messages: [{ role: "user", content: `run-${runId}` }] },
+      trace: {
+        messages: [{ role: "user", content: `run-${runId}` }],
+        cx_evaluation_share_url: `https://cx.example.com/${runId}`,
+      },
     }));
   });
 
@@ -31,6 +34,8 @@ describe("usePairwiseExpandedMessages", () => {
     expect(mockedApi.getCaseDetail).toHaveBeenCalledTimes(2);
     expect(mockedApi.getCaseDetail).toHaveBeenCalledWith(1, "bc_001");
     expect(mockedApi.getCaseDetail).toHaveBeenCalledWith(2, "bc_001");
+    expect(result.current.replayUrlA).toBe("https://cx.example.com/1");
+    expect(result.current.replayUrlB).toBe("https://cx.example.com/2");
   });
 
   it("uses cache on remount", async () => {

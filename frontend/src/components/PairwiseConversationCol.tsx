@@ -2,6 +2,7 @@ import { Card, Empty, Space, Tag, Typography } from "antd";
 import { ArrowRightOutlined } from "@ant-design/icons";
 import { Link } from "react-router-dom";
 import type { ConversationMessage } from "./ConversationThread";
+import { CxReplayEmbed } from "./CxReplayEmbed";
 
 const { Text } = Typography;
 
@@ -12,6 +13,7 @@ export function PairwiseConversationCol({
   side,
   runName,
   comparisonId,
+  replayUrl,
 }: {
   messages: ConversationMessage[];
   runId: number;
@@ -19,6 +21,7 @@ export function PairwiseConversationCol({
   side: "A" | "B";
   runName: string;
   comparisonId: number;
+  replayUrl?: string;
 }) {
   return (
     <Card
@@ -45,8 +48,17 @@ export function PairwiseConversationCol({
           用例明细 <ArrowRightOutlined />
         </Link>
       }
-      styles={{ body: { maxHeight: 420, overflowY: "auto" } }}
+      styles={{ body: replayUrl ? { padding: 0 } : { maxHeight: 420, overflowY: "auto" } }}
     >
+      {replayUrl ? (
+        <CxReplayEmbed
+          src={replayUrl}
+          messages={messages}
+          resolveImageSrc={(imagePath) =>
+            `/api/runs/${runId}/cases/${encodeURIComponent(sampleId)}/images/${encodeURIComponent(imagePath)}`
+          }
+        />
+      ) : (
       <Space direction="vertical" size={8} style={{ display: "flex" }}>
         {messages.map((m, i) => {
           const isUser = m.role === "user";
@@ -72,6 +84,7 @@ export function PairwiseConversationCol({
         })}
         {messages.length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
       </Space>
+      )}
     </Card>
   );
 }

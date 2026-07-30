@@ -17,7 +17,7 @@ export function PairwiseExpandedRow({
   runBName: string;
   comparisonId: number;
 }) {
-  const { messagesA, messagesB } = usePairwiseExpandedMessages(runAId, runBId, sampleId);
+  const { messagesA, messagesB, replayUrlA, replayUrlB } = usePairwiseExpandedMessages(runAId, runBId, sampleId);
 
   return (
     <Row gutter={12}>
@@ -29,6 +29,7 @@ export function PairwiseExpandedRow({
           side="A"
           runName={runAName}
           comparisonId={comparisonId}
+          replayUrl={replayUrlA}
         />
       </Col>
       <Col span={12}>
@@ -39,6 +40,7 @@ export function PairwiseExpandedRow({
           side="B"
           runName={runBName}
           comparisonId={comparisonId}
+          replayUrl={replayUrlB}
         />
       </Col>
     </Row>

@@ -31,4 +31,25 @@ describe("PairwiseConversationCol", () => {
     ]);
     expect(container.firstChild).toMatchSnapshot();
   });
+
+  it("embeds the same CX native replay as the case detail when it is available", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <PairwiseConversationCol
+          messages={[{ role: "user", content: "运动有帮助吗" }]}
+          side="A"
+          runName="baseline-run"
+          runId={1}
+          sampleId="bc_001"
+          comparisonId={9}
+          replayUrl="https://cx.example.com/s/evaluation-token"
+        />
+      </MemoryRouter>
+    );
+
+    expect(document.querySelector('iframe[title="CX 完整回放"]')).toHaveAttribute(
+      "src",
+      "https://cx.example.com/s/evaluation-token"
+    );
+  });
 });
