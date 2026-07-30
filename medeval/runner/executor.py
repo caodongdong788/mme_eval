@@ -89,6 +89,8 @@ async def _run_one(
     error: str | None = None
     cx_langfuse_trace_ids: list[str] = []
     cx_evaluation_share_url: str | None = None
+    cx_literature_audits: list[dict] = []
+    cx_literature_audit_error: str | None = None
     simulation_trace: list[dict] = []
     simulation_state: SimulationState | None = None
     if case.conversation is not None and user_simulator is None:
@@ -301,6 +303,15 @@ async def _run_one(
 
     duration_ms = int((time.perf_counter() - start) * 1000)
 
+    # 必须先拉审计、再释放隔离评测账号。账号下次领取会清空关联数据，而 Langfuse
+    # 可能截断大型工具输出；这里的完整 Top-K snapshot 是 MME 长期审计的真相来源。
+    fetch_literature_audits = getattr(adapter, "fetch_literature_audits", None)
+    if callable(fetch_literature_audits):
+        try:
+            cx_literature_audits = await fetch_literature_audits(session_id)
+        except Exception as exc:  # noqa: BLE001 - 观测增强失败不得覆盖评测结论
+            cx_literature_audit_error = str(exc)
+
     await adapter.end_session(session_id)
 
     return ConversationTrace(
@@ -313,6 +324,8 @@ async def _run_one(
         langfuse_trace_url=langfuse_trace_url,
         langfuse_trace_ids=cx_langfuse_trace_ids,
         cx_evaluation_share_url=cx_evaluation_share_url,
+        cx_literature_audits=cx_literature_audits,
+        cx_literature_audit_error=cx_literature_audit_error,
         evaluation_identity=evaluation_identity,
         simulation_trace=simulation_trace,
         simulation_facts=simulation_state.facts if simulation_state is not None else {},

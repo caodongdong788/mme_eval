@@ -445,3 +445,30 @@ def test_cx_agent_adapter_sends_explicit_rag_flag_and_records_it():
     assert seen == [{"content": "药物说明书", "enableRag": True}]
     assert response.raw["rag_enabled"] is True
     asyncio.run(adapter.close())
+
+
+def test_cx_agent_adapter_fetches_full_literature_audit_before_account_release():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["x-test-token"] == "token-1"
+        assert request.url.path == (
+            "/api/test/evaluation/sessions/11111111-1111-1111-1111-111111111111/"
+            "literature-audits"
+        )
+        return httpx.Response(
+            200,
+            json={
+                "success": True,
+                "data": {
+                    "sessionId": "11111111-1111-1111-1111-111111111111",
+                    "audits": [{"id": "audit-1", "hits": [{"rank": 1}]}],
+                },
+            },
+        )
+
+    adapter = _adapter_with_transport(handler)
+    adapter._sessions["mme-audit-1"] = "11111111-1111-1111-1111-111111111111"
+
+    assert asyncio.run(adapter.fetch_literature_audits("mme-audit-1")) == [
+        {"id": "audit-1", "hits": [{"rank": 1}]}
+    ]
+    asyncio.run(adapter.close())

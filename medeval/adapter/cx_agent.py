@@ -24,6 +24,7 @@ from .registry import register_adapter
 CX_AGENT_CHAT_ENDPOINT = "/api/test/chat/send"
 CX_AGENT_ACCOUNT_LEASE_ENDPOINT = "/api/test/evaluation/accounts/lease"
 CX_AGENT_ACCOUNT_RELEASE_ENDPOINT = "/api/test/evaluation/accounts/release"
+CX_AGENT_LITERATURE_AUDIT_ENDPOINT = "/api/test/evaluation/sessions/{session_id}/literature-audits"
 
 # cx-agent 的测试接口只接受不超过 260,096 个字符的文本。部分 benchmark 会把
 # 报告截图直接内嵌为 data:image/...;base64；这既不是 agent 可理解的文本，也会让
@@ -329,6 +330,29 @@ class CxAgentAdapter(BaseAdapter):
         for session_id in list(self._leases):
             await self.end_session(session_id)
         await self._client.aclose()
+
+    async def fetch_literature_audits(self, mme_session_id: str) -> list[dict[str, Any]]:
+        """在评测账号释放前固化本 Case 的完整 RAG 命中审计。
+
+        Langfuse 会对大工具输出做体积截断，不能可靠提供 chunk；cx-agent 的
+        ``medical_literature_search_audits`` 才保存了知识库实际返回的完整 Top-K。
+        """
+        cx_session_id = self._sessions.get(mme_session_id)
+        if not cx_session_id:
+            return []
+        response = await self._client.get(
+            self.base_url + CX_AGENT_LITERATURE_AUDIT_ENDPOINT.format(
+                session_id=cx_session_id,
+            ),
+            headers={"X-Test-Token": self._test_token},
+        )
+        response.raise_for_status()
+        payload = response.json()
+        data = payload.get("data") if isinstance(payload, dict) else None
+        audits = data.get("audits") if isinstance(data, dict) else None
+        if not isinstance(audits, list) or not all(isinstance(item, dict) for item in audits):
+            raise RuntimeError("cx-agent literature audit returned invalid payload")
+        return audits
 
     async def end_session(self, session_id: str) -> None:
         lease = self._leases.pop(session_id, None)

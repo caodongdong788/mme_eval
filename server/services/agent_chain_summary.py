@@ -548,6 +548,129 @@ def summarize_agent_chain(nodes: Iterable[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _snapshot_chunk(hit: dict[str, Any]) -> dict[str, Any] | None:
+    raw = _record(hit.get("raw"))
+    content = str(raw.get("content") or "").strip()
+    if not content:
+        return None
+    return {
+        "sourceRank": _number(hit.get("rank")),
+        "score": _number(raw.get("score")) or _number(raw.get("vec_score")),
+        "title": str(raw.get("title") or "未命名文献"),
+        "content": content,
+        "sectionName": raw.get("section_name"),
+        "chunkType": raw.get("chunk_type"),
+        "raw": raw,
+    }
+
+
+def _snapshot_sources(hits: list[dict[str, Any]], flag: str | None = None) -> list[dict[str, Any]]:
+    """把 cx-agent 审计表的原始 hit 按文献聚合为前端可展开的数据。
+
+    ``flag`` 只使用审计表明确记录的门控结果；候选阶段没有逐条标记时绝不反推。
+    """
+    grouped: dict[str, dict[str, Any]] = {}
+    for hit in hits:
+        if flag is not None and hit.get(flag) is not True:
+            continue
+        raw = _record(hit.get("raw"))
+        chunk = _snapshot_chunk(hit)
+        if chunk is None:
+            continue
+        title = str(raw.get("title") or "未命名文献")
+        doi = str(raw.get("doi") or "").strip()
+        key = doi.lower() or "|".join(
+            [title.lower(), str(raw.get("pub_year") or ""), str(raw.get("journal") or "")]
+        )
+        source = grouped.setdefault(
+            key,
+            {
+                "id": doi or key,
+                "title": title,
+                "doi": doi or None,
+                "journal": raw.get("journal"),
+                "pubYear": raw.get("pub_year"),
+                "score": chunk.get("score"),
+                "articleClass": raw.get("article_class"),
+                "sourceTier": raw.get("source_tier"),
+                "confidenceLevel": raw.get("confidence_level"),
+                "chunks": [],
+            },
+        )
+        source["chunks"].append(chunk)
+        score = _number(chunk.get("score"))
+        if score is not None and (source.get("score") is None or score > source["score"]):
+            source["score"] = score
+    return list(grouped.values())
+
+
+def _snapshot_rag_calls(audits: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    calls: list[dict[str, Any]] = []
+    for audit in audits:
+        hits = [item for item in audit.get("hits") or [] if isinstance(item, dict)]
+        calls.append(
+            {
+                "id": str(audit.get("id") or audit.get("toolCallId") or ""),
+                "status": "available",
+                "original_query": "",
+                "rewritten_query": str(audit.get("query") or ""),
+                "mode": audit.get("mode"),
+                "counts": {
+                    "searched": _number(audit.get("rawHitCount")),
+                    "qualified": _number(audit.get("scorePassedCount")),
+                    "candidates": _number(audit.get("candidateSourceCount")),
+                    "selected": _number(audit.get("selectedSourceCount")),
+                    "threshold": _number(audit.get("scoreThreshold")),
+                },
+                "all_sources": _snapshot_sources(hits),
+                "qualified_sources": _snapshot_sources(hits, "passedScore"),
+                # 审计表未为每条 hit 记录 reranker 的 candidate 标记；只展示总数，避免误导。
+                "candidate_sources": [],
+                "selected_sources": _snapshot_sources(hits, "selected"),
+                "snapshot_source": "cx_agent_audit_db",
+            }
+        )
+    return calls
+
+
+def apply_literature_audit_snapshot(
+    agent_chain: dict[str, Any], audits: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """把 cx-agent 审计快照叠加到 Langfuse 链路摘要中。
+
+    快照优先于 Langfuse 的截断工具输出；其余调用链仍保持 Langfuse 数据不变。
+    """
+    if not audits:
+        return agent_chain
+    chain = deepcopy(agent_chain)
+    nodes = chain.get("nodes") if isinstance(chain.get("nodes"), list) else []
+    summary = _record(chain.get("summary")) or summarize_agent_chain(nodes)
+    sources = summary.get("sources") if isinstance(summary.get("sources"), list) else _source_items()
+    rag = next(
+        (item for item in sources if isinstance(item, dict) and item.get("key") == "literature_rag"),
+        None,
+    )
+    if rag is None:
+        rag = {"key": "literature_rag", "label": "医学文献 RAG"}
+        sources.append(rag)
+    calls = _snapshot_rag_calls(audits)
+    selected = sum(int(call["counts"].get("selected") or 0) for call in calls)
+    rag.update(
+        {
+            "status": "hit" if selected else "miss",
+            "summary": f"已固化 {len(calls)} 次检索的完整召回 chunk",
+            "calls": len(calls),
+            "count": selected,
+            "details": [],
+            "metrics": calls[-1]["counts"],
+            "rag_audit": calls,
+        }
+    )
+    summary["sources"] = sources
+    chain["summary"] = summary
+    return chain
+
+
 def ensure_agent_chain_summary(detail: dict[str, Any]) -> dict[str, Any]:
     """为历史保存的 detail_json 即时补摘要，不回写、不修改传入对象。"""
     hydrated = deepcopy(detail)
@@ -556,6 +679,9 @@ def ensure_agent_chain_summary(detail: dict[str, Any]) -> dict[str, Any]:
     nodes = chain.get("nodes")
     if isinstance(nodes, list):
         chain["summary"] = summarize_agent_chain(nodes)
+    audits = [item for item in trace.get("cx_literature_audits") or [] if isinstance(item, dict)]
+    chain = apply_literature_audit_snapshot(chain, audits)
+    if chain:
         trace["agent_chain"] = chain
         hydrated["trace"] = trace
     return hydrated

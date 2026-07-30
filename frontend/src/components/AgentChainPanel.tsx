@@ -79,6 +79,7 @@ interface RagSource {
     score?: number;
     sourceRank?: number;
     chunkType?: string;
+    raw?: Record<string, unknown>;
   }>;
 }
 
@@ -391,6 +392,12 @@ function RagSourceList({ title, sources }: { title: string; sources: RagSource[]
             <article className="rag-audit-chunk" key={`${source.id || sourceIndex}-${chunkIndex}`}>
               <div>#{chunk.sourceRank ?? chunkIndex + 1} · {chunk.sectionName || "未标注章节"} · 分数 {chunk.score ?? "—"}</div>
               <p>{chunk.content || "Chunk 内容为空"}</p>
+              {chunk.raw ? (
+                <details>
+                  <summary>查看原始检索字段</summary>
+                  <pre>{JSON.stringify(chunk.raw, null, 2)}</pre>
+                </details>
+              ) : null}
             </article>
           )) : <div className="agent-insight-empty">该文献未返回 Chunk 内容</div>}
         </details>
@@ -417,7 +424,7 @@ function RagAuditButton({ calls }: { calls: RagAuditCall[] }) {
                 <div><dt>检索模式</dt><dd>{call.mode || "—"}</dd></div>
               </dl>
               <div className="rag-audit-counts">检索 {formatCount(call.counts?.searched)} → 过阈值 {formatCount(call.counts?.qualified)} → 候选 {formatCount(call.counts?.candidates)} → 采用 {formatCount(call.counts?.selected)}{call.counts?.threshold != null ? ` · 阈值 ≥ ${call.counts.threshold}` : ""}</div>
-              <p className="rag-audit-note">筛选逻辑以 cx-agent 返回的阶段数组为准；未提供数组时仅展示计数，不推测具体文献归属。</p>
+              <p className="rag-audit-note">cx-agent 审计快照会保留完整 Top-K 原始命中；候选阶段未逐条标记时仅展示计数，不推测具体文献归属。</p>
               <RagSourceList title="全部检索文献" sources={call.all_sources || []} />
               <RagSourceList title="过阈值文献" sources={call.qualified_sources || []} />
               <RagSourceList title="候选文献" sources={call.candidate_sources || []} />
