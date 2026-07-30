@@ -21,6 +21,7 @@ import { DIM_LABEL, EVALUATION_DIMENSIONS } from "../labels";
 import { usePairwiseExpandedMessages } from "../hooks/usePairwiseExpandedMessages";
 import { formatApiError } from "../utils/apiError";
 import { ConversationThread } from "./ConversationThread";
+import { CxReplayEmbed } from "./CxReplayEmbed";
 import { PairwiseConfidenceTag, PairwiseVerdictTag } from "./PairwiseVerdictTags";
 
 const { Paragraph, Text } = Typography;
@@ -133,6 +134,7 @@ function ConversationColumn({
   sampleId,
   comparisonId,
   messages,
+  replayUrl,
 }: {
   side: "A" | "B";
   runId: number;
@@ -140,6 +142,7 @@ function ConversationColumn({
   sampleId: string;
   comparisonId: number;
   messages: Parameters<typeof ConversationThread>[0]["messages"];
+  replayUrl?: string;
 }) {
   return (
     <section className="pairwise-detail-conversation">
@@ -162,7 +165,19 @@ function ConversationColumn({
         </Link>
       </div>
       <div className="pairwise-detail-conversation__body">
-        {messages.length ? <ConversationThread messages={messages} maxHeight={620} /> : <Empty description="暂无对话数据" />}
+        {replayUrl ? (
+          <CxReplayEmbed
+            src={replayUrl}
+            messages={messages}
+            resolveImageSrc={(imagePath) =>
+              `/api/runs/${runId}/cases/${encodeURIComponent(sampleId)}/images/${encodeURIComponent(imagePath)}`
+            }
+          />
+        ) : messages.length ? (
+          <ConversationThread messages={messages} maxHeight={620} />
+        ) : (
+          <Empty description="暂无对话数据" />
+        )}
       </div>
     </section>
   );
@@ -192,7 +207,11 @@ export function PairwiseCaseDetailDrawer({
   const [form] = Form.useForm<PairwiseCalibratePayload>();
   const [saving, setSaving] = useState(false);
   const sampleId = verdict?.sample_id || "";
-  const { messagesA, messagesB } = usePairwiseExpandedMessages(runAId, runBId, sampleId);
+  const { messagesA, messagesB, replayUrlA, replayUrlB } = usePairwiseExpandedMessages(
+    runAId,
+    runBId,
+    sampleId
+  );
 
   useEffect(() => {
     if (!open || !verdict) return;
@@ -268,6 +287,7 @@ export function PairwiseCaseDetailDrawer({
             sampleId={verdict.sample_id}
             comparisonId={comparisonId}
             messages={messagesA}
+            replayUrl={replayUrlA}
           />
           <ConversationColumn
             side="B"
@@ -276,6 +296,7 @@ export function PairwiseCaseDetailDrawer({
             sampleId={verdict.sample_id}
             comparisonId={comparisonId}
             messages={messagesB}
+            replayUrl={replayUrlB}
           />
           <aside className="pairwise-detail-judge">
             {verdict.human_calibrated && verdict.auto_winner != null && (
