@@ -91,6 +91,38 @@ def test_sync_conversation_trace_is_fail_soft_when_not_configured():
     assert snapshot["nodes"] == []
 
 
+def test_sync_keeps_cx_agent_literature_audit_when_langfuse_is_unconfigured():
+    settings = Settings(langfuse_host="", langfuse_public_key="", langfuse_secret_key="")
+    trace = ConversationTrace(
+        messages=[],
+        langfuse_trace_ids=["trace-1"],
+        cx_literature_audits=[
+            {
+                "id": "audit-1",
+                "query": "乳腺癌运动",
+                "rawHitCount": 1,
+                "scorePassedCount": 1,
+                "candidateSourceCount": 1,
+                "selectedSourceCount": 1,
+                "scoreThreshold": 0.65,
+                "hits": [
+                    {
+                        "rank": 1,
+                        "passedScore": True,
+                        "selected": True,
+                        "raw": {"title": "指南", "content": "完整 chunk"},
+                    }
+                ],
+            }
+        ],
+    )
+
+    snapshot = asyncio.run(sync_conversation_trace(trace, settings))
+
+    rag = next(item for item in snapshot["summary"]["sources"] if item["key"] == "literature_rag")
+    assert rag["rag_audit"][0]["all_sources"][0]["chunks"][0]["content"] == "完整 chunk"
+
+
 def test_reader_falls_back_to_v1_when_v2_has_ingestion_delay():
     paths: list[str] = []
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from server.services.agent_chain_summary import (
+    apply_literature_audit_snapshot,
     ensure_agent_chain_summary,
     summarize_agent_chain,
 )
@@ -161,3 +162,55 @@ def test_ensure_agent_chain_summary_hydrates_old_detail_without_mutating_input()
 
     assert "summary" not in detail["trace"]["agent_chain"]
     assert hydrated["trace"]["agent_chain"]["summary"]["sources"][2]["status"] == "queried"
+
+
+def test_cx_agent_literature_audit_snapshot_keeps_raw_top_k_chunks_when_langfuse_is_truncated():
+    chain = apply_literature_audit_snapshot(
+        {
+            "status": "synced",
+            "nodes": [],
+            "summary": summarize_agent_chain([]),
+        },
+        [
+            {
+                "id": "audit-1",
+                "query": "乳腺癌 运动",
+                "mode": "general",
+                "rawHitCount": 2,
+                "scorePassedCount": 1,
+                "candidateSourceCount": 1,
+                "selectedSourceCount": 1,
+                "scoreThreshold": 0.65,
+                "hits": [
+                    {
+                        "rank": 1,
+                        "passedScore": True,
+                        "selected": True,
+                        "raw": {
+                            "title": "乳腺癌运动指南",
+                            "doi": "10.1/example",
+                            "score": 0.91,
+                            "content": "每周规律运动可改善生活质量。",
+                        },
+                    },
+                    {
+                        "rank": 2,
+                        "passedScore": False,
+                        "selected": False,
+                        "raw": {
+                            "title": "低分文献",
+                            "score": 0.22,
+                            "content": "这是被阈值过滤但仍应留档的 chunk。",
+                        },
+                    },
+                ],
+            }
+        ],
+    )
+
+    rag = next(item for item in chain["summary"]["sources"] if item["key"] == "literature_rag")
+    call = rag["rag_audit"][0]
+    assert rag["status"] == "hit"
+    assert call["all_sources"][1]["chunks"][0]["content"] == "这是被阈值过滤但仍应留档的 chunk。"
+    assert call["selected_sources"][0]["doi"] == "10.1/example"
+    assert call["candidate_sources"] == []

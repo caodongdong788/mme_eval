@@ -12,7 +12,7 @@ import httpx
 from medeval.models import ConversationTrace, RunReport
 
 from ..settings import Settings
-from .agent_chain_summary import summarize_agent_chain
+from .agent_chain_summary import apply_literature_audit_snapshot, summarize_agent_chain
 
 
 _FIELDS = "core,basic,time,io,metadata,model,usage,prompt,metrics,trace_context"
@@ -192,9 +192,16 @@ async def sync_conversation_trace(
     *,
     reader: LangfuseTraceReader | None = None,
 ) -> dict[str, Any]:
+    def store_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
+        trace.agent_chain = apply_literature_audit_snapshot(
+            snapshot,
+            trace.cx_literature_audits,
+        )
+        return trace.agent_chain
+
     trace_ids = list(dict.fromkeys(trace.langfuse_trace_ids))
     if not trace_ids:
-        return trace.agent_chain
+        return store_snapshot(trace.agent_chain)
 
     owned_reader = reader is None
     reader = reader or LangfuseTraceReader(settings)
@@ -206,10 +213,10 @@ async def sync_conversation_trace(
             "nodes": [],
             "error": "Langfuse 读取凭据未配置",
         }
-        trace.agent_chain = snapshot
+        store_snapshot(snapshot)
         if owned_reader:
             await reader.close()
-        return snapshot
+        return trace.agent_chain
 
     try:
         results = await asyncio.gather(
@@ -251,8 +258,7 @@ async def sync_conversation_trace(
             "summary": summarize_agent_chain(nodes),
             "error": "；".join(errors) if errors else None,
         }
-        trace.agent_chain = snapshot
-        return snapshot
+        return store_snapshot(snapshot)
     finally:
         if owned_reader:
             await reader.close()
@@ -264,8 +270,6 @@ async def enrich_report_agent_chains(report: RunReport, settings: Settings) -> N
         semaphore = asyncio.Semaphore(4)
 
         async def sync_one(trace: ConversationTrace) -> None:
-            if not trace.langfuse_trace_ids:
-                return
             async with semaphore:
                 await sync_conversation_trace(trace, settings, reader=reader)
 

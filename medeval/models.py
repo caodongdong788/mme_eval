@@ -536,6 +536,10 @@ class ConversationTrace(BaseModel):
     langfuse_trace_ids: list[str] = Field(default_factory=list)
     # 评测完成时由 cx-agent 冻结的原生分享页。它独立于评测账号会话，账号清空后仍可回放。
     cx_evaluation_share_url: str | None = None
+    # 评测结束、账号释放前从 cx-agent 测试审计接口固化的医学文献 RAG 原始命中。
+    # Langfuse 可能截断工具输出；该快照保留完整 Top-K chunk 供 MME 长期审计。
+    cx_literature_audits: list[dict[str, Any]] = Field(default_factory=list)
+    cx_literature_audit_error: str | None = None
     # 专用测试账号的领取/重置证据与请求前画像快照。仅观测、不参与判分。
     evaluation_identity: dict[str, Any] = Field(default_factory=dict)
     # 动态多轮的用户模拟留痕：本轮采用规则、原 Benchmark 脚本还是模型补全，
