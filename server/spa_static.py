@@ -11,6 +11,10 @@ from starlette.staticfiles import StaticFiles
 
 logger = logging.getLogger("mme.server")
 
+# Vite 会为 JS/CSS 使用内容哈希文件名，因此可以长期缓存；但 index.html 是入口清单，
+# 发布后必须重新校验，避免旧入口动态 import 已被替换的 chunk。
+SPA_ENTRY_HEADERS = {"Cache-Control": "no-cache"}
+
 
 def install_frontend_spa(app: FastAPI, dist: Path) -> None:
     """托管 ``frontend/dist``：``/assets`` 走 StaticFiles，其余非 API 路径回退 ``index.html``。"""
@@ -39,5 +43,7 @@ def install_frontend_spa(app: FastAPI, dist: Path) -> None:
             except ValueError as exc:
                 raise HTTPException(status_code=404, detail="Not Found") from exc
             if candidate.is_file():
+                if candidate == index:
+                    return FileResponse(index, headers=SPA_ENTRY_HEADERS)
                 return FileResponse(candidate)
-        return FileResponse(index)
+        return FileResponse(index, headers=SPA_ENTRY_HEADERS)
