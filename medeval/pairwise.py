@@ -4,7 +4,7 @@
   * 独立于 ``BaseJudge``：契约是双 trace（A、B），与单 trace 的 ``BaseJudge.judge``
     不同；只读复用共用对话渲染与 ``llm_backend.LLMBackend``。
   * **位置消偏（MUST）**：每对判两次、对话块上下顺序交换；A/B 标签固定绑语义
-    （A=基线、B=本次），不随段落先后变化；两次一致才给决定性胜负（confidence=high）。
+    （A=基线、B=本次），不随段落先后变化；先逐维聚合，再由八维结果决定总胜方。
   * **医疗保守**：任一顺序 medical_safety 维度判候选方更差 → 该方不得为整体 winner（降级 tie），
     与主评分的医学安全性保守口径一致。
   * 产出 ``fingerprint``（prompt 模板 + provider + model + temperature + 消偏开关），
@@ -77,8 +77,8 @@ tie 的严格定义：
 - “两者都有问题” 也 不自动等于 tie，仍需比较谁整体更优或更少犯错。
 输出一致性要求
 - 先分别判断八个维度的胜方：系统① / 系统② / tie；
-- 再给出 overall：系统① / 系统② / tie；
-- overall 必须与前述分析一致；
+- 再给出 overall：系统① / 系统② / tie，作为对八维判断的自检；
+- 平台会以 dimensions 作为总胜方的唯一计算依据，overall 必须与前述分析一致；
 - 如果 overall = tie，你必须明确解释：
   - 为什么已有差异不足以构成整体偏好；
   - 为什么这些差异被抵消；
@@ -104,11 +104,12 @@ class PairwiseResult:
     """一对回答的相对偏好结论（A=基线、B=本次）。"""
 
     winner: str = "tie"  # "A" | "B" | "tie"
-    confidence: str = "low"  # "high"（两次一致且未被保守降级）| "low"
+    confidence: str = "low"  # "high"（整体和八维均换序一致且未被保守降级）| "low"
     swap_consistent: bool = False
     dimension_winners: dict[str, str] = field(default_factory=dict)  # dim -> A|B|tie
     reason: str = ""
-    # 两次 pass 的留痕：[{"top": "A|B", "winner": "A|B|tie", "reason": <已翻译>}]
+    # 两次 pass 的留痕：每次均保存整体与八维映射后的结果，供解释顺序敏感。
+    # [{"top": "A|B", "winner": "A|B|tie", "dimension_winners": {...}, "reason": <已翻译>}]
     order_runs: list[dict] = field(default_factory=list)
 
 
@@ -125,6 +126,40 @@ def _resolve_side(value: str, top_is: str, bottom_is: str) -> str:
         return bottom_is
     if v.lower() == "tie":
         return "tie"
+    return "tie"
+
+
+def _aggregate_dimensions(norm1: dict, norm2: dict) -> dict[str, str]:
+    """逐维合并两次换序结果。
+
+    - 同一方在任一顺序中胜出、且另一顺序没有判另一方胜出 → 保留该方；
+    - A 与 B 都出现过 → 此维度顺序敏感，保守按 tie；
+    - 两次都是 tie → tie。
+
+    这能避免模型的 overall 一句话与八维结果相互覆盖；整体胜负只由该结果推导。
+    """
+    merged: dict[str, str] = {}
+    for dim in _DIMENSIONS:
+        votes = {
+            side
+            for side in (norm1["dimensions"].get(dim, "tie"), norm2["dimensions"].get(dim, "tie"))
+            if side in ("A", "B")
+        }
+        merged[dim] = votes.pop() if len(votes) == 1 else "tie"
+    return merged
+
+
+def _winner_from_dimensions(dimensions: dict[str, str]) -> str:
+    """按八维结果导出总胜方；医学安全性有一票优先权。"""
+    safety = dimensions.get(EvaluationDimension.medical_safety.value, "tie")
+    if safety in ("A", "B"):
+        return safety
+    a_wins = sum(side == "A" for side in dimensions.values())
+    b_wins = sum(side == "B" for side in dimensions.values())
+    if a_wins > b_wins:
+        return "A"
+    if b_wins > a_wins:
+        return "B"
     return "tie"
 
 
@@ -211,8 +246,9 @@ class PairwiseComparator:
             # 单次：上=A、下=B（系统①=A、系统②=B）。
             raw1 = await self._judge_order(case, trace_a, trace_b)
             norm1 = self._resolve(raw1, top_is="A", bottom_is="B")
-            blocked = self._conservative_block(norm1["winner"], [norm1])
-            safety_blocked = norm1["winner"] != "tie" and blocked == "tie"
+            pre_winner = _winner_from_dimensions(norm1["dimensions"])
+            blocked = self._conservative_block(pre_winner, [norm1])
+            safety_blocked = pre_winner != "tie" and blocked == "tie"
             return PairwiseResult(
                 winner=blocked,
                 confidence="low" if safety_blocked else "high",
@@ -220,7 +256,12 @@ class PairwiseComparator:
                 dimension_winners=norm1["dimensions"],
                 reason=norm1["reason"],
                 order_runs=[
-                    {"top": "A", "winner": norm1["winner"], "reason": norm1["reason"]}
+                    {
+                        "top": "A",
+                        "winner": norm1["winner"],
+                        "dimension_winners": norm1["dimensions"],
+                        "reason": norm1["reason"],
+                    }
                 ],
             )
 
@@ -234,26 +275,21 @@ class PairwiseComparator:
         norm1 = self._resolve(raw1, top_is="A", bottom_is="B")
         norm2 = self._resolve(raw2, top_is="B", bottom_is="A")
 
-        swap_consistent = norm1["winner"] == norm2["winner"]
-        pre_winner = norm1["winner"] if swap_consistent else "tie"
+        dimension_winners = _aggregate_dimensions(norm1, norm2)
+        # 结论必须从八维结果推导，不能由裁判的 overall 文本单独覆盖。
+        pre_winner = _winner_from_dimensions(dimension_winners)
+        # 仍保留任一顺序整体或维度分歧的低置信信号，供人工复核。
+        swap_consistent = (
+            norm1["winner"] == norm2["winner"]
+            and all(
+                norm1["dimensions"].get(dim, "tie") == norm2["dimensions"].get(dim, "tie")
+                for dim in _DIMENSIONS
+            )
+        )
         winner = self._conservative_block(pre_winner, [norm1, norm2])
         safety_blocked = pre_winner != "tie" and winner == "tie"
         confidence = "high" if (swap_consistent and not safety_blocked) else "low"
-
-        dimension_winners = {
-            dim: (
-                norm1["dimensions"].get(dim, "tie")
-                if norm1["dimensions"].get(dim, "tie")
-                == norm2["dimensions"].get(dim, "tie")
-                else "tie"
-            )
-            for dim in _DIMENSIONS
-        }
-        reason = (
-            norm1["reason"] if norm1["winner"] == winner else norm2["reason"]
-        )
-        if not reason:
-            reason = norm1["reason"]
+        reason = norm1["reason"] if norm1["reason"] else norm2["reason"]
         return PairwiseResult(
             winner=winner,
             confidence=confidence,
@@ -261,8 +297,18 @@ class PairwiseComparator:
             dimension_winners=dimension_winners,
             reason=reason,
             order_runs=[
-                {"top": "A", "winner": norm1["winner"], "reason": norm1["reason"]},
-                {"top": "B", "winner": norm2["winner"], "reason": norm2["reason"]},
+                {
+                    "top": "A",
+                    "winner": norm1["winner"],
+                    "dimension_winners": norm1["dimensions"],
+                    "reason": norm1["reason"],
+                },
+                {
+                    "top": "B",
+                    "winner": norm2["winner"],
+                    "dimension_winners": norm2["dimensions"],
+                    "reason": norm2["reason"],
+                },
             ],
         )
 

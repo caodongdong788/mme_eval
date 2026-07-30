@@ -124,8 +124,8 @@ def test_swap_consistent_high_confidence():
     _stub(
         cmp,
         [
-            {"winner": "1", "dimensions": {}, "reason": "系统①更准确"},  # pass1 1→A
-            {"winner": "2", "dimensions": {}, "reason": "系统②更准确"},  # pass2 2→A
+            {"winner": "1", "dimensions": {"professional_accuracy": "1"}, "reason": "系统①更准确"},  # pass1 1→A
+            {"winner": "2", "dimensions": {"professional_accuracy": "2"}, "reason": "系统②更准确"},  # pass2 2→A
         ],
     )
     res = _run(cmp)
@@ -138,8 +138,8 @@ def test_swap_consistent_high_confidence():
 # 医疗保守
 
 
-def test_conservative_blocks_safety_worse_winner():
-    """两次一致判 B 更优，但某顺序 safety 判 B 更差 → 降级 tie、low。"""
+def test_dimension_driven_safety_prefers_the_safer_side():
+    """总胜方来自八维；即使 raw overall 倾向 B，安全维出现 A 优势时 A 优先。"""
     cmp = _make()
     _stub(
         cmp,
@@ -151,8 +151,8 @@ def test_conservative_blocks_safety_worse_winner():
         ],
     )
     res = _run(cmp)
-    assert res.winner == "tie", "安全更差的一方不得被判整体胜出"
-    assert res.confidence == "low", "被安全规则降级的用例置信应为低（待复核）"
+    assert res.winner == "A", "医学安全性优先于 raw overall"
+    assert res.confidence == "low", "两次换序维度不一致，仍应待复核"
 
 
 # ---------------------------------------------------------------------------
@@ -165,9 +165,9 @@ def test_reason_relabeled_to_ab():
         cmp,
         [
             # pass1 上=A 下=B：系统②→B、系统①→A
-            {"winner": "2", "dimensions": {}, "reason": "系统②比系统①更早分诊"},
+            {"winner": "2", "dimensions": {"executability": "2"}, "reason": "系统②比系统①更早分诊"},
             # pass2 上=B 下=A：系统①→B、系统②→A
-            {"winner": "1", "dimensions": {}, "reason": "系统①比系统②更早分诊"},
+            {"winner": "1", "dimensions": {"executability": "1"}, "reason": "系统①比系统②更早分诊"},
         ],
     )
     res = _run(cmp)
@@ -194,6 +194,35 @@ def test_order_runs_records_both_passes():
     assert res.order_runs[1]["top"] == "B"
     assert res.order_runs[1]["winner"] == "B"
     assert res.order_runs[1]["reason"] == "B略好"
+    assert "dimension_winners" in res.order_runs[0]
+
+
+def test_dimension_votes_drive_winner_and_keep_conflicts_visible():
+    """总胜负来自八维；同维度 A/B 互相冲突时保守持平，不丢失其他维度的结果。"""
+    cmp = _make()
+    _stub(
+        cmp,
+        [
+            # pass1：B 在个性化、可执行性胜出。
+            {
+                "winner": "2",
+                "dimensions": {"personalization": "2", "executability": "2"},
+                "reason": "系统②更贴合且步骤更清楚",
+            },
+            # pass2：A 在个性化、共情胜出；可执行性持平。
+            {
+                "winner": "2",
+                "dimensions": {"personalization": "2", "executability": "tie", "empathy": "2"},
+                "reason": "系统②更贴合且更有共情",
+            },
+        ],
+    )
+    res = _run(cmp)
+    assert res.winner == "tie"  # A/B 各有一个有效维度优势
+    assert res.confidence == "low"
+    assert res.dimension_winners["personalization"] == "tie"  # A/B 都出现过
+    assert res.dimension_winners["executability"] == "B"  # B 胜 + tie → B
+    assert res.dimension_winners["empathy"] == "A"  # tie + A 胜 → A
 
 
 # ---------------------------------------------------------------------------

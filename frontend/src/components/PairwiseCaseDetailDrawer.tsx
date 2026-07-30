@@ -31,10 +31,46 @@ const SIDE_OPTIONS = [
   { value: "tie", label: "持平" },
 ];
 
+function DimensionVerdictTags({ dimensions }: { dimensions: Record<string, string> }) {
+  return (
+    <Space size={[4, 4]} wrap>
+      {EVALUATION_DIMENSIONS.map((dimension) => {
+        const winner = dimensions[dimension] || "tie";
+        const label = winner === "A" ? "A 更好" : winner === "B" ? "B 更好" : "持平";
+        return (
+          <Tag key={dimension} color={winner === "B" ? "green" : winner === "A" ? "default" : undefined}>
+            {DIM_LABEL[dimension]}：{label}
+          </Tag>
+        );
+      })}
+    </Space>
+  );
+}
+
+function DimensionDecisionSummary({ verdict }: { verdict: PairwiseCaseVerdict }) {
+  const dimensions = verdict.dimension_winners || {};
+  const aCount = EVALUATION_DIMENSIONS.filter((dimension) => dimensions[dimension] === "A").length;
+  const bCount = EVALUATION_DIMENSIONS.filter((dimension) => dimensions[dimension] === "B").length;
+  const tieCount = EVALUATION_DIMENSIONS.length - aCount - bCount;
+  const safetyWinner = dimensions.medical_safety;
+  const overall = verdict.winner === "A" ? "A 更好" : verdict.winner === "B" ? "B 更好" : "持平";
+  const rule = safetyWinner === "A" || safetyWinner === "B"
+    ? `医学安全性由 ${safetyWinner} 胜出，安全优先，因此总胜方为 ${overall}`
+    : `A 胜 ${aCount} 项、B 胜 ${bCount} 项、持平 ${tieCount} 项，因此总胜方为 ${overall}`;
+  return (
+    <div className="pairwise-order-resolution">
+      <Text strong>有效八维结论（用于决定总胜方）</Text>
+      <DimensionVerdictTags dimensions={dimensions} />
+      <Text type="secondary">{rule}</Text>
+    </div>
+  );
+}
+
 function VerdictReason({ verdict }: { verdict: PairwiseCaseVerdict }) {
   const orderSensitive =
-    !verdict.human_calibrated && verdict.confidence_kind === "order" && verdict.winner === "tie";
+    !verdict.human_calibrated && verdict.confidence_kind === "order";
   const attempts = verdict.order_runs || [];
+  const hasDimensionTrace = attempts.some((attempt) => Object.keys(attempt.dimension_winners || {}).length > 0);
   const winnerLabel = (winner: string) =>
     winner === "A" ? "A 更好" : winner === "B" ? "B 更好" : "持平";
 
@@ -56,9 +92,32 @@ function VerdictReason({ verdict }: { verdict: PairwiseCaseVerdict }) {
               </Tag>
               <Text strong>{winnerLabel(attempt.winner)}</Text>
               <Paragraph>{attempt.reason || "未提供理由"}</Paragraph>
+              {attempt.dimension_winners && Object.keys(attempt.dimension_winners).length > 0 && (
+                <div className="pairwise-order-attempt__dimensions">
+                  <Text type="secondary">本次八维判断</Text>
+                  <DimensionVerdictTags dimensions={attempt.dimension_winners} />
+                </div>
+              )}
             </div>
           ))}
-          <Text type="secondary">两次顺序判定不一致，系统按持平处理，建议人工校准。</Text>
+          {hasDimensionTrace ? (
+            <>
+              <DimensionDecisionSummary verdict={verdict} />
+              <Text type="secondary">
+                同一维度若两次分别判 A、B 胜出，则该维度按持平处理；一胜一持平会保留胜方，但标记为低置信。
+              </Text>
+            </>
+          ) : (
+            <Alert
+              type="warning"
+              showIcon
+              message="历史对比未保存单次八维判定"
+              description="不能从文字理由反推正式维度结论；重新发起该 Pairwise 对比后会展示两次换序的八维依据。"
+            />
+          )}
+          <Text type="secondary">
+            两次 Judge 的整体判断不一致；平台已按八维结果计算总胜方，并标记为顺序敏感，建议人工复核。
+          </Text>
         </div>
       ) : (
         <Paragraph className="pairwise-detail-reason__content">{verdict.reason || "未提供理由"}</Paragraph>
@@ -230,7 +289,7 @@ export function PairwiseCaseDetailDrawer({
             <VerdictReason verdict={verdict} />
             <div className="pairwise-calibration">
               <div className="pairwise-calibration__head">
-                <Text strong>人工校准</Text>
+                <Text strong>人工校准（下方默认值为机器有效结论）</Text>
                 <Text type="secondary">保存后覆盖有效结论并重算汇总</Text>
               </div>
               <Form form={form} layout="vertical" requiredMark={false}>

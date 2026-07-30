@@ -427,7 +427,13 @@ export interface PairwiseCaseVerdict {
   swap_consistent: boolean;
   dimension_winners: Record<string, string>;
   reason: string;
-  order_runs?: { top: "A" | "B"; winner: "A" | "B" | "tie"; reason: string }[];
+  order_runs?: {
+    top: "A" | "B";
+    winner: "A" | "B" | "tie";
+    /** 单次换序的八维结果；旧对比没有该留痕。 */
+    dimension_winners?: Record<string, "A" | "B" | "tie">;
+    reason: string;
+  }[];
   auto_winner?: "A" | "B" | "tie" | null;
   auto_confidence?: string | null;
   auto_dimension_winners?: Record<string, string> | null;

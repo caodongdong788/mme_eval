@@ -1,4 +1,5 @@
 import { Col, Row, Space, Tag, Typography } from "antd";
+import type { ReactNode } from "react";
 import { DIM_LABEL } from "../labels";
 import { EVALUATION_DIMENSIONS } from "../labels";
 import type { PairwiseDetail } from "../api/index";
@@ -23,19 +24,44 @@ function formatTokens(value: number | null): string {
   return Math.round(value).toLocaleString("zh-CN");
 }
 
+function comparisonValue(a: number | null, b: number | null, formatter: (value: number | null) => string): ReactNode {
+  return (
+    <span className="pairwise-observability-values">
+      <span className="pairwise-observability-values__row">
+        <span className="pairwise-observability-values__label">A（基线）</span>
+        <strong>{formatter(a)}</strong>
+      </span>
+      <span className="pairwise-observability-values__row">
+        <span className="pairwise-observability-values__label">B（本次）</span>
+        <strong>{formatter(b)}</strong>
+      </span>
+    </span>
+  );
+}
+
 function comparisonSub(
   a: number | null,
   b: number | null,
   formatter: (value: number | null) => string,
-): { sub: string; accent?: string } {
-  if (a == null || b == null) return { sub: "A/B 任一侧无可用数据" };
+): { value: ReactNode; sub: ReactNode } {
+  const value = comparisonValue(a, b, formatter);
+  if (a == null || b == null) {
+    return { value, sub: <span>缺少一侧数据，暂无法计算变化</span> };
+  }
   const delta = b - a;
-  if (delta === 0) return { sub: `A ${formatter(a)} · B 持平` };
-  const pct = a ? `（${delta > 0 ? "+" : ""}${((delta / a) * 100).toFixed(1)}%）` : "";
+  if (delta === 0) {
+    return { value, sub: <span className="pairwise-observability-delta pairwise-observability-delta--neutral">较 A 持平（0.0%）</span> };
+  }
+  const direction = delta > 0 ? "增加" : "减少";
+  const percentage = a === 0 ? "基线为 0，无法计算比例" : `${delta > 0 ? "+" : ""}${((delta / a) * 100).toFixed(1)}%`;
   return {
-    sub: `A ${formatter(a)} · B ${delta > 0 ? "+" : ""}${formatter(Math.abs(delta))} ${pct}`,
+    value,
     // 耗时或 token 增长均表示更多资源消耗；仅提示，不影响 Pairwise 胜负。
-    accent: delta > 0 ? "var(--runs-red)" : "var(--runs-green)",
+    sub: (
+      <span className={`pairwise-observability-delta pairwise-observability-delta--${delta > 0 ? "increase" : "decrease"}`}>
+        较 A {direction} {formatter(Math.abs(delta))}（{percentage}）
+      </span>
+    ),
   };
 }
 
@@ -85,25 +111,21 @@ export function PairwiseDetailSummaryCard({
     {
       label: "平均会话耗时",
       tip: "端到端会话耗时；仅观测，不参与 Pairwise 胜负。",
-      value: formatDuration(numeric(latencyB.avg_ms)),
       ...comparisonSub(numeric(latencyA.avg_ms), numeric(latencyB.avg_ms), formatDuration),
     },
     {
       label: "P90 会话耗时",
       tip: "90% 会话不超过该耗时；仅观测，不参与 Pairwise 胜负。",
-      value: formatDuration(numeric(latencyB.p90_ms)),
       ...comparisonSub(numeric(latencyA.p90_ms), numeric(latencyB.p90_ms), formatDuration),
     },
     {
       label: "总 Token",
       tip: "仅统计被测 Agent，不含 Pairwise Judge；仅观测，不参与胜负。",
-      value: formatTokens(numeric(tokenB.total_tokens)),
       ...comparisonSub(numeric(tokenA.total_tokens), numeric(tokenB.total_tokens), formatTokens),
     },
     {
       label: "平均 Token / 次",
       tip: "每次 Agent 会话的平均 Token；仅观测，不参与 Pairwise 胜负。",
-      value: formatTokens(numeric(tokenB.avg_tokens_per_run)),
       ...comparisonSub(
         numeric(tokenA.avg_tokens_per_run),
         numeric(tokenB.avg_tokens_per_run),
@@ -158,7 +180,6 @@ export function PairwiseDetailSummaryCard({
                 tip={item.tip}
                 value={item.value}
                 sub={item.sub}
-                valueStyle={item.accent ? { color: item.accent } : undefined}
               />
             ))}
           </div>

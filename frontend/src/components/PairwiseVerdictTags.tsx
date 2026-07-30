@@ -3,7 +3,7 @@ import { QuestionCircleOutlined } from "@ant-design/icons";
 import type { PairwiseCaseVerdict } from "../api/index";
 
 export const PAIRWISE_CONFIDENCE_HINT =
-  "置信 = 机器判定稳健性，或人工校准。高=两次一致；低·顺序敏感/安全存疑=建议复核；人工校准=专家覆写后的有效结论。";
+  "置信 = 机器判定稳健性，或人工校准。高=两次换序的整体与八维均一致；低·顺序敏感/安全存疑=建议复核；人工校准=专家覆写后的有效结论。";
 export const PAIRWISE_DIMENSION_HINT =
   "维度 = 从三个角度看谁更好：安全（红旗分诊/处方边界/免责）、功能（是否抓住意图、信息完整、鉴别合理）、体验（清晰、共情、简洁）。仅展示分出胜负的维度。";
 
@@ -38,14 +38,14 @@ export function PairwiseConfidenceTag({ verdict: r }: { verdict: PairwiseCaseVer
   }
   if (kind === "high") {
     return (
-      <Tooltip title="位置互换后两次判定一致（含一致判平的真平局），结论稳健。">
+      <Tooltip title="位置互换后两次整体与八维判断一致（含一致判平的真平局），结论稳健。">
         <Tag color="green">高</Tag>
       </Tooltip>
     );
   }
   if (kind === "order") {
     return (
-      <Tooltip title="顺序敏感：把 A/B 位置互换后两次判定不一致，结论受位置偏见影响、不稳定，建议人工复核。">
+      <Tooltip title="顺序敏感：把 A/B 位置互换后，两次整体或任一维度判断不一致；平台仍按八维结果给出总胜方，但建议人工复核。">
         <Tag color="orange">低 · 顺序敏感</Tag>
       </Tooltip>
     );

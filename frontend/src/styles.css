@@ -779,6 +779,24 @@ a.ant-typography-secondary:hover {
   color: var(--runs-text-secondary);
   line-height: 1.55;
 }
+.pairwise-order-attempt__dimensions,
+.pairwise-order-resolution {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--runs-border);
+}
+.pairwise-order-resolution {
+  padding: 12px;
+  border: 1px solid var(--runs-border);
+  border-radius: 8px;
+  background: #fafbfc;
+}
+.pairwise-order-resolution .ant-typography-secondary {
+  font-size: 12px;
+  line-height: 1.5;
+}
 .pairwise-calibration {
   margin-top: 18px;
   padding-top: 16px;
@@ -1741,6 +1759,42 @@ a.ant-typography-secondary:hover {
   color: var(--runs-text-muted);
   line-height: 1.45;
 }
+.pairwise-observability-values {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: 1.25;
+}
+.pairwise-observability-values__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.pairwise-observability-values__label {
+  flex: none;
+  font-size: 12px;
+  color: var(--runs-text-muted);
+}
+.pairwise-observability-values__row strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--runs-text);
+  font-size: 19px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pairwise-observability-delta {
+  font-weight: 500;
+}
+.pairwise-observability-delta--increase { color: var(--runs-red); }
+.pairwise-observability-delta--decrease { color: var(--runs-green); }
+.pairwise-observability-delta--neutral { color: var(--runs-text-muted); }
 .runs-kpi--danger .runs-kpi__value {
   color: var(--runs-red);
 }
