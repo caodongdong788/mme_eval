@@ -1,6 +1,5 @@
 import { Alert, Result, Spin } from "antd";
 import { Link, useParams } from "react-router-dom";
-import PairwiseCalibrateModal from "../components/PairwiseCalibrateModal";
 import { PairwiseCaseTable } from "../components/PairwiseCaseTable";
 import { PairwiseDetailRunningCard } from "../components/PairwiseDetailRunningCard";
 import { PairwiseDetailSummaryCard } from "../components/PairwiseDetailSummaryCard";
@@ -79,22 +78,12 @@ export default function PairwiseDetailPage() {
             resetFilters={pw.resetFilters}
             tablePage={pw.tablePage}
             setTablePage={pw.setTablePage}
-            expandedKeys={pw.expandedKeys}
-            setExpandedKeys={pw.setExpandedKeys}
-            setCalibrateVerdict={pw.setCalibrateVerdict}
             runAName={pw.runAName}
             runBName={pw.runBName}
+            onSaved={pw.load}
           />
         </>
       )}
-
-      <PairwiseCalibrateModal
-        open={pw.calibrateVerdict != null}
-        comparisonId={id}
-        verdict={pw.calibrateVerdict}
-        onClose={() => pw.setCalibrateVerdict(null)}
-        onSaved={pw.load}
-      />
     </div>
   );
 }

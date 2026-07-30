@@ -1,25 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
 import {
   api,
-  type PairwiseCaseVerdict,
   type PairwiseConfidenceKind,
+  type PairwiseCaseVerdict,
   type PairwiseDetail,
 } from "../api/index";
 import { formatApiError } from "../utils/apiError";
 
 export function usePairwiseDetail(comparisonId: number) {
-  const location = useLocation();
   const [detail, setDetail] = useState<PairwiseDetail | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [conclusionFilter, setConclusionFilter] = useState<"A" | "B" | "tie" | undefined>();
   const [confidenceFilter, setConfidenceFilter] = useState<
     PairwiseConfidenceKind | undefined
   >();
-  const [calibrateVerdict, setCalibrateVerdict] = useState<PairwiseCaseVerdict | null>(null);
-  const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
   const [tablePage, setTablePage] = useState(1);
-  const restoredRef = useRef(false);
   const didMountFiltersRef = useRef(false);
 
   const load = useCallback(() => {
@@ -43,23 +38,6 @@ export function usePairwiseDetail(comparisonId: number) {
       return () => clearInterval(t);
     }
   }, [detail?.status, load]);
-
-  useEffect(() => {
-    if (restoredRef.current || !detail) return;
-    const key = (location.state as { expandedKey?: string } | null)?.expandedKey;
-    if (!key) return;
-    const idx = (detail.verdicts || []).findIndex((v) => v.sample_id === key);
-    if (idx >= 0) {
-      setExpandedKeys([key]);
-      setTablePage(Math.floor(idx / 20) + 1);
-      requestAnimationFrame(() => {
-        document
-          .querySelector(`[data-row-key="${CSS.escape(key)}"]`)
-          ?.scrollIntoView({ block: "center", behavior: "smooth" });
-      });
-    }
-    restoredRef.current = true;
-  }, [detail, location.state]);
 
   useEffect(() => {
     if (!didMountFiltersRef.current) {
@@ -116,10 +94,6 @@ export function usePairwiseDetail(comparisonId: number) {
     setConclusionFilter,
     confidenceFilter,
     setConfidenceFilter,
-    calibrateVerdict,
-    setCalibrateVerdict,
-    expandedKeys,
-    setExpandedKeys,
     tablePage,
     setTablePage,
     filtered,
