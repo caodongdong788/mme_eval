@@ -1,5 +1,4 @@
 import {
-  Alert,
   Button,
   Drawer,
   Form,
@@ -19,7 +18,7 @@ import { BenchmarkCoverageDrawer } from "../components/BenchmarkCoverageDrawer";
 import { DashTableActions, DashTableDangerLink, DashTableLink } from "../components/DashTableActions";
 import { DashboardPageShell } from "../components/DashboardPageShell";
 import { createBenchmarkCaseColumns } from "../components/BenchmarkCaseColumns";
-import { OnlineCasePreview } from "../components/OnlineCasePreview";
+import { BenchmarkCaseEditorDrawer } from "../components/BenchmarkCaseEditorDrawer";
 import { useBenchmarksPage } from "../hooks/useBenchmarksPage";
 function benchmarkSourceLabel(source: string) {
   if (source === "builtin") return "内置";
@@ -33,7 +32,6 @@ function benchmarkSourceColor(source: string) {
 }
 export default function BenchmarksPage() {
   const bm = useBenchmarksPage();
-  const isOnlineCase = bm.casesBenchmark?.source === "online";
 
   const columns = [
     { title: "ID", dataIndex: "id", width: 60 },
@@ -251,49 +249,29 @@ export default function BenchmarksPage() {
         onClose={() => bm.setCoverageOpen(false)}
       />
 
-      <Drawer
-        title={`${isOnlineCase ? "线上对话" : "用例 YAML"} · ${bm.caseYamlMeta?.caseId ?? ""}`}
-        width={760}
+      <BenchmarkCaseEditorDrawer
         open={bm.caseYamlOpen}
+        loading={bm.caseYamlLoading}
+        saving={bm.caseYamlSaving}
+        source={bm.casesBenchmark?.source}
+        caseFile={bm.caseYamlMeta?.caseFile}
+        value={bm.caseContent?.case || null}
+        onChange={(caseContent) => bm.setCaseContent((current) => current ? { ...current, case: caseContent } : current)}
         onClose={() => bm.setCaseYamlOpen(false)}
-        extra={
-          isOnlineCase ? (
-            <Button onClick={() => bm.setCaseYamlOpen(false)}>关闭</Button>
-          ) : (
-            <Space>
-              <Button onClick={() => bm.setCaseYamlOpen(false)}>取消</Button>
-              <Button
-                type="primary"
-                loading={bm.caseYamlSaving}
-                disabled={bm.caseYamlLoading || !bm.caseYamlText}
-                onClick={bm.saveCaseYaml}
-              >
-                保存
-              </Button>
-            </Space>
-          )
-        }
-      >
-        {bm.casesBenchmark?.source === "builtin" ? (
-          <Alert
-            type="warning"
-            showIcon
-            style={{ marginBottom: 12 }}
-            message="内置用例直接写回仓库 cases/；Docker 重建镜像后修改会丢失，生产环境请下载后作为上传集维护。"
-          />
-        ) : null}
-        {isOnlineCase ? (
-          <OnlineCasePreview yamlText={bm.caseYamlText} />
-        ) : (
-          <Input.TextArea
-            value={bm.caseYamlText}
-            onChange={(e) => bm.setCaseYamlText(e.target.value)}
-            placeholder={bm.caseYamlLoading ? "加载 YAML 中…" : ""}
-            autoSize={{ minRows: 20, maxRows: 42 }}
-            style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}
-          />
-        )}
-      </Drawer>
+        onSave={bm.saveCaseYaml}
+        onDelete={() => {
+          const current = bm.cases.find((item) => item.sample_id === bm.caseYamlMeta?.sampleId);
+          if (current) void bm.deleteCase(current);
+        }}
+        onLoadSourceYaml={async () => {
+          if (!bm.casesBenchmark || !bm.caseYamlMeta) return "";
+          const sourceYaml = await api.getBenchmarkCaseYaml(
+            bm.casesBenchmark.id,
+            bm.caseYamlMeta.sampleId,
+          );
+          return sourceYaml.yaml_text;
+        }}
+      />
     </DashboardPageShell>
   );
 }

@@ -115,6 +115,13 @@ export interface BenchmarkCaseYaml {
   yaml_text: string;
 }
 
+export interface BenchmarkCaseContent {
+  benchmark_id: number;
+  sample_id: string;
+  case_file: string;
+  case: Record<string, any>;
+}
+
 export interface RunSummary {
   id: number;
   run_slug: string;

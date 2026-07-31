@@ -6,6 +6,8 @@ import shutil
 from pathlib import Path
 from typing import Optional
 
+import yaml
+
 from fastapi import HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -15,6 +17,8 @@ from ..models_db import Benchmark
 from ..schemas import (
     BenchmarkCaseYamlIn,
     BenchmarkCaseYamlOut,
+    BenchmarkCaseContentIn,
+    BenchmarkCaseContentOut,
     BenchmarkUpdateRequest,
     CaseBrief,
 )
@@ -119,6 +123,45 @@ def save_benchmark_case_yaml(
         case_file=case_file,
         yaml_text=text,
     )
+
+
+def get_benchmark_case_content(
+    session: Session, benchmark_id: int, sample_id: str
+) -> BenchmarkCaseContentOut:
+    """读取单条 Case 的结构化内容，供 UI 分模块编辑而非直接展示 YAML。"""
+    bm = get_benchmark_or_404(session, benchmark_id)
+    try:
+        case_file, text = bm_domain.export_case_yaml(bm, sample_id)
+    except bm_domain.BenchmarkValidationError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    try:
+        raw = yaml.safe_load(text)
+    except yaml.YAMLError as exc:  # 理论上 export 已保证可解析，仍防御性处理。
+        raise HTTPException(status_code=500, detail=f"用例内容解析失败：{exc}") from exc
+    if not isinstance(raw, list) or len(raw) != 1 or not isinstance(raw[0], dict):
+        raise HTTPException(status_code=500, detail="用例内容格式异常")
+    return BenchmarkCaseContentOut(
+        benchmark_id=benchmark_id,
+        sample_id=sample_id,
+        case_file=case_file,
+        case=raw[0],
+    )
+
+
+def save_benchmark_case_content(
+    session: Session,
+    benchmark_id: int,
+    sample_id: str,
+    payload: BenchmarkCaseContentIn,
+) -> BenchmarkCaseContentOut:
+    """保存结构化 Case，复用 YAML 保存链路的完整模型校验。"""
+    bm = get_benchmark_or_404(session, benchmark_id)
+    text = yaml.safe_dump([payload.case], allow_unicode=True, sort_keys=False)
+    try:
+        bm_domain.save_case_yaml(bm, sample_id, text)
+    except bm_domain.BenchmarkValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return get_benchmark_case_content(session, benchmark_id, sample_id)
 
 
 def delete_benchmark_case(session: Session, benchmark_id: int, sample_id: str) -> None:

@@ -78,6 +78,30 @@ def test_upload_and_read_v2_benchmark(client, settings) -> None:
     assert parsed["evaluation"]["guidelines"][0]["max_score"] == 3
 
 
+def test_read_and_save_structured_case_content(client) -> None:
+    """结构化编辑器无需前端解析 YAML，也能完整读取并写回单条 Case。"""
+    created = upload(client, V2_YAML, name="structured-case")
+    benchmark_id = created.json()["id"]
+
+    read = client.get(f"/api/benchmarks/{benchmark_id}/cases/api_v2_001/content")
+    assert read.status_code == 200, read.text
+    body = read.json()
+    assert body["case"]["scenario"] == "症状识别"
+    assert body["case"]["evaluation"]["dimension_criteria"]["clinical_inquiry"]
+
+    edited = body["case"]
+    edited["scenario"] = "症状识别（已编辑）"
+    edited.setdefault("initial_state", {})["user_profile"] = {"性别": "女"}
+    edited["evaluation"]["guidelines"][0]["criterion"] = ["应尽快到乳腺专科就诊"]
+    saved = client.put(
+        f"/api/benchmarks/{benchmark_id}/cases/api_v2_001/content",
+        json={"case": edited},
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["case"]["scenario"] == "症状识别（已编辑）"
+    assert saved.json()["case"]["initial_state"]["user_profile"]["性别"] == "女"
+
+
 def test_upload_keeps_scripted_multiturn_context_and_mode_default(client) -> None:
     """旧格式脚本式多轮可导入；动态 conversation 的三轮限制不受影响。"""
     payload = yaml.safe_load(V2_YAML)

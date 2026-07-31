@@ -26,6 +26,8 @@ from ..models_db import Benchmark, FeishuUser
 from ..schemas import (
     BenchmarkCaseYamlIn,
     BenchmarkCaseYamlOut,
+    BenchmarkCaseContentIn,
+    BenchmarkCaseContentOut,
     BenchmarkOut,
     BenchmarkUpdateRequest,
     CaseBrief,
@@ -279,6 +281,23 @@ def get_benchmark_case_yaml(
     benchmark_id: int, sample_id: str, session: Session = Depends(get_session)
 ) -> BenchmarkCaseYamlOut:
     return bm_svc.get_benchmark_case_yaml(session, benchmark_id, sample_id)
+
+
+@router.get("/{benchmark_id}/cases/{sample_id}/content", response_model=BenchmarkCaseContentOut)
+def get_benchmark_case_content(
+    benchmark_id: int, sample_id: str, session: Session = Depends(get_session)
+) -> BenchmarkCaseContentOut:
+    return bm_svc.get_benchmark_case_content(session, benchmark_id, sample_id)
+
+
+@router.put("/{benchmark_id}/cases/{sample_id}/content", response_model=BenchmarkCaseContentOut)
+def save_benchmark_case_content(
+    benchmark_id: int,
+    sample_id: str,
+    payload: BenchmarkCaseContentIn,
+    session: Session = Depends(get_session),
+) -> BenchmarkCaseContentOut:
+    return bm_svc.save_benchmark_case_content(session, benchmark_id, sample_id, payload)
 
 
 @router.put("/{benchmark_id}/cases/{sample_id}/yaml", response_model=BenchmarkCaseYamlOut)

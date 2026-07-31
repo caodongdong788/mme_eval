@@ -65,6 +65,33 @@ function comparisonSub(
   };
 }
 
+function averageSessionDurationComparison(
+  a: number | null,
+  b: number | null,
+): { value: ReactNode; sub: ReactNode } {
+  const value = comparisonValue(a, b, formatDuration);
+  if (a == null || b == null) {
+    return { value, sub: <span>缺少一侧数据，暂无法计算单次会话变化</span> };
+  }
+  const delta = b - a;
+  if (delta === 0) {
+    return {
+      value,
+      sub: <span className="pairwise-observability-delta pairwise-observability-delta--neutral">单次会话平均耗时持平（0.0%）</span>,
+    };
+  }
+  const direction = delta > 0 ? "变慢" : "变快";
+  const percentage = a === 0 ? "基线为 0，无法计算比例" : `${delta > 0 ? "+" : ""}${((delta / a) * 100).toFixed(1)}%`;
+  return {
+    value,
+    sub: (
+      <span className={`pairwise-observability-delta pairwise-observability-delta--${delta > 0 ? "increase" : "decrease"}`}>
+        单次会话平均{direction} {formatDuration(Math.abs(delta))}（{percentage}）
+      </span>
+    ),
+  };
+}
+
 export function PairwiseDetailSummaryCard({
   detail,
   conclusion,
@@ -109,9 +136,9 @@ export function PairwiseDetailSummaryCard({
   const tokenB = detail.run_b_observability?.token_summary || {};
   const observabilityItems = [
     {
-      label: "平均会话耗时",
-      tip: "端到端会话耗时；仅观测，不参与 Pairwise 胜负。",
-      ...comparisonSub(numeric(latencyA.avg_ms), numeric(latencyB.avg_ms), formatDuration),
+      label: "平均单次会话耗时",
+      tip: "有效会话的端到端耗时平均值；增量为 B、A 两侧平均单次会话耗时之差，不计算整批用例的总耗时。仅观测，不参与 Pairwise 胜负。",
+      ...averageSessionDurationComparison(numeric(latencyA.avg_ms), numeric(latencyB.avg_ms)),
     },
     {
       label: "P90 会话耗时",

@@ -145,6 +145,21 @@ class BenchmarkCaseYamlIn(BaseModel):
     yaml_text: str = Field(min_length=1)
 
 
+class BenchmarkCaseContentOut(BaseModel):
+    """供结构化用例编辑器读取的单条 Case 原始内容。"""
+
+    benchmark_id: int
+    sample_id: str
+    case_file: str = ""
+    case: dict[str, Any]
+
+
+class BenchmarkCaseContentIn(BaseModel):
+    """结构化编辑器保存的单条 Case；仍由后端完整校验后再落盘。"""
+
+    case: dict[str, Any]
+
+
 # ---------------------------------------------------------------------------
 # 发起评测
 

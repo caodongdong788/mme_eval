@@ -3,6 +3,7 @@ import type {
   Benchmark,
   BenchmarkCoverage,
   BenchmarkCaseYaml,
+  BenchmarkCaseContent,
   CaseBrief,
   DeriveBenchmarkYamlPayload,
   OverwriteBenchmarkYamlPayload,
@@ -18,6 +19,16 @@ export const benchmarksApi = {
   getBenchmarkCaseYaml: (benchmarkId: number, sampleId: string) =>
     http
       .get<BenchmarkCaseYaml>(`/benchmarks/${benchmarkId}/cases/${sampleId}/yaml`)
+      .then((r) => r.data),
+  getBenchmarkCaseContent: (benchmarkId: number, sampleId: string) =>
+    http
+      .get<BenchmarkCaseContent>(`/benchmarks/${benchmarkId}/cases/${sampleId}/content`)
+      .then((r) => r.data),
+  saveBenchmarkCaseContent: (benchmarkId: number, sampleId: string, caseContent: Record<string, any>) =>
+    http
+      .put<BenchmarkCaseContent>(`/benchmarks/${benchmarkId}/cases/${sampleId}/content`, {
+        case: caseContent,
+      })
       .then((r) => r.data),
   getBenchmarkCoverage: (id: number) =>
     http.get<BenchmarkCoverage>(`/benchmarks/${id}/coverage`).then((r) => r.data),

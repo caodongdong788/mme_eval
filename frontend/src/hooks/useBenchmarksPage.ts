@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { UploadFile } from "antd";
 import { Form, message } from "antd";
-import { api, Benchmark, BenchmarkCoverage, CaseBrief } from "../api/index";
+import { api, Benchmark, BenchmarkCaseContent, BenchmarkCoverage, CaseBrief } from "../api/index";
 import { formatApiError } from "../utils/apiError";
 import { useAsyncData } from "./useAsyncData";
 import { useEditModal } from "./useEditModal";
@@ -30,7 +30,7 @@ export function useBenchmarksPage() {
   const [caseYamlOpen, setCaseYamlOpen] = useState(false);
   const [caseYamlLoading, setCaseYamlLoading] = useState(false);
   const [caseYamlSaving, setCaseYamlSaving] = useState(false);
-  const [caseYamlText, setCaseYamlText] = useState("");
+  const [caseContent, setCaseContent] = useState<BenchmarkCaseContent | null>(null);
   const [caseYamlMeta, setCaseYamlMeta] = useState<{
     sampleId: string;
     caseId: string;
@@ -135,15 +135,15 @@ export function useBenchmarksPage() {
     if (!casesBenchmark) return;
     setCaseYamlOpen(true);
     setCaseYamlLoading(true);
-    setCaseYamlText("");
+    setCaseContent(null);
     setCaseYamlMeta({
       sampleId: row.sample_id,
       caseId: shortCaseId(row.sample_id),
       caseFile: "",
     });
     try {
-      const res = await api.getBenchmarkCaseYaml(casesBenchmark.id, row.sample_id);
-      setCaseYamlText(res.yaml_text);
+      const res = await api.getBenchmarkCaseContent(casesBenchmark.id, row.sample_id);
+      setCaseContent(res);
       setCaseYamlMeta((m) =>
         m
           ? { ...m, caseFile: res.case_file }
@@ -154,7 +154,7 @@ export function useBenchmarksPage() {
             }
       );
     } catch (e: unknown) {
-      message.error(formatApiError(e, "加载用例 YAML 失败"));
+      message.error(formatApiError(e, "加载用例失败"));
       setCaseYamlOpen(false);
     } finally {
       setCaseYamlLoading(false);
@@ -162,15 +162,15 @@ export function useBenchmarksPage() {
   };
 
   const saveCaseYaml = async () => {
-    if (!casesBenchmark || !caseYamlMeta) return;
+    if (!casesBenchmark || !caseYamlMeta || !caseContent) return;
     setCaseYamlSaving(true);
     try {
-      const res = await api.saveBenchmarkCaseYaml(
+      const res = await api.saveBenchmarkCaseContent(
         casesBenchmark.id,
         caseYamlMeta.sampleId,
-        caseYamlText
+        caseContent.case
       );
-      setCaseYamlText(res.yaml_text);
+      setCaseContent(res);
       setCaseYamlMeta((m) => (m ? { ...m, caseFile: res.case_file } : m));
       message.success("用例已保存");
       const nextCases = await api.getBenchmarkCases(casesBenchmark.id);
@@ -195,7 +195,7 @@ export function useBenchmarksPage() {
       setCasesTitle(`${casesBenchmark.name}（${nextCases.length} 条用例）`);
       if (caseYamlMeta?.sampleId === row.sample_id) {
         setCaseYamlOpen(false);
-        setCaseYamlText("");
+        setCaseContent(null);
         setCaseYamlMeta(null);
       }
       reload();
@@ -257,8 +257,8 @@ export function useBenchmarksPage() {
     setCaseYamlOpen,
     caseYamlLoading,
     caseYamlSaving,
-    caseYamlText,
-    setCaseYamlText,
+    caseContent,
+    setCaseContent,
     caseYamlMeta,
     openCaseYaml,
     saveCaseYaml,
