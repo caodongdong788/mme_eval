@@ -25,7 +25,11 @@ from ...services.case_export import (
     get_case_rag_audit_json,
     get_cases_yaml,
 )
-from ...services.case_query import attach_review_summary, filtered_case_rows
+from ...services.case_query import (
+    attach_review_summary,
+    case_rag_status_from_detail,
+    filtered_case_rows,
+)
 from ...services.case_query import case_row_or_404, next_case_sample_id
 from ...services.eval_artifacts import CASE_IMAGES_DIR
 from ...services.langfuse_trace import sync_conversation_trace
@@ -82,12 +86,10 @@ def list_case_results(
         scenario=scenario,
         turns=turns,
         guideline=guideline,
-        # RAG 是否真正触发只存在于同步后的 Langfuse 链路摘要中；列表要据此
-        # 生成筛选字段，不能用 enable_rag 配置开关冒充真实调用。
-        load_detail_json=True,
+        # 轮数及真实 RAG 状态均已写入列表标量列，避免此接口读取整批大型链路 JSON。
+        load_detail_json=False,
     )
-    # 列表只借 detail_json 计算轮数、指南分和 RAG 状态；Langfuse 深链仍仅在
-    # 用例详情接口返回，避免扩大列表响应中的外部追踪信息。
+    # Langfuse 深链仍仅在用例详情接口返回，避免扩大列表响应中的外部追踪信息。
     for row in rows:
         row.langfuse_trace_url = None
     if review_pending:
@@ -237,5 +239,6 @@ async def sync_case_agent_chain(
     await sync_conversation_trace(trace, get_settings())
     detail["trace"] = trace.model_dump(mode="json")
     row.detail_json = detail
+    row.rag_status = case_rag_status_from_detail(detail)
     session.flush()
     return get_case_detail_json(session, run_id, sample_id)

@@ -5,8 +5,9 @@ from __future__ import annotations
 from sqlalchemy import inspect
 
 from server.benchmarks import create_uploaded_benchmark, load_benchmark_cases
-from server.db import get_sessionmaker, session_scope
+from server.db import get_sessionmaker, init_db, init_engine, session_scope
 from server.ingest import ingest_report
+from server.models_db import CaseResultRow
 
 from factories import make_report
 
@@ -84,3 +85,42 @@ def test_composite_indexes_created(initialized_db):
         assert "ix_case_annotation_run_sample" in ann
     finally:
         s.close()
+
+
+def test_legacy_case_rows_are_backfilled_for_fast_list_columns(settings):
+    """升级已有库时，只在首次补列时读取 detail_json 回填列表字段。"""
+    engine = init_engine(settings)
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            """
+            CREATE TABLE case_result (
+                id INTEGER PRIMARY KEY,
+                run_id INTEGER NOT NULL,
+                sample_id VARCHAR(200), scenario VARCHAR(200), sub_scenario VARCHAR(200),
+                level VARCHAR(20), source VARCHAR(40), tags JSON,
+                medical_safety_passed BOOLEAN, release_passed BOOLEAN,
+                composite_score FLOAT, guideline_earned FLOAT, guideline_max FLOAT,
+                grade VARCHAR(20), stability VARCHAR(20), latency_ms FLOAT,
+                total_tokens INTEGER, cost FLOAT, failure_tags JSON, detail_json JSON
+            )
+            """
+        )
+        conn.exec_driver_sql(
+            """
+            INSERT INTO case_result VALUES (
+                1, 1, 'legacy_001', 's', '', 'L2', '', '[]', 1, 1,
+                40, NULL, NULL, '优', 'stable_pass', NULL, NULL, NULL, '[]',
+                '{"case":{"turns":[{"role":"user"},{"role":"assistant"},{"role":"user"}]},"trace":{"agent_chain":{"status":"synced","summary":{"sources":[{"key":"literature_rag","calls":1,"status":"hit"}]}}}}'
+            )
+            """
+        )
+
+    init_db(settings)
+    with session_scope() as session:
+        row = session.get(CaseResultRow, 1)
+        assert row is not None
+        assert row.n_turns == 2
+        assert row.rag_status == "hit"
+
+    names = {column["name"] for column in inspect(engine).get_columns("case_result")}
+    assert {"n_turns", "rag_status"} <= names

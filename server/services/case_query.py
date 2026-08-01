@@ -39,6 +39,18 @@ def _count_user_turns(turns: Any) -> int:
     return n or 1
 
 
+def case_n_turns_from_detail(detail: Any) -> int:
+    """从冻结 Case JSON 计算用户轮数（写入列表标量列及历史回填共用）。"""
+    detail = detail if isinstance(detail, dict) else {}
+    case = detail.get("case") if isinstance(detail.get("case"), dict) else {}
+    turns = case.get("turns") if isinstance(case, dict) else None
+    count = _count_user_turns(turns)
+    if count > 1 or isinstance(turns, list):
+        return count
+    trace = detail.get("trace") if isinstance(detail.get("trace"), dict) else {}
+    return _count_user_turns(trace.get("messages"))
+
+
 def _rag_status_from_summary(summary: Any, chain_status: Any = None) -> str:
     summary = _json_fragment(summary)
     sources = summary.get("sources") if isinstance(summary, dict) else None
@@ -56,6 +68,34 @@ def _rag_status_from_summary(summary: Any, chain_status: Any = None) -> str:
                 return "triggered"
             if chain_status in {"synced", "partial"}:
                 return "not_triggered"
+    return "unknown"
+
+
+def case_rag_status_from_detail(detail: Any) -> str:
+    """从冻结链路快照提取真实 RAG 状态，供写入标量列和历史回填使用。"""
+    detail = detail if isinstance(detail, dict) else {}
+    trace = detail.get("trace") if isinstance(detail.get("trace"), dict) else {}
+    chain = trace.get("agent_chain") if isinstance(trace.get("agent_chain"), dict) else {}
+    if not chain:
+        return "unknown"
+
+    status = _rag_status_from_summary(chain.get("summary"), chain.get("status"))
+    if status != "unknown":
+        return status
+
+    nodes = chain.get("nodes")
+    if isinstance(nodes, list):
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            name = str(node.get("name") or "").removeprefix("tool.")
+            if name == "medical_literature_search":
+                level = str(node.get("level") or "").upper()
+                if level == "ERROR" or node.get("status_message"):
+                    return "failed"
+                return "triggered"
+        if chain.get("status") in {"synced", "partial"}:
+            return "not_triggered"
     return "unknown"
 
 
@@ -78,21 +118,13 @@ def _attach_row_display_fields(
         )
         # 入库时已持久化指南得分；列表不再为此读取整条 detail_json。
     else:
-        row.n_turns = 1
+        row.n_turns = row.n_turns or 1
         row.langfuse_trace_url = None
-        row.rag_status = "unknown"
+        row.rag_status = row.rag_status or "unknown"
 
 
 def case_n_turns(row: CaseResultRow) -> int:
-    detail = row.detail_json or {}
-    case = detail.get("case") or {}
-    turns = case.get("turns") or []
-    n = sum(1 for t in turns if isinstance(t, dict) and t.get("role") == "user")
-    if n:
-        return n
-    msgs = ((detail.get("trace") or {}).get("messages")) or []
-    n = sum(1 for m in msgs if isinstance(m, dict) and m.get("role") == "user")
-    return n or 1
+    return case_n_turns_from_detail(row.detail_json)
 
 
 def case_trace_url(row: CaseResultRow) -> Optional[str]:
@@ -107,30 +139,7 @@ def case_rag_status(row: CaseResultRow) -> str:
     ``enable_rag`` 仅表示 Agent 可以使用 RAG；是否真的触发，必须以 Langfuse
     同步后固化的 ``medical_literature_search`` 工具节点为准。
     """
-    detail = row.detail_json or {}
-    trace = detail.get("trace") if isinstance(detail, dict) else {}
-    chain = trace.get("agent_chain") if isinstance(trace, dict) else {}
-    if not isinstance(chain, dict):
-        return "unknown"
-
-    status = _rag_status_from_summary(chain.get("summary"), chain.get("status"))
-    if status != "unknown":
-        return status
-
-    nodes = chain.get("nodes")
-    if isinstance(nodes, list):
-        for node in nodes:
-            if not isinstance(node, dict):
-                continue
-            name = str(node.get("name") or "").removeprefix("tool.")
-            if name == "medical_literature_search":
-                level = str(node.get("level") or "").upper()
-                if level == "ERROR" or node.get("status_message"):
-                    return "failed"
-                return "triggered"
-        if chain.get("status") in {"synced", "partial"}:
-            return "not_triggered"
-    return "unknown"
+    return case_rag_status_from_detail(row.detail_json)
 
 
 def guideline_counts(row: CaseResultRow) -> Optional[tuple[float, float]]:
@@ -158,8 +167,6 @@ def filtered_case_rows(
     load_detail_json: bool = True,
     load_full_detail_json: bool = False,
 ) -> list[CaseResultRow]:
-    if turns and not load_detail_json:
-        load_detail_json = True
     stmt = select(CaseResultRow).where(CaseResultRow.run_id == run_id)
     if load_full_detail_json:
         load_detail_json = True
@@ -174,29 +181,14 @@ def filtered_case_rows(
     if scenario:
         stmt = stmt.where(CaseResultRow.scenario == scenario)
     stmt = stmt.order_by(CaseResultRow.sample_id)
-    if load_detail_json and not load_full_detail_json:
-        # 只取列表所需的三个 JSON 片段，避免把每个 Observation 的原始 prompt / output
-        # （常为数百 KB）从 Postgres 取出再丢弃。
-        stmt = stmt.add_columns(
-            CaseResultRow.detail_json["case"]["turns"].label("case_turns"),
-            CaseResultRow.detail_json["trace"]["agent_chain"]["summary"].label("chain_summary"),
-            CaseResultRow.detail_json["trace"]["agent_chain"]["status"].label("chain_status"),
+    rows = list(session.execute(stmt).scalars().all())
+    for row in rows:
+        _attach_row_display_fields(
+            row,
+            # 新版已经将轮数/RAG 状态存为标量；除导出等显式要求 full JSON 的路径外，
+            # 不读取 detail_json，避免 PostgreSQL 逐条解压大型 Langfuse 快照。
+            load_detail_json=load_full_detail_json,
         )
-        rows = []
-        for row, case_turns, chain_summary, chain_status in session.execute(stmt).all():
-            _attach_row_display_fields(
-                row,
-                load_detail_json=True,
-                turns=case_turns,
-                chain_summary=chain_summary,
-                chain_status=_json_fragment(chain_status),
-                compact=True,
-            )
-            rows.append(row)
-    else:
-        rows = list(session.execute(stmt).scalars().all())
-        for row in rows:
-            _attach_row_display_fields(row, load_detail_json=load_detail_json)
     if guideline == "full":
         rows = [r for r in rows if r.guideline_max and r.guideline_earned == r.guideline_max]
     elif guideline == "partial":

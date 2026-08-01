@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from .settings import Settings, get_settings
@@ -42,11 +42,57 @@ def init_engine(settings: Settings | None = None):
 
 
 def init_db(settings: Settings | None = None) -> None:
-    """按当前 ORM 从空数据库建表；本版本不迁移旧数据库结构。"""
+    """按当前 ORM 从空数据库建表，并补齐轻量列表所需的兼容列。"""
     engine = init_engine(settings)
     from . import models_db  # noqa: F401  触发 ORM 表注册
 
     Base.metadata.create_all(engine)
+    _migrate_case_list_display_columns(engine)
+
+
+def _migrate_case_list_display_columns(engine) -> None:
+    """为既有库补齐 Case 列表标量列，并在首次升级时一次性回填。
+
+    旧版列表每次都从 ``detail_json`` 提取轮数及 RAG 状态；其中包含 Langfuse 原始
+    prompt/输出时，95 条用例也会产生数秒延迟。新列只在首次部署时读取一次历史 JSON，
+    后续列表查询完全不访问该大字段。
+    """
+    inspector = inspect(engine)
+    if "case_result" not in inspector.get_table_names():
+        return
+    existing = {column["name"] for column in inspector.get_columns("case_result")}
+    missing = [
+        ("n_turns", "INTEGER"),
+        ("rag_status", "VARCHAR(20)"),
+    ]
+    missing = [(name, ddl) for name, ddl in missing if name not in existing]
+    if not missing:
+        return
+
+    # DDL 名称固定在上方，不拼接外部输入；SQLite/PostgreSQL 均支持 ADD COLUMN。
+    with engine.begin() as connection:
+        for name, ddl in missing:
+            connection.exec_driver_sql(f"ALTER TABLE case_result ADD COLUMN {name} {ddl}")
+
+    from .models_db import CaseResultRow
+    from .services.case_query import case_n_turns_from_detail, case_rag_status_from_detail
+
+    maker = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
+    with maker.begin() as session:
+        rows = session.execute(
+            select(CaseResultRow.id, CaseResultRow.detail_json)
+        ).all()
+        session.bulk_update_mappings(
+            CaseResultRow,
+            [
+                {
+                    "id": row_id,
+                    "n_turns": case_n_turns_from_detail(detail),
+                    "rag_status": case_rag_status_from_detail(detail),
+                }
+                for row_id, detail in rows
+            ],
+        )
 
 
 def get_sessionmaker() -> sessionmaker[Session]:

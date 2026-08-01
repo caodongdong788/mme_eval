@@ -13,6 +13,7 @@ from medeval.config import redact_config_secrets
 from medeval.reporter.token_cost import case_token_cost
 
 from .models_db import CaseResultRow, EvalRun
+from .services.case_query import case_n_turns_from_detail, case_rag_status_from_detail
 
 
 def _enum_val(v) -> str:
@@ -57,6 +58,7 @@ def build_case_row(
     applicable_guidelines = [item for item in cr.guideline_scores if item.get("applicable", True)]
     guideline_earned = sum(float(item.get("score", 0)) for item in applicable_guidelines)
     guideline_max = sum(float(item.get("max_score", 0)) for item in applicable_guidelines)
+    detail = cr.model_dump(mode="json")
     return CaseResultRow(
         run_id=run_id,
         sample_id=case.sample_id,
@@ -75,8 +77,10 @@ def build_case_row(
         latency_ms=float(cr.trace.duration_ms) if cr.trace else None,
         total_tokens=total_tokens,
         cost=cost,
+        n_turns=case_n_turns_from_detail(detail),
+        rag_status=case_rag_status_from_detail(detail),
         failure_tags=list(cr.failure_tags),
-        detail_json=cr.model_dump(mode="json"),
+        detail_json=detail,
     )
 
 

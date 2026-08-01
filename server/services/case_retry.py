@@ -59,6 +59,8 @@ _CASE_ROW_FIELDS = (
     "latency_ms",
     "total_tokens",
     "cost",
+    "n_turns",
+    "rag_status",
     "failure_tags",
     "detail_json",
 )

@@ -36,23 +36,54 @@ export function useRunCaseFilters(
   );
   const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
   const [queueIds, setQueueIds] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [loading, setLoading] = useState(enabled);
 
   useEffect(() => {
     sessionStorage.setItem(filtersKey, JSON.stringify({ conditions: filterConditions }));
   }, [filtersKey, filterConditions]);
 
   useEffect(() => {
-    api.getReviewStats(runId).then(setReviewStats).catch(() => setReviewStats(null));
-  }, [runId]);
+    if (!enabled) return;
+    let alive = true;
+    api.getReviewStats(runId)
+      .then((stats) => alive && setReviewStats(stats))
+      .catch(() => alive && setReviewStats(null));
+    return () => {
+      alive = false;
+    };
+  }, [runId, enabled]);
+
+  const needsPendingQueue = filterConditions.some(
+    (condition) =>
+      condition.field === "review" &&
+      String(condition.value ?? "") === "pending" &&
+      isActiveCaseFilter(condition)
+  );
 
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
+    setHasLoaded(false);
     setLoading(true);
     api.listCaseResults(runId, { limit: CASE_LIST_LIMIT })
-      .then((items) => alive && setCases(items))
+      .then((items) => {
+        if (!alive) return;
+        setCases(items);
+        setHasLoaded(true);
+      })
       .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [runId, enabled]);
+
+  useEffect(() => {
+    if (!enabled || !needsPendingQueue) {
+      setQueueIds(new Set());
+      return;
+    }
+    let alive = true;
     api
       .getReviewQueue(runId, {})
       .then((q) => alive && setQueueIds(new Set(q.map((it) => it.sample_id))))
@@ -60,7 +91,7 @@ export function useRunCaseFilters(
     return () => {
       alive = false;
     };
-  }, [runId, enabled]);
+  }, [runId, enabled, needsPendingQueue]);
 
   const shownCases = useMemo(
     () => filterCaseRows(cases, filterConditions, queueIds, failureTagLabel),
@@ -85,7 +116,7 @@ export function useRunCaseFilters(
     filterValueOptions,
     reviewStats,
     queueIds,
-    loading,
+    loading: loading || (enabled && !hasLoaded),
     activeFilterCount,
     resetFilters,
   };

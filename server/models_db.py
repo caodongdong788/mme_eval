@@ -203,6 +203,10 @@ class CaseResultRow(Base):
     # 成本/Token 观测（仅观测、不否决）：该用例总 token 与折算成本。
     total_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     cost: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # 列表页高频展示字段。它们从 detail_json 派生，但单独持久化，避免 100 条用例
+    # 列表每次都解析对话/调用链的大 JSON。
+    n_turns: Mapped[int] = mapped_column(Integer, default=1)
+    rag_status: Mapped[str] = mapped_column(String(20), default="unknown")
     failure_tags: Mapped[list[str]] = mapped_column(JSON, default=list)
 
     # 完整 CaseResult：对话、八维原始/最终分、指南得分和扣分原因。
