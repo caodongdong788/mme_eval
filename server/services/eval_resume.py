@@ -50,13 +50,16 @@ async def launch_resume_run(
     session: Session,
     source_run_id: int,
     *,
+    created_by: str | None = None,
     job_runner: "JobRunner",
     build_resume_job,
 ) -> EvalRun:
     """校验源 run → 派生 pending run → 提交续跑 job。"""
     source = get_run_or_404(session, source_run_id)
     validate_resume_preconditions(source)
-    derived = create_derived_run(session, source, suffix="续跑")
+    derived = create_derived_run(
+        session, source, suffix="续跑", created_by=created_by
+    )
     job = build_resume_job(derived.id, source_run_id=source.id, run_name=derived.name)
     await job_runner.submit(derived.id, job)
     return derived

@@ -306,6 +306,7 @@ class RunSummaryOut(BaseModel):
     started_at: Optional[ApiDateTime] = None
     finished_at: Optional[ApiDateTime] = None
     created_at: Optional[ApiDateTime] = None
+    created_by: Optional[str] = None
     error_msg: str = ""
     # 是否已落会话留痕（可离线重判/断点续跑）、是否置顶保护、重判/续跑的源 run
     has_traces: bool = False

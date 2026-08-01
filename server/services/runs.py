@@ -90,6 +90,7 @@ def create_derived_run(
     *,
     suffix: str,
     extra_judge_overrides: Optional[dict[str, Any]] = None,
+    created_by: Optional[str] = None,
 ) -> EvalRun:
     """为重判/续跑新建一行 pending EvalRun，沿用源 run 的 benchmark/覆盖/n_runs。"""
     base = source.name or source.run_slug
@@ -106,6 +107,7 @@ def create_derived_run(
         adapter_overrides=dict(source.adapter_overrides or {}),
         n_runs=source.n_runs or 1,
         parent_run_id=source.id,
+        created_by=created_by,
     )
     session.add(derived)
     session.flush()
@@ -127,7 +129,12 @@ class CreateRunPlan:
     adapter_full: Optional[dict[str, Any]]
 
 
-def prepare_create_run(session: Session, payload: RunCreate) -> CreateRunPlan:
+def prepare_create_run(
+    session: Session,
+    payload: RunCreate,
+    *,
+    created_by: Optional[str] = None,
+) -> CreateRunPlan:
     bm = session.get(Benchmark, payload.benchmark_id)
     if bm is None:
         raise HTTPException(
@@ -199,6 +206,7 @@ def prepare_create_run(session: Session, payload: RunCreate) -> CreateRunPlan:
         judge_overrides=judge_public,
         adapter_overrides=adapter_public,
         n_runs=payload.repeat or 1,
+        created_by=created_by,
     )
     session.add(run)
     session.flush()

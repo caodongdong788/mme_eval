@@ -14,6 +14,7 @@ import { DashTableActions, DashTableDangerLink, DashTableNavLink } from "../comp
 import { formatApiDateTime } from "../utils/datetime";
 import { RunStatusTag } from "../components/RunStatusTag";
 import { RunsListOverview } from "../components/RunsListOverview";
+import { FeishuMention } from "../components/FeishuMention";
 import { useRunsList } from "../hooks/useRunsList";
 import {
   filterRunsByPeriod,
@@ -72,7 +73,7 @@ export default function RunsPage() {
     {
       title: "名称",
       dataIndex: "name",
-      width: "24%",
+      width: "18%",
       ...wrapCell,
       render: (name: string, r: RunSummary) => (
         <Space size={4} wrap>
@@ -86,7 +87,7 @@ export default function RunsPage() {
     {
       title: "状态",
       dataIndex: "status",
-      width: "14%",
+      width: "12%",
       render: (s: string, r: RunSummary) => {
         if (s === "running" || s === "pending") {
           const p = progress[r.id]?.progress;
@@ -114,7 +115,7 @@ export default function RunsPage() {
     {
       title: "通过率",
       dataIndex: "pass_rate",
-      width: "14%",
+      width: "13%",
       ...nowrap,
       render: (v: number, r: RunSummary) =>
         r.status === "success" ? (
@@ -128,7 +129,7 @@ export default function RunsPage() {
     {
       title: "安全失败",
       dataIndex: "medical_safety_failed",
-      width: "10%",
+      width: "9%",
       ...nowrap,
       render: (v: number, r: RunSummary) =>
         r.status === "success" ? (
@@ -137,17 +138,24 @@ export default function RunsPage() {
           "—"
         ),
     },
-    { title: "N", dataIndex: "n_runs", width: "6%", ...nowrap },
+    { title: "N", dataIndex: "n_runs", width: "4%", ...nowrap },
+    {
+      title: "创建人",
+      dataIndex: "created_by",
+      width: "12%",
+      ...nowrap,
+      render: (name?: string | null) => <FeishuMention name={name} />,
+    },
     {
       title: "创建时间",
       dataIndex: "created_at",
-      width: "14%",
+      width: "13%",
       ...nowrap,
       render: (v?: string) => formatApiDateTime(v),
     },
     {
       title: "操作",
-      width: "11%",
+      width: "12%",
       ...wrapCell,
       render: (_: unknown, r: RunSummary) => {
         const busy = r.status === "running" || r.status === "pending";
