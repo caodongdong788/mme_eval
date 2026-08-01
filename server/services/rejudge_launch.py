@@ -88,13 +88,21 @@ def validate_rejudge_request(session: Session, source: EvalRun, payload: Rejudge
 
 
 def prepare_rejudge_derived_run(
-    session: Session, source: EvalRun, payload: RejudgeRequest
+    session: Session,
+    source: EvalRun,
+    payload: RejudgeRequest,
+    *,
+    created_by: str | None = None,
 ) -> tuple[EvalRun, JudgeOverride | None]:
     validate_rejudge_request(session, source, payload)
     judge_ov = resolve_judge_override(session, payload)
     extra_judge = judge_ov.public_dict() if judge_ov else None
     derived = create_derived_run(
-        session, source, suffix="重判", extra_judge_overrides=extra_judge
+        session,
+        source,
+        suffix="重判",
+        extra_judge_overrides=extra_judge,
+        created_by=created_by,
     )
     return derived, judge_ov
 
@@ -104,12 +112,15 @@ async def launch_rejudge_run(
     source_run_id: int,
     payload: RejudgeRequest,
     *,
+    created_by: str | None = None,
     job_runner: "JobRunner",
     build_rejudge_job,
 ) -> EvalRun:
     """校验源 run → 派生 pending run → 提交重判 job。"""
     source = get_run_or_404(session, source_run_id)
-    derived, judge_ov = prepare_rejudge_derived_run(session, source, payload)
+    derived, judge_ov = prepare_rejudge_derived_run(
+        session, source, payload, created_by=created_by
+    )
     job = build_rejudge_job(
         derived.id,
         source_run_id=source.id,

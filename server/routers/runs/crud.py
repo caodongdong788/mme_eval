@@ -7,10 +7,11 @@ from typing import Any, Optional
 from fastapi import Depends, Query
 from sqlalchemy.orm import Session
 
+from ...auth import get_current_user_optional
 from ...constants import LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX
 from ...db import get_session
 from ...jobs import get_job_runner
-from ...models_db import EvalRun
+from ...models_db import EvalRun, FeishuUser
 from ...schemas import ProgressOut, RunCreate, RunDetailOut, RunRenameRequest, RunSummaryOut
 from ...services import runs as runs_svc
 from ._router import router
@@ -18,9 +19,15 @@ from ._router import router
 
 @router.post("", response_model=RunSummaryOut, status_code=201)
 async def create_run(
-    payload: RunCreate, session: Session = Depends(get_session)
+    payload: RunCreate,
+    session: Session = Depends(get_session),
+    current_user: Optional[FeishuUser] = Depends(get_current_user_optional),
 ) -> EvalRun:
-    plan = runs_svc.prepare_create_run(session, payload)
+    plan = runs_svc.prepare_create_run(
+        session,
+        payload,
+        created_by=current_user.name if current_user else None,
+    )
     from . import build_eval_job
 
     job = build_eval_job(

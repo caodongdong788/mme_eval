@@ -7,10 +7,11 @@ from typing import Optional
 from fastapi import Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from ...auth import get_current_user_optional
 from ...benchmarks import BenchmarkValidationError
 from ...db import get_session
 from ...jobs import get_job_runner
-from ...models_db import EvalRun
+from ...models_db import EvalRun, FeishuUser
 from ...schemas import (
     PreviewRejudgeRequest,
     PreviewRejudgeResponse,
@@ -35,6 +36,7 @@ async def rejudge_run(
     run_id: int,
     payload: Optional[RejudgeRequest] = Body(default=None),
     session: Session = Depends(get_session),
+    current_user: Optional[FeishuUser] = Depends(get_current_user_optional),
 ) -> EvalRun:
     payload = payload or RejudgeRequest()
     try:
@@ -44,6 +46,7 @@ async def rejudge_run(
             session,
             run_id,
             payload,
+            created_by=current_user.name if current_user else None,
             job_runner=get_job_runner(),
             build_rejudge_job=build_rejudge_job,
         )
@@ -53,13 +56,16 @@ async def rejudge_run(
 
 @router.post("/{run_id}/resume", response_model=RunSummaryOut, status_code=201)
 async def resume_run(
-    run_id: int, session: Session = Depends(get_session)
+    run_id: int,
+    session: Session = Depends(get_session),
+    current_user: Optional[FeishuUser] = Depends(get_current_user_optional),
 ) -> EvalRun:
     from . import build_resume_job
 
     return await launch_resume_run(
         session,
         run_id,
+        created_by=current_user.name if current_user else None,
         job_runner=get_job_runner(),
         build_resume_job=build_resume_job,
     )

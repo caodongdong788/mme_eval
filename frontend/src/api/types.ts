@@ -137,6 +137,7 @@ export interface RunSummary {
   started_at?: string | null;
   finished_at?: string | null;
   created_at?: string | null;
+  created_by?: string | null;
   error_msg: string;
   has_traces: boolean;
   pinned: boolean;
