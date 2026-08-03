@@ -438,7 +438,7 @@ class PairwiseCreate(BaseModel):
     run_a_id: int
     run_b_id: int
     judge_model_id: int
-    scope: Literal["all", "divergent_only"] = "all"
+    scope: Literal["all", "divergent_only", "rag_triggered_only"] = "all"
     note: str = ""
 
 
@@ -454,6 +454,7 @@ class PairwiseComparabilityOut(BaseModel):
     comparable: bool
     reasons: list[str] = Field(default_factory=list)
     subject_diff: dict[str, Any] = Field(default_factory=dict)
+    rag_analysis: dict[str, Any] = Field(default_factory=dict)
 
 
 class PairwiseComparisonOut(BaseModel):
@@ -503,6 +504,8 @@ class PairwiseCaseVerdictOut(BaseModel):
     sample_id: str
     scenario: str = ""
     sub_scenario: str = ""
+    rag_status_a: str = "unknown"
+    rag_status_b: str = "unknown"
     winner: str
     confidence_kind: Literal["high", "order", "safety", "human"]
     human_calibrated: bool = False

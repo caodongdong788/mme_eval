@@ -15,6 +15,7 @@ export const PAIRWISE_SUBJECT_LABELS: Record<string, string> = {
   base_url: "服务地址",
   system_prompt: "系统提示",
   adapter_type: "适配器类型",
+  enable_rag: "医学文献 RAG 开关",
 };
 
 function runLabel(r: RunSummary): string {
@@ -42,7 +43,7 @@ export function usePairwisePage() {
   const [runA, setRunA] = useState<number>();
   const [runB, setRunB] = useState<number>();
   const [judgeId, setJudgeId] = useState<number>();
-  const [scope, setScope] = useState<"all" | "divergent_only">("all");
+  const [scope, setScope] = useState<"all" | "divergent_only" | "rag_triggered_only">("all");
   const [note, setNote] = useState("");
   const [check, setCheck] = useState<PairwiseComparability | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -69,7 +70,14 @@ export function usePairwisePage() {
     [runs]
   );
 
-  const canSubmit = Boolean(runA && runB && judgeId && check?.comparable);
+  const hasRagCases = (check?.rag_analysis?.selected_cases ?? 0) > 0;
+  const canSubmit = Boolean(
+    runA &&
+      runB &&
+      judgeId &&
+      check?.comparable &&
+      (scope !== "rag_triggered_only" || hasRagCases)
+  );
   const subjectDiff = check?.subject_diff || {};
   const diffKeys = Object.keys(subjectDiff);
 

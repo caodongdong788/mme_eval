@@ -109,17 +109,18 @@ export function PairwiseCreateCard({
           <div>
             <Text type="secondary" style={{ fontSize: 12 }}>
               对比范围{" "}
-              <Tooltip title="全部=逐题对比共有用例（每题 2 次裁判调用）；仅差异用例=只对两次上线判定不同的用例对比，省成本用于快筛">
+              <Tooltip title="全部=对比所有共有用例；仅差异用例=只看上线判定不同；仅 RAG 侧实际触发=自动识别 A/B 中开启 RAG 的一侧，只看其 Agent 工具链真实调用过医学文献 RAG 的题目。">
                 <QuestionCircleOutlined style={{ color: "var(--muted)" }} />
               </Tooltip>
             </Text>
             <br />
             <Segmented
               value={scope}
-              onChange={(v) => setScope(v as "all" | "divergent_only")}
+              onChange={(v) => setScope(v as "all" | "divergent_only" | "rag_triggered_only")}
               options={[
                 { label: "全部用例", value: "all" },
                 { label: "仅差异用例", value: "divergent_only" },
+                { label: "仅 RAG 侧实际触发", value: "rag_triggered_only" },
               ]}
             />
           </div>
@@ -180,6 +181,33 @@ export function PairwiseCreateCard({
         )}
         {check?.comparable && diffKeys.length === 0 && (
           <Alert type="success" showIcon message="可以对比：判分尺子一致，且被测参数也完全相同" />
+        )}
+        {check?.comparable && scope === "rag_triggered_only" && (
+          <Alert
+            type={(check.rag_analysis?.selected_cases ?? 0) > 0 ? "info" : "warning"}
+            showIcon
+            message={
+              check.rag_analysis?.rag_side
+                ? `${check.rag_analysis.rag_side} 侧为 RAG 组，真实触发：${check.rag_analysis.selected_cases} / ${check.rag_analysis.common_cases} 题`
+                : "无法自动识别 RAG 侧"
+            }
+            description={
+              <Space direction="vertical" size={2}>
+                {check.rag_analysis?.rag_side ? (
+                  <span>
+                    将排除 {check.rag_analysis.excluded_cases} 题，其中链路状态未知 {check.rag_analysis.unknown_cases} 题。
+                  </span>
+                ) : (
+                  <span>请确保两次评测中恰好一侧开启 RAG，另一侧关闭 RAG。</span>
+                )}
+                {(check.rag_analysis?.baseline_triggered_cases ?? 0) > 0 && (
+                  <Text type="warning">
+                    非 RAG 侧也有 {check.rag_analysis.baseline_triggered_cases} 题出现 RAG 调用，请检查运行配置或链路数据。
+                  </Text>
+                )}
+              </Space>
+            }
+          />
         )}
 
         <Button type="primary" disabled={!canSubmit} loading={submitting} onClick={onSubmit}>

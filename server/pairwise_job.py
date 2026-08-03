@@ -15,15 +15,18 @@ from sqlalchemy import select
 
 from medeval.evaluation import EvaluationDimension
 
+from .compare import pairwise_rag_side
 from .constants import PAIRWISE_JOB_USER_ERROR
 
 from .db import session_scope
 from .models_db import (
     CaseResultRow,
+    EvalRun,
     JudgeModelConfig,
     PairwiseCaseVerdict,
     PairwiseComparison,
 )
+from .services.case_query import RAG_TRIGGERED_STATUSES, case_rag_status_from_detail
 
 log = logging.getLogger(__name__)
 
@@ -106,12 +109,29 @@ def _build_comparator(judge_model_id: int):
 
 
 def _detail_map(session, run_id: int) -> dict[str, dict[str, Any]]:
-    """run 内每个 sample_id 的 detail_json（含 trace/case）。"""
+    """run 内每个 sample_id 的 detail_json、上线结论与真实 RAG 状态。"""
     rows = session.execute(
-        select(CaseResultRow.sample_id, CaseResultRow.detail_json, CaseResultRow.release_passed)
+        select(
+            CaseResultRow.sample_id,
+            CaseResultRow.detail_json,
+            CaseResultRow.release_passed,
+            CaseResultRow.rag_status,
+        )
         .where(CaseResultRow.run_id == run_id)
     ).all()
-    return {sid: {"detail": dj or {}, "release_passed": bool(rp)} for sid, dj, rp in rows}
+    result: dict[str, dict[str, Any]] = {}
+    for sid, detail, release_passed, rag_status in rows:
+        detail = detail or {}
+        status = str(rag_status or "unknown")
+        # 兼容尚未回填标量列的历史数据，但不把 RAG 开关当作调用证据。
+        if status == "unknown":
+            status = case_rag_status_from_detail(detail)
+        result[sid] = {
+            "detail": detail,
+            "release_passed": bool(release_passed),
+            "rag_status": status,
+        }
+    return result
 
 
 def _derive_confidence(
@@ -169,6 +189,9 @@ def backfill_pairwise_confidence() -> dict[str, int]:
                     }
                 )
             new_summary = _summarize(rows)
+            preserved_rag_scope = dict(comp.summary or {}).get("rag_scope")
+            if preserved_rag_scope:
+                new_summary["rag_scope"] = preserved_rag_scope
             if new_summary != comp.summary:
                 comp.summary = new_summary
                 comp_changed = True
@@ -251,7 +274,12 @@ def _summarize(verdicts: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def pairwise_verdict_to_out(v: PairwiseCaseVerdict):
+def pairwise_verdict_to_out(
+    v: PairwiseCaseVerdict,
+    *,
+    rag_status_a: str = "unknown",
+    rag_status_b: str = "unknown",
+):
     """ORM → API 有效值（避免 from_attributes 直出机器字段）。"""
     from .schemas import PairwiseCaseVerdictOut
 
@@ -260,6 +288,8 @@ def pairwise_verdict_to_out(v: PairwiseCaseVerdict):
         "sample_id": v.sample_id,
         "scenario": v.scenario or "",
         "sub_scenario": v.sub_scenario or "",
+        "rag_status_a": rag_status_a,
+        "rag_status_b": rag_status_b,
         "winner": eff["winner"],
         "confidence_kind": eff["confidence_kind"],
         "human_calibrated": bool(v.human_calibrated),
@@ -288,7 +318,10 @@ def recompute_pairwise_summary(session, comparison_id: int) -> dict[str, Any]:
         )
     ).scalars().all()
     rows = [verdict_effective_row(v) for v in verdicts]
+    preserved_rag_scope = dict(comp.summary or {}).get("rag_scope")
     summary = _summarize(rows)
+    if preserved_rag_scope:
+        summary["rag_scope"] = preserved_rag_scope
     comp.summary = summary
     session.flush()
     return summary
@@ -305,6 +338,11 @@ async def run_pairwise_comparison(comparison_id: int, judge_model_id: int) -> No
                 return
             run_a_id, run_b_id = comp.run_a_id, comp.run_b_id
             scope = comp.scope or "all"
+            run_a = session.get(EvalRun, run_a_id)
+            run_b = session.get(EvalRun, run_b_id)
+            rag_side = (
+                pairwise_rag_side(run_a, run_b) if run_a is not None and run_b is not None else None
+            )
             map_a = _detail_map(session, run_a_id)
             map_b = _detail_map(session, run_b_id)
 
@@ -314,15 +352,40 @@ async def run_pairwise_comparison(comparison_id: int, judge_model_id: int) -> No
             comp.judge_fingerprint = comparator.fingerprint()
 
         common = sorted(set(map_a) & set(map_b))
+        rag_scope: dict[str, Any] | None = None
         if scope == "divergent_only":
             common = [
                 sid
                 for sid in common
                 if map_a[sid]["release_passed"] != map_b[sid]["release_passed"]
             ]
+        elif scope == "rag_triggered_only":
+            if rag_side not in {"A", "B"}:
+                raise ValueError("无法识别开放 RAG 的评测侧")
+            rag_map = map_a if rag_side == "A" else map_b
+            status_counts: dict[str, int] = {}
+            for sid in common:
+                status = rag_map[sid]["rag_status"]
+                status_counts[status] = status_counts.get(status, 0) + 1
+            common_count = len(common)
+            common = [
+                sid
+                for sid in common
+                if rag_map[sid]["rag_status"] in RAG_TRIGGERED_STATUSES
+            ]
+            rag_scope = {
+                "rag_side": rag_side,
+                "common_cases": common_count,
+                "selected_cases": len(common),
+                "excluded_cases": common_count - len(common),
+                "unknown_cases": status_counts.get("unknown", 0),
+                "rag_status_counts": status_counts,
+            }
         with session_scope() as session:
             comp = session.get(PairwiseComparison, comparison_id)
             comp.total_cases = len(common)
+            if rag_scope is not None:
+                comp.summary = {"rag_scope": rag_scope}
 
         # 题间并发：LLM 调用并发跑，DB 写在锁内串行（SQLite 单写 + done_cases 原子递增）。
         verdicts: list[dict[str, Any]] = []
