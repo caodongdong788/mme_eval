@@ -152,6 +152,7 @@ export interface RunDetail extends RunSummary {
   grading: Record<string, any>;
   stability_distribution: Record<string, number>;
   latency_summary: Record<string, any>;
+  ttft_summary: Record<string, any>;
   token_summary: Record<string, any>;
   pass_rate_ci: Record<string, any>;
   guideline_match: Record<string, any>;
@@ -176,6 +177,7 @@ export interface CaseRow {
   guideline_earned?: number | null;
   guideline_max?: number | null;
   latency_ms?: number | null;
+  ttft_ms?: number | null;
   total_tokens?: number | null;
   cost?: number | null;
   n_turns?: number;
@@ -479,6 +481,7 @@ export interface PairwiseCalibratePayload {
 
 export interface PairwiseRunObservability {
   latency_summary: Record<string, number>;
+  ttft_summary: Record<string, number>;
   token_summary: Record<string, number | string>;
 }
 

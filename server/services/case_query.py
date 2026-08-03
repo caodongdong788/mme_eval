@@ -103,6 +103,21 @@ def case_rag_status_from_detail(detail: Any) -> str:
     return "unknown"
 
 
+def case_ttft_ms_from_detail(detail: Any) -> float | None:
+    """从 CaseResult JSON 取代表性会话的平均 TTFT，兼容历史空数据。"""
+    detail = detail if isinstance(detail, dict) else {}
+    trace = detail.get("trace") if isinstance(detail.get("trace"), dict) else {}
+    raw_values = trace.get("turn_ttft_ms")
+    if not isinstance(raw_values, list):
+        return None
+    values = [
+        float(value)
+        for value in raw_values
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0
+    ]
+    return (sum(values) / len(values)) if values else None
+
+
 def _attach_row_display_fields(
     row: CaseResultRow,
     *,

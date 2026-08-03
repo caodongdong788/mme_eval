@@ -16,6 +16,8 @@ const baseVerdict = (over: Partial<PairwiseCaseVerdict> = {}): PairwiseCaseVerdi
   human_calibrated: false,
   swap_consistent: true,
   dimension_winners: {},
+  rag_status_a: "unknown",
+  rag_status_b: "unknown",
   ...over,
 });
 

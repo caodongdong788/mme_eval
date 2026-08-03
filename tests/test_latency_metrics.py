@@ -34,7 +34,7 @@ class _Adapter(BaseAdapter):
 
     async def chat(self, req: ChatRequest) -> ChatResponse:
         self.n += 1
-        return ChatResponse(reply=f"reply-{self.n}", raw={})
+        return ChatResponse(reply=f"reply-{self.n}", raw={"ttft_ms": 12.0})
 
     async def close(self) -> None:
         pass
@@ -51,10 +51,16 @@ def _case(sid: str = "a", turns: int = 1) -> TestCase:
     )
 
 
-def _result(passed: bool, duration_ms: int, error: str | None = None) -> CaseResult:
+def _result(
+    passed: bool,
+    duration_ms: int,
+    error: str | None = None,
+    ttft_ms: float | None = None,
+) -> CaseResult:
     trace = ConversationTrace(
         messages=[ChatMessage(role="assistant", content="x")],
         duration_ms=duration_ms,
+        turn_ttft_ms=[ttft_ms] if ttft_ms is not None else [],
         error=error,
     )
     return CaseResult(
@@ -78,6 +84,8 @@ def test_runner_records_turn_and_total_latency():
     trace = traces[0][0]
     assert len(trace.turn_latencies_ms) == 3
     assert all(t >= 0 for t in trace.turn_latencies_ms)
+    assert len(trace.turn_ttft_ms) == 3
+    assert all(t >= 12 for t in trace.turn_ttft_ms)
     assert trace.duration_ms >= 0
 
 
@@ -100,6 +108,22 @@ def test_latency_summary_keys_and_values():
     assert ls["avg_ms"] == 300.0
     assert ls["median_ms"] == 300.0
     assert ls["max_ms"] == 500.0
+
+
+def test_ttft_summary_uses_streaming_measurements_and_ignores_missing_history():
+    results = [
+        _result(True, 100, ttft_ms=20),
+        _result(True, 200, ttft_ms=40),
+        _result(True, 300),
+    ]
+    report = build_report("t", results, adapter_type="stub")
+    assert report.ttft_summary == {
+        "count": 2,
+        "avg_ms": 30.0,
+        "median_ms": 30.0,
+        "p90_ms": 40.0,
+        "max_ms": 40.0,
+    }
 
 
 def test_error_run_excluded_from_latency():

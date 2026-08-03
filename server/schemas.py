@@ -322,6 +322,7 @@ class RunDetailOut(RunSummaryOut):
     grading: dict[str, Any] = Field(default_factory=dict)
     stability_distribution: dict[str, Any] = Field(default_factory=dict)
     latency_summary: dict[str, Any] = Field(default_factory=dict)
+    ttft_summary: dict[str, Any] = Field(default_factory=dict)
     token_summary: dict[str, Any] = Field(default_factory=dict)
     pass_rate_ci: dict[str, Any] = Field(default_factory=dict)
     guideline_match: dict[str, Any] = Field(default_factory=dict)
@@ -370,6 +371,7 @@ class CaseRowOut(BaseModel):
     guideline_earned: Optional[float] = None
     guideline_max: Optional[float] = None
     latency_ms: Optional[float] = None
+    ttft_ms: Optional[float] = None
     total_tokens: Optional[int] = None
     cost: Optional[float] = None
     n_turns: int = 1
@@ -525,6 +527,7 @@ class PairwiseRunObservabilityOut(BaseModel):
     """Pairwise 两侧 Run 的性能与 token 聚合；仅观测，不参与胜负判定。"""
 
     latency_summary: dict[str, Any] = Field(default_factory=dict)
+    ttft_summary: dict[str, Any] = Field(default_factory=dict)
     token_summary: dict[str, Any] = Field(default_factory=dict)
 
 

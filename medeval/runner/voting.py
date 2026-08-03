@@ -23,6 +23,12 @@ def trace_total_tokens(trace: ConversationTrace) -> int:
     return sum(int(u.get("total_tokens", 0)) for u in trace.turn_token_usage)
 
 
+def trace_average_ttft(trace: ConversationTrace) -> float | None:
+    """一条会话的 TTFT = 其成功回复轮次 TTFT 的平均值。"""
+    values = [float(value) for value in trace.turn_ttft_ms if float(value) >= 0]
+    return (sum(values) / len(values)) if values else None
+
+
 def _is_majority_pass(per_run_passed: list[bool]) -> bool:
     """严格过半。N 偶数平票算挂。"""
     if not per_run_passed:
@@ -56,6 +62,8 @@ def fold_n_runs(per_run_results: list[list[CaseResult]]) -> list[CaseResult]:
             r.n_runs = 1
             r.per_run_passed = [r.release_passed]
             r.per_run_latency_ms = [float(r.trace.duration_ms)]
+            ttft = trace_average_ttft(r.trace)
+            r.per_run_ttft_ms = [ttft] if ttft is not None else []
             r.per_run_tokens = [trace_total_tokens(r.trace)]
             r.stability = "stable_pass" if r.release_passed else "stable_fail"
             folded.append(r)
@@ -77,6 +85,11 @@ def fold_n_runs(per_run_results: list[list[CaseResult]]) -> list[CaseResult]:
         rep.per_run_passed = per_run_passed
         # 收集每次会话总耗时（含错误 run；错误 run 在报告聚合时再过滤）
         rep.per_run_latency_ms = [float(run.trace.duration_ms) for run in runs]
+        rep.per_run_ttft_ms = [
+            value
+            for run in runs
+            if (value := trace_average_ttft(run.trace)) is not None
+        ]
         # 收集每次会话总 token（同上，含错误 run，聚合时再过滤）
         rep.per_run_tokens = [trace_total_tokens(run.trace) for run in runs]
         rep.stability = stability

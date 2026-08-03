@@ -7,10 +7,24 @@ import {
 } from "../api/index";
 import { formatApiError } from "../utils/apiError";
 
+export type PairwiseRagFilter = "triggered" | "not_triggered" | "unknown";
+
+const RAG_TRIGGERED_STATUSES = new Set(["hit", "miss", "failed", "triggered"]);
+
+export function pairwiseRagFilterValue(
+  verdict: Pick<PairwiseCaseVerdict, "rag_status_a" | "rag_status_b">
+): PairwiseRagFilter {
+  const statuses = [verdict.rag_status_a, verdict.rag_status_b];
+  if (statuses.some((status) => RAG_TRIGGERED_STATUSES.has(status))) return "triggered";
+  if (statuses.every((status) => status === "not_triggered")) return "not_triggered";
+  return "unknown";
+}
+
 export function usePairwiseDetail(comparisonId: number) {
   const [detail, setDetail] = useState<PairwiseDetail | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [conclusionFilter, setConclusionFilter] = useState<"A" | "B" | "tie" | undefined>();
+  const [ragFilter, setRagFilter] = useState<PairwiseRagFilter | undefined>();
   const [confidenceFilter, setConfidenceFilter] = useState<
     PairwiseConfidenceKind | undefined
   >();
@@ -45,22 +59,25 @@ export function usePairwiseDetail(comparisonId: number) {
       return;
     }
     setTablePage(1);
-  }, [conclusionFilter, confidenceFilter]);
+  }, [conclusionFilter, ragFilter, confidenceFilter]);
 
   const filtered = useMemo(() => {
     const matchesConclusion = (v: PairwiseCaseVerdict) =>
       !conclusionFilter || v.winner === conclusionFilter;
+    const matchesRag = (v: PairwiseCaseVerdict) =>
+      !ragFilter || pairwiseRagFilterValue(v) === ragFilter;
     const matchesConfidence = (v: PairwiseCaseVerdict) =>
       !confidenceFilter || v.confidence_kind === confidenceFilter;
     return (detail?.verdicts || []).filter(
-      (v) => matchesConclusion(v) && matchesConfidence(v)
+      (v) => matchesConclusion(v) && matchesRag(v) && matchesConfidence(v)
     );
-  }, [detail?.verdicts, conclusionFilter, confidenceFilter]);
+  }, [detail?.verdicts, conclusionFilter, ragFilter, confidenceFilter]);
 
-  const hasActiveFilters = Boolean(conclusionFilter || confidenceFilter);
+  const hasActiveFilters = Boolean(conclusionFilter || ragFilter || confidenceFilter);
 
   const resetFilters = () => {
     setConclusionFilter(undefined);
+    setRagFilter(undefined);
     setConfidenceFilter(undefined);
   };
 
@@ -92,6 +109,8 @@ export function usePairwiseDetail(comparisonId: number) {
     detailError,
     conclusionFilter,
     setConclusionFilter,
+    ragFilter,
+    setRagFilter,
     confidenceFilter,
     setConfidenceFilter,
     tablePage,

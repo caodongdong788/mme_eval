@@ -11,6 +11,7 @@ import asyncio
 import json
 import os
 import re
+import time
 from typing import Any
 
 import httpx
@@ -233,14 +234,49 @@ class CxAgentAdapter(BaseAdapter):
         if isinstance(req.metadata.get("run_idx"), int):
             body["runIdx"] = req.metadata["run_idx"]
 
+        events: list[dict[str, Any]] = []
+        ttft_ms: float | None = None
+        event_name = "message"
+        data_lines: list[str] = []
+        request_started = time.perf_counter()
+
+        def flush_event() -> None:
+            nonlocal event_name, data_lines, ttft_ms
+            if not data_lines and event_name == "message":
+                return
+            item = {
+                "event": event_name,
+                "data": _json_or_text("\n".join(data_lines)),
+            }
+            events.append(item)
+            if (
+                ttft_ms is None
+                and event_name == "text_delta"
+                and _extract_delta(item["data"])
+            ):
+                ttft_ms = (time.perf_counter() - request_started) * 1000
+            event_name = "message"
+            data_lines = []
+
         try:
-            resp = await self._client.post(
+            async with self._client.stream(
+                "POST",
                 self.base_url + CX_AGENT_CHAT_ENDPOINT,
                 headers={"X-Test-Token": self._test_token},
                 json=body,
-            )
-            resp.raise_for_status()
-            events = _parse_sse(resp.text)
+            ) as resp:
+                resp.raise_for_status()
+                async for raw_line in resp.aiter_lines():
+                    line = raw_line.rstrip("\r")
+                    if line == "":
+                        flush_event()
+                    elif line.startswith(":"):
+                        continue
+                    elif line.startswith("event:"):
+                        event_name = line[len("event:") :].strip()
+                    elif line.startswith("data:"):
+                        data_lines.append(line[len("data:") :].lstrip())
+                flush_event()
         except Exception as e:  # noqa: BLE001 - adapter failure must be data, not raise
             raw = {
                 "input_sanitization": input_sanitization,
@@ -292,6 +328,8 @@ class CxAgentAdapter(BaseAdapter):
             "cx_session_id": cx_session_id,
             "rag_enabled": self._enable_rag,
         }
+        if ttft_ms is not None:
+            raw["ttft_ms"] = ttft_ms
         if req.images:
             raw["input_images"] = {"count": len(req.images)}
         if input_sanitization["removed_inline_images"] or input_sanitization["truncated"]:

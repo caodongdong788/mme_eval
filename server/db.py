@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine, inspect, select
+from sqlalchemy import create_engine, inspect, select, update
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from .settings import Settings, get_settings
@@ -64,35 +64,57 @@ def _migrate_case_list_display_columns(engine) -> None:
     missing = [
         ("n_turns", "INTEGER"),
         ("rag_status", "VARCHAR(20)"),
+        ("ttft_ms", "FLOAT"),
     ]
     missing = [(name, ddl) for name, ddl in missing if name not in existing]
-    if not missing:
-        return
 
     # DDL 名称固定在上方，不拼接外部输入；SQLite/PostgreSQL 均支持 ADD COLUMN。
-    with engine.begin() as connection:
-        for name, ddl in missing:
-            connection.exec_driver_sql(f"ALTER TABLE case_result ADD COLUMN {name} {ddl}")
+    if missing:
+        with engine.begin() as connection:
+            for name, ddl in missing:
+                connection.exec_driver_sql(f"ALTER TABLE case_result ADD COLUMN {name} {ddl}")
 
-    from .models_db import CaseResultRow
-    from .services.case_query import case_n_turns_from_detail, case_rag_status_from_detail
-
-    maker = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
-    with maker.begin() as session:
-        rows = session.execute(
-            select(CaseResultRow.id, CaseResultRow.detail_json)
-        ).all()
-        session.bulk_update_mappings(
-            CaseResultRow,
-            [
-                {
-                    "id": row_id,
-                    "n_turns": case_n_turns_from_detail(detail),
-                    "rag_status": case_rag_status_from_detail(detail),
-                }
-                for row_id, detail in rows
-            ],
+        from .models_db import CaseResultRow
+        from .services.case_query import (
+            case_n_turns_from_detail,
+            case_rag_status_from_detail,
+            case_ttft_ms_from_detail,
         )
+
+        maker = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
+        with maker.begin() as session:
+            rows = session.execute(
+                select(CaseResultRow.id, CaseResultRow.detail_json)
+            ).all()
+            session.bulk_update_mappings(
+                CaseResultRow,
+                [
+                    {
+                        "id": row_id,
+                        "n_turns": case_n_turns_from_detail(detail),
+                        "rag_status": case_rag_status_from_detail(detail),
+                        "ttft_ms": case_ttft_ms_from_detail(detail),
+                    }
+                    for row_id, detail in rows
+                ],
+            )
+
+    inspector = inspect(engine)
+    if "eval_run" not in inspector.get_table_names():
+        return
+    run_columns = {column["name"] for column in inspector.get_columns("eval_run")}
+    if "ttft_summary" not in run_columns:
+        with engine.begin() as connection:
+            connection.exec_driver_sql("ALTER TABLE eval_run ADD COLUMN ttft_summary JSON")
+        from .models_db import EvalRun
+
+        maker = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
+        with maker.begin() as session:
+            session.execute(
+                update(EvalRun)
+                .where(EvalRun.ttft_summary.is_(None))
+                .values(ttft_summary={})
+            )
 
 
 def get_sessionmaker() -> sessionmaker[Session]:

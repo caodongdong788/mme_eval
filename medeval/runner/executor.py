@@ -85,6 +85,7 @@ async def _run_one(
     chat_msgs: list[ChatMessage] = []
     raw_responses: list[dict] = []
     turn_latencies_ms: list[float] = []
+    turn_ttft_ms: list[float] = []
     turn_token_usage: list[dict[str, int]] = []
     error: str | None = None
     cx_langfuse_trace_ids: list[str] = []
@@ -197,6 +198,7 @@ async def _run_one(
                 session_id=session_id,
             ) as gen:
                 for attempt in range(retry + 1):
+                    attempt_elapsed_ms = (time.perf_counter() - turn_start) * 1000
                     try:
                         resp = await asyncio.wait_for(adapter.chat(req), timeout=timeout_s)
                     except asyncio.TimeoutError:
@@ -245,6 +247,11 @@ async def _run_one(
                     # 该轮端到端耗时（含重试）：仅在成功取得回复时记录
                     turn_latency = (time.perf_counter() - turn_start) * 1000
                     turn_latencies_ms.append(turn_latency)
+                    raw_ttft = resp.raw.get("ttft_ms") if isinstance(resp.raw, dict) else None
+                    if isinstance(raw_ttft, (int, float)) and not isinstance(raw_ttft, bool) and raw_ttft >= 0:
+                        user_ttft = attempt_elapsed_ms + float(raw_ttft)
+                        turn_ttft_ms.append(user_ttft)
+                        set_attribute(sp, "ttft_ms", user_ttft)
                     set_attribute(sp, "latency_ms", turn_latency)
                     set_attribute(sp, "attempts", attempt + 1)
                     lf.update_generation(
@@ -319,6 +326,7 @@ async def _run_one(
         raw_responses=raw_responses,
         duration_ms=duration_ms,
         turn_latencies_ms=turn_latencies_ms,
+        turn_ttft_ms=turn_ttft_ms,
         turn_token_usage=turn_token_usage,
         error=error,
         langfuse_trace_url=langfuse_trace_url,

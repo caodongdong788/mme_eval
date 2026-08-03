@@ -72,6 +72,8 @@ export default function PairwiseDetailPage() {
             filtered={pw.filtered}
             conclusionFilter={pw.conclusionFilter}
             setConclusionFilter={pw.setConclusionFilter}
+            ragFilter={pw.ragFilter}
+            setRagFilter={pw.setRagFilter}
             confidenceFilter={pw.confidenceFilter}
             setConfidenceFilter={pw.setConfidenceFilter}
             hasActiveFilters={pw.hasActiveFilters}

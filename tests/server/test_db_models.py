@@ -20,6 +20,8 @@ def test_tables_created(initialized_db):
         assert "difficulty" not in case_cols
         assert "by_population" not in run_cols
         assert "by_difficulty" not in run_cols
+        assert "ttft_ms" in case_cols
+        assert "ttft_summary" in run_cols
     finally:
         s.close()
 

@@ -132,9 +132,16 @@ export function PairwiseDetailSummaryCard({
   ];
   const latencyA = detail.run_a_observability?.latency_summary || {};
   const latencyB = detail.run_b_observability?.latency_summary || {};
+  const ttftA = detail.run_a_observability?.ttft_summary || {};
+  const ttftB = detail.run_b_observability?.ttft_summary || {};
   const tokenA = detail.run_a_observability?.token_summary || {};
   const tokenB = detail.run_b_observability?.token_summary || {};
   const observabilityItems = [
+    {
+      label: "平均首 Token 耗时（TTFT）",
+      tip: "从请求发出到收到首个非空流式文本增量的平均耗时；多轮会话先按轮次取平均。历史或非流式评测显示 N/A。仅观测，不参与 Pairwise 胜负。",
+      ...comparisonSub(numeric(ttftA.avg_ms), numeric(ttftB.avg_ms), formatDuration),
+    },
     {
       label: "平均单次会话耗时",
       tip: "有效会话的端到端耗时平均值；增量为 B、A 两侧平均单次会话耗时之差，不计算整批用例的总耗时。仅观测，不参与 Pairwise 胜负。",

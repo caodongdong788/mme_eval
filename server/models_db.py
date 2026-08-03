@@ -152,6 +152,8 @@ class EvalRun(Base):
     grading: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     stability_distribution: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     latency_summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    # 流式首 Token 耗时聚合；历史/非流式 Run 为空。
+    ttft_summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     # 成本/Token 聚合（来自 RunReport.token_summary）。仅观测、不否决。
     token_summary: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     # 通过率 bootstrap 置信区间（来自 RunReport.pass_rate_ci）。仅度量、不否决。
@@ -200,6 +202,8 @@ class CaseResultRow(Base):
     grade: Mapped[str] = mapped_column(String(20), default="")
     stability: Mapped[str] = mapped_column(String(20), default="stable_pass", index=True)
     latency_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # 代表性会话各成功回复轮次 TTFT 的平均值；历史/非流式数据为空。
+    ttft_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     # 成本/Token 观测（仅观测、不否决）：该用例总 token 与折算成本。
     total_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     cost: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

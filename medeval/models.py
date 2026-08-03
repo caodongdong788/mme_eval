@@ -521,6 +521,9 @@ class ConversationTrace(BaseModel):
     # 逐轮（每次 adapter 取得 bot 回复）的端到端耗时（ms），按轮次顺序。
     # 参见 OpenSpec change add-latency-metrics。
     turn_latencies_ms: list[float] = Field(default_factory=list)
+    # 逐轮首个非空流式文本增量到达耗时（Time To First Token，ms）。
+    # 非流式/历史 adapter 不提供时保持空列表；仅观测，不参与判分。
+    turn_ttft_ms: list[float] = Field(default_factory=list)
     # 逐轮 token 用量（每个成功轮次一项），形如
     # {"prompt_tokens": int, "completion_tokens": int, "total_tokens": int}；
     # adapter 未返回 usage 的轮次记空 dict 占位。runner 在裁剪 raw_responses 之前当场抽取，
@@ -594,6 +597,10 @@ class CaseResult(BaseModel):
     # 参见 OpenSpec change add-latency-metrics。
     per_run_latency_ms: list[float] = Field(default_factory=list)
 
+    # 每次 run 的平均轮次 TTFT（ms）；不支持流式采集或历史数据时为空。
+    # 仅观测、不参与判分。
+    per_run_ttft_ms: list[float] = Field(default_factory=list)
+
     # 每次 run 的会话总 token（由 trace.turn_token_usage 逐轮求和得到），长度对齐 n_runs
     # （含错误 run，聚合时再过滤）。仅观测、不参与判分。默认空列表以兼容历史 report.json。
     # 参见 OpenSpec change add-token-cost-observability。
@@ -646,6 +653,10 @@ class RunReport(BaseModel):
     # 形如 {"count": int, "avg_ms": float, "median_ms": float, "p90_ms": float, "max_ms": float}。
     # 统计时已过滤错误 run。仅记录、不计分、不否决。
     latency_summary: dict[str, Any] = Field(default_factory=dict)
+
+    # 流式首 Token 耗时聚合，结构与 latency_summary 一致。
+    # 历史/非流式数据为空；仅观测、不计分、不否决。
+    ttft_summary: dict[str, Any] = Field(default_factory=dict)
 
     # 成本 / Token 聚合。
     # 形如 {"count": int, "total_prompt_tokens": int, "total_completion_tokens": int,

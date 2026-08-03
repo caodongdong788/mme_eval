@@ -13,7 +13,11 @@ from medeval.config import redact_config_secrets
 from medeval.reporter.token_cost import case_token_cost
 
 from .models_db import CaseResultRow, EvalRun
-from .services.case_query import case_n_turns_from_detail, case_rag_status_from_detail
+from .services.case_query import (
+    case_n_turns_from_detail,
+    case_rag_status_from_detail,
+    case_ttft_ms_from_detail,
+)
 
 
 def _enum_val(v) -> str:
@@ -39,6 +43,7 @@ def populate_run_summary(row: EvalRun, report: RunReport) -> None:
     row.grading = {**(report.grading or {}), "reliability": report.reliability}
     row.stability_distribution = report.stability_distribution
     row.latency_summary = report.latency_summary
+    row.ttft_summary = report.ttft_summary
     row.token_summary = report.token_summary
     row.pass_rate_ci = report.pass_rate_ci
     row.guideline_match = report.guideline_match
@@ -75,6 +80,7 @@ def build_case_row(
         grade=cr.grade,
         stability=cr.stability,
         latency_ms=float(cr.trace.duration_ms) if cr.trace else None,
+        ttft_ms=case_ttft_ms_from_detail(detail),
         total_tokens=total_tokens,
         cost=cost,
         n_turns=case_n_turns_from_detail(detail),
