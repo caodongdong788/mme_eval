@@ -385,6 +385,18 @@ export interface PairwiseComparability {
   comparable: boolean;
   reasons: string[];
   subject_diff: Record<string, { a: any; b: any }>;
+  rag_analysis: PairwiseRagAnalysis;
+}
+
+export interface PairwiseRagAnalysis {
+  rag_side: "A" | "B" | null;
+  common_cases: number;
+  selected_cases: number;
+  excluded_cases: number;
+  unknown_cases: number;
+  baseline_triggered_cases: number;
+  a_status_counts: Record<string, number>;
+  b_status_counts: Record<string, number>;
 }
 
 export interface PairwiseSummary {
@@ -401,6 +413,14 @@ export interface PairwiseSummary {
   by_dimension: Record<string, { A: number; B: number; tie: number }>;
   regressions: string[];
   improvements: string[];
+  rag_scope?: {
+    rag_side: "A" | "B";
+    common_cases: number;
+    selected_cases: number;
+    excluded_cases: number;
+    unknown_cases: number;
+    rag_status_counts: Record<string, number>;
+  };
 }
 
 export interface PairwiseComparison {
@@ -429,6 +449,8 @@ export interface PairwiseCaseVerdict {
   sample_id: string;
   scenario?: string;
   sub_scenario?: string;
+  rag_status_a: "hit" | "miss" | "failed" | "triggered" | "not_triggered" | "unknown";
+  rag_status_b: "hit" | "miss" | "failed" | "triggered" | "not_triggered" | "unknown";
   winner: "A" | "B" | "tie";
   confidence_kind: PairwiseConfidenceKind;
   human_calibrated: boolean;
@@ -470,7 +492,7 @@ export interface PairwiseCreatePayload {
   run_a_id: number;
   run_b_id: number;
   judge_model_id: number;
-  scope?: "all" | "divergent_only";
+  scope?: "all" | "divergent_only" | "rag_triggered_only";
   note?: string;
 }
 

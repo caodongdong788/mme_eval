@@ -20,6 +20,10 @@ _LIST_CASE_COLUMNS = tuple(
     if attr.key != "detail_json"
 )
 
+# Pairwise 的“真实触发 RAG”只认 Agent 工具链证据。以下状态都表示至少发生过
+# 一次医学文献工具调用；是否召回成功由具体状态继续区分。
+RAG_TRIGGERED_STATUSES = frozenset({"hit", "miss", "failed", "triggered"})
+
 
 def _json_fragment(value: Any) -> Any:
     """兼容 PostgreSQL JSONB 与 SQLite JSON 提取结果。"""

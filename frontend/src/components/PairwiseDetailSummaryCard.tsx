@@ -1,4 +1,4 @@
-import { Col, Row, Space, Tag, Typography } from "antd";
+import { Alert, Col, Row, Space, Tag, Typography } from "antd";
 import type { ReactNode } from "react";
 import { DIM_LABEL } from "../labels";
 import { EVALUATION_DIMENSIONS } from "../labels";
@@ -160,6 +160,7 @@ export function PairwiseDetailSummaryCard({
       ),
     },
   ];
+  const ragScope = detail.summary?.rag_scope;
 
   return (
     <>
@@ -176,6 +177,15 @@ export function PairwiseDetailSummaryCard({
             裁判 {detail.judge_model} · 判分尺子一致（A/B 后续均指代上述评测）
           </Text>
         </div>
+        {detail.scope === "rag_triggered_only" && ragScope && (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginTop: 14 }}
+            message={`本结论只基于 ${ragScope.rag_side} 侧（RAG 组）真实触发 RAG 的 ${ragScope.selected_cases} 题`}
+            description={`共有 ${ragScope.common_cases} 题，排除未触发或链路未知 ${ragScope.excluded_cases} 题（未知 ${ragScope.unknown_cases} 题）。`}
+          />
+        )}
         <div className="runs-kpi-row runs-kpi-row--overview" style={{ marginTop: 16, marginBottom: 0 }}>
           {kpiItems.map((item) => (
             <RunsKpi
@@ -198,7 +208,9 @@ export function PairwiseDetailSummaryCard({
         )}
         <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--runs-border)" }}>
           <Text strong>性能与 Token 对比</Text>
-          <Text type="secondary">（仅观测，不影响 Pairwise 胜负）</Text>
+          <Text type="secondary">
+            （{detail.scope === "rag_triggered_only" ? "仅统计上述 RAG 触发题；" : ""}仅观测，不影响 Pairwise 胜负）
+          </Text>
           <div className="runs-kpi-row runs-kpi-row--overview" style={{ marginTop: 12, marginBottom: 0 }}>
             {observabilityItems.map((item) => (
               <RunsKpi

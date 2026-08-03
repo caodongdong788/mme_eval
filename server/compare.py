@@ -94,13 +94,24 @@ def pairwise_subject_diff(run_a: EvalRun, run_b: EvalRun) -> dict[str, Any]:
     diff: dict[str, Any] = {}
     ov_a = run_a.adapter_overrides or {}
     ov_b = run_b.adapter_overrides or {}
-    for key in ("model", "base_url", "system_prompt"):
+    for key in ("model", "base_url", "system_prompt", "enable_rag"):
         va, vb = ov_a.get(key), ov_b.get(key)
         if va != vb:
             diff[key] = {"a": va, "b": vb}
     if (run_a.adapter_type or "") != (run_b.adapter_type or ""):
         diff["adapter_type"] = {"a": run_a.adapter_type, "b": run_b.adapter_type}
     return diff
+
+
+def pairwise_rag_side(run_a: EvalRun, run_b: EvalRun) -> str | None:
+    """自动识别哪一侧开放了医学文献 RAG；旧 Run 缺省开关按未开放处理。"""
+    enabled_a = (run_a.adapter_overrides or {}).get("enable_rag") is True
+    enabled_b = (run_b.adapter_overrides or {}).get("enable_rag") is True
+    if enabled_a and not enabled_b:
+        return "A"
+    if enabled_b and not enabled_a:
+        return "B"
+    return None
 
 
 def _case_diff_rows(session: Session, current_id: int, against_id: int) -> list[dict[str, Any]]:

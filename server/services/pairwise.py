@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import statistics
+from collections import Counter
 from datetime import datetime
 from typing import Optional
 
@@ -9,8 +11,9 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..compare import check_pairwise_comparable, pairwise_subject_diff
+from ..compare import check_pairwise_comparable, pairwise_rag_side, pairwise_subject_diff
 from ..models_db import (
+    CaseResultRow,
     EvalRun,
     JudgeModelConfig,
     PairwiseCaseVerdict,
@@ -29,6 +32,7 @@ from ..schemas import (
     PairwiseCreate,
     PairwiseDetailOut,
 )
+from .case_query import RAG_TRIGGERED_STATUSES
 
 
 def get_eval_run_or_404(session: Session, run_id: int, label: str) -> EvalRun:
@@ -69,7 +73,44 @@ def precheck_pairwise(
         comparable=not reasons,
         reasons=reasons,
         subject_diff=pairwise_subject_diff(run_a, run_b),
+        rag_analysis=_pairwise_rag_analysis(session, run_a, run_b),
     )
+
+
+def _pairwise_rag_analysis(
+    session: Session, run_a: EvalRun, run_b: EvalRun
+) -> dict[str, object]:
+    """预检阶段汇总两侧真实 RAG 状态，帮助用户判断筛选后还剩多少题。"""
+
+    def _status_map(run_id: int) -> dict[str, str]:
+        rows = session.execute(
+            select(CaseResultRow.sample_id, CaseResultRow.rag_status).where(
+                CaseResultRow.run_id == run_id
+            )
+        ).all()
+        return {sid: str(status or "unknown") for sid, status in rows}
+
+    map_a = _status_map(run_a.id)
+    map_b = _status_map(run_b.id)
+    common = sorted(set(map_a) & set(map_b))
+    counts_a = Counter(map_a[sid] for sid in common)
+    counts_b = Counter(map_b[sid] for sid in common)
+    rag_side = pairwise_rag_side(run_a, run_b)
+    rag_counts = counts_a if rag_side == "A" else counts_b if rag_side == "B" else Counter()
+    baseline_counts = counts_b if rag_side == "A" else counts_a if rag_side == "B" else Counter()
+    selected = sum(rag_counts[status] for status in RAG_TRIGGERED_STATUSES)
+    return {
+        "rag_side": rag_side,
+        "common_cases": len(common),
+        "selected_cases": selected,
+        "excluded_cases": len(common) - selected,
+        "unknown_cases": rag_counts["unknown"],
+        "baseline_triggered_cases": sum(
+            baseline_counts[status] for status in RAG_TRIGGERED_STATUSES
+        ),
+        "a_status_counts": dict(counts_a),
+        "b_status_counts": dict(counts_b),
+    }
 
 
 def create_pairwise_record(
@@ -89,6 +130,18 @@ def create_pairwise_record(
     reasons = check_pairwise_comparable(session, run_a, run_b)
     if reasons:
         raise HTTPException(status_code=422, detail="；".join(reasons))
+    if payload.scope == "rag_triggered_only":
+        rag_analysis = _pairwise_rag_analysis(session, run_a, run_b)
+        if rag_analysis["rag_side"] is None:
+            raise HTTPException(
+                status_code=422,
+                detail="无法自动识别 RAG 侧：请确保两次评测中恰好一侧开启 RAG。",
+            )
+        if int(rag_analysis["selected_cases"]) == 0:
+            raise HTTPException(
+                status_code=422,
+                detail="RAG 侧没有检测到真实 RAG 调用，无法按该范围发起对比。",
+            )
 
     comp = PairwiseComparison(
         run_a_id=run_a.id,
@@ -171,18 +224,79 @@ def get_pairwise_detail(session: Session, comparison_id: int) -> PairwiseDetailO
     attach_run_names(session, [comp])
     run_a = session.get(EvalRun, comp.run_a_id)
     run_b = session.get(EvalRun, comp.run_b_id)
+    sample_ids = [v.sample_id for v in verdicts]
+
+    def _rag_map(run_id: int) -> dict[str, str]:
+        if not sample_ids:
+            return {}
+        rows = session.execute(
+            select(CaseResultRow.sample_id, CaseResultRow.rag_status).where(
+                CaseResultRow.run_id == run_id,
+                CaseResultRow.sample_id.in_(sample_ids),
+            )
+        ).all()
+        return {sid: str(status or "unknown") for sid, status in rows}
+
+    rag_a = _rag_map(comp.run_a_id)
+    rag_b = _rag_map(comp.run_b_id)
+
+    def _scoped_observability(run_id: int) -> dict[str, dict[str, object]]:
+        """RAG 子集观测；Case 标量是每题代表性会话，避免读取大型 detail_json。"""
+        if not sample_ids:
+            return {"latency_summary": {}, "token_summary": {}}
+        rows = session.execute(
+            select(CaseResultRow.latency_ms, CaseResultRow.total_tokens).where(
+                CaseResultRow.run_id == run_id,
+                CaseResultRow.sample_id.in_(sample_ids),
+            )
+        ).all()
+        latencies = sorted(float(latency) for latency, _ in rows if latency is not None)
+        tokens = [int(total) for _, total in rows if total is not None]
+        latency_summary: dict[str, object] = {}
+        if latencies:
+            p90_index = max(0, min(len(latencies) - 1, round(0.9 * (len(latencies) - 1))))
+            latency_summary = {
+                "count": len(latencies),
+                "avg_ms": sum(latencies) / len(latencies),
+                "median_ms": statistics.median(latencies),
+                "p90_ms": latencies[p90_index],
+                "max_ms": latencies[-1],
+            }
+        token_summary: dict[str, object] = {}
+        if tokens:
+            token_total = sum(tokens)
+            token_summary = {
+                "count": len(tokens),
+                "total_tokens": token_total,
+                "avg_tokens_per_run": token_total / len(tokens),
+            }
+        return {"latency_summary": latency_summary, "token_summary": token_summary}
+
+    if comp.scope == "rag_triggered_only":
+        observability_a = _scoped_observability(comp.run_a_id)
+        observability_b = _scoped_observability(comp.run_b_id)
+    else:
+        observability_a = {
+            "latency_summary": dict(run_a.latency_summary or {}) if run_a else {},
+            "token_summary": dict(run_a.token_summary or {}) if run_a else {},
+        }
+        observability_b = {
+            "latency_summary": dict(run_b.latency_summary or {}) if run_b else {},
+            "token_summary": dict(run_b.token_summary or {}) if run_b else {},
+        }
     base = PairwiseComparisonOut.model_validate(comp)
     return PairwiseDetailOut(
         **base.model_dump(),
-        verdicts=[pairwise_verdict_to_out(v) for v in verdicts],
-        run_a_observability={
-            "latency_summary": dict(run_a.latency_summary or {}) if run_a else {},
-            "token_summary": dict(run_a.token_summary or {}) if run_a else {},
-        },
-        run_b_observability={
-            "latency_summary": dict(run_b.latency_summary or {}) if run_b else {},
-            "token_summary": dict(run_b.token_summary or {}) if run_b else {},
-        },
+        verdicts=[
+            pairwise_verdict_to_out(
+                v,
+                rag_status_a=rag_a.get(v.sample_id, "unknown"),
+                rag_status_b=rag_b.get(v.sample_id, "unknown"),
+            )
+            for v in verdicts
+        ],
+        run_a_observability=observability_a,
+        run_b_observability=observability_b,
     )
 
 

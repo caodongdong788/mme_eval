@@ -47,7 +47,13 @@ def _mk_run(
     return run
 
 
-def _mk_cases(session, run_id: int, sample_ids: list[str]) -> None:
+def _mk_cases(
+    session,
+    run_id: int,
+    sample_ids: list[str],
+    *,
+    rag_statuses: dict[str, str] | None = None,
+) -> None:
     for sid in sample_ids:
         cr = make_case_result(sid)
         session.add(
@@ -55,6 +61,7 @@ def _mk_cases(session, run_id: int, sample_ids: list[str]) -> None:
                 run_id=run_id,
                 sample_id=sid,
                 release_passed=cr.release_passed,
+                rag_status=(rag_statuses or {}).get(sid, "unknown"),
                 detail_json=cr.model_dump(mode="json"),
             )
         )
@@ -75,6 +82,35 @@ def test_comparable_ok(session):
     # 被测 prompt 不同允许，并体现在 subject_diff
     diff = pairwise_subject_diff(a, b)
     assert "system_prompt" in diff
+
+
+def test_pairwise_precheck_reports_actual_rag_candidates(client, session):
+    a = _mk_run(session, name="A", adapter_overrides={"enable_rag": False})
+    b = _mk_run(session, name="B", adapter_overrides={"enable_rag": True})
+    statuses_a = {sid: "not_triggered" for sid in ("s1", "s2", "s3", "s4")}
+    statuses_b = {
+        "s1": "hit",
+        "s2": "not_triggered",
+        "s3": "unknown",
+        "s4": "miss",
+    }
+    _mk_cases(session, a.id, list(statuses_a), rag_statuses=statuses_a)
+    _mk_cases(session, b.id, list(statuses_b), rag_statuses=statuses_b)
+    session.commit()
+
+    body = client.get(
+        "/api/compare/pairwise/precheck",
+        params={"run_a_id": a.id, "run_b_id": b.id},
+    ).json()
+
+    assert body["comparable"] is True
+    assert body["subject_diff"]["enable_rag"] == {"a": False, "b": True}
+    assert body["rag_analysis"]["common_cases"] == 4
+    assert body["rag_analysis"]["selected_cases"] == 2
+    assert body["rag_analysis"]["excluded_cases"] == 2
+    assert body["rag_analysis"]["unknown_cases"] == 1
+    assert body["rag_analysis"]["rag_side"] == "B"
+    assert body["rag_analysis"]["baseline_triggered_cases"] == 0
 
 
 def test_incomparable_different_benchmark(session):
@@ -196,6 +232,134 @@ def test_run_pairwise_comparison_aggregates(session, monkeypatch):
         s2.close()
 
 
+def test_run_pairwise_only_compares_cases_where_b_really_triggered_rag(
+    session, monkeypatch
+):
+    from server import pairwise_job
+
+    sample_ids = ["s1", "s2", "s3", "s4"]
+    a = _mk_run(session, name="A", adapter_overrides={"enable_rag": False})
+    b = _mk_run(session, name="B", adapter_overrides={"enable_rag": True})
+    _mk_cases(
+        session,
+        a.id,
+        sample_ids,
+        rag_statuses={sid: "not_triggered" for sid in sample_ids},
+    )
+    _mk_cases(
+        session,
+        b.id,
+        sample_ids,
+        rag_statuses={
+            "s1": "hit",
+            "s2": "not_triggered",
+            "s3": "unknown",
+            "s4": "failed",
+        },
+    )
+    comp = PairwiseComparison(
+        run_a_id=a.id,
+        run_b_id=b.id,
+        judge_model="m",
+        status="running",
+        scope="rag_triggered_only",
+    )
+    session.add(comp)
+    session.flush()
+    comp_id = comp.id
+    session.commit()
+
+    monkeypatch.setattr(
+        pairwise_job, "_build_comparator", lambda _id: (_FakeComparator(), "m", 4)
+    )
+    asyncio.run(pairwise_job.run_pairwise_comparison(comp_id, judge_model_id=999))
+
+    maker = get_sessionmaker()
+    s2 = maker()
+    try:
+        saved = s2.get(PairwiseComparison, comp_id)
+        assert saved.status == "done"
+        assert saved.total_cases == 2
+        assert saved.done_cases == 2
+        assert saved.summary["total"] == 2
+        assert saved.summary["rag_scope"] == {
+            "rag_side": "B",
+            "common_cases": 4,
+            "selected_cases": 2,
+            "excluded_cases": 2,
+            "unknown_cases": 1,
+            "rag_status_counts": {
+                "hit": 1,
+                "not_triggered": 1,
+                "unknown": 1,
+                "failed": 1,
+            },
+        }
+        verdict_ids = set(
+            s2.execute(
+                __import__("sqlalchemy").select(PairwiseCaseVerdict.sample_id).where(
+                    PairwiseCaseVerdict.comparison_id == comp_id
+                )
+            ).scalars()
+        )
+        assert verdict_ids == {"s1", "s4"}
+    finally:
+        s2.close()
+
+
+def test_run_pairwise_auto_detects_a_as_rag_side(session, monkeypatch):
+    from server import pairwise_job
+
+    a = _mk_run(session, name="A-rag", adapter_overrides={"enable_rag": True})
+    b = _mk_run(session, name="B-no-rag", adapter_overrides={"enable_rag": False})
+    _mk_cases(
+        session,
+        a.id,
+        ["s1", "s2"],
+        rag_statuses={"s1": "hit", "s2": "not_triggered"},
+    )
+    _mk_cases(
+        session,
+        b.id,
+        ["s1", "s2"],
+        rag_statuses={"s1": "not_triggered", "s2": "not_triggered"},
+    )
+    comp = PairwiseComparison(
+        run_a_id=a.id,
+        run_b_id=b.id,
+        judge_model="m",
+        status="running",
+        scope="rag_triggered_only",
+    )
+    session.add(comp)
+    session.flush()
+    comp_id = comp.id
+    session.commit()
+
+    monkeypatch.setattr(
+        pairwise_job, "_build_comparator", lambda _id: (_FakeComparator(), "m", 4)
+    )
+    asyncio.run(pairwise_job.run_pairwise_comparison(comp_id, judge_model_id=999))
+
+    maker = get_sessionmaker()
+    s2 = maker()
+    try:
+        saved = s2.get(PairwiseComparison, comp_id)
+        assert saved.status == "done"
+        assert saved.total_cases == 1
+        assert saved.summary["rag_scope"]["rag_side"] == "A"
+        verdict_ids = set(
+            s2.execute(
+                __import__("sqlalchemy").select(PairwiseCaseVerdict.sample_id).where(
+                    PairwiseCaseVerdict.comparison_id == comp_id
+                )
+            ).scalars()
+        )
+        assert verdict_ids == {"s1"}
+    finally:
+        s2.close()
+
+
 # ---------------------------------------------------------------------------
 # 接口 422 / 201
 
@@ -242,6 +406,31 @@ def test_create_pairwise_201(client, session, monkeypatch):
     assert body["run_a_id"] == a.id
 
 
+def test_create_rag_scoped_pairwise_rejects_when_b_has_no_real_calls(
+    client, session
+):
+    a = _mk_run(session, name="A", adapter_overrides={"enable_rag": False})
+    b = _mk_run(session, name="B", adapter_overrides={"enable_rag": True})
+    _mk_cases(session, a.id, ["s1"], rag_statuses={"s1": "not_triggered"})
+    _mk_cases(session, b.id, ["s1"], rag_statuses={"s1": "unknown"})
+    jm = JudgeModelConfig(name="judge-rag-empty", provider="openai", model="judge")
+    session.add(jm)
+    session.commit()
+
+    response = client.post(
+        "/api/compare/pairwise",
+        json={
+            "run_a_id": a.id,
+            "run_b_id": b.id,
+            "judge_model_id": jm.id,
+            "scope": "rag_triggered_only",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "没有检测到真实 RAG 调用" in response.text
+
+
 def test_pairwise_detail_includes_performance_and_token_observability(client, session):
     a = _mk_run(session, name="A")
     b = _mk_run(session, name="B")
@@ -249,8 +438,12 @@ def test_pairwise_detail_includes_performance_and_token_observability(client, se
     a.token_summary = {"total_tokens": 1000, "avg_tokens_per_run": 500}
     b.latency_summary = {"avg_ms": 900, "p90_ms": 1500}
     b.token_summary = {"total_tokens": 1400, "avg_tokens_per_run": 700}
+    _mk_cases(session, a.id, ["s1"], rag_statuses={"s1": "not_triggered"})
+    _mk_cases(session, b.id, ["s1"], rag_statuses={"s1": "hit"})
     comp = PairwiseComparison(run_a_id=a.id, run_b_id=b.id, judge_model="m", status="done")
     session.add(comp)
+    session.flush()
+    session.add(PairwiseCaseVerdict(comparison_id=comp.id, sample_id="s1"))
     session.commit()
 
     body = client.get(f"/api/compare/pairwise/{comp.id}").json()
@@ -260,6 +453,41 @@ def test_pairwise_detail_includes_performance_and_token_observability(client, se
     }
     assert body["run_b_observability"]["latency_summary"]["avg_ms"] == 900
     assert body["run_b_observability"]["token_summary"]["total_tokens"] == 1400
+    assert body["verdicts"][0]["rag_status_a"] == "not_triggered"
+    assert body["verdicts"][0]["rag_status_b"] == "hit"
+
+
+def test_rag_scoped_pairwise_observability_only_uses_selected_cases(client, session):
+    a = _mk_run(session, name="A")
+    b = _mk_run(session, name="B")
+    _mk_cases(session, a.id, ["s1", "s2"], rag_statuses={"s1": "not_triggered", "s2": "not_triggered"})
+    _mk_cases(session, b.id, ["s1", "s2"], rag_statuses={"s1": "hit", "s2": "not_triggered"})
+    rows = session.execute(
+        __import__("sqlalchemy").select(CaseResultRow).where(
+            CaseResultRow.run_id.in_([a.id, b.id])
+        )
+    ).scalars().all()
+    for row in rows:
+        row.latency_ms = 1000 if row.sample_id == "s1" else 9999
+        row.total_tokens = 100 if row.sample_id == "s1" else 999
+    comp = PairwiseComparison(
+        run_a_id=a.id,
+        run_b_id=b.id,
+        judge_model="m",
+        status="done",
+        scope="rag_triggered_only",
+    )
+    session.add(comp)
+    session.flush()
+    session.add(PairwiseCaseVerdict(comparison_id=comp.id, sample_id="s1"))
+    session.commit()
+
+    body = client.get(f"/api/compare/pairwise/{comp.id}").json()
+
+    assert body["run_a_observability"]["latency_summary"]["avg_ms"] == 1000
+    assert body["run_b_observability"]["latency_summary"]["p90_ms"] == 1000
+    assert body["run_a_observability"]["token_summary"]["total_tokens"] == 100
+    assert body["run_b_observability"]["token_summary"]["avg_tokens_per_run"] == 100
 
 
 def test_pairwise_default_judge_falls_back_to_llm_api_key_env(session, monkeypatch):

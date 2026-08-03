@@ -17,6 +17,20 @@ import {
 
 const { Text } = Typography;
 
+const RAG_STATUS_LABEL: Record<string, { label: string; color: string }> = {
+  hit: { label: "命中", color: "green" },
+  miss: { label: "已调未命中", color: "orange" },
+  failed: { label: "调用失败", color: "red" },
+  triggered: { label: "已调用", color: "blue" },
+  not_triggered: { label: "未触发", color: "default" },
+  unknown: { label: "未知", color: "default" },
+};
+
+function ragStatusTag(side: "A" | "B", status: string) {
+  const item = RAG_STATUS_LABEL[status] || RAG_STATUS_LABEL.unknown;
+  return <Tag color={item.color}>{side} · {item.label}</Tag>;
+}
+
 type PairwiseDetailState = ReturnType<typeof usePairwiseDetail>;
 
 export function PairwiseCaseTable({
@@ -117,6 +131,15 @@ export function PairwiseCaseTable({
             },
           },
           { title: "结论", render: (_, r) => <PairwiseVerdictTag verdict={r} /> },
+          {
+            title: "真实 RAG",
+            render: (_, r) => (
+              <Space size={[2, 4]} wrap>
+                {ragStatusTag("A", r.rag_status_a)}
+                {ragStatusTag("B", r.rag_status_b)}
+              </Space>
+            ),
+          },
           {
             title: <PairwiseHeaderHint label="置信" hint={PAIRWISE_CONFIDENCE_HINT} />,
             dataIndex: "confidence",
