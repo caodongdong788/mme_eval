@@ -243,15 +243,20 @@ def get_pairwise_detail(session: Session, comparison_id: int) -> PairwiseDetailO
     def _scoped_observability(run_id: int) -> dict[str, dict[str, object]]:
         """RAG 子集观测；Case 标量是每题代表性会话，避免读取大型 detail_json。"""
         if not sample_ids:
-            return {"latency_summary": {}, "token_summary": {}}
+            return {"latency_summary": {}, "ttft_summary": {}, "token_summary": {}}
         rows = session.execute(
-            select(CaseResultRow.latency_ms, CaseResultRow.total_tokens).where(
+            select(
+                CaseResultRow.latency_ms,
+                CaseResultRow.ttft_ms,
+                CaseResultRow.total_tokens,
+            ).where(
                 CaseResultRow.run_id == run_id,
                 CaseResultRow.sample_id.in_(sample_ids),
             )
         ).all()
-        latencies = sorted(float(latency) for latency, _ in rows if latency is not None)
-        tokens = [int(total) for _, total in rows if total is not None]
+        latencies = sorted(float(latency) for latency, _, _ in rows if latency is not None)
+        ttfts = sorted(float(ttft) for _, ttft, _ in rows if ttft is not None)
+        tokens = [int(total) for _, _, total in rows if total is not None]
         latency_summary: dict[str, object] = {}
         if latencies:
             p90_index = max(0, min(len(latencies) - 1, round(0.9 * (len(latencies) - 1))))
@@ -262,6 +267,16 @@ def get_pairwise_detail(session: Session, comparison_id: int) -> PairwiseDetailO
                 "p90_ms": latencies[p90_index],
                 "max_ms": latencies[-1],
             }
+        ttft_summary: dict[str, object] = {}
+        if ttfts:
+            p90_index = max(0, min(len(ttfts) - 1, round(0.9 * (len(ttfts) - 1))))
+            ttft_summary = {
+                "count": len(ttfts),
+                "avg_ms": sum(ttfts) / len(ttfts),
+                "median_ms": statistics.median(ttfts),
+                "p90_ms": ttfts[p90_index],
+                "max_ms": ttfts[-1],
+            }
         token_summary: dict[str, object] = {}
         if tokens:
             token_total = sum(tokens)
@@ -270,7 +285,11 @@ def get_pairwise_detail(session: Session, comparison_id: int) -> PairwiseDetailO
                 "total_tokens": token_total,
                 "avg_tokens_per_run": token_total / len(tokens),
             }
-        return {"latency_summary": latency_summary, "token_summary": token_summary}
+        return {
+            "latency_summary": latency_summary,
+            "ttft_summary": ttft_summary,
+            "token_summary": token_summary,
+        }
 
     if comp.scope == "rag_triggered_only":
         observability_a = _scoped_observability(comp.run_a_id)
@@ -278,10 +297,12 @@ def get_pairwise_detail(session: Session, comparison_id: int) -> PairwiseDetailO
     else:
         observability_a = {
             "latency_summary": dict(run_a.latency_summary or {}) if run_a else {},
+            "ttft_summary": dict(run_a.ttft_summary or {}) if run_a else {},
             "token_summary": dict(run_a.token_summary or {}) if run_a else {},
         }
         observability_b = {
             "latency_summary": dict(run_b.latency_summary or {}) if run_b else {},
+            "ttft_summary": dict(run_b.ttft_summary or {}) if run_b else {},
             "token_summary": dict(run_b.token_summary or {}) if run_b else {},
         }
     base = PairwiseComparisonOut.model_validate(comp)

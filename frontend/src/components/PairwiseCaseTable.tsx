@@ -39,6 +39,8 @@ export function PairwiseCaseTable({
   filtered,
   conclusionFilter,
   setConclusionFilter,
+  ragFilter,
+  setRagFilter,
   confidenceFilter,
   setConfidenceFilter,
   hasActiveFilters,
@@ -56,6 +58,8 @@ export function PairwiseCaseTable({
   | "filtered"
   | "conclusionFilter"
   | "setConclusionFilter"
+  | "ragFilter"
+  | "setRagFilter"
   | "confidenceFilter"
   | "setConfidenceFilter"
   | "hasActiveFilters"
@@ -83,6 +87,17 @@ export function PairwiseCaseTable({
             { value: "A", label: "A 更好" },
             { value: "B", label: "B 更好" },
             { value: "tie", label: "持平" },
+          ]}
+        />
+        <Select
+          allowClear
+          placeholder="真实 RAG"
+          value={ragFilter}
+          onChange={setRagFilter}
+          options={[
+            { value: "triggered", label: "已触发" },
+            { value: "not_triggered", label: "未触发" },
+            { value: "unknown", label: "状态未知" },
           ]}
         />
         <Select

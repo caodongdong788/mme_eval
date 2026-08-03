@@ -435,8 +435,10 @@ def test_pairwise_detail_includes_performance_and_token_observability(client, se
     a = _mk_run(session, name="A")
     b = _mk_run(session, name="B")
     a.latency_summary = {"avg_ms": 1200, "p90_ms": 1800}
+    a.ttft_summary = {"avg_ms": 300, "p90_ms": 450}
     a.token_summary = {"total_tokens": 1000, "avg_tokens_per_run": 500}
     b.latency_summary = {"avg_ms": 900, "p90_ms": 1500}
+    b.ttft_summary = {"avg_ms": 200, "p90_ms": 350}
     b.token_summary = {"total_tokens": 1400, "avg_tokens_per_run": 700}
     _mk_cases(session, a.id, ["s1"], rag_statuses={"s1": "not_triggered"})
     _mk_cases(session, b.id, ["s1"], rag_statuses={"s1": "hit"})
@@ -449,9 +451,11 @@ def test_pairwise_detail_includes_performance_and_token_observability(client, se
     body = client.get(f"/api/compare/pairwise/{comp.id}").json()
     assert body["run_a_observability"] == {
         "latency_summary": {"avg_ms": 1200, "p90_ms": 1800},
+        "ttft_summary": {"avg_ms": 300, "p90_ms": 450},
         "token_summary": {"total_tokens": 1000, "avg_tokens_per_run": 500},
     }
     assert body["run_b_observability"]["latency_summary"]["avg_ms"] == 900
+    assert body["run_b_observability"]["ttft_summary"]["avg_ms"] == 200
     assert body["run_b_observability"]["token_summary"]["total_tokens"] == 1400
     assert body["verdicts"][0]["rag_status_a"] == "not_triggered"
     assert body["verdicts"][0]["rag_status_b"] == "hit"
@@ -469,6 +473,7 @@ def test_rag_scoped_pairwise_observability_only_uses_selected_cases(client, sess
     ).scalars().all()
     for row in rows:
         row.latency_ms = 1000 if row.sample_id == "s1" else 9999
+        row.ttft_ms = 250 if row.sample_id == "s1" else 9999
         row.total_tokens = 100 if row.sample_id == "s1" else 999
     comp = PairwiseComparison(
         run_a_id=a.id,
@@ -486,6 +491,8 @@ def test_rag_scoped_pairwise_observability_only_uses_selected_cases(client, sess
 
     assert body["run_a_observability"]["latency_summary"]["avg_ms"] == 1000
     assert body["run_b_observability"]["latency_summary"]["p90_ms"] == 1000
+    assert body["run_a_observability"]["ttft_summary"]["avg_ms"] == 250
+    assert body["run_b_observability"]["ttft_summary"]["p90_ms"] == 250
     assert body["run_a_observability"]["token_summary"]["total_tokens"] == 100
     assert body["run_b_observability"]["token_summary"]["avg_tokens_per_run"] == 100
 

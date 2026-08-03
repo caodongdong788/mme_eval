@@ -30,6 +30,16 @@ describe("usePairwisePage", () => {
       comparable: true,
       reasons: [],
       subject_diff: {},
+      rag_analysis: {
+        rag_side: null,
+        common_cases: 0,
+        selected_cases: 0,
+        excluded_cases: 0,
+        unknown_cases: 0,
+        baseline_triggered_cases: 0,
+        a_status_counts: {},
+        b_status_counts: {},
+      },
     });
   });
 

@@ -57,6 +57,7 @@ _CASE_ROW_FIELDS = (
     "grade",
     "stability",
     "latency_ms",
+    "ttft_ms",
     "total_tokens",
     "cost",
     "n_turns",

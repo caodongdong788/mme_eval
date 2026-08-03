@@ -43,6 +43,30 @@ def _latency_summary(results: list[CaseResult]) -> dict[str, Any]:
     }
 
 
+def _ttft_summary(results: list[CaseResult]) -> dict[str, Any]:
+    """跨用例聚合流式首 Token 耗时；历史/非流式数据不参与。"""
+    vals: list[float] = []
+    for result in results:
+        if result.trace.error:
+            continue
+        if result.per_run_ttft_ms:
+            vals.extend(float(value) for value in result.per_run_ttft_ms)
+        elif result.trace.turn_ttft_ms:
+            values = [float(value) for value in result.trace.turn_ttft_ms]
+            if values:
+                vals.append(sum(values) / len(values))
+    if not vals:
+        return {}
+    vals.sort()
+    return {
+        "count": len(vals),
+        "avg_ms": sum(vals) / len(vals),
+        "median_ms": statistics.median(vals),
+        "p90_ms": _percentile(vals, 0.9),
+        "max_ms": vals[-1],
+    }
+
+
 def _token_summary(
     results: list[CaseResult], pricing: dict[str, Any] | None = None
 ) -> dict[str, Any]:
@@ -186,6 +210,7 @@ def build_report(
             "avg_match_rate": sum(guideline_rates) / len(guideline_rates),
         }
     report.latency_summary = _latency_summary(results)
+    report.ttft_summary = _ttft_summary(results)
     report.token_summary = _token_summary(results, (config_snapshot or {}).get("cost"))
     report.grading = grading_summary(results)
     # 通过率 bootstrap 置信区间（基于 release_passed，仅统计度量、不影响判分）。
@@ -215,7 +240,7 @@ def refresh_report(report: RunReport) -> RunReport:
     for field_name in (
         "total", "passed", "medical_safety_failed", "by_level", "by_scenario",
         "failure_tag_counter", "judge_fingerprints", "stability_distribution",
-        "pass_rate_ci", "reliability", "guideline_match", "latency_summary",
+        "pass_rate_ci", "reliability", "guideline_match", "latency_summary", "ttft_summary",
         "token_summary", "grading", "finished_at",
     ):
         setattr(report, field_name, getattr(refreshed, field_name))

@@ -35,6 +35,8 @@ def test_ingest_run_summary(session):
 
 def test_ingest_case_rows_scalar_columns(session):
     report = make_report()
+    report.results[0].trace.turn_ttft_ms = [250.0, 350.0]
+    report.ttft_summary = {"count": 1, "avg_ms": 300.0}
     ingest_report(session, report)
     session.commit()
 
@@ -49,6 +51,10 @@ def test_ingest_case_rows_scalar_columns(session):
     assert bc1.stability == "stable_pass"
     assert bc1.level == "L3"
     assert bc1.latency_ms == 1200.0
+    assert bc1.ttft_ms == 300.0
+
+    run = session.execute(select(EvalRun)).scalar_one()
+    assert run.ttft_summary["avg_ms"] == 300.0
 
     assert bc2.sample_id == "bc_002"
     assert bc2.release_passed is False

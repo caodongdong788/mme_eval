@@ -64,10 +64,39 @@ def test_cx_agent_adapter_parses_sse_reply_and_session():
         "completion_tokens": 5,
         "total_tokens": 8,
     }
+    assert resp.raw["ttft_ms"] >= 0
     assert resp.raw["cx_evaluation_share_url"] == (
         "http://cx.local/s/11111111-1111-1111-1111-111111111111?cx_ui_release=current"
     )
     assert seen == [{"content": "乳房疼痛怎么办", "enableRag": False}]
+    asyncio.run(adapter.close())
+
+
+def test_cx_agent_adapter_measures_first_nonempty_streaming_delta():
+    class DelayedSseStream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield _sse(("session", {"sessionId": "cx-stream"})).encode()
+            await asyncio.sleep(0.02)
+            yield _sse(
+                ("text_delta", {"content": "首段"}),
+                ("message_end", {}),
+            ).encode()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, stream=DelayedSseStream())
+
+    adapter = _adapter_with_transport(handler)
+    response = asyncio.run(
+        adapter.chat(
+            ChatRequest(
+                messages=[{"role": "user", "content": "测试 TTFT"}],
+                session_id="mme-stream",
+            )
+        )
+    )
+
+    assert response.reply == "首段"
+    assert response.raw["ttft_ms"] >= 15
     asyncio.run(adapter.close())
 
 
