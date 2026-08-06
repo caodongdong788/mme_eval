@@ -43,7 +43,7 @@ adapter:
   type: "cx_agent"
 
   cx_agent:
-    base_url: "http://10.30.7.71"
+    base_url: "https://sit-cx.senzco.com"
     test_token_env: "CX_AGENT_TEST_TOKEN"
     test_token: ""             # 本地临时调试可填；不要提交真实 token
     timeout_s: 120
