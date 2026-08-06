@@ -29,4 +29,30 @@ def test_excel_contains_dimensions_ends_and_guidelines(tmp_path) -> None:
     values = [cell.value for cell in sheet[2]]
     assert any(value == "44/45" for value in values)
     assert any(isinstance(value, str) and "risk: 2/3" in value for value in values)
+    reason = sheet.cell(row=2, column=headers.index("扣分原因") + 1).value
+    assert "professional_accuracy 指南 risk -1分：stub" in reason
 
+
+def test_excel_contains_low_dimension_reason_without_formula_deduction(tmp_path) -> None:
+    item = result(guideline_score=3)
+    inquiry = next(
+        verdict
+        for verdict in item.verdicts
+        if verdict.name == "dimension.clinical_inquiry"
+    )
+    inquiry.score = 2
+    inquiry.reason = "未追问治疗阶段，无法针对当前情况给出建议。"
+
+    path = write_transcripts_xlsx(
+        build_report("v2", [item], "stub"),
+        tmp_path / "low-dimension.xlsx",
+    )
+    sheet = load_workbook(path)["对话流水"]
+    headers = [cell.value for cell in sheet[1]]
+    reason = sheet.cell(row=2, column=headers.index("扣分原因") + 1).value
+
+    assert item.score_deductions == []
+    assert reason == (
+        "临床追问充分性 2/5："
+        "未追问治疗阶段，无法针对当前情况给出建议。"
+    )
