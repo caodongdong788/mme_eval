@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 
+from ..evaluation import DIMENSION_LABELS, EvaluationDimension
 from ..models import CaseResult
 
 # openpyxl 单 cell 上限（Excel 规范）
@@ -89,10 +90,28 @@ def _test_content_cell(result: CaseResult) -> str:
 
 
 def _deduction_text(result: CaseResult) -> str:
-    """扣分原因列：展开八维原始分和指南缺分产生的扣分。"""
-    if not result.score_deductions:
+    """扣分原因列：展开低分维度理由及指南、门禁等额外扣分。"""
+    by_name = {verdict.name: verdict for verdict in result.verdicts}
+    reasons: list[str] = []
+    for dimension in EvaluationDimension:
+        verdict = by_name.get(f"dimension.{dimension.value}")
+        if verdict is None:
+            continue
+        score = float(
+            result.dimension_raw_scores.get(dimension.value, verdict.score)
+        )
+        if score >= 5:
+            continue
+        reason = verdict.reason.strip() or "未提供判定理由"
+        reasons.append(
+            f"{DIMENSION_LABELS[dimension]} {score:g}/5：{reason}"
+        )
+
+    reasons.extend(result.score_deductions)
+    reasons = list(dict.fromkeys(reasons))
+    if not reasons:
         return "—"
-    return _truncate("\n".join(result.score_deductions))
+    return _truncate("\n".join(reasons))
 
 
 def _highlight_runs(text: str, keywords: list[str]) -> list[tuple[str, bool]]:
