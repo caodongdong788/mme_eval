@@ -7,14 +7,15 @@ const D = palette.dashboard;
 
 export function RunOverviewMetricsPanel({ run }: { run: RunDetail }) {
   const hasLatency = run.latency_summary && Object.keys(run.latency_summary).length > 0;
+  const hasTtft = run.ttft_summary && Object.keys(run.ttft_summary).length > 0;
   const hasToken = run.token_summary && Object.keys(run.token_summary).length > 0;
   const reliability = run.grading?.reliability || {};
   const hasReliability = Object.keys(reliability).length > 0;
 
   return (
     <div className="runs-duo-charts runs-duo-charts--metrics">
-      <RunsChartCard title="性能（延迟）" empty={!hasLatency} metric>
-        {hasLatency && (
+      <RunsChartCard title="性能（延迟）" empty={!hasLatency && !hasTtft} metric>
+        {(hasLatency || hasTtft) && (
           <Row gutter={[12, 16]}>
             <Col span={12}>
               <Statistic
@@ -45,6 +46,15 @@ export function RunOverviewMetricsPanel({ run }: { run: RunDetail }) {
               <Statistic
                 title="P90"
                 value={run.latency_summary.p90_ms ?? run.latency_summary.p95_ms ?? "—"}
+                suffix="ms"
+                precision={0}
+                valueStyle={{ color: D.text, fontSize: 20 }}
+              />
+            </Col>
+            <Col span={12}>
+              <Statistic
+                title="平均首 Token 耗时（TTFT）"
+                value={run.ttft_summary?.avg_ms ?? "—"}
                 suffix="ms"
                 precision={0}
                 valueStyle={{ color: D.text, fontSize: 20 }}
