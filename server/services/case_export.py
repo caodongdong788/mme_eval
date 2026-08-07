@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Optional
+from urllib.parse import urlsplit, urlunsplit
 
 import yaml
 from fastapi import HTTPException
@@ -24,6 +25,28 @@ from .case_query import case_row_or_404, filtered_case_rows
 from .agent_chain_summary import ensure_agent_chain_summary
 from .feishu_transcript_export import import_xlsx_as_sheet, publish_xlsx_to_lark
 from .runs import get_run_or_404
+
+_RETIRED_CX_SIT_HOST = "10.30.7.71"
+_CURRENT_CX_SIT_ORIGIN = ("https", "sit-cx.senzco.com")
+
+
+def _current_cx_share_url(value: Any) -> Any:
+    """把旧 SIT 分享页映射到当前域名；其它 URL 原样返回。"""
+    if not isinstance(value, str) or not value:
+        return value
+    try:
+        parsed = urlsplit(value)
+        is_retired_share = (
+            parsed.scheme in {"http", "https"}
+            and parsed.hostname == _RETIRED_CX_SIT_HOST
+            and parsed.port in {None, 80, 443}
+            and parsed.path.startswith("/s/")
+        )
+    except ValueError:
+        return value
+    if not is_retired_share:
+        return value
+    return urlunsplit((*_CURRENT_CX_SIT_ORIGIN, parsed.path, parsed.query, parsed.fragment))
 
 
 def get_cases_yaml(
@@ -123,6 +146,9 @@ def get_case_detail_json(session: Session, run_id: int, sample_id: str) -> dict[
     detail = _compact_agent_chain_detail(row.detail_json or {})
     trace = detail.get("trace")
     if isinstance(trace, dict):
+        trace["cx_evaluation_share_url"] = _current_cx_share_url(
+            trace.get("cx_evaluation_share_url")
+        )
         identity = trace.get("evaluation_identity")
         if isinstance(identity, dict):
             credentials = evaluation_account_credentials(

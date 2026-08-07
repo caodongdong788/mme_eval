@@ -60,6 +60,31 @@ def test_case_detail_includes_trace_url(client, settings):
     assert detail["trace"]["langfuse_trace_url"] == "https://lf.example/trace/abc"
 
 
+def test_case_detail_rewrites_legacy_cx_share_origin_without_mutating_result(
+    client, settings
+):
+    rid = _seed(settings)
+    legacy_url = "http://10.30.7.71/s/evaluation-token?source=mme#turn-1"
+    with session_scope() as session:
+        row = session.query(CaseResultRow).filter_by(run_id=rid, sample_id="bc_with").one()
+        detail = dict(row.detail_json)
+        detail["trace"] = {
+            **detail["trace"],
+            "cx_evaluation_share_url": legacy_url,
+        }
+        row.detail_json = detail
+
+    response = client.get(f"/api/runs/{rid}/cases/bc_with")
+
+    assert response.status_code == 200
+    assert response.json()["trace"]["cx_evaluation_share_url"] == (
+        "https://sit-cx.senzco.com/s/evaluation-token?source=mme#turn-1"
+    )
+    with session_scope() as session:
+        stored = session.query(CaseResultRow).filter_by(run_id=rid, sample_id="bc_with").one()
+        assert stored.detail_json["trace"]["cx_evaluation_share_url"] == legacy_url
+
+
 def test_case_detail_defers_raw_agent_chain_and_rag_audit(client, settings):
     rid = _seed(settings)
     audit = {

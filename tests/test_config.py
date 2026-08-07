@@ -27,6 +27,11 @@ def test_real_config_uses_only_new_judges() -> None:
     assert not hasattr(cfg, "scoring")
 
 
+def test_repository_cx_agent_uses_current_sit_origin() -> None:
+    cfg = load_config(REPO_ROOT / "config.yaml")
+    assert cfg.adapter.cx_agent.base_url == "https://sit-cx.senzco.com"
+
+
 def test_minimal_config_fills_new_defaults() -> None:
     cfg = parse_config(minimal())
     assert cfg.run.repeat == 1
