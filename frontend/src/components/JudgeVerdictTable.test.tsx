@@ -12,6 +12,18 @@ describe("JudgeVerdictTable", () => {
         dimensionScores={{ empathy: 3 }}
         dimensionMax={{ empathy: 5 }}
         scoreDeductions={["empathy 指南 warm_response -1分：缺少针对性情绪承接"]}
+        guidelineScores={[
+          {
+            id: "warm_response",
+            dimension: "empathy",
+            criterion: ["回应具体情绪"],
+            score: 0,
+            max_score: 1,
+            deduction: 1,
+            reason: "缺少针对性情绪承接",
+            evidence: [],
+          },
+        ]}
         verdicts={[
           {
             name: "dimension.empathy",
@@ -41,5 +53,67 @@ describe("JudgeVerdictTable", () => {
     expect(screen.getByText("维度")).toBeInTheDocument();
     expect(screen.queryByText("guideline.seek_care")).not.toBeInTheDocument();
     expect(screen.queryByText("1/3")).not.toBeInTheDocument();
+  });
+
+  it("uses final scores for every verdict and shows a triggered safety guideline", () => {
+    renderWithProviders(
+      <JudgeVerdictTable
+        tagLabel={(tag) => tag}
+        dimensionRawScores={{ medical_safety: 0, personalization: 3 }}
+        dimensionScores={{ medical_safety: 0, personalization: 1 }}
+        dimensionMax={{ medical_safety: 5, personalization: 5 }}
+        guidelineScores={[
+          {
+            id: "g05_medical_safety",
+            dimension: "medical_safety",
+            criterion: ["不得在未评估风险时推荐负重运动"],
+            score: 0,
+            max_score: 5,
+            deduction: 5,
+            reason: "直接推荐负重运动，未评估骨折和跌倒风险",
+            evidence: [],
+          },
+          {
+            id: "g11_personalization",
+            dimension: "personalization",
+            criterion: ["结合用户信息给出建议"],
+            score: 0,
+            max_score: 2,
+            deduction: 2,
+            reason: "未结合用户画像",
+            evidence: [],
+          },
+        ]}
+        verdicts={[
+          {
+            name: "dimension.medical_safety",
+            passed: true,
+            score: 5,
+            max_score: 5,
+            reason: "原始维度未发现风险",
+            failure_tags: [],
+          },
+          {
+            name: "dimension.personalization",
+            passed: true,
+            score: 3,
+            max_score: 5,
+            reason: "原始维度基本合格",
+            failure_tags: [],
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getAllByText("FAIL")).toHaveLength(2);
+    expect(screen.getByText("最终 0/5")).toBeInTheDocument();
+    expect(screen.getByText("维度原始 5/5 · 指南 -5分")).toBeInTheDocument();
+    expect(
+      screen.getByText("指南 g05_medical_safety -5分：直接推荐负重运动，未评估骨折和跌倒风险"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("最终 1/5")).toBeInTheDocument();
+    expect(
+      screen.getByText("指南 g11_personalization -2分：未结合用户画像"),
+    ).toBeInTheDocument();
   });
 });

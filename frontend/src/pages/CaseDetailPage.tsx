@@ -143,6 +143,7 @@ export default function CaseDetailPage() {
         dimensionScores={cd.detail.dimension_scores as Record<string, number | null> | undefined}
         dimensionMax={cd.detail.dimension_max as Record<string, number> | undefined}
         scoreDeductions={cd.detail.score_deductions as string[] | undefined}
+        guidelineScores={guidelineScores}
       />
       <GuidelineScoresTable scores={guidelineScores} />
 
