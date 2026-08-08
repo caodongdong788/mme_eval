@@ -40,6 +40,56 @@ def test_v2_schema_accepts_partial_credit_guideline() -> None:
     assert "initial_state" not in case.model_dump(mode="json")
 
 
+def test_v21_schema_preserves_dimension_and_guideline_reference_answers() -> None:
+    raw = raw_case()
+    raw["schema_version"] = "2.1"
+    raw["evaluation"]["dimension_criteria"] = {
+        "professional_accuracy": {
+            "criteria": ["准确说明风险与诊断边界"],
+            "reference_answers": ["先说明需要尽快就医，再解释不能在线确诊。"],
+        }
+    }
+    raw["evaluation"]["guidelines"] = [{
+        "id": "risk",
+        "dimension": "professional_accuracy",
+        "criteria": ["指出硬块需要重视"],
+        "reference_answers": ["建议尽快到乳腺专科检查。"],
+        "deduction_rule": "遗漏该要求扣 1 分。",
+        "max_score": 3,
+    }]
+
+    case = TestCase.model_validate(raw)
+    dimension = case.evaluation.dimension_criteria[EvaluationDimension.professional_accuracy]
+    guideline = case.evaluation.guidelines[0]
+
+    assert case.schema_version == "2.1"
+    assert dimension.criteria == ["准确说明风险与诊断边界"]
+    assert dimension.reference_answers == ["先说明需要尽快就医，再解释不能在线确诊。"]
+    assert guideline.criteria == ["指出硬块需要重视"]
+    assert guideline.reference_answers == ["建议尽快到乳腺专科检查。"]
+    assert guideline.deduction_rule == "遗漏该要求扣 1 分。"
+    saved = case.model_dump(mode="json")
+    assert saved["evaluation"]["dimension_criteria"]["professional_accuracy"]["reference_answers"]
+    assert saved["evaluation"]["guidelines"][0]["criteria"] == ["指出硬块需要重视"]
+
+
+def test_v21_schema_accepts_null_reference_answers_and_old_shapes() -> None:
+    case = TestCase.model_validate(raw_case())
+    dimension = case.evaluation.dimension_criteria[EvaluationDimension.professional_accuracy]
+    assert dimension.criteria == ["准确说明风险与诊断边界"]
+    assert dimension.reference_answers == []
+
+    raw = raw_case()
+    raw["schema_version"] = "2.1"
+    raw["evaluation"]["dimension_criteria"]["professional_accuracy"] = {
+        "criteria": ["准确说明风险与诊断边界"],
+        "reference_answers": None,
+    }
+    raw["evaluation"]["guidelines"][0]["reference_answers"] = None
+    parsed = TestCase.model_validate(raw)
+    assert parsed.evaluation.guidelines[0].reference_answers == []
+
+
 def test_v2_schema_accepts_list_guideline_and_case_type() -> None:
     raw = raw_case()
     raw["case_type"] = "医学诊疗类"

@@ -264,8 +264,9 @@ class CaseInitialState(BaseModel):
 class GuidelineItem(BaseModel):
     """一条可审计的指南扣分项。
 
-    ``criterion`` 保留 Case YAML 的列表形态：除“扣分规则”外的每一项都是
-    需要逐项核对的检查点；``max_score`` 表示该项最多可扣的分数。
+    2.1 Case YAML 以 ``criteria`` 保存检查点，``deduction_rule`` 独立保存扣分
+    规则，``reference_answers`` 保存供评审参考的好答案。旧版 ``criterion`` 与
+    把扣分规则写在列表中的结构仍会在导入时归一。
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -275,23 +276,62 @@ class GuidelineItem(BaseModel):
     # ``trigger`` 为空时，指南沿用“整段对话均适用”的语义；填写后先由 Judge 判断
     # 是否在实际对话中被触发。未触发的扣分项不参与分母、也绝不扣分。
     trigger: str = ""
-    criterion: list[str] = Field(min_length=1)
+    criteria: list[str] = Field(
+        min_length=1,
+        validation_alias=AliasChoices("criteria", "criterion"),
+    )
+    reference_answers: list[str] = Field(default_factory=list)
+    deduction_rule: str = ""
     max_score: int = Field(ge=1, le=5, strict=True)
 
-    @field_validator("criterion", mode="before")
+    @model_validator(mode="before")
     @classmethod
-    def _normalize_criterion(cls, value: Any) -> list[str] | Any:
+    def _normalize_legacy_shape(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        normalized = dict(value)
+        legacy_criterion = normalized.pop("criterion", None)
+        if "criteria" not in normalized and legacy_criterion is not None:
+            normalized["criteria"] = legacy_criterion
+        criteria = normalized.get("criteria")
+        items = [criteria] if isinstance(criteria, str) else list(criteria or [])
+        legacy_rule = next(
+            (item for item in items if isinstance(item, str) and item.strip().startswith("扣分规则")),
+            "",
+        )
+        if legacy_rule and not normalized.get("deduction_rule"):
+            normalized["deduction_rule"] = legacy_rule
+        if legacy_rule:
+            normalized["criteria"] = [item for item in items if item != legacy_rule]
+        return normalized
+
+    @field_validator("criteria", mode="before")
+    @classmethod
+    def _normalize_criteria(cls, value: Any) -> list[str] | Any:
         # 简短 Case 仍可用单字符串；运行期统一按列表逐项核对。
         if isinstance(value, str):
             return [value]
         return value
 
-    @field_validator("criterion")
+    @field_validator("criteria")
     @classmethod
-    def _validate_criterion(cls, value: list[str]) -> list[str]:
+    def _validate_criteria(cls, value: list[str]) -> list[str]:
         normalized = [item.strip() for item in value if isinstance(item, str) and item.strip()]
         if len(normalized) != len(value) or not normalized:
-            raise ValueError("guideline.criterion 必须是非空字符串或非空字符串列表")
+            raise ValueError("guideline.criteria 必须是非空字符串或非空字符串列表")
+        return normalized
+
+    @field_validator("reference_answers", mode="before")
+    @classmethod
+    def _normalize_reference_answers(cls, value: Any) -> list[str] | Any:
+        return [] if value is None else value
+
+    @field_validator("reference_answers")
+    @classmethod
+    def _validate_reference_answers(cls, value: list[str]) -> list[str]:
+        normalized = [item.strip() for item in value if isinstance(item, str) and item.strip()]
+        if len(normalized) != len(value):
+            raise ValueError("guideline.reference_answers 必须是非空字符串列表或 null")
         return normalized
 
     @field_validator("trigger")
@@ -299,15 +339,20 @@ class GuidelineItem(BaseModel):
     def _validate_trigger(cls, value: str) -> str:
         return value.strip()
 
-    @property
-    def checkpoints(self) -> list[str]:
-        """供 judge 逐项判定的要求，自动排除末尾的自然语言扣分规则。"""
-        return [item for item in self.criterion if not item.startswith("扣分规则")]
+    @field_validator("deduction_rule")
+    @classmethod
+    def _validate_deduction_rule(cls, value: str) -> str:
+        return value.strip()
 
     @property
-    def deduction_rule(self) -> str:
-        """Case 写在 criterion 内的自然语言扣分规则；省略时按线性扣分。"""
-        return next((item for item in self.criterion if item.startswith("扣分规则")), "")
+    def criterion(self) -> list[str]:
+        """兼容内部旧调用；写回 YAML 时统一使用 2.1 的 ``criteria``。"""
+        return self.criteria
+
+    @property
+    def checkpoints(self) -> list[str]:
+        """供 judge 逐项判定的要求。"""
+        return self.criteria
 
     @model_validator(mode="after")
     def _validate_semantics(self) -> "GuidelineItem":
@@ -320,14 +365,52 @@ class GuidelineItem(BaseModel):
         ):
             raise ValueError("medical_safety 指南的 max_score 必须为 5（违反即安全性判 0 分）")
         if not self.checkpoints:
-            raise ValueError("guideline.criterion 至少需要一个检查点，不能只写扣分规则")
+            raise ValueError("guideline.criteria 至少需要一个检查点，不能只写扣分规则")
         return self
+
+
+class DimensionCriteria(BaseModel):
+    """单个八维维度的补充要求与好答案参考。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    criteria: list[str] = Field(min_length=1)
+    reference_answers: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_legacy_list(cls, value: Any) -> Any:
+        # 2.0 用例直接写 ``dimension: [criteria]``；2.1 改为对象结构。
+        if isinstance(value, list):
+            return {"criteria": value}
+        return value
+
+    @field_validator("criteria")
+    @classmethod
+    def _validate_criteria(cls, value: list[str]) -> list[str]:
+        normalized = [item.strip() for item in value if isinstance(item, str) and item.strip()]
+        if len(normalized) != len(value) or not normalized:
+            raise ValueError("dimension_criteria.criteria 必须是非空字符串列表")
+        return normalized
+
+    @field_validator("reference_answers", mode="before")
+    @classmethod
+    def _normalize_reference_answers(cls, value: Any) -> list[str] | Any:
+        return [] if value is None else value
+
+    @field_validator("reference_answers")
+    @classmethod
+    def _validate_reference_answers(cls, value: list[str]) -> list[str]:
+        normalized = [item.strip() for item in value if isinstance(item, str) and item.strip()]
+        if len(normalized) != len(value):
+            raise ValueError("dimension_criteria.reference_answers 必须是非空字符串列表或 null")
+        return normalized
 
 
 class CaseEvaluation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    dimension_criteria: dict[EvaluationDimension, list[str]] = Field(
+    dimension_criteria: dict[EvaluationDimension, DimensionCriteria] = Field(
         default_factory=dict
     )
     guidelines: list[GuidelineItem] = Field(default_factory=list)
@@ -335,9 +418,9 @@ class CaseEvaluation(BaseModel):
 
     @model_validator(mode="after")
     def _validate_content(self) -> "CaseEvaluation":
-        for dimension, criteria in self.dimension_criteria.items():
-            if not criteria or any(not item.strip() for item in criteria):
-                raise ValueError(f"dimension_criteria.{dimension.value} 必须是非空字符串列表")
+        for dimension, details in self.dimension_criteria.items():
+            if not details.criteria:
+                raise ValueError(f"dimension_criteria.{dimension.value}.criteria 不能为空")
         ids = [item.id for item in self.guidelines]
         if len(ids) != len(set(ids)):
             raise ValueError("evaluation.guidelines 的 id 必须在 Case 内唯一")
@@ -452,7 +535,7 @@ class TestCase(BaseModel):
     # 运行期 report.json 会以内部字段名序列化；同时接受 YAML 的 `type` 别名。
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    schema_version: Literal["2.0"]
+    schema_version: Literal["2.0", "2.1"]
     sample_id: str
     scenario: str
     level: Level

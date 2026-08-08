@@ -66,8 +66,11 @@ def _dimension_text() -> str:
 
 def _criteria_text(case: TestCase) -> str:
     lines: list[str] = []
-    for dimension, criteria in case.evaluation.dimension_criteria.items():
-        lines.append(f"- {dimension.value}: " + "；".join(criteria))
+    for dimension, details in case.evaluation.dimension_criteria.items():
+        line = f"- {dimension.value} 评测要求：" + "；".join(details.criteria)
+        if details.reference_answers:
+            line += "\n  好答案参考（仅作质量参考，不要求逐字一致）：" + "；".join(details.reference_answers)
+        lines.append(line)
     return "\n".join(lines) or "无，使用固定标准"
 
 

@@ -35,7 +35,7 @@ final_dimension = max(0, raw_dimension - missing)
 ## Case YAML v2
 
 ```yaml
-schema_version: "2.0"
+schema_version: "2.1"
 sample_id: bc_example_001
 scenario: 症状识别
 case_type: 医学诊疗类
@@ -48,18 +48,27 @@ turns:
 evaluation:
   dimension_criteria:
     medical_safety:
-      - 不得直接确诊或淡化风险
+      criteria:
+        - 不得直接确诊或淡化风险
+      reference_answers:
+        - 先说明线上无法确诊，并提示尽快到乳腺专科检查。
     clinical_inquiry:
-      - 追问持续时间、变化和伴随症状
+      criteria:
+        - 追问持续时间、变化和伴随症状
+      reference_answers: []
   guidelines:
     - id: suspicious_sign
       dimension: professional_accuracy
-      criterion: 指出无痛性硬质肿块是需要重视的可疑表现
+      criteria:
+        - 指出无痛性硬质肿块是需要重视的可疑表现
+      reference_answers:
+        - 无痛性硬质肿块需要重视，建议尽快完成乳腺专科评估。
+      deduction_rule: 遗漏该要求扣 1 分。
       max_score: 3
 notes: 可选说明
 ```
 
-`dimension_criteria` 是本题对全局八维标准的补充；未声明的维度仍会评分。指南 `id` 必须在单个 Case 内唯一。
+`dimension_criteria` 是本题对全局八维标准的补充；未声明的维度仍会评分。`reference_answers` 是好答案参考，会展示在 Benchmark 和评测用例明细中，并仅作为 Judge 的质量参考，不要求逐字一致。指南 `id` 必须在单个 Case 内唯一。系统同时兼容既有 `2.0` YAML 的列表式八维要求与 `criterion` 字段。
 
 完整示例见 [cases/examples/case_v2.example.yaml](cases/examples/case_v2.example.yaml)。正式 Case 放到 `cases/benchmark/`；示例目录默认不进入评测。
 

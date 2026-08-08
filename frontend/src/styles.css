@@ -1194,6 +1194,38 @@ a.ant-typography-secondary:hover {
   display: grid;
   gap: 12px;
 }
+.case-editor-dimension-content {
+  display: grid;
+  gap: 10px;
+}
+.case-editor-dimension-content .case-editor-section-hint {
+  margin: -5px 0 0 !important;
+}
+.case-editor-deduction-rule {
+  margin-top: 2px;
+}
+.reference-answers-panel {
+  padding: 0 18px 4px;
+}
+.reference-answers-panel__hint {
+  margin: 14px 0 7px !important;
+  font-size: 12px;
+}
+.reference-answers-panel .ant-list-item {
+  padding: 13px 0;
+}
+.reference-answers-panel__entry {
+  width: 100%;
+}
+.reference-answers-panel__entry > ol {
+  margin: 8px 0 0;
+  padding-inline-start: 20px;
+  color: #526077;
+  line-height: 1.65;
+}
+.reference-answers-panel__entry li + li {
+  margin-top: 5px;
+}
 .case-editor-timeline-card {
   position: relative;
   overflow: hidden;

@@ -48,9 +48,15 @@ def _format_guideline(item, *, trigger_aware: bool) -> str:
     trigger = (
         f"\n  触发条件：{item.trigger}" if trigger_aware and item.trigger else ""
     )
+    references = (
+        "\n  好答案参考（仅作质量参考，不要求逐字一致）："
+        + "；".join(item.reference_answers)
+        if item.reference_answers
+        else ""
+    )
     return (
         f"- id={item.id}; dimension={item.dimension.value}; max_score={item.max_score}\n"
-        f"  检查点：\n{checkpoints}{trigger}\n"
+        f"  检查点：\n{checkpoints}{trigger}{references}\n"
         f"  {rule}"
     )
 

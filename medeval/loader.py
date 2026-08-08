@@ -183,9 +183,9 @@ def load_cases(
 
         items = _expand_items(data, path)
         for item in items:
-            if not isinstance(item, dict) or item.get("schema_version") != "2.0":
+            if not isinstance(item, dict) or item.get("schema_version") not in {"2.0", "2.1"}:
                 raise ValueError(
-                    f"{path}: 正式 Case 必须声明 schema_version: \"2.0\" 并使用 evaluation"
+                    f"{path}: 正式 Case 必须声明 schema_version: \"2.0\" 或 \"2.1\" 并使用 evaluation"
                 )
             try:
                 case = TestCase.model_validate(item)

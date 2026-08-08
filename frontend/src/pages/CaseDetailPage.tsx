@@ -11,6 +11,7 @@ import { JudgeVerdictTable } from "../components/JudgeVerdictTable";
 import { GuidelineScoresTable } from "../components/GuidelineScoresTable";
 import { AgentChainPanel } from "../components/AgentChainPanel";
 import { SimulationTracePanel } from "../components/SimulationTracePanel";
+import { ReferenceAnswersPanel } from "../components/ReferenceAnswersPanel";
 import type { AgentChainTrace } from "../components/AgentChainPanel";
 import { useFailureTagLabels } from "../hooks/useConfigLabelMap";
 import { useCaseDetail } from "../hooks/useCaseDetail";
@@ -63,6 +64,7 @@ export default function CaseDetailPage() {
     scenario?: string;
     initial_state?: Record<string, unknown>;
     turns?: Array<{ role?: string; images?: string[] }>;
+    evaluation?: Record<string, unknown>;
   } | undefined;
   let userTurnIndex = 0;
   const caseUserTurns = (caseInfo?.turns || []).filter((turn) => turn.role === "user");
@@ -135,6 +137,8 @@ export default function CaseDetailPage() {
       />
 
       <SimulationTracePanel events={trace?.simulation_trace} />
+
+      <ReferenceAnswersPanel evaluation={caseInfo?.evaluation} />
 
       <JudgeVerdictTable
         verdicts={verdicts}

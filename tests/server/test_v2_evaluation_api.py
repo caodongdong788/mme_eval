@@ -102,6 +102,34 @@ def test_read_and_save_structured_case_content(client) -> None:
     assert saved.json()["case"]["initial_state"]["user_profile"]["性别"] == "女"
 
 
+def test_upload_and_read_v21_reference_answers(client) -> None:
+    v21_yaml = V2_YAML.replace('schema_version: "2.0"', 'schema_version: "2.1"').replace(
+        "      clinical_inquiry:\n        - 追问肿块持续时间和伴随症状",
+        "      clinical_inquiry:\n"
+        "        criteria:\n"
+        "          - 追问肿块持续时间和伴随症状\n"
+        "        reference_answers:\n"
+        "          - 先确认肿块出现多久、是否变大及有无疼痛。",
+    ).replace(
+        "        criterion: 建议尽快到乳腺专科就诊",
+        "        criteria:\n"
+        "          - 建议尽快到乳腺专科就诊\n"
+        "        reference_answers:\n"
+        "          - 建议今天联系乳腺专科完成评估。\n"
+        "        deduction_rule: 遗漏该建议扣 1 分。",
+    )
+    created = upload(client, v21_yaml, name="v21-reference-answers")
+    assert created.status_code == 201, created.text
+
+    benchmark_id = created.json()["id"]
+    content = client.get(f"/api/benchmarks/{benchmark_id}/cases/api_v2_001/content")
+    assert content.status_code == 200, content.text
+    case = content.json()["case"]
+    assert case["schema_version"] == "2.1"
+    assert case["evaluation"]["dimension_criteria"]["clinical_inquiry"]["reference_answers"] == ["先确认肿块出现多久、是否变大及有无疼痛。"]
+    assert case["evaluation"]["guidelines"][0]["reference_answers"] == ["建议今天联系乳腺专科完成评估。"]
+
+
 def test_upload_keeps_scripted_multiturn_context_and_mode_default(client) -> None:
     """旧格式脚本式多轮可导入；动态 conversation 的三轮限制不受影响。"""
     payload = yaml.safe_load(V2_YAML)

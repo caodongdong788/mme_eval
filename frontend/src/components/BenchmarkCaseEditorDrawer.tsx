@@ -129,7 +129,17 @@ function KeyValueEditor({
   );
 }
 
-function RequirementList({ value, onChange }: { value: unknown; onChange: (next: string[]) => void }) {
+function RequirementList({
+  value,
+  onChange,
+  placeholder = "请输入该维度的要求",
+  addText = "新增要求",
+}: {
+  value: unknown;
+  onChange: (next: string[]) => void;
+  placeholder?: string;
+  addText?: string;
+}) {
   const items = Array.isArray(value) ? value.map(String) : value ? [String(value)] : [];
   return (
     <div className="case-editor-requirement-list">
@@ -138,7 +148,7 @@ function RequirementList({ value, onChange }: { value: unknown; onChange: (next:
           <span className="case-editor-requirement__index">{index + 1}</span>
           <Input.TextArea
             value={item}
-            placeholder="请输入该维度的要求"
+            placeholder={placeholder}
             autoSize={{ minRows: 2, maxRows: 6 }}
             onChange={(event) => onChange(items.map((v, i) => (i === index ? event.target.value : v)))}
           />
@@ -146,7 +156,7 @@ function RequirementList({ value, onChange }: { value: unknown; onChange: (next:
         </div>
       ))}
       <Button type="dashed" size="small" icon={<PlusOutlined />} onClick={() => onChange([...items, ""])}>
-        新增要求
+        {addText}
       </Button>
     </div>
   );
@@ -182,7 +192,9 @@ function GuidelinesEditor({ value, onChange }: { value: unknown; onChange: (next
   return (
     <div className="case-editor-guideline-list">
       {guidelines.map((guide, index) => {
-        const criterion = Array.isArray(guide.criterion) ? guide.criterion.map(String) : guide.criterion ? [String(guide.criterion)] : [];
+        const criteriaValue = guide.criteria ?? guide.criterion;
+        const criteria = Array.isArray(criteriaValue) ? criteriaValue.map(String) : criteriaValue ? [String(criteriaValue)] : [];
+        const referenceAnswers = Array.isArray(guide.reference_answers) ? guide.reference_answers.map(String) : guide.reference_answers ? [String(guide.reference_answers)] : [];
         return (
           <Card
             key={index}
@@ -195,15 +207,19 @@ function GuidelinesEditor({ value, onChange }: { value: unknown; onChange: (next
               <label className="case-editor-input-field"><span>关联评测维度</span><Select value={guide.dimension || undefined} placeholder="请选择" options={EVALUATION_DIMENSIONS.map((dimension) => ({ value: dimension, label: DIM_LABEL[dimension] }))} onChange={(dimension) => update(index, { dimension })} /></label>
               <label className="case-editor-input-field"><span>最高扣分</span><InputNumber min={0} value={guide.max_score ?? 1} onChange={(max_score) => update(index, { max_score: max_score ?? 0 })} /></label>
             </div>
-            <Typography.Text className="case-editor-field-label">扣分逻辑</Typography.Text>
-            <RequirementList value={criterion} onChange={(next) => update(index, { criterion: next })} />
+            <Typography.Text className="case-editor-field-label">检查点</Typography.Text>
+            <RequirementList value={criteria} onChange={(next) => update(index, { criteria: next })} placeholder="请输入检查点" addText="新增检查点" />
+            <Typography.Text className="case-editor-field-label">好答案（可选）</Typography.Text>
+            <Typography.Paragraph className="case-editor-section-hint">用于说明理想回答的内容方向，评测时仅作质量参考，不要求逐字一致。</Typography.Paragraph>
+            <RequirementList value={referenceAnswers} onChange={(next) => update(index, { reference_answers: next })} placeholder="请输入好答案" addText="新增好答案" />
+            <label className="case-editor-input-field case-editor-deduction-rule"><span>扣分规则（可选）</span><Input.TextArea value={guide.deduction_rule || ""} placeholder="例如：遗漏一项关键要求扣 1 分" autoSize={{ minRows: 2, maxRows: 5 }} onChange={(event) => update(index, { deduction_rule: event.target.value })} /></label>
           </Card>
         );
       })}
       <Button
         type="dashed"
         icon={<PlusOutlined />}
-        onClick={() => onChange([...guidelines, { id: `g${String(guidelines.length + 1).padStart(2, "0")}`, dimension: "professional_accuracy", criterion: [""], max_score: 1 }])}
+        onClick={() => onChange([...guidelines, { id: `g${String(guidelines.length + 1).padStart(2, "0")}`, dimension: "professional_accuracy", criteria: [""], reference_answers: [], deduction_rule: "", max_score: 1 }])}
       >
         新增指南扣分点
       </Button>
@@ -259,6 +275,14 @@ export function BenchmarkCaseEditorDrawer({
   const initialState = (value?.initial_state || {}) as CaseData;
   const evaluation = (value?.evaluation || {}) as CaseData;
   const criteria = (evaluation.dimension_criteria || {}) as CaseData;
+  const dimensionDetails = (dimension: string): CaseData => {
+    const item = criteria[dimension];
+    return Array.isArray(item) ? { criteria: item, reference_answers: [] } : (item || {}) as CaseData;
+  };
+  const updateDimension = (dimension: string, patch: CaseData) => {
+    const current = dimensionDetails(dimension);
+    updateEvaluation({ dimension_criteria: { ...criteria, [dimension]: { ...current, ...patch } } });
+  };
   const updateInitialState = (patch: CaseData) => update({ initial_state: { ...initialState, ...patch } });
   const updateEvaluation = (patch: CaseData) => update({ evaluation: { ...evaluation, ...patch } });
   const openSourceYaml = async () => {
@@ -322,7 +346,16 @@ export function BenchmarkCaseEditorDrawer({
       label: "八维评测要求",
       children: <Card className="case-editor-card case-editor-criteria-section" bordered={false}>
         <Typography.Paragraph className="case-editor-section-hint">八个维度独立评分。每条要求都会进入对应角色的 Judge 提示词。</Typography.Paragraph>
-        <Collapse className="case-editor-dimension-collapse" items={EVALUATION_DIMENSIONS.map((dimension, index) => ({ key: dimension, label: <span className="case-editor-dimension-title"><em>{String(index + 1).padStart(2, "0")}</em><span><strong>{DIM_LABEL[dimension]}</strong><small>{Array.isArray(criteria[dimension]) ? `${criteria[dimension].length} 条要求` : "尚未配置要求"}</small></span></span>, children: <RequirementList value={criteria[dimension]} onChange={(requirements) => updateEvaluation({ dimension_criteria: { ...criteria, [dimension]: requirements } })} /> }))} />
+        <Collapse className="case-editor-dimension-collapse" items={EVALUATION_DIMENSIONS.map((dimension, index) => {
+          const details = dimensionDetails(dimension);
+          const requirementCount = Array.isArray(details.criteria) ? details.criteria.length : 0;
+          const referenceCount = Array.isArray(details.reference_answers) ? details.reference_answers.length : 0;
+          return {
+            key: dimension,
+            label: <span className="case-editor-dimension-title"><em>{String(index + 1).padStart(2, "0")}</em><span><strong>{DIM_LABEL[dimension]}</strong><small>{requirementCount ? `${requirementCount} 条要求` : "尚未配置要求"}{referenceCount ? ` · ${referenceCount} 条好答案` : ""}</small></span></span>,
+            children: <div className="case-editor-dimension-content"><Typography.Text className="case-editor-field-label">评测要求</Typography.Text><RequirementList value={details.criteria} onChange={(requirements) => updateDimension(dimension, { criteria: requirements })} placeholder="请输入该维度的要求" addText="新增评测要求" /><Typography.Text className="case-editor-field-label">好答案（可选）</Typography.Text><Typography.Paragraph className="case-editor-section-hint">作为理想回答参考，评测时不会要求 bot 逐字复述。</Typography.Paragraph><RequirementList value={details.reference_answers} onChange={(reference_answers) => updateDimension(dimension, { reference_answers })} placeholder="请输入好答案" addText="新增好答案" /></div>,
+          };
+        })} />
       </Card>,
     },
     {

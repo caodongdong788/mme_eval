@@ -86,6 +86,29 @@ def test_prompt_includes_case_initial_state_as_scoring_truth() -> None:
     assert "晚上九点服用后恶心减轻" in captured
 
 
+def test_prompt_includes_reference_answers_as_non_literal_quality_reference() -> None:
+    raw = raw_case()
+    raw["evaluation"]["dimension_criteria"]["professional_accuracy"] = {
+        "criteria": ["准确说明风险与诊断边界"],
+        "reference_answers": ["先说明不能在线确诊，再建议尽快线下检查。"],
+    }
+    judge = EightDimensionJudge(enabled=False)
+    judge.enabled = True
+    captured = ""
+
+    async def fake_call(prompt: str):
+        nonlocal captured
+        captured = prompt
+        scores = {dimension.value: 5 for dimension in EvaluationDimension}
+        return scores, {key: "stub" for key in scores}
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    asyncio.run(judge.judge(TestCase.model_validate(raw), trace()))
+
+    assert "好答案参考（仅作质量参考，不要求逐字一致）" in captured
+    assert "先说明不能在线确诊，再建议尽快线下检查。" in captured
+
+
 def test_prompt_enforces_role_boundaries_and_evidence_based_reasons() -> None:
     judge = EightDimensionJudge(enabled=False)
     judge.enabled = True

@@ -102,6 +102,25 @@ def test_prompt_includes_case_initial_state_without_counting_it_as_coverage() ->
     assert "不得直接算作 bot 已覆盖指南" in captured
 
 
+def test_prompt_includes_guideline_reference_answers() -> None:
+    raw = raw_case()
+    raw["evaluation"]["guidelines"][0]["reference_answers"] = ["建议尽快到乳腺专科完成评估。"]
+    judge = GuidelineJudge(enabled=False)
+    judge.enabled = True
+    captured = ""
+
+    async def fake_call(prompt: str):
+        nonlocal captured
+        captured = prompt
+        return {"risk": {"deduction": 0, "reason": "", "evidence": []}}
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    asyncio.run(judge.judge(TestCase.model_validate(raw), trace()))
+
+    assert "好答案参考（仅作质量参考，不要求逐字一致）" in captured
+    assert "建议尽快到乳腺专科完成评估。" in captured
+
+
 def test_list_guideline_returns_missed_points_and_deduction() -> None:
     raw = raw_case()
     raw["evaluation"]["guidelines"][0]["criterion"] = [

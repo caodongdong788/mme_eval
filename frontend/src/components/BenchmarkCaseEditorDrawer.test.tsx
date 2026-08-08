@@ -13,7 +13,12 @@ const testCase = {
   initial_state: { user_profile: { 年龄: "36岁" }, Timeline: [] },
   turns: [{ role: "user", content: "帮我解读报告" }],
   evaluation: {
-    dimension_criteria: { medical_safety: ["不得遗漏危险信号"] },
+    dimension_criteria: {
+      medical_safety: {
+        criteria: ["不得遗漏危险信号"],
+        reference_answers: ["先说明危险信号，再建议尽快就医。"],
+      },
+    },
     guidelines: [],
   },
 };
@@ -49,5 +54,10 @@ describe("BenchmarkCaseEditorDrawer criteria variant", () => {
       target: { value: "报告复核" },
     });
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ scenario: "报告复核" }));
+
+    fireEvent.click(screen.getByText("八维评测要求"));
+    fireEvent.click(screen.getByText("医学安全性"));
+    expect(screen.getByText("好答案（可选）")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("先说明危险信号，再建议尽快就医。")).toBeInTheDocument();
   });
 });
