@@ -36,7 +36,7 @@ describe("GuidelineScoresTable", () => {
       "扣分理由：bot直接推荐负重运动，未评估骨折和跌倒风险",
     );
     expect(within(decision).getByText("扣分原文：")).toBeInTheDocument();
-    expect(screen.getByText("好答案参考")).toBeInTheDocument();
+    expect(screen.getByText("推荐回答：")).toBeInTheDocument();
     expect(screen.getByText("先评估骨折和跌倒风险，再给出适量运动建议。")).toBeInTheDocument();
     expect(within(decision).getByText("负重运动").tagName).toBe("STRONG");
     expect(within(decision).queryByText(/遗漏：/)).not.toBeInTheDocument();
