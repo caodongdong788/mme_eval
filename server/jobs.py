@@ -54,6 +54,7 @@ def reconcile_orphaned_runs() -> int:
         for row in rows:
             row.status = "failed"
             row.error_msg = "服务重启导致任务中断（孤儿任务回收）"
+            row.progress = {}
             if row.finished_at is None:
                 row.finished_at = datetime.utcnow()
             count += 1
@@ -70,6 +71,8 @@ def _set_status(run_id: int, status: str, *, error: str = "") -> None:
             row.started_at = datetime.utcnow()
         if status in ("success", "failed") and row.finished_at is None:
             row.finished_at = datetime.utcnow()
+        if status in ("success", "failed"):
+            row.progress = {}
         if error:
             row.error_msg = error[:4000]
 

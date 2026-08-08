@@ -260,6 +260,10 @@ export interface ProgressInfo {
     total?: number;
     percent?: number;
     phases?: Record<string, { label: string; total: number; done: number }>;
+    context?: {
+      kind?: string;
+      sample_id?: string;
+    };
   } | null;
 }
 

@@ -90,6 +90,11 @@ def pin_run(
 def get_progress(run_id: int, session: Session = Depends(get_session)) -> ProgressOut:
     run = runs_svc.get_run_or_404(session, run_id)
     snap = get_job_runner().progress_snapshot(run_id)
+    stored = run.progress if isinstance(run.progress, dict) else {}
+    if snap is None:
+        snap = dict(stored) or None
+    elif isinstance(stored.get("context"), dict):
+        snap = {**snap, "context": dict(stored["context"])}
     return ProgressOut(status=run.status, progress=snap)
 
 

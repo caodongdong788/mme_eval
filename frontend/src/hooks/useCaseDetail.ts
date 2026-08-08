@@ -2,14 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { Modal, message } from "antd";
 import {
   Annotation,
+  BenchmarkCaseContent,
   PreviewRejudgeResult,
   ProgressInfo,
   RunDetail,
   api,
 } from "../api/index";
 import { formatApiError } from "../utils/apiError";
-import { useBenchmarkYamlActions } from "./useBenchmarkYamlActions";
-import { useYamlEditorState } from "./useYamlEditorState";
+import { isActiveCaseRetry } from "../utils/caseRetryProgress";
 
 export function useCaseDetail(runId: number, sampleId: string | undefined) {
   const [detail, setDetail] = useState<Record<string, unknown> | null>(null);
@@ -25,28 +25,17 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
   const [isBuiltin, setIsBuiltin] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [previewResult, setPreviewResult] = useState<PreviewRejudgeResult | null>(null);
+  const [criteriaOpen, setCriteriaOpen] = useState(false);
+  const [criteriaLoading, setCriteriaLoading] = useState(false);
+  const [criteriaSaving, setCriteriaSaving] = useState(false);
+  const [caseContent, setCaseContent] = useState<BenchmarkCaseContent | null>(null);
   const [chainSyncing, setChainSyncing] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [retryPolling, setRetryPolling] = useState(false);
   const [retryProgress, setRetryProgress] = useState<ProgressInfo | null>(null);
   const [nextSampleId, setNextSampleId] = useState<string | undefined>();
   // 每次进入一个 Case 最多自动补同步一次；避免 Langfuse 仍在 ingest 时反复请求。
   const autoChainSyncKeyRef = useRef<string | null>(null);
-
-  const {
-    yamlOpen,
-    setYamlOpen,
-    yamlLoading,
-    yamlText,
-    setYamlText,
-    yamlName,
-    setYamlName,
-    openFromRun,
-  } = useYamlEditorState(run?.name);
-
-  const yamlActions = useBenchmarkYamlActions({
-    benchmarkId: run?.benchmark_id,
-    getYamlText: () => yamlText,
-  });
 
   const loadAnnotations = () => {
     if (sampleId) api.getCaseAnnotations(runId, sampleId).then(setAnnotations);
@@ -70,6 +59,26 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runId, sampleId]);
+
+  useEffect(() => {
+    if (!sampleId) return undefined;
+    let alive = true;
+    setRetrying(false);
+    setRetryPolling(false);
+    setRetryProgress(null);
+    api
+      .getProgress(runId)
+      .then((next) => {
+        if (!alive || !isActiveCaseRetry(next, sampleId)) return;
+        setRetryProgress(next);
+        setRetrying(true);
+        setRetryPolling(true);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
   }, [runId, sampleId]);
 
   useEffect(() => {
@@ -138,16 +147,35 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
     }
   };
 
-  const openEditor = () => {
-    if (!sampleId) return;
-    openFromRun(runId, { sample_id: sampleId }, { onBeforeOpen: () => setPreviewResult(null) });
+  const openEditor = async () => {
+    if (!sampleId || !run?.benchmark_id) {
+      message.error("该评测未关联 benchmark，无法修改判据");
+      return;
+    }
+    setCriteriaOpen(true);
+    setCriteriaLoading(true);
+    setPreviewResult(null);
+    setCaseContent(null);
+    try {
+      setCaseContent(await api.getBenchmarkCaseContent(run.benchmark_id, sampleId));
+    } catch (e: unknown) {
+      message.error(formatApiError(e, "加载 benchmark 用例失败"));
+      setCriteriaOpen(false);
+    } finally {
+      setCriteriaLoading(false);
+    }
   };
 
   const runPreview = async () => {
-    if (!sampleId) return;
+    if (!sampleId || !caseContent) return;
     setPreviewing(true);
     try {
-      const res = await api.previewRejudgeCase(runId, sampleId, { yaml_text: yamlText });
+      const res = await api.previewRejudgeCase(runId, sampleId, {
+        case_override: {
+          sample_id: sampleId,
+          evaluation: (caseContent.case.evaluation || {}) as Record<string, unknown>,
+        },
+      });
       setPreviewResult(res);
     } catch (e: unknown) {
       message.error(formatApiError(e, "试判失败"));
@@ -173,22 +201,25 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
   const retryCase = async () => {
     if (!sampleId || retrying) return;
     setRetrying(true);
+    setRetryPolling(false);
     setRetryProgress({
       status: "pending",
       progress: { current_label: "等待开始重试", done: 0, total: 0, percent: 0 },
     });
     try {
       await api.retryCase(runId, sampleId);
+      setRetryPolling(true);
       message.info("已开始重试该 Case，完成后会自动刷新页面结果");
     } catch (e: unknown) {
       setRetrying(false);
+      setRetryPolling(false);
       setRetryProgress(null);
       message.error(formatApiError(e, "提交重试失败"));
     }
   };
 
   useEffect(() => {
-    if (!retrying || !sampleId) return undefined;
+    if (!retryPolling || !sampleId) return undefined;
     let alive = true;
     let finishing = false;
     const finish = async (status: string) => {
@@ -196,6 +227,7 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
       finishing = true;
       window.clearInterval(timer);
       setRetrying(false);
+      setRetryPolling(false);
       setRetryProgress(null);
       if (status !== "success") {
         try {
@@ -237,34 +269,29 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
       alive = false;
       window.clearInterval(timer);
     };
-  }, [retrying, runId, sampleId]);
+  }, [retryPolling, runId, sampleId]);
 
-  const saveYamlAsBenchmark = () =>
-    yamlActions.saveAsBenchmark({
-      name: yamlName,
-      description: `从 #${run?.benchmark_id} 改判据派生（用例 ${sampleId}）`,
-      onSuccess: (bm) => {
-        setYamlOpen(false);
-        Modal.success({
-          title: "已另存为新 benchmark",
-          content: `新 benchmark #${bm.id}「${bm.name}」已创建。可在看板「重判」里选它发起重判。`,
-        });
-      },
-    });
-
-  const saveYamlOverwrite = () =>
-    yamlActions.overwriteBenchmark({
-      confirmContent:
-        "将用编辑后的判据就地覆盖这次评测当前关联的 benchmark（按 sample_id 只合并判据字段）。" +
-        "此操作仅更新判据源、不改当前 run 已存分；要让某个 run 反映新判据需另行「重判」。不可撤销。",
-      onSuccess: (bm) => {
-        setYamlOpen(false);
-        Modal.success({
-          title: "已覆盖当前 benchmark",
-          content: `benchmark #${bm.id}「${bm.name}」判据已更新。要让评测反映新判据，请到看板「重判」。`,
-        });
-      },
-    });
+  const saveCaseOverwrite = async () => {
+    if (!sampleId || !run?.benchmark_id || !caseContent) return;
+    setCriteriaSaving(true);
+    try {
+      const saved = await api.saveBenchmarkCaseContent(
+        run.benchmark_id,
+        sampleId,
+        caseContent.case
+      );
+      setCaseContent(saved);
+      setCriteriaOpen(false);
+      Modal.success({
+        title: "已覆盖当前 benchmark",
+        content: `benchmark #${run.benchmark_id}「${benchmarkName || "—"}」中的用例 ${sampleId} 已更新。要让评测反映新判据，请到看板「重判」。`,
+      });
+    } catch (e: unknown) {
+      message.error(formatApiError(e, "覆盖 benchmark 失败"));
+    } finally {
+      setCriteriaSaving(false);
+    }
+  };
 
   return {
     detail,
@@ -281,13 +308,12 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
     run,
     benchmarkName,
     isBuiltin,
-    yamlOpen,
-    setYamlOpen,
-    yamlLoading,
-    yamlText,
-    setYamlText,
-    yamlName,
-    setYamlName,
+    criteriaOpen,
+    setCriteriaOpen,
+    criteriaLoading,
+    criteriaSaving,
+    caseContent,
+    setCaseContent,
     previewing,
     previewResult,
     chainSyncing,
@@ -299,8 +325,6 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
     nextSampleId,
     openEditor,
     runPreview,
-    yamlActions,
-    saveYamlAsBenchmark,
-    saveYamlOverwrite,
+    saveCaseOverwrite,
   };
 }

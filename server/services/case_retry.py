@@ -81,6 +81,12 @@ async def launch_case_retry(
     source = validate_case_retry(session, run_id, sample_id)
     source.status = "pending"
     source.error_msg = ""
+    source.progress = {
+        "context": {
+            "kind": "case_retry",
+            "sample_id": sample_id,
+        }
+    }
     # 先提交事务，避免后台 job 的 running 状态被当前请求的 pending 覆盖。
     session.commit()
     job = build_retry_case_job(run_id, sample_id=sample_id)

@@ -289,11 +289,46 @@ def test_retry_case_endpoint_submits_current_run(client, settings, monkeypatch):
             return None
         return job
 
+    class HoldingRunner:
+        async def submit(self, run_id, job):
+            return None
+
+        def progress_snapshot(self, run_id):
+            return {
+                "current": None,
+                "current_label": "",
+                "done": 0,
+                "total": 0,
+                "percent": 0,
+                "phases": {},
+            }
+
+    runner = HoldingRunner()
     monkeypatch.setattr("server.routers.runs.build_retry_case_job", noop_builder)
+    monkeypatch.setattr(
+        "server.routers.runs.rejudge.get_job_runner", lambda: runner
+    )
+    monkeypatch.setattr(
+        "server.routers.runs.crud.get_job_runner", lambda: runner
+    )
     response = client.post(f"/api/runs/{run_id}/cases/{target_id}/retry")
 
     assert response.status_code == 202, response.text
     assert response.json()["id"] == run_id
+    progress = client.get(f"/api/runs/{run_id}/progress")
+    assert progress.status_code == 200
+    assert progress.json() == {
+        "status": "pending",
+        "progress": {
+            "current": None,
+            "current_label": "",
+            "done": 0,
+            "total": 0,
+            "percent": 0,
+            "phases": {},
+            "context": {"kind": "case_retry", "sample_id": target_id},
+        },
+    }
 
 
 # ---------------------------------------------------------------------------
