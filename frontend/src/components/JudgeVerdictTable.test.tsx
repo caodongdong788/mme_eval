@@ -1,16 +1,32 @@
-import { screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { JudgeVerdictTable } from "./JudgeVerdictTable";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { clearConfigLabelMapCache } from "../hooks/useConfigLabelMap";
+import { api } from "../api/index";
+
+vi.mock("../api/index", () => ({
+  api: {
+    getJudgeVerdictLabels: vi.fn(),
+  },
+}));
+
+const mockedApi = vi.mocked(api);
 
 describe("JudgeVerdictTable", () => {
-  it("shows final dimension score and guideline deduction in the judge row", () => {
+  beforeEach(() => {
+    clearConfigLabelMapCache();
+    mockedApi.getJudgeVerdictLabels.mockResolvedValue({});
+  });
+
+  it("shows final dimension score and guideline deduction in the judge row", async () => {
     renderWithProviders(
       <JudgeVerdictTable
         tagLabel={(t) => t}
         dimensionRawScores={{ empathy: 4 }}
         dimensionScores={{ empathy: 3 }}
         dimensionMax={{ empathy: 5 }}
+        dimensionReferenceAnswers={{ empathy: ["先回应患者担忧，再给出可执行的下一步。"] }}
         scoreDeductions={["empathy 指南 warm_response -1分：缺少针对性情绪承接"]}
         guidelineScores={[
           {
@@ -50,12 +66,15 @@ describe("JudgeVerdictTable", () => {
     expect(screen.getByText("扣分原因")).toBeInTheDocument();
     expect(screen.getByText("指南 warm_response -1分：缺少针对性情绪承接")).toBeInTheDocument();
     expect(screen.getByText("维度评分")).toBeInTheDocument();
+    expect(screen.getByText("好答案参考")).toBeInTheDocument();
+    expect(screen.getByText("先回应患者担忧，再给出可执行的下一步。")).toBeInTheDocument();
     expect(screen.getByText("维度")).toBeInTheDocument();
     expect(screen.queryByText("guideline.seek_care")).not.toBeInTheDocument();
     expect(screen.queryByText("1/3")).not.toBeInTheDocument();
+    await waitFor(() => expect(mockedApi.getJudgeVerdictLabels).toHaveBeenCalled());
   });
 
-  it("uses final scores for every verdict and shows a triggered safety guideline", () => {
+  it("uses final scores for every verdict and shows a triggered safety guideline", async () => {
     renderWithProviders(
       <JudgeVerdictTable
         tagLabel={(tag) => tag}
@@ -115,5 +134,6 @@ describe("JudgeVerdictTable", () => {
     expect(
       screen.getByText("指南 g11_personalization -2分：未结合用户画像"),
     ).toBeInTheDocument();
+    await waitFor(() => expect(mockedApi.getJudgeVerdictLabels).toHaveBeenCalled());
   });
 });

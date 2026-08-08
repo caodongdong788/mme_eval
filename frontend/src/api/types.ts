@@ -194,6 +194,7 @@ export interface GuidelineScore {
   id: string;
   dimension: string;
   criterion: string[];
+  reference_answers?: string[];
   checkpoints?: string[];
   deduction_rule?: string;
   trigger?: string;

@@ -63,6 +63,14 @@ export function GuidelineScoresTable({ scores }: { scores: GuidelineScore[] }) {
                   {(row.checkpoints || row.criterion || []).map((point) => <li key={point}>{point}</li>)}
                 </ol>
                 {row.deduction_rule ? <Typography.Text type="secondary">{row.deduction_rule}</Typography.Text> : null}
+                {row.reference_answers?.length ? (
+                  <div className="guideline-reference-answers">
+                    <Typography.Text strong>好答案参考</Typography.Text>
+                    <ol>
+                      {row.reference_answers.map((answer, index) => <li key={`${index}-${answer}`}>{answer}</li>)}
+                    </ol>
+                  </div>
+                ) : null}
               </div>
             ),
           },

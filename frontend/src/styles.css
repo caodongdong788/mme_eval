@@ -1226,6 +1226,35 @@ a.ant-typography-secondary:hover {
 .reference-answers-panel__entry li + li {
   margin-top: 5px;
 }
+.judge-reason__references {
+  margin-top: 10px;
+  padding: 9px 12px;
+  border-left: 3px solid #8b73f6;
+  border-radius: 0 7px 7px 0;
+  background: #f7f5ff;
+  color: #4e4775;
+}
+.judge-reason__references > strong {
+  color: #6550c7;
+}
+.judge-reason__references ol {
+  margin: 5px 0 0;
+  padding-inline-start: 19px;
+  line-height: 1.65;
+}
+.judge-reason__references li + li {
+  margin-top: 4px;
+}
+.guideline-reference-answers {
+  margin-top: 8px;
+  color: #6550c7;
+}
+.guideline-reference-answers ol {
+  margin: 4px 0 0;
+  padding-inline-start: 18px;
+  color: #59657a;
+  line-height: 1.6;
+}
 .case-editor-timeline-card {
   position: relative;
   overflow: hidden;

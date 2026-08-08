@@ -12,6 +12,7 @@ export interface JudgeVerdictTableProps {
   dimensionRawScores?: Record<string, number | null>;
   dimensionScores?: Record<string, number | null>;
   dimensionMax?: Record<string, number>;
+  dimensionReferenceAnswers?: Record<string, string[]>;
   scoreDeductions?: string[];
   guidelineScores?: GuidelineScore[];
 }
@@ -30,6 +31,7 @@ export function JudgeVerdictTable({
   dimensionRawScores = {},
   dimensionScores = {},
   dimensionMax = {},
+  dimensionReferenceAnswers = {},
   scoreDeductions = [],
   guidelineScores = [],
 }: JudgeVerdictTableProps) {
@@ -127,6 +129,9 @@ export function JudgeVerdictTable({
       dataIndex: "reason",
       render: (reason: string | undefined, verdict: CaseVerdict) => {
         const deductions = deductionsFor(verdict.name);
+        const references = dimensionKey(verdict.name)
+          ? dimensionReferenceAnswers[dimensionKey(verdict.name) || ""] || []
+          : [];
         return (
           <div className="judge-reason">
             <span>{reason || "—"}</span>
@@ -134,6 +139,14 @@ export function JudgeVerdictTable({
               <div className="judge-reason__deductions">
                 <strong>扣分原因</strong>
                 {deductions.map((item, index) => <div key={`${item}-${index}`}>{item}</div>)}
+              </div>
+            ) : null}
+            {references.length ? (
+              <div className="judge-reason__references">
+                <strong>好答案参考</strong>
+                <ol>
+                  {references.map((reference, index) => <li key={`${index}-${reference}`}>{reference}</li>)}
+                </ol>
               </div>
             ) : null}
           </div>

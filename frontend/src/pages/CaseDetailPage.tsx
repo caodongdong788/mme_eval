@@ -75,6 +75,17 @@ export default function CaseDetailPage() {
   });
   const verdicts = (cd.detail.verdicts as CaseVerdict[] | undefined) || [];
   const guidelineScores = (cd.detail.guideline_scores || []) as import("../api").GuidelineScore[];
+  const dimensionReferenceAnswers = Object.fromEntries(
+    Object.entries(caseInfo?.evaluation?.dimension_criteria || {}).flatMap(([dimension, value]) => {
+      const details = value && typeof value === "object" && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : {};
+      const answers = Array.isArray(details.reference_answers)
+        ? details.reference_answers.map(String).map((answer) => answer.trim()).filter(Boolean)
+        : [];
+      return answers.length ? [[dimension, answers]] : [];
+    }),
+  );
 
   return (
     <div className="dash-page">
@@ -146,6 +157,7 @@ export default function CaseDetailPage() {
         dimensionRawScores={cd.detail.dimension_raw_scores as Record<string, number | null> | undefined}
         dimensionScores={cd.detail.dimension_scores as Record<string, number | null> | undefined}
         dimensionMax={cd.detail.dimension_max as Record<string, number> | undefined}
+        dimensionReferenceAnswers={dimensionReferenceAnswers}
         scoreDeductions={cd.detail.score_deductions as string[] | undefined}
         guidelineScores={guidelineScores}
       />
