@@ -183,6 +183,7 @@ async def run_traces(
     resume_dir: Path | None = None,
     adapter_config: dict | None = None,
     run_name: str = "",
+    on_case_complete=None,
 ) -> list[list[ConversationTrace]]:
     """run 阶段：唯一 adapter 副作用，产出 ``list[list[ConversationTrace]]``。
 
@@ -263,6 +264,7 @@ async def run_traces(
                 resume_index=resume_index,
                 run_name=run_name,
                 user_simulator=build_user_simulator(config),
+                on_case_complete=on_case_complete,
             )
     finally:
         if writer is not None:
@@ -385,9 +387,37 @@ async def evaluate(
     )
 
     try:
+        # Judge 与 bot 调用并行流水：某条 Case 的全部对话完成后，立即判分、折叠并
+        # 通知平台落库，不等待整个 benchmark 的所有对话执行完毕。
+        for judge in judges:
+            progress.start_phase(
+                f"judge_{judge.name}",
+                "Judge 判分 (八维)" if judge.name == "dimension" else "Judge 判分 (指南)",
+                len(cases) * n_runs,
+            )
+        folded_results: list[CaseResult | None] = [None for _ in cases]
+        judge_sem = asyncio.Semaphore(config.run.judge_concurrency)
+
+        async def judge_completed_case(
+            index: int, _execution_case: TestCase, traces: list[ConversationTrace]
+        ) -> None:
+            # single_turn 模式会临时展平动态对话；判分仍必须使用原始 Case 真值。
+            case = cases[index]
+            run_results: list[CaseResult] = []
+            for trace in traces:
+                async with judge_sem:
+                    result = await judge_all(case, trace, judges)
+                    apply_grading([result])
+                for judge in judges:
+                    progress.advance(f"judge_{judge.name}")
+                run_results.append(result)
+            folded = fold_n_runs([run_results])[0]
+            folded_results[index] = folded
+            await _notify_case_completed(progress, folded)
+
         # 每条用例独立成一条 Langfuse trace（按 session=run_name 分组，整段 run 可在
         # Sessions 视图整体回放）；judge 调用不纳入追踪。
-        per_case_traces = await run_traces(
+        await run_traces(
             config,
             cases,
             adapter,
@@ -395,17 +425,18 @@ async def evaluate(
             run_name=run_name or "",
             out_dir=Path(out_dir) if out_dir is not None else None,
             resume_dir=Path(resume_dir) if resume_dir is not None else None,
+            on_case_complete=judge_completed_case,
         )
-
-        report = await judge_traces(
-            config,
-            cases,
-            per_case_traces,
-            judges,
-            progress=progress,
+        if any(result is None for result in folded_results):
+            raise RuntimeError("evaluate 未生成完整的用例结果")
+        report = build_report(
+            run_name=run_name or make_run_slug(config.run.name),
+            results=[result for result in folded_results if result is not None],
+            adapter_type=config.adapter.type,
+            config_snapshot=config.public_snapshot(),
+            description=config.run.description,
             started_at=started_at,
-            run_name=run_name,
-            declare_plan=False,
+            n_runs=n_runs,
         )
 
         await adapter.close()

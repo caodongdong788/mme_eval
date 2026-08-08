@@ -12,6 +12,7 @@ Runner 会顺序把每条 user turn 提交给 adapter，把 adapter 的回复 ap
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import time
 import uuid
@@ -348,6 +349,7 @@ async def run_cases(
     retry: int = 2,
     repeat: int = 1,
     on_progress=None,
+    on_case_complete=None,
     retry_backoff_base_s: float = 0.0,
     retry_backoff_max_s: float = 40.0,
     *,
@@ -365,6 +367,8 @@ async def run_cases(
     返回 ``list[list[ConversationTrace]]``——外层顺序与 ``cases`` 一致、
     内层长度恒等于 ``repeat``。``on_progress(case, trace, run_index)`` 在每次
     (case, run) 完成后回调（兼容旧的 2 参数签名：缺省 ``run_index=0``）。
+    ``on_case_complete(index, case, traces)`` 则在一条 Case 的所有重复执行完成后
+    调用，可返回 awaitable，用于立即判分和落库。
 
     ``executor='ray'`` 时改走分布式后端（worker 内按 ``adapter_type`` + ``adapter_config``
     自建 adapter，传入的 ``adapter`` 实例在 ray 路径下不参与对话）。其余参数语义不变。
@@ -445,6 +449,11 @@ async def run_cases(
                     except TypeError:
                         # 兼容老的 2 参回调签名
                         on_progress(case, tr)
+        # 判分/落库不占用 adapter 并发槽位，避免慢 Judge 阻塞下一条对话启动。
+        if on_case_complete:
+            pending = on_case_complete(i, case, list(traces[i]))
+            if inspect.isawaitable(pending):
+                await pending
 
     await asyncio.gather(*(_wrap(i, c) for i, c in enumerate(cases)))
     return traces

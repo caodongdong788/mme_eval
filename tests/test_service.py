@@ -128,6 +128,49 @@ def test_evaluate_declares_phase_plan_upfront():
     assert all(total > 0 for _k, _l, total in rec.plan)
 
 
+def test_evaluate_notifies_completed_case_before_full_run_finishes():
+    class StagedAdapter(_StubAdapter):
+        def __init__(self, slow_case_gate: asyncio.Event):
+            self.slow_case_gate = slow_case_gate
+
+        async def chat(self, req) -> ChatResponse:
+            user_text = [message["content"] for message in req.messages if message["role"] == "user"][-1]
+            if user_text == "慢用例":
+                await self.slow_case_gate.wait()
+            return await super().chat(req)
+
+    async def scenario() -> None:
+        config = _config()
+        fast = _case().model_copy(update={"sample_id": "fast", "turns": [Turn(role="user", content="快用例")]})
+        slow = _case().model_copy(update={"sample_id": "slow", "turns": [Turn(role="user", content="慢用例")]})
+        completed = asyncio.Event()
+        slow_case_gate = asyncio.Event()
+
+        class CompletionProgress(_RecordingProgress):
+            async def case_completed(self, result):
+                seen.append(result.case.sample_id)
+                completed.set()
+
+        seen: list[str] = []
+        task = asyncio.create_task(
+            evaluate(
+                config,
+                [fast, slow],
+                StagedAdapter(slow_case_gate),
+                [],
+                progress=CompletionProgress(),
+            )
+        )
+        await asyncio.wait_for(completed.wait(), timeout=1)
+        assert seen == ["fast"]
+        assert not task.done()
+        slow_case_gate.set()
+        report = await task
+        assert report.total == 2
+
+    asyncio.run(scenario())
+
+
 # --- resolve_diff_target ---------------------------------------------------
 
 
