@@ -1,8 +1,12 @@
-import type { CaseRow } from "../api";
+import type { CaseBrief, CaseRow } from "../api";
 
 export type CaseFilterField =
+  | "sample_id"
+  | "scenario"
   | "sub_scenario"
   | "case_type"
+  | "is_bug"
+  | "benchmark_action"
   | "level"
   | "n_turns"
   | "composite_score"
@@ -103,6 +107,25 @@ export const CASE_FILTER_FIELDS: CaseFilterFieldDefinition[] = [
   },
 ];
 
+const LEVEL_OPTIONS = ["L1", "L2", "L3", "L4"].map((value) => ({ value, label: value }));
+
+export const BENCHMARK_CASE_FILTER_FIELDS: CaseFilterFieldDefinition[] = [
+  { value: "sample_id", label: "Case ID", kind: "text" },
+  { value: "scenario", label: "场景", kind: "text" },
+  { value: "level", label: "Level", kind: "select", options: LEVEL_OPTIONS },
+  { value: "case_type", label: "Case 类型", kind: "text" },
+  { value: "is_bug", label: "问题属性", kind: "text" },
+  {
+    value: "benchmark_action",
+    label: "操作",
+    kind: "select",
+    options: [
+      { value: "deletable", label: "可删除" },
+      { value: "read_only", label: "只读" },
+    ],
+  },
+];
+
 const TEXT_OPERATORS: Array<{ value: CaseFilterOperator; label: string }> = [
   { value: "contains", label: "包含" },
   { value: "not_contains", label: "不包含" },
@@ -130,12 +153,18 @@ const SELECT_OPERATORS: Array<{ value: CaseFilterOperator; label: string }> = [
   { value: "is_not_empty", label: "不为空" },
 ];
 
-export function fieldDefinition(field: CaseFilterField): CaseFilterFieldDefinition {
-  return CASE_FILTER_FIELDS.find((item) => item.value === field) ?? CASE_FILTER_FIELDS[0];
+export function fieldDefinition(
+  field: CaseFilterField,
+  fields: CaseFilterFieldDefinition[] = CASE_FILTER_FIELDS
+): CaseFilterFieldDefinition {
+  return fields.find((item) => item.value === field) ?? fields[0] ?? CASE_FILTER_FIELDS[0];
 }
 
-export function operatorsForField(field: CaseFilterField) {
-  const kind = fieldDefinition(field).kind;
+export function operatorsForField(
+  field: CaseFilterField,
+  fields: CaseFilterFieldDefinition[] = CASE_FILTER_FIELDS
+) {
+  const kind = fieldDefinition(field, fields).kind;
   if (kind === "number") return NUMBER_OPERATORS;
   if (kind === "select") return SELECT_OPERATORS;
   return TEXT_OPERATORS;
@@ -145,8 +174,11 @@ export function operatorNeedsValue(operator: CaseFilterOperator): boolean {
   return operator !== "is_empty" && operator !== "is_not_empty";
 }
 
-export function defaultOperator(field: CaseFilterField): CaseFilterOperator {
-  const kind = fieldDefinition(field).kind;
+export function defaultOperator(
+  field: CaseFilterField,
+  fields: CaseFilterFieldDefinition[] = CASE_FILTER_FIELDS
+): CaseFilterOperator {
+  const kind = fieldDefinition(field, fields).kind;
   return kind === "text" ? "contains" : "equals";
 }
 
@@ -161,10 +193,17 @@ function displayValue(
   failureTagLabel: (tag: string) => string
 ): string | number | null {
   switch (field) {
+    case "sample_id":
+      return row.sample_id;
+    case "scenario":
+      return row.scenario;
     case "sub_scenario":
       return row.sub_scenario || row.sample_id;
     case "case_type":
       return row.case_type;
+    case "is_bug":
+    case "benchmark_action":
+      return null;
     case "level":
       return row.level;
     case "n_turns":
@@ -202,11 +241,19 @@ function matchesCondition(
   failureTagLabel: (tag: string) => string
 ): boolean {
   const actual = displayValue(row, condition.field, queueIds, failureTagLabel);
+  return matchesValue(actual, condition, CASE_FILTER_FIELDS);
+}
+
+function matchesValue(
+  actual: string | number | null,
+  condition: CaseFilterCondition,
+  fields: CaseFilterFieldDefinition[]
+): boolean {
   if (condition.operator === "is_empty") return isEmpty(actual);
   if (condition.operator === "is_not_empty") return !isEmpty(actual);
 
   const expected = String(condition.value ?? "").trim();
-  const kind = fieldDefinition(condition.field).kind;
+  const kind = fieldDefinition(condition.field, fields).kind;
   if (kind === "number") {
     const left = Number(actual);
     const right = Number(expected);
@@ -263,5 +310,62 @@ export function buildCaseFilterValueOptions(
     failure_tags: unique(
       rows.flatMap((row) => (row.failure_tags || []).map((tag) => failureTagLabel(tag)))
     ),
+  };
+}
+
+function displayBenchmarkValue(
+  row: CaseBrief,
+  field: CaseFilterField,
+  isBuiltin: boolean
+): string | null {
+  switch (field) {
+    case "sample_id":
+      return row.sample_id;
+    case "scenario":
+      return row.scenario;
+    case "level":
+      return row.level;
+    case "case_type":
+      return row.case_type;
+    case "is_bug":
+      return row.is_bug;
+    case "benchmark_action":
+      return isBuiltin ? "read_only" : "deletable";
+    default:
+      return null;
+  }
+}
+
+export function filterBenchmarkCaseRows(
+  rows: CaseBrief[],
+  conditions: CaseFilterCondition[],
+  isBuiltin: boolean
+): CaseBrief[] {
+  const active = conditions.filter(isActiveCaseFilter);
+  if (active.length === 0) return rows;
+  return rows.filter((row) =>
+    active.every((condition) =>
+      matchesValue(
+        displayBenchmarkValue(row, condition.field, isBuiltin),
+        condition,
+        BENCHMARK_CASE_FILTER_FIELDS
+      )
+    )
+  );
+}
+
+export function buildBenchmarkCaseFilterValueOptions(
+  rows: CaseBrief[]
+): CaseFilterValueOptions {
+  const unique = (values: Array<string | null | undefined>) =>
+    Array.from(new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))).map(
+      (value) => ({ value, label: value })
+    );
+
+  return {
+    sample_id: unique(rows.map((row) => row.sample_id)),
+    scenario: unique(rows.map((row) => row.scenario)),
+    case_type: unique(rows.map((row) => row.case_type)),
+    is_bug: unique(rows.map((row) => row.is_bug)),
   };
 }

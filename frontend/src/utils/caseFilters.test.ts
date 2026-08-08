@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { CaseRow } from "../api";
+import type { CaseBrief, CaseRow } from "../api";
 import {
+  BENCHMARK_CASE_FILTER_FIELDS,
+  buildBenchmarkCaseFilterValueOptions,
   buildCaseFilterValueOptions,
   type CaseFilterCondition,
+  filterBenchmarkCaseRows,
   filterCaseRows,
 } from "./caseFilters";
 
@@ -112,5 +115,65 @@ describe("buildCaseFilterValueOptions", () => {
     expect(options.guideline_score?.map((item) => item.value)).toEqual(["6/6", "5/6"]);
     expect(options.failure_tags?.map((item) => item.value)).toEqual(["追问不足"]);
     expect(options.rag_status?.map((item) => item.value)).toEqual(["hit", "not_triggered"]);
+  });
+});
+
+const benchmarkRows: CaseBrief[] = [
+  {
+    sample_id: "case_1",
+    scenario: "潮热用药",
+    level: "L2",
+    case_type: "治疗副作用与不适归因",
+    is_bug: "产品优化",
+  },
+  {
+    sample_id: "case_7",
+    scenario: "血压用药",
+    level: "L3",
+    case_type: "症状判断与就医分诊",
+    is_bug: "bug修复",
+  },
+];
+
+describe("filterBenchmarkCaseRows", () => {
+  it("supports every benchmark table column with AND semantics", () => {
+    const result = filterBenchmarkCaseRows(
+      benchmarkRows,
+      [
+        condition("sample_id", "contains", "case_7"),
+        condition("scenario", "equals", "血压用药"),
+        condition("level", "equals", "L3"),
+        condition("case_type", "contains", "就医分诊"),
+        condition("is_bug", "equals", "bug修复"),
+        condition("benchmark_action", "equals", "deletable"),
+      ],
+      false
+    );
+    expect(result).toEqual([benchmarkRows[1]]);
+  });
+
+  it("distinguishes deletable and read-only operation columns", () => {
+    const readOnly = [condition("benchmark_action", "equals", "read_only")];
+    expect(filterBenchmarkCaseRows(benchmarkRows, readOnly, true)).toEqual(benchmarkRows);
+    expect(filterBenchmarkCaseRows(benchmarkRows, readOnly, false)).toEqual([]);
+  });
+
+  it("provides autocomplete values for benchmark text columns", () => {
+    const options = buildBenchmarkCaseFilterValueOptions(benchmarkRows);
+    expect(options.sample_id?.map((item) => item.value)).toEqual(["case_1", "case_7"]);
+    expect(options.scenario?.map((item) => item.value)).toEqual(["潮热用药", "血压用药"]);
+    expect(options.case_type?.map((item) => item.value)).toEqual([
+      "治疗副作用与不适归因",
+      "症状判断与就医分诊",
+    ]);
+    expect(options.is_bug?.map((item) => item.value)).toEqual(["产品优化", "bug修复"]);
+    expect(BENCHMARK_CASE_FILTER_FIELDS.map((item) => item.label)).toEqual([
+      "Case ID",
+      "场景",
+      "Level",
+      "Case 类型",
+      "问题属性",
+      "操作",
+    ]);
   });
 });

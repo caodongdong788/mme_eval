@@ -22,23 +22,24 @@ export function createBenchmarkCaseColumns({
     {
       title: "Case ID",
       dataIndex: "sample_id",
+      width: 150,
       ellipsis: true,
       render: (_: string, row: CaseBrief) => (
         <DashTableLink onClick={() => onOpenCase(row)}>{shortCaseId(row.sample_id)}</DashTableLink>
       ),
     },
-    { title: "场景", dataIndex: "scenario" },
-    { title: "Level", dataIndex: "level", width: 80 },
+    { title: "场景", dataIndex: "scenario", width: 210 },
+    { title: "Level", dataIndex: "level", width: 90 },
     {
       title: "Case 类型",
       dataIndex: "case_type",
-      width: 110,
+      width: 240,
       render: (value: string) => value || <Typography.Text type="secondary">—</Typography.Text>,
     },
     {
       title: "问题属性",
       dataIndex: "is_bug",
-      width: 110,
+      width: 120,
       render: (value: string) => value || <Typography.Text type="secondary">—</Typography.Text>,
     },
     {

@@ -19,7 +19,9 @@ import { DashTableActions, DashTableDangerLink, DashTableLink } from "../compone
 import { DashboardPageShell } from "../components/DashboardPageShell";
 import { createBenchmarkCaseColumns } from "../components/BenchmarkCaseColumns";
 import { BenchmarkCaseEditorDrawer } from "../components/BenchmarkCaseEditorDrawer";
+import { CaseFilterBuilder } from "../components/CaseFilterBuilder";
 import { useBenchmarksPage } from "../hooks/useBenchmarksPage";
+import { BENCHMARK_CASE_FILTER_FIELDS } from "../utils/caseFilters";
 function benchmarkSourceLabel(source: string) {
   if (source === "builtin") return "内置";
   if (source === "online") return "线上";
@@ -224,7 +226,21 @@ export default function BenchmarksPage() {
         </Form>
       </Modal>
 
-      <Drawer title={bm.casesTitle} width={720} open={bm.casesOpen} onClose={() => bm.setCasesOpen(false)}>
+      <Drawer
+        title={bm.casesTitle}
+        width="66.6667vw"
+        open={bm.casesOpen}
+        onClose={() => bm.setCasesOpen(false)}
+        extra={
+          <CaseFilterBuilder
+            conditions={bm.caseFilterConditions}
+            onChange={bm.setCaseFilterConditions}
+            valueOptions={bm.caseFilterValueOptions}
+            fields={BENCHMARK_CASE_FILTER_FIELDS}
+            defaultField="sample_id"
+          />
+        }
+      >
         {bm.casesError ? (
           <AsyncLoadError
             message={bm.casesError}
@@ -237,8 +253,15 @@ export default function BenchmarksPage() {
           size="small"
           loading={bm.casesLoading}
           columns={caseColumns}
-          dataSource={bm.cases}
-          pagination={{ pageSize: 20 }}
+          dataSource={bm.shownCases}
+          scroll={{ x: 900 }}
+          pagination={{
+            pageSize: 20,
+            showTotal: (total) =>
+              bm.caseActiveFilterCount > 0
+                ? `筛选结果 ${total} 条 / 共 ${bm.cases.length} 条`
+                : `共 ${total} 条`,
+          }}
         />
       </Drawer>
 
@@ -263,14 +286,7 @@ export default function BenchmarksPage() {
           const current = bm.cases.find((item) => item.sample_id === bm.caseYamlMeta?.sampleId);
           if (current) void bm.deleteCase(current);
         }}
-        onLoadSourceYaml={async () => {
-          if (!bm.casesBenchmark || !bm.caseYamlMeta) return "";
-          const sourceYaml = await api.getBenchmarkCaseYaml(
-            bm.casesBenchmark.id,
-            bm.caseYamlMeta.sampleId,
-          );
-          return sourceYaml.yaml_text;
-        }}
+        onLoadSourceYaml={bm.loadCurrentCaseSourceYaml}
       />
     </DashboardPageShell>
   );

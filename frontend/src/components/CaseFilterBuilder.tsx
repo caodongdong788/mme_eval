@@ -5,6 +5,7 @@ import {
   CASE_FILTER_FIELDS,
   type CaseFilterCondition,
   type CaseFilterField,
+  type CaseFilterFieldDefinition,
   type CaseFilterValueOptions,
   defaultOperator,
   fieldDefinition,
@@ -17,15 +18,22 @@ interface CaseFilterBuilderProps {
   conditions: CaseFilterCondition[];
   onChange: (conditions: CaseFilterCondition[]) => void;
   valueOptions: CaseFilterValueOptions;
+  fields?: CaseFilterFieldDefinition[];
+  defaultField?: CaseFilterField;
 }
 
-const FIELD_OPTIONS = CASE_FILTER_FIELDS.map(({ value, label }) => ({ value, label }));
-
-function newCondition(): CaseFilterCondition {
+function newCondition(
+  fields: CaseFilterFieldDefinition[],
+  requestedDefault?: CaseFilterField
+): CaseFilterCondition {
+  const field =
+    fields.find((item) => item.value === requestedDefault)?.value ??
+    fields[0]?.value ??
+    "sub_scenario";
   return {
     id: `case-filter-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    field: "sub_scenario",
-    operator: "contains",
+    field,
+    operator: defaultOperator(field, fields),
     value: "",
   };
 }
@@ -34,9 +42,12 @@ export function CaseFilterBuilder({
   conditions,
   onChange,
   valueOptions,
+  fields = CASE_FILTER_FIELDS,
+  defaultField,
 }: CaseFilterBuilderProps) {
   const [open, setOpen] = useState(false);
   const activeCount = conditions.filter(isActiveCaseFilter).length;
+  const fieldOptions = fields.map(({ value, label }) => ({ value, label }));
 
   const patchCondition = (id: string, patch: Partial<CaseFilterCondition>) => {
     onChange(conditions.map((item) => (item.id === id ? { ...item, ...patch } : item)));
@@ -45,7 +56,7 @@ export function CaseFilterBuilder({
   const changeField = (condition: CaseFilterCondition, field: CaseFilterField) => {
     patchCondition(condition.id, {
       field,
-      operator: defaultOperator(field),
+      operator: defaultOperator(field, fields),
       value: undefined,
     });
   };
@@ -60,20 +71,20 @@ export function CaseFilterBuilder({
       </div>
       <div className="case-filter-panel__conditions">
         {conditions.map((condition) => {
-          const definition = fieldDefinition(condition.field);
+          const definition = fieldDefinition(condition.field, fields);
           const needsValue = operatorNeedsValue(condition.operator);
           return (
             <div className="case-filter-condition" key={condition.id}>
               <Select
                 aria-label="筛选字段"
                 value={condition.field}
-                options={FIELD_OPTIONS}
+                options={fieldOptions}
                 onChange={(field) => changeField(condition, field)}
               />
               <Select
                 aria-label="筛选运算符"
                 value={condition.operator}
-                options={operatorsForField(condition.field)}
+                options={operatorsForField(condition.field, fields)}
                 onChange={(operator) =>
                   patchCondition(condition.id, {
                     operator,
@@ -134,7 +145,7 @@ export function CaseFilterBuilder({
         <Button
           type="link"
           icon={<PlusOutlined />}
-          onClick={() => onChange([...conditions, newCondition()])}
+          onClick={() => onChange([...conditions, newCondition(fields, defaultField)])}
         >
           添加筛选条件
         </Button>
@@ -156,7 +167,9 @@ export function CaseFilterBuilder({
       open={open}
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen);
-        if (nextOpen && conditions.length === 0) onChange([newCondition()]);
+        if (nextOpen && conditions.length === 0) {
+          onChange([newCondition(fields, defaultField)]);
+        }
       }}
       overlayClassName="case-filter-popover"
     >

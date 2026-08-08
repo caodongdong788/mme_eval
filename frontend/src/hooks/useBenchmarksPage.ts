@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { UploadFile } from "antd";
 import { Form, message } from "antd";
 import { api, Benchmark, BenchmarkCaseContent, BenchmarkCoverage, CaseBrief } from "../api/index";
@@ -6,6 +6,12 @@ import { formatApiError } from "../utils/apiError";
 import { useAsyncData } from "./useAsyncData";
 import { useEditModal } from "./useEditModal";
 import { shortCaseId } from "../components/BenchmarkCaseColumns";
+import {
+  buildBenchmarkCaseFilterValueOptions,
+  type CaseFilterCondition,
+  filterBenchmarkCaseRows,
+  isActiveCaseFilter,
+} from "../utils/caseFilters";
 
 export function useBenchmarksPage() {
   const { data: list, loading, error, reload } = useAsyncData(() => api.listBenchmarks(), []);
@@ -23,6 +29,7 @@ export function useBenchmarksPage() {
   const [casesError, setCasesError] = useState<string | null>(null);
   const [casesTitle, setCasesTitle] = useState("");
   const [casesBenchmark, setCasesBenchmark] = useState<Benchmark | null>(null);
+  const [caseFilterConditions, setCaseFilterConditions] = useState<CaseFilterCondition[]>([]);
   const [coverage, setCoverage] = useState<BenchmarkCoverage | null>(null);
   const [coverageOpen, setCoverageOpen] = useState(false);
   const [coverageLoading, setCoverageLoading] = useState(false);
@@ -39,6 +46,20 @@ export function useBenchmarksPage() {
 
   const builtin = benchmarks.find((b) => b.source === "builtin");
   const uploaded = benchmarks.filter((b) => b.source !== "builtin");
+  const shownCases = useMemo(
+    () =>
+      filterBenchmarkCaseRows(
+        cases,
+        caseFilterConditions,
+        casesBenchmark?.source === "builtin"
+      ),
+    [caseFilterConditions, cases, casesBenchmark?.source]
+  );
+  const caseFilterValueOptions = useMemo(
+    () => buildBenchmarkCaseFilterValueOptions(cases),
+    [cases]
+  );
+  const caseActiveFilterCount = caseFilterConditions.filter(isActiveCaseFilter).length;
 
   const openCreate = () => {
     setReplaceId(null);
@@ -105,6 +126,7 @@ export function useBenchmarksPage() {
     setCasesTitle(`${b.name}（${b.case_count} 条用例）`);
     setCasesOpen(true);
     setCases([]);
+    setCaseFilterConditions([]);
     setCasesLoading(true);
     setCasesError(null);
     try {
@@ -185,6 +207,15 @@ export function useBenchmarksPage() {
     }
   };
 
+  const loadCurrentCaseSourceYaml = async () => {
+    if (!casesBenchmark || !caseYamlMeta) return "";
+    const sourceYaml = await api.getBenchmarkCaseYaml(
+      casesBenchmark.id,
+      caseYamlMeta.sampleId
+    );
+    return sourceYaml.yaml_text;
+  };
+
   const deleteCase = async (row: CaseBrief) => {
     if (!casesBenchmark) return;
     try {
@@ -245,6 +276,11 @@ export function useBenchmarksPage() {
     casesOpen,
     setCasesOpen,
     cases,
+    shownCases,
+    caseFilterConditions,
+    setCaseFilterConditions,
+    caseFilterValueOptions,
+    caseActiveFilterCount,
     casesLoading,
     casesError,
     casesTitle,
@@ -262,6 +298,7 @@ export function useBenchmarksPage() {
     caseYamlMeta,
     openCaseYaml,
     saveCaseYaml,
+    loadCurrentCaseSourceYaml,
     deleteCase,
     editForm: editModal.form,
     editOpen: editModal.open,
