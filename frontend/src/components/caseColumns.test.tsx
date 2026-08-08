@@ -10,6 +10,7 @@ const row: CaseRow = {
   id: 1,
   sample_id: "case-1",
   scenario: "症状识别",
+  case_type: "medical_consultation",
   sub_scenario: "测试场景",
   level: "L2",
   medical_safety_passed: true,
@@ -40,6 +41,8 @@ describe("buildCaseColumns", () => {
     expect(screen.getByText("优秀")).toBeInTheDocument();
     expect(screen.getByText("医学文献 RAG")).toBeInTheDocument();
     expect(screen.getByText("已触发并命中")).toBeInTheDocument();
+    expect(screen.getByText("medical_consultation")).toBeInTheDocument();
+    expect(screen.queryByText("症状识别")).not.toBeInTheDocument();
     expect(screen.queryByText("最终结论")).not.toBeInTheDocument();
   });
 });

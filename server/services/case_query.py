@@ -55,6 +55,14 @@ def case_n_turns_from_detail(detail: Any) -> int:
     return _count_user_turns(trace.get("messages"))
 
 
+def case_type_from_detail(detail: Any) -> str:
+    """从冻结 Case YAML 快照提取类别，兼容早期使用 ``type`` 的数据。"""
+    detail = detail if isinstance(detail, dict) else {}
+    case = detail.get("case") if isinstance(detail.get("case"), dict) else {}
+    value = case.get("case_type") or case.get("type")
+    return str(value).strip() if value is not None else ""
+
+
 def _rag_status_from_summary(summary: Any, chain_status: Any = None) -> str:
     summary = _json_fragment(summary)
     sources = summary.get("sources") if isinstance(summary, dict) else None

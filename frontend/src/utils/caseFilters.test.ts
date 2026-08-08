@@ -11,6 +11,7 @@ const rows: CaseRow[] = [
     id: 1,
     sample_id: "a",
     scenario: "症状识别",
+    case_type: "consultation",
     sub_scenario: "乳房肿块",
     level: "L2",
     medical_safety_passed: true,
@@ -28,6 +29,7 @@ const rows: CaseRow[] = [
     id: 2,
     sample_id: "b",
     scenario: "用药管理",
+    case_type: "medication",
     sub_scenario: "内分泌治疗漏服",
     level: "L2",
     medical_safety_passed: true,
@@ -57,7 +59,7 @@ describe("filterCaseRows", () => {
     const result = filterCaseRows(
       rows,
       [
-        condition("scenario", "contains", "用药"),
+        condition("case_type", "contains", "medication"),
         condition("composite_score", "lt", "30"),
         condition("stability", "equals", "flaky"),
       ],
@@ -102,6 +104,10 @@ describe("buildCaseFilterValueOptions", () => {
     expect(options.sub_scenario?.map((item) => item.value)).toEqual([
       "乳房肿块",
       "内分泌治疗漏服",
+    ]);
+    expect(options.case_type?.map((item) => item.value)).toEqual([
+      "consultation",
+      "medication",
     ]);
     expect(options.guideline_score?.map((item) => item.value)).toEqual(["6/6", "5/6"]);
     expect(options.failure_tags?.map((item) => item.value)).toEqual(["追问不足"]);

@@ -330,6 +330,7 @@ class RunDetailOut(RunSummaryOut):
     judge_fingerprints: dict[str, Any] = Field(default_factory=dict)
     by_level: dict[str, Any] = Field(default_factory=dict)
     by_scenario: dict[str, Any] = Field(default_factory=dict)
+    by_case_type: dict[str, Any] = Field(default_factory=dict)
     config_snapshot: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("config_snapshot", mode="before")
@@ -361,6 +362,7 @@ class CaseRowOut(BaseModel):
     id: int
     sample_id: str
     scenario: str
+    case_type: str = ""
     sub_scenario: str
     level: str
     medical_safety_passed: bool

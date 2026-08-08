@@ -28,6 +28,7 @@ def test_ingest_run_summary(session):
     assert run.adapter_type == "openai_compat"
     assert run.judge_overrides["model"] == "gpt-4o"
     assert run.by_level["L3"]["passed"] == 1
+    assert run.by_case_type["未分类"] == {"total": 2, "passed": 1}
     assert run.failure_tag_counter == {}
     assert run.stability_distribution["flaky"] == 1
     assert run.grading["avg_composite"] == 33.5
@@ -35,6 +36,7 @@ def test_ingest_run_summary(session):
 
 def test_ingest_case_rows_scalar_columns(session):
     report = make_report()
+    report.results[0].case.case_type = "medical_consultation"
     report.results[0].trace.turn_ttft_ms = [250.0, 350.0]
     report.ttft_summary = {"count": 1, "avg_ms": 300.0}
     ingest_report(session, report)
@@ -47,6 +49,7 @@ def test_ingest_case_rows_scalar_columns(session):
 
     bc1, bc2 = rows
     assert bc1.sample_id == "bc_001"
+    assert bc1.case_type == "medical_consultation"
     assert bc1.release_passed is True
     assert bc1.stability == "stable_pass"
     assert bc1.level == "L3"

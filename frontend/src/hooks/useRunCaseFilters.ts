@@ -26,6 +26,7 @@ export function useRunCaseFilters(
   runId: number,
   failureTagLabel: (tag: string) => string,
   enabled = true,
+  runStatus?: string,
 ) {
   const filtersKey = `run:${runId}:caseFilters`;
   const saved = readSavedFilters(filtersKey);
@@ -46,13 +47,20 @@ export function useRunCaseFilters(
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
-    api.getReviewStats(runId)
-      .then((stats) => alive && setReviewStats(stats))
-      .catch(() => alive && setReviewStats(null));
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      api.getReviewStats(runId)
+        .then((stats) => alive && setReviewStats(stats))
+        .catch(() => alive && setReviewStats(null));
+    };
+    refresh();
+    const active = runStatus === "running" || runStatus === "pending";
+    const timer = active ? window.setInterval(refresh, 2000) : null;
     return () => {
       alive = false;
+      if (timer !== null) window.clearInterval(timer);
     };
-  }, [runId, enabled]);
+  }, [runId, enabled, runStatus]);
 
   const needsPendingQueue = filterConditions.some(
     (condition) =>
@@ -66,17 +74,31 @@ export function useRunCaseFilters(
     let alive = true;
     setHasLoaded(false);
     setLoading(true);
-    api.listCaseResults(runId, { limit: CASE_LIST_LIMIT })
-      .then((items) => {
-        if (!alive) return;
-        setCases(items);
-        setHasLoaded(true);
-      })
-      .finally(() => alive && setLoading(false));
+    const refresh = (showLoading = false) => {
+      if (document.visibilityState !== "visible") return;
+      if (showLoading) setLoading(true);
+      api.listCaseResults(runId, { limit: CASE_LIST_LIMIT })
+        .then((items) => {
+          if (!alive) return;
+          setCases(items);
+          setHasLoaded(true);
+        })
+        .catch(() => undefined)
+        .finally(() => alive && setLoading(false));
+    };
+    refresh(true);
+    const active = runStatus === "running" || runStatus === "pending";
+    const timer = active ? window.setInterval(() => refresh(false), 2000) : null;
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refresh(false);
+    };
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       alive = false;
+      if (timer !== null) window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [runId, enabled]);
+  }, [runId, enabled, runStatus]);
 
   useEffect(() => {
     if (!enabled || !needsPendingQueue) {

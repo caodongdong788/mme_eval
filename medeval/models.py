@@ -625,6 +625,7 @@ class RunReport(BaseModel):
     medical_safety_failed: int = 0
     by_level: dict[str, dict[str, int]] = Field(default_factory=dict)
     by_scenario: dict[str, dict[str, int]] = Field(default_factory=dict)
+    by_case_type: dict[str, dict[str, int]] = Field(default_factory=dict)
     failure_tag_counter: dict[str, int] = Field(default_factory=dict)
 
     # 八维和指南 Judge 实例的 fingerprint。

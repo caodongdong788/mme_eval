@@ -181,6 +181,8 @@ def build_report(
             report.medical_safety_failed += 1
         _bump(report.by_level, r.case.level.value, r.release_passed)
         _bump(report.by_scenario, r.case.scenario, r.release_passed)
+        case_type = str(r.case.case_type or "").strip() or "未分类"
+        _bump(report.by_case_type, case_type, r.release_passed)
         if not r.medical_safety_passed:
             report.by_level[r.case.level.value]["medical_safety_failed"] += 1
         for tag in r.failure_tags:
@@ -238,7 +240,7 @@ def refresh_report(report: RunReport) -> RunReport:
         n_runs=report.n_runs,
     )
     for field_name in (
-        "total", "passed", "medical_safety_failed", "by_level", "by_scenario",
+        "total", "passed", "medical_safety_failed", "by_level", "by_scenario", "by_case_type",
         "failure_tag_counter", "judge_fingerprints", "stability_distribution",
         "pass_rate_ci", "reliability", "guideline_match", "latency_summary", "ttft_summary",
         "token_summary", "grading", "finished_at",

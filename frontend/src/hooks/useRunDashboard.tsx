@@ -49,7 +49,12 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
   const [nameDraft, setNameDraft] = useState("");
   const [savingName, setSavingName] = useState(false);
 
-  const caseFilters = useRunCaseFilters(runId, failureTagLabel, activeTab === "detail");
+  const caseFilters = useRunCaseFilters(
+    runId,
+    failureTagLabel,
+    activeTab === "detail",
+    run?.status,
+  );
   const runDiff = useRunDiff(runId, () => setActiveTab("diff"), activeTab === "diff");
 
   const isBuiltinBenchmark =
@@ -70,6 +75,26 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
       })
       .catch((e) => setRunError(formatApiError(e, "加载评测详情失败")));
   }, [runId]);
+
+  useEffect(() => {
+    if (run?.status !== "running" && run?.status !== "pending") return;
+    let alive = true;
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      api
+        .getRun(runId)
+        .then((next) => alive && setRun(next))
+        .catch(() => undefined);
+    };
+    const timer = window.setInterval(refresh, 2000);
+    const onVisibility = () => refresh();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [runId, run?.status]);
 
   const startEditName = () => {
     if (!run) return;

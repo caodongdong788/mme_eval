@@ -62,6 +62,7 @@ def _migrate_case_list_display_columns(engine) -> None:
         return
     existing = {column["name"] for column in inspector.get_columns("case_result")}
     missing = [
+        ("case_type", "VARCHAR(200)"),
         ("n_turns", "INTEGER"),
         ("rag_status", "VARCHAR(20)"),
         ("ttft_ms", "FLOAT"),
@@ -78,6 +79,7 @@ def _migrate_case_list_display_columns(engine) -> None:
         from .services.case_query import (
             case_n_turns_from_detail,
             case_rag_status_from_detail,
+            case_type_from_detail,
             case_ttft_ms_from_detail,
         )
 
@@ -91,6 +93,7 @@ def _migrate_case_list_display_columns(engine) -> None:
                 [
                     {
                         "id": row_id,
+                        "case_type": case_type_from_detail(detail),
                         "n_turns": case_n_turns_from_detail(detail),
                         "rag_status": case_rag_status_from_detail(detail),
                         "ttft_ms": case_ttft_ms_from_detail(detail),
@@ -115,6 +118,34 @@ def _migrate_case_list_display_columns(engine) -> None:
                 .where(EvalRun.ttft_summary.is_(None))
                 .values(ttft_summary={})
             )
+
+    inspector = inspect(engine)
+    run_columns = {column["name"] for column in inspector.get_columns("eval_run")}
+    if "by_case_type" not in run_columns:
+        with engine.begin() as connection:
+            connection.exec_driver_sql("ALTER TABLE eval_run ADD COLUMN by_case_type JSON")
+
+        from .models_db import CaseResultRow, EvalRun
+
+        maker = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
+        with maker.begin() as session:
+            grouped: dict[int, dict[str, dict[str, int]]] = {}
+            rows = session.execute(
+                select(
+                    CaseResultRow.run_id,
+                    CaseResultRow.case_type,
+                    CaseResultRow.release_passed,
+                )
+            ).all()
+            for run_id, case_type, release_passed in rows:
+                label = str(case_type or "").strip() or "未分类"
+                bucket = grouped.setdefault(run_id, {}).setdefault(
+                    label, {"total": 0, "passed": 0}
+                )
+                bucket["total"] += 1
+                bucket["passed"] += int(bool(release_passed))
+            for run in session.scalars(select(EvalRun)):
+                run.by_case_type = grouped.get(run.id, {})
 
 
 def get_sessionmaker() -> sessionmaker[Session]:

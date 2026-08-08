@@ -8,9 +8,10 @@ from factories import make_report
 from medeval import trace_store
 from server.db import session_scope
 from server.eval_job import build_eval_job, build_rejudge_job, build_resume_job, build_retry_case_job
-from server.ingest import ingest_report
+from server.ingest import finalize_run, ingest_report
 from server.models_db import Benchmark, CaseResultRow, EvalRun
 from server.progress import InMemoryProgress
+from server.services.eval_artifacts import IncrementalRunPersister
 
 
 # ---------------------------------------------------------------------------
@@ -99,6 +100,52 @@ def test_eval_job_persists_traces_and_runs_retention(
         assert row.status == "success"
         assert row.has_traces is True
     assert pruned.get("called") is True
+
+
+def test_incremental_results_are_visible_and_finalization_is_idempotent(
+    initialized_db,
+):
+    report = make_report("incremental_run")
+    with session_scope() as session:
+        row = EvalRun(
+            run_slug="(pending)", name="增量评测", status="running", n_runs=1
+        )
+        session.add(row)
+        session.flush()
+        run_id = row.id
+
+    persister = IncrementalRunPersister(
+        run_id,
+        run_name=report.run_name,
+        adapter_type=report.adapter_type,
+        config_snapshot=report.config_snapshot,
+        description=report.description,
+        n_runs=report.n_runs,
+        sample_order=[result.case.sample_id for result in report.results],
+    )
+
+    asyncio.run(persister(report.results[0]))
+    asyncio.run(persister(report.results[0]))
+    with session_scope() as session:
+        row = session.get(EvalRun, run_id)
+        assert row.status == "running"
+        assert row.finished_at is None
+        assert row.total == 1
+        assert session.query(CaseResultRow).filter_by(run_id=run_id).count() == 1
+
+    asyncio.run(persister(report.results[1]))
+    with session_scope() as session:
+        row = session.get(EvalRun, run_id)
+        assert row.status == "running"
+        assert row.total == 2
+        assert session.query(CaseResultRow).filter_by(run_id=run_id).count() == 2
+        finalize_run(session, row, report)
+
+    with session_scope() as session:
+        row = session.get(EvalRun, run_id)
+        assert row.status == "success"
+        assert row.total == 2
+        assert session.query(CaseResultRow).filter_by(run_id=run_id).count() == 2
 
 
 # ---------------------------------------------------------------------------

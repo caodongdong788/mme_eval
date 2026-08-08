@@ -15,7 +15,12 @@ from medeval.service import resolve_diff_target
 from ..models_db import EvalRun
 from ..progress import InMemoryProgress
 from ..settings import Settings, get_settings
-from .eval_artifacts import apply_retention, copy_case_image_snapshot, write_run_plan
+from .eval_artifacts import (
+    IncrementalRunPersister,
+    apply_retention,
+    copy_case_image_snapshot,
+    write_run_plan,
+)
 from .eval_stack import build_eval_adapter, build_judge_stack, prepare_run_config
 from .eval_source import load_source_run, resume_cases_and_traces
 from .runs import create_derived_run, get_run_or_404, source_out_dir
@@ -98,6 +103,17 @@ def build_resume_job(
         out_dir = settings.outputs_dir / new_slug
         write_run_plan(out_dir, cases, n_runs)
         copy_case_image_snapshot(src_dir, out_dir)
+        progress.set_case_complete_callback(
+            IncrementalRunPersister(
+                run_id,
+                run_name=new_slug,
+                adapter_type=config.adapter.type,
+                config_snapshot=config.public_snapshot(),
+                description=config.run.description,
+                n_runs=n_runs,
+                sample_order=[case.sample_id for case in cases],
+            )
+        )
 
         report = await ej.evaluate(
             config,

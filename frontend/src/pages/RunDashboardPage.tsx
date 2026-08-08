@@ -85,6 +85,7 @@ export default function RunDashboardPage() {
                 filterValueOptions={dash.filterValueOptions}
                 exporting={dash.exporting}
                 loading={dash.loading}
+                live={dash.run.status === "running" || dash.run.status === "pending"}
                 onOpenYamlEditor={dash.openYamlEditor}
                 onOpenExport={() => dash.setExportOpen(true)}
               />

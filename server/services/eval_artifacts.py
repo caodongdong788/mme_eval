@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+from copy import deepcopy
+from datetime import datetime
 import json
 import logging
 import re
@@ -10,11 +13,12 @@ from pathlib import Path
 from typing import Any
 
 from medeval.config import Config
-from medeval.models import RunReport
+from medeval.models import CaseResult, RunReport
+from medeval.reporter.aggregator import build_report
 from medeval.service import write_core_artifacts
 
 from ..db import session_scope
-from ..ingest import finalize_run
+from ..ingest import attach_case_results, finalize_run, populate_run_summary
 from ..models_db import EvalRun
 from ..paths import safe_join
 from ..settings import Settings
@@ -24,6 +28,72 @@ logger = logging.getLogger(__name__)
 PLAN = "plan.json"
 CASE_IMAGES_DIR = "case-images"
 _MARKDOWN_IMAGE_PATH_RE = re.compile(r"!\[[^\]]*\]\(\s*(images/[^\s)]+)", re.IGNORECASE)
+
+
+def persist_incremental_report(run_id: int, report: RunReport) -> None:
+    """写入阶段性汇总与已完成明细，但不提前结束运行状态。"""
+    with session_scope() as session:
+        row = session.get(EvalRun, run_id)
+        if row is None:
+            raise ValueError(f"run {run_id} 不存在")
+        status = row.status
+        error_msg = row.error_msg
+        started_at = row.started_at
+        finished_at = row.finished_at
+        populate_run_summary(row, report)
+        attach_case_results(session, run_id, report)
+        row.status = status
+        row.error_msg = error_msg
+        row.started_at = started_at or report.started_at
+        row.finished_at = finished_at
+
+
+class IncrementalRunPersister:
+    """把并发完成的 Case 串行聚合并幂等落库。"""
+
+    def __init__(
+        self,
+        run_id: int,
+        *,
+        run_name: str,
+        adapter_type: str,
+        config_snapshot: dict[str, Any],
+        description: str,
+        n_runs: int,
+        sample_order: list[str],
+    ) -> None:
+        self.run_id = run_id
+        self.run_name = run_name
+        self.adapter_type = adapter_type
+        self.config_snapshot = deepcopy(config_snapshot)
+        self.description = description
+        self.n_runs = n_runs
+        self._sample_order = {
+            sample_id: index for index, sample_id in enumerate(sample_order)
+        }
+        self._results: dict[str, CaseResult] = {}
+        self._started_at = datetime.utcnow()
+        self._lock = asyncio.Lock()
+
+    async def __call__(self, result: CaseResult) -> None:
+        async with self._lock:
+            self._results[result.case.sample_id] = result
+            completed = sorted(
+                self._results.values(),
+                key=lambda item: self._sample_order.get(
+                    item.case.sample_id, len(self._sample_order)
+                ),
+            )
+            partial = build_report(
+                run_name=self.run_name,
+                results=completed,
+                adapter_type=self.adapter_type,
+                config_snapshot=deepcopy(self.config_snapshot),
+                description=self.description,
+                started_at=self._started_at,
+                n_runs=self.n_runs,
+            )
+            persist_incremental_report(self.run_id, partial)
 
 
 def write_run_plan(out_dir: Path, cases: list[Any], n_runs: int) -> None:

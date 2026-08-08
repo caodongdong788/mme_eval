@@ -1794,6 +1794,16 @@ a.ant-typography-secondary:hover {
 .runs-chart-area--short {
   min-height: 160px;
 }
+.runs-category-chart-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+.runs-category-chart-canvas {
+  min-width: 100%;
+  height: 272px;
+}
 .runs-chart-empty {
   display: grid;
   place-items: center;

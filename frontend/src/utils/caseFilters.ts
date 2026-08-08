@@ -2,7 +2,7 @@ import type { CaseRow } from "../api";
 
 export type CaseFilterField =
   | "sub_scenario"
-  | "scenario"
+  | "case_type"
   | "level"
   | "n_turns"
   | "composite_score"
@@ -47,7 +47,7 @@ export type CaseFilterValueOptions = Partial<
 
 export const CASE_FILTER_FIELDS: CaseFilterFieldDefinition[] = [
   { value: "sub_scenario", label: "场景描述", kind: "text" },
-  { value: "scenario", label: "类别", kind: "text" },
+  { value: "case_type", label: "类别", kind: "text" },
   {
     value: "level",
     label: "Level",
@@ -163,8 +163,8 @@ function displayValue(
   switch (field) {
     case "sub_scenario":
       return row.sub_scenario || row.sample_id;
-    case "scenario":
-      return row.scenario;
+    case "case_type":
+      return row.case_type;
     case "level":
       return row.level;
     case "n_turns":
@@ -253,7 +253,7 @@ export function buildCaseFilterValueOptions(
 
   return {
     sub_scenario: unique(rows.map((row) => row.sub_scenario || row.sample_id)),
-    scenario: unique(rows.map((row) => row.scenario)),
+    case_type: unique(rows.map((row) => row.case_type)),
     guideline_score: unique(
       rows.map((row) =>
         row.guideline_max ? `${row.guideline_earned ?? 0}/${row.guideline_max}` : ""

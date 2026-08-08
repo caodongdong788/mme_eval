@@ -12,6 +12,7 @@ import json
 import os
 import re
 import time
+from datetime import date, datetime
 from typing import Any
 
 import httpx
@@ -62,6 +63,23 @@ def _json_or_text(data: str) -> Any:
         return json.loads(data)
     except json.JSONDecodeError:
         return data
+
+
+def _initial_state_json_payload(initial_state: dict[str, Any]) -> dict[str, Any]:
+    """将 YAML 解析出的日期值转换为 cx-agent 请求可编码的 JSON 值。
+
+    PyYAML 会把未加引号的 ``2026-08-08`` 解析为 ``date``。Case 的用户画像
+    和 Timeline 是自由字段，日期可能嵌套在任意层级；若原样交给 httpx，账号租约
+    请求会在本地 JSON 编码阶段失败，甚至还没开始调用 Agent。
+    """
+
+    def default(value: Any) -> str:
+        if isinstance(value, (date, datetime)):
+            return value.isoformat()
+        raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
+    # 用标准 JSON 往返确保所有嵌套日期都被归一化，同时不修改 Case 运行态数据。
+    return json.loads(json.dumps(initial_state, ensure_ascii=False, default=default))
 
 
 def _parse_sse(text: str) -> list[dict[str, Any]]:
@@ -179,7 +197,7 @@ class CxAgentAdapter(BaseAdapter):
                 return existing
             body: dict[str, Any] = {"leaseId": req.session_id}
             if isinstance(initial_state, dict) and initial_state:
-                body["initialState"] = initial_state
+                body["initialState"] = _initial_state_json_payload(initial_state)
             response = await self._client.post(
                 self.base_url + CX_AGENT_ACCOUNT_LEASE_ENDPOINT,
                 headers={"X-Test-Token": self._test_token},

@@ -23,6 +23,7 @@ from medeval.service import (
     judge_traces,
     run_traces,
 )
+from server.progress import InMemoryProgress
 
 
 class _CountingAdapter(BaseAdapter):
@@ -101,6 +102,26 @@ def test_evaluate_without_outdir_no_traces(tmp_path: Path):
     assert isinstance(report, RunReport)
     # 未传 out_dir → 不应落任何 trace 文件（行为同现状）
     assert not list(tmp_path.rglob("traces.jsonl.gz"))
+
+
+def test_evaluate_notifies_each_folded_case_as_it_completes():
+    config = _config(repeat=2)
+    cases = _cases()
+    judges = build_judges(config.judges)
+    progress = InMemoryProgress()
+    completed: list[tuple[str, int]] = []
+
+    async def capture(result):
+        completed.append((result.case.sample_id, result.n_runs))
+
+    progress.set_case_complete_callback(capture)
+    report = asyncio.run(
+        evaluate(config, cases, _CountingAdapter(), judges, progress=progress)
+    )
+
+    assert {sample_id for sample_id, _ in completed} == {"c0", "c1", "c2"}
+    assert all(n_runs == 2 for _, n_runs in completed)
+    assert len(completed) == len(report.results) == 3
 
 
 # --- 离线重判（judge_traces 内核一致性）------------------------------------

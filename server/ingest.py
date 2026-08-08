@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from medeval.models import CaseResult, RunReport
@@ -17,6 +18,13 @@ from .services.case_query import (
     case_n_turns_from_detail,
     case_rag_status_from_detail,
     case_ttft_ms_from_detail,
+)
+
+
+CASE_RESULT_MUTABLE_FIELDS = tuple(
+    column.name
+    for column in CaseResultRow.__table__.columns
+    if column.name not in {"id", "run_id"}
 )
 
 
@@ -51,6 +59,7 @@ def populate_run_summary(row: EvalRun, report: RunReport) -> None:
     row.judge_fingerprints = report.judge_fingerprints
     row.by_level = report.by_level
     row.by_scenario = report.by_scenario
+    row.by_case_type = report.by_case_type
     row.config_snapshot = redact_config_secrets(report.config_snapshot)
 
 
@@ -68,6 +77,7 @@ def build_case_row(
         run_id=run_id,
         sample_id=case.sample_id,
         scenario=case.scenario,
+        case_type=case.case_type,
         sub_scenario="",
         level=_enum_val(case.level),
         source=_enum_val(case.source),
@@ -90,11 +100,40 @@ def build_case_row(
     )
 
 
+def update_case_row(target: CaseResultRow, replacement: CaseResultRow) -> CaseResultRow:
+    """把计算结果复制到已有 ORM 行，保留数据库主键。"""
+    for field in CASE_RESULT_MUTABLE_FIELDS:
+        setattr(target, field, getattr(replacement, field))
+    return target
+
+
+def upsert_case_result(
+    session: Session,
+    run_id: int,
+    result: CaseResult,
+    pricing: dict | None = None,
+) -> CaseResultRow:
+    """按 ``run_id + sample_id`` 幂等写入单条结果。"""
+    replacement = build_case_row(run_id, result, pricing)
+    existing = session.execute(
+        select(CaseResultRow)
+        .where(
+            CaseResultRow.run_id == run_id,
+            CaseResultRow.sample_id == result.case.sample_id,
+        )
+        .order_by(CaseResultRow.id)
+    ).scalars().first()
+    if existing is None:
+        session.add(replacement)
+        return replacement
+    return update_case_row(existing, replacement)
+
+
 def attach_case_results(session: Session, run_id: int, report: RunReport) -> None:
-    """把 report 的所有用例结果作为 case_result 行加入会话。"""
+    """幂等写入 report 的所有用例结果，兼容运行中的增量结果。"""
     pricing = (report.config_snapshot or {}).get("cost")
     for cr in report.results:
-        session.add(build_case_row(run_id, cr, pricing))
+        upsert_case_result(session, run_id, cr, pricing)
 
 
 def finalize_run(session: Session, row: EvalRun, report: RunReport) -> EvalRun:

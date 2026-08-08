@@ -33,7 +33,11 @@ export function buildCaseColumns(runId: number, tagLabel: (k: string) => string)
         </Link>
       ),
     },
-    { title: "类别", dataIndex: "scenario" },
+    {
+      title: "类别",
+      dataIndex: "case_type",
+      render: (value: string) => value || <Typography.Text type="secondary">-</Typography.Text>,
+    },
     { title: "Level", dataIndex: "level" },
     {
       title: "轮数",

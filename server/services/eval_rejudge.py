@@ -16,7 +16,11 @@ from ..db import session_scope
 from ..models_db import Benchmark
 from ..progress import InMemoryProgress
 from ..settings import Settings, get_settings
-from .eval_artifacts import apply_retention, copy_case_image_snapshot
+from .eval_artifacts import (
+    IncrementalRunPersister,
+    apply_retention,
+    copy_case_image_snapshot,
+)
 from .eval_stack import build_judge_stack, prepare_run_config
 from .eval_source import frozen_cases_and_traces, load_source_run
 
@@ -86,6 +90,17 @@ def build_rejudge_job(
                 if c.sample_id in failed_ids:
                     sub_cases.append(c)
                     sub_traces.append(t)
+            progress.set_case_complete_callback(
+                IncrementalRunPersister(
+                    run_id,
+                    run_name=new_slug,
+                    adapter_type=config.adapter.type,
+                    config_snapshot=config.public_snapshot(),
+                    description=config.run.description,
+                    n_runs=n_runs,
+                    sample_order=[case.sample_id for case in sub_cases],
+                )
+            )
             partial = await ej.judge_traces(
                 config,
                 sub_cases,
@@ -111,6 +126,17 @@ def build_rejudge_job(
                 n_runs=n_runs,
             )
         else:
+            progress.set_case_complete_callback(
+                IncrementalRunPersister(
+                    run_id,
+                    run_name=new_slug,
+                    adapter_type=config.adapter.type,
+                    config_snapshot=config.public_snapshot(),
+                    description=config.run.description,
+                    n_runs=n_runs,
+                    sample_order=[case.sample_id for case in cases],
+                )
+            )
             report = await ej.judge_traces(
                 config,
                 cases,

@@ -17,6 +17,7 @@ export interface RunCaseResultsCardProps {
   filterValueOptions: CaseFilterValueOptions;
   exporting: boolean;
   loading?: boolean;
+  live?: boolean;
   onOpenYamlEditor: () => void;
   onOpenExport: () => void;
 }
@@ -32,6 +33,7 @@ export function RunCaseResultsCard({
   filterValueOptions,
   exporting,
   loading = false,
+  live = false,
   onOpenYamlEditor,
   onOpenExport,
 }: RunCaseResultsCardProps) {
@@ -46,6 +48,11 @@ export function RunCaseResultsCard({
             )}
           </div>
           <Space size={8} wrap>
+            {live && (
+              <span className="status-dot status-dot--running">
+                实时更新 · 已完成 {cases.length} 条
+              </span>
+            )}
             <CaseFilterBuilder
               conditions={filterConditions}
               onChange={setFilterConditions}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import date
 
 import httpx
 import pytest
@@ -448,6 +449,63 @@ def test_cx_agent_adapter_leases_blank_account_and_exposes_trace_context(
             },
         ),
     ]
+    asyncio.run(adapter.close())
+
+
+def test_cx_agent_adapter_serializes_dates_in_account_initial_state():
+    requests: list[tuple[str, dict]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content.decode())
+        requests.append((request.url.path, body))
+        if request.url.path.endswith("/evaluation/accounts/lease"):
+            return httpx.Response(
+                200,
+                json={"data": {"userId": "test-user", "profile": {}}},
+            )
+        if request.url.path.endswith("/evaluation/accounts/release"):
+            return httpx.Response(200, json={"success": True})
+        return httpx.Response(
+            200,
+            text=_sse(
+                ("session", {"sessionId": "cx-date-state"}),
+                ("text_delta", {"content": "已收到"}),
+                ("message_end", {}),
+            ),
+        )
+
+    adapter = CxAgentAdapter(
+        base_url="http://cx.local",
+        test_token="token-1",
+        isolated_accounts=True,
+    )
+    adapter._client = httpx.AsyncClient(transport=httpx.MockTransport(handler), timeout=10)
+    response = asyncio.run(
+        adapter.chat(
+            ChatRequest(
+                messages=[{"role": "user", "content": "请解读报告"}],
+                session_id="mme-date-state",
+                metadata={
+                    "initial_state": {
+                        "user_profile": {"facts": {"检查日期": date(2026, 8, 8)}},
+                    },
+                },
+            )
+        )
+    )
+    asyncio.run(adapter.end_session("mme-date-state"))
+
+    assert response.error is None
+    assert response.reply == "已收到"
+    assert requests[0] == (
+        "/api/test/evaluation/accounts/lease",
+        {
+            "leaseId": "mme-date-state",
+            "initialState": {
+                "user_profile": {"facts": {"检查日期": "2026-08-08"}},
+            },
+        },
+    )
     asyncio.run(adapter.close())
 
 

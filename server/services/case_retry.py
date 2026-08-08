@@ -15,7 +15,7 @@ from medeval.reporter.aggregator import build_report
 from medeval.service import write_core_artifacts
 
 from ..db import session_scope
-from ..ingest import build_case_row, populate_run_summary
+from ..ingest import build_case_row, populate_run_summary, update_case_row
 from ..models_db import Benchmark, CaseResultRow, EvalRun
 from ..progress import InMemoryProgress
 from ..settings import Settings, get_settings
@@ -42,35 +42,9 @@ class CaseRetryError(Exception):
         super().__init__(detail)
 
 
-_CASE_ROW_FIELDS = (
-    "sample_id",
-    "scenario",
-    "sub_scenario",
-    "level",
-    "source",
-    "tags",
-    "medical_safety_passed",
-    "release_passed",
-    "composite_score",
-    "guideline_earned",
-    "guideline_max",
-    "grade",
-    "stability",
-    "latency_ms",
-    "ttft_ms",
-    "total_tokens",
-    "cost",
-    "n_turns",
-    "rag_status",
-    "failure_tags",
-    "detail_json",
-)
-
-
 def _replace_case_row(target: CaseResultRow, result: CaseResult, pricing: dict | None) -> None:
     replacement = build_case_row(target.run_id, result, pricing)
-    for field in _CASE_ROW_FIELDS:
-        setattr(target, field, getattr(replacement, field))
+    update_case_row(target, replacement)
 
 
 def validate_case_retry(

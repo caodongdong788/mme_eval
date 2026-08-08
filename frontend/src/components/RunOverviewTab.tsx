@@ -2,6 +2,8 @@ import { useMemo } from "react";
 import { ReviewStats, RunDetail } from "../api/index";
 import { useFailureTagLabels } from "../hooks/useConfigLabelMap";
 import { DIM_LABEL } from "../labels";
+import { buildCaseTypeOutcomeData } from "../utils/caseTypeMetrics";
+import { buildDimensionScoreData } from "../utils/dimensionScores";
 import { RunOverviewCharts } from "./RunOverviewCharts";
 import { RunOverviewKpiGrid } from "./RunOverviewKpiGrid";
 import { RunOverviewMetricsPanel } from "./RunOverviewMetricsPanel";
@@ -31,20 +33,33 @@ export function RunOverviewTab({
   );
 
   const dimData = useMemo(() => {
-    const avg = (run.grading?.avg_dimension || {}) as Record<string, number>;
-    return Object.entries(avg).map(([k, v]) => ({ name: DIM_LABEL[k] || k, value: Number(v) }));
+    const avg = (run.grading?.avg_dimension || {}) as Record<string, unknown>;
+    return buildDimensionScoreData(avg, DIM_LABEL);
   }, [run]);
 
   const tagData = useMemo(() => {
     const c = run.failure_tag_counter || {};
-    return Object.entries(c).map(([k, v]) => ({ name: tagLabel(k), value: v as number }));
+    return Object.entries(c).map(([k, v]) => ({
+      name: tagLabel(k),
+      value: v as number,
+    }));
   }, [run, tagLabel]);
+
+  const caseTypeData = useMemo(
+    () => buildCaseTypeOutcomeData(run.by_case_type),
+    [run.by_case_type]
+  );
 
   return (
     <div className="run-overview-page">
       <RunOverviewKpiGrid run={run} reviewStats={reviewStats} />
       <RunOverviewMetricsPanel run={run} />
-      <RunOverviewCharts levelData={levelData} dimData={dimData} tagData={tagData} />
+      <RunOverviewCharts
+        caseTypeData={caseTypeData}
+        levelData={levelData}
+        dimData={dimData}
+        tagData={tagData}
+      />
     </div>
   );
 }

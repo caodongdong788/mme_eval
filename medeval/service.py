@@ -16,6 +16,7 @@ CLI（``medeval/cli.py``）作为命令式外壳，注入 rich 进度实现、�
 from __future__ import annotations
 
 import asyncio
+import inspect
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -63,6 +64,18 @@ class NullProgress:
 
     def advance(self, key: str, n: int = 1) -> None:
         pass
+
+
+async def _notify_case_completed(
+    progress: ProgressObserver, result: CaseResult
+) -> None:
+    """可选扩展事件：不扩大 ProgressObserver 的强制协议，保持现有调用方兼容。"""
+    callback = getattr(progress, "case_completed", None)
+    if callback is None:
+        return
+    pending = callback(result)
+    if inspect.isawaitable(pending):
+        await pending
 
 
 # ---------------------------------------------------------------------------
@@ -293,7 +306,7 @@ async def judge_traces(
             len(cases) * n_runs,
         )
 
-    per_case_results: list[list[CaseResult]] = [[] for _ in cases]
+    folded_results: list[CaseResult | None] = [None for _ in cases]
     judge_sem = asyncio.Semaphore(judge_concurrency)
 
     async def _judge_case(idx: int, case, runs):
@@ -305,7 +318,9 @@ async def judge_traces(
             for judge in judges:
                 progress.advance(f"judge_{judge.name}")
             run_results.append(r)
-        per_case_results[idx] = run_results
+        folded = fold_n_runs([run_results])[0]
+        folded_results[idx] = folded
+        await _notify_case_completed(progress, folded)
 
     with span("phase.judge", n_cases=len(cases), n_runs=n_runs):
         await asyncio.gather(
@@ -315,8 +330,10 @@ async def judge_traces(
             )
         )
 
-    # 按每次完整评分的最终通过结果做 majority voting。
-    folded = fold_n_runs(per_case_results)
+    # 每条用例已在完成时独立折叠；按输入顺序组装最终报告，确保与历史输出稳定一致。
+    if any(result is None for result in folded_results):
+        raise RuntimeError("judge_traces 未生成完整的用例结果")
+    folded = [result for result in folded_results if result is not None]
 
     return build_report(
         run_name=run_name or make_run_slug(config.run.name),

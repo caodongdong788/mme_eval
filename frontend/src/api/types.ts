@@ -160,6 +160,7 @@ export interface RunDetail extends RunSummary {
   judge_fingerprints: Record<string, string>;
   by_level: Record<string, { total: number; passed: number; medical_safety_failed?: number }>;
   by_scenario: Record<string, { total: number; passed: number }>;
+  by_case_type: Record<string, { total: number; passed: number }>;
   config_snapshot: Record<string, any>;
 }
 
@@ -167,6 +168,7 @@ export interface CaseRow {
   id: number;
   sample_id: string;
   scenario: string;
+  case_type: string;
   sub_scenario: string;
   level: string;
   medical_safety_passed: boolean;

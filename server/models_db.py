@@ -163,6 +163,7 @@ class EvalRun(Base):
     judge_fingerprints: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     by_level: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     by_scenario: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    by_case_type: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     config_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
     case_results: Mapped[list["CaseResultRow"]] = relationship(
@@ -188,6 +189,8 @@ class CaseResultRow(Base):
 
     sample_id: Mapped[str] = mapped_column(String(200), index=True)
     scenario: Mapped[str] = mapped_column(String(200), default="", index=True)
+    # YAML 中的用例类别；与 scenario 分开持久化，供列表直接展示/筛选。
+    case_type: Mapped[str] = mapped_column(String(200), default="")
     sub_scenario: Mapped[str] = mapped_column(String(200), default="")
     level: Mapped[str] = mapped_column(String(20), default="", index=True)
     source: Mapped[str] = mapped_column(String(40), default="")

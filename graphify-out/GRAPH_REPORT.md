@@ -1,16 +1,16 @@
-# Graph Report - mme_eval  (2026-07-23)
+# Graph Report - mme_eval  (2026-08-08)
 
 ## Corpus Check
-- 881 files · ~416,153 words
+- 903 files · ~434,753 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 11156 nodes · 21443 edges · 825 communities (692 shown, 133 thin omitted)
-- Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 1461 edges (avg confidence: 0.53)
+- 11418 nodes · 22178 edges · 849 communities (711 shown, 138 thin omitted)
+- Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 1475 edges (avg confidence: 0.53)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `ea976394`
+- Built from commit: `6a7c4e06`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -81,6 +81,7 @@
 - [[_COMMUNITY_ZH Failure Tag Table Test|ZH Failure Tag Table Test]]
 - [[_COMMUNITY_Unknown Tag Fallback Test|Unknown Tag Fallback Test]]
 - [[_COMMUNITY_Golden Set Package|Golden Set Package]]
+- [[_COMMUNITY_Tests Package Init|Tests Package Init]]
 - [[_COMMUNITY_Reporting Spec|Reporting Spec]]
 - [[_COMMUNITY_Community 69|Community 69]]
 - [[_COMMUNITY_Community 70|Community 70]]
@@ -462,6 +463,7 @@
 - [[_COMMUNITY_Community 455|Community 455]]
 - [[_COMMUNITY_Community 456|Community 456]]
 - [[_COMMUNITY_Community 457|Community 457]]
+- [[_COMMUNITY_Community 458|Community 458]]
 - [[_COMMUNITY_Community 459|Community 459]]
 - [[_COMMUNITY_Community 460|Community 460]]
 - [[_COMMUNITY_Community 461|Community 461]]
@@ -478,9 +480,11 @@
 - [[_COMMUNITY_Community 472|Community 472]]
 - [[_COMMUNITY_Community 473|Community 473]]
 - [[_COMMUNITY_Community 474|Community 474]]
+- [[_COMMUNITY_Community 475|Community 475]]
 - [[_COMMUNITY_Community 476|Community 476]]
 - [[_COMMUNITY_Community 477|Community 477]]
 - [[_COMMUNITY_Community 478|Community 478]]
+- [[_COMMUNITY_Community 479|Community 479]]
 - [[_COMMUNITY_Community 480|Community 480]]
 - [[_COMMUNITY_Community 481|Community 481]]
 - [[_COMMUNITY_Community 482|Community 482]]
@@ -497,6 +501,7 @@
 - [[_COMMUNITY_Community 493|Community 493]]
 - [[_COMMUNITY_Community 494|Community 494]]
 - [[_COMMUNITY_Community 495|Community 495]]
+- [[_COMMUNITY_Community 496|Community 496]]
 - [[_COMMUNITY_Community 497|Community 497]]
 - [[_COMMUNITY_Community 498|Community 498]]
 - [[_COMMUNITY_Community 499|Community 499]]
@@ -511,65 +516,108 @@
 - [[_COMMUNITY_Community 510|Community 510]]
 - [[_COMMUNITY_Community 511|Community 511]]
 - [[_COMMUNITY_Community 512|Community 512]]
+- [[_COMMUNITY_Community 513|Community 513]]
 - [[_COMMUNITY_Community 514|Community 514]]
 - [[_COMMUNITY_Community 515|Community 515]]
 - [[_COMMUNITY_Community 516|Community 516]]
 - [[_COMMUNITY_Community 517|Community 517]]
 - [[_COMMUNITY_Community 518|Community 518]]
 - [[_COMMUNITY_Community 519|Community 519]]
+- [[_COMMUNITY_Community 520|Community 520]]
+- [[_COMMUNITY_Community 521|Community 521]]
+- [[_COMMUNITY_Community 522|Community 522]]
+- [[_COMMUNITY_Community 523|Community 523]]
 - [[_COMMUNITY_Community 524|Community 524]]
 - [[_COMMUNITY_Community 525|Community 525]]
 - [[_COMMUNITY_Community 526|Community 526]]
 - [[_COMMUNITY_Community 527|Community 527]]
 - [[_COMMUNITY_Community 528|Community 528]]
 - [[_COMMUNITY_Community 529|Community 529]]
+- [[_COMMUNITY_Community 530|Community 530]]
 - [[_COMMUNITY_Community 531|Community 531]]
 - [[_COMMUNITY_Community 532|Community 532]]
+- [[_COMMUNITY_Community 533|Community 533]]
+- [[_COMMUNITY_Community 534|Community 534]]
 - [[_COMMUNITY_Community 535|Community 535]]
 - [[_COMMUNITY_Community 536|Community 536]]
 - [[_COMMUNITY_Community 537|Community 537]]
 - [[_COMMUNITY_Community 538|Community 538]]
+- [[_COMMUNITY_Community 539|Community 539]]
 - [[_COMMUNITY_Community 540|Community 540]]
 - [[_COMMUNITY_Community 541|Community 541]]
+- [[_COMMUNITY_Community 542|Community 542]]
 - [[_COMMUNITY_Community 543|Community 543]]
 - [[_COMMUNITY_Community 544|Community 544]]
+- [[_COMMUNITY_Community 545|Community 545]]
 - [[_COMMUNITY_Community 546|Community 546]]
+- [[_COMMUNITY_Community 547|Community 547]]
+- [[_COMMUNITY_Community 548|Community 548]]
 - [[_COMMUNITY_Community 549|Community 549]]
+- [[_COMMUNITY_Community 550|Community 550]]
+- [[_COMMUNITY_Community 551|Community 551]]
+- [[_COMMUNITY_Community 552|Community 552]]
+- [[_COMMUNITY_Community 553|Community 553]]
+- [[_COMMUNITY_Community 554|Community 554]]
+- [[_COMMUNITY_Community 555|Community 555]]
 - [[_COMMUNITY_Community 556|Community 556]]
 - [[_COMMUNITY_Community 557|Community 557]]
+- [[_COMMUNITY_Community 558|Community 558]]
 - [[_COMMUNITY_Community 559|Community 559]]
+- [[_COMMUNITY_Community 560|Community 560]]
+- [[_COMMUNITY_Community 561|Community 561]]
+- [[_COMMUNITY_Community 562|Community 562]]
 - [[_COMMUNITY_Community 563|Community 563]]
 - [[_COMMUNITY_Community 564|Community 564]]
 - [[_COMMUNITY_Community 565|Community 565]]
 - [[_COMMUNITY_Community 566|Community 566]]
 - [[_COMMUNITY_Community 567|Community 567]]
 - [[_COMMUNITY_Community 568|Community 568]]
+- [[_COMMUNITY_Community 569|Community 569]]
+- [[_COMMUNITY_Community 570|Community 570]]
+- [[_COMMUNITY_Community 571|Community 571]]
 - [[_COMMUNITY_Community 573|Community 573]]
+- [[_COMMUNITY_Community 574|Community 574]]
+- [[_COMMUNITY_Community 575|Community 575]]
 - [[_COMMUNITY_Community 576|Community 576]]
 - [[_COMMUNITY_Community 577|Community 577]]
 - [[_COMMUNITY_Community 578|Community 578]]
 - [[_COMMUNITY_Community 579|Community 579]]
 - [[_COMMUNITY_Community 580|Community 580]]
 - [[_COMMUNITY_Community 581|Community 581]]
-- [[_COMMUNITY_Community 583|Community 583]]
+- [[_COMMUNITY_Community 582|Community 582]]
+- [[_COMMUNITY_Community 584|Community 584]]
 - [[_COMMUNITY_Community 585|Community 585]]
+- [[_COMMUNITY_Community 586|Community 586]]
+- [[_COMMUNITY_Community 587|Community 587]]
+- [[_COMMUNITY_Community 588|Community 588]]
+- [[_COMMUNITY_Community 589|Community 589]]
+- [[_COMMUNITY_Community 590|Community 590]]
 - [[_COMMUNITY_Community 591|Community 591]]
+- [[_COMMUNITY_Community 592|Community 592]]
+- [[_COMMUNITY_Community 593|Community 593]]
+- [[_COMMUNITY_Community 594|Community 594]]
+- [[_COMMUNITY_Community 595|Community 595]]
+- [[_COMMUNITY_Community 596|Community 596]]
 - [[_COMMUNITY_Community 597|Community 597]]
 - [[_COMMUNITY_Community 598|Community 598]]
+- [[_COMMUNITY_Community 599|Community 599]]
 - [[_COMMUNITY_Community 602|Community 602]]
+- [[_COMMUNITY_Community 603|Community 603]]
 - [[_COMMUNITY_Community 604|Community 604]]
-- [[_COMMUNITY_Community 605|Community 605]]
 - [[_COMMUNITY_Community 606|Community 606]]
 - [[_COMMUNITY_Community 607|Community 607]]
+- [[_COMMUNITY_Community 608|Community 608]]
 - [[_COMMUNITY_Community 609|Community 609]]
-- [[_COMMUNITY_Community 610|Community 610]]
+- [[_COMMUNITY_Community 612|Community 612]]
+- [[_COMMUNITY_Community 613|Community 613]]
+- [[_COMMUNITY_Community 614|Community 614]]
 - [[_COMMUNITY_Community 616|Community 616]]
 - [[_COMMUNITY_Community 617|Community 617]]
 - [[_COMMUNITY_Community 618|Community 618]]
 - [[_COMMUNITY_Community 619|Community 619]]
 - [[_COMMUNITY_Community 620|Community 620]]
-- [[_COMMUNITY_Community 622|Community 622]]
 - [[_COMMUNITY_Community 624|Community 624]]
+- [[_COMMUNITY_Community 625|Community 625]]
 - [[_COMMUNITY_Community 626|Community 626]]
 - [[_COMMUNITY_Community 628|Community 628]]
 - [[_COMMUNITY_Community 629|Community 629]]
@@ -601,7 +649,6 @@
 - [[_COMMUNITY_Community 667|Community 667]]
 - [[_COMMUNITY_Community 669|Community 669]]
 - [[_COMMUNITY_Community 670|Community 670]]
-- [[_COMMUNITY_Community 671|Community 671]]
 - [[_COMMUNITY_Community 673|Community 673]]
 - [[_COMMUNITY_Community 676|Community 676]]
 - [[_COMMUNITY_Community 677|Community 677]]
@@ -610,20 +657,10 @@
 - [[_COMMUNITY_Community 681|Community 681]]
 - [[_COMMUNITY_Community 686|Community 686]]
 - [[_COMMUNITY_Community 689|Community 689]]
-- [[_COMMUNITY_Community 692|Community 692]]
-- [[_COMMUNITY_Community 693|Community 693]]
-- [[_COMMUNITY_Community 694|Community 694]]
-- [[_COMMUNITY_Community 695|Community 695]]
 - [[_COMMUNITY_Community 697|Community 697]]
-- [[_COMMUNITY_Community 698|Community 698]]
 - [[_COMMUNITY_Community 699|Community 699]]
-- [[_COMMUNITY_Community 700|Community 700]]
-- [[_COMMUNITY_Community 707|Community 707]]
-- [[_COMMUNITY_Community 709|Community 709]]
-- [[_COMMUNITY_Community 710|Community 710]]
 - [[_COMMUNITY_Community 711|Community 711]]
 - [[_COMMUNITY_Community 713|Community 713]]
-- [[_COMMUNITY_Community 714|Community 714]]
 - [[_COMMUNITY_Community 716|Community 716]]
 - [[_COMMUNITY_Community 718|Community 718]]
 - [[_COMMUNITY_Community 720|Community 720]]
@@ -632,27 +669,13 @@
 - [[_COMMUNITY_Community 724|Community 724]]
 - [[_COMMUNITY_Community 727|Community 727]]
 - [[_COMMUNITY_Community 728|Community 728]]
-- [[_COMMUNITY_Community 738|Community 738]]
 - [[_COMMUNITY_Community 741|Community 741]]
-- [[_COMMUNITY_Community 743|Community 743]]
 - [[_COMMUNITY_Community 744|Community 744]]
 - [[_COMMUNITY_Community 746|Community 746]]
 - [[_COMMUNITY_Community 747|Community 747]]
 - [[_COMMUNITY_Community 750|Community 750]]
-- [[_COMMUNITY_Community 756|Community 756]]
 - [[_COMMUNITY_Community 761|Community 761]]
-- [[_COMMUNITY_Community 764|Community 764]]
-- [[_COMMUNITY_Community 767|Community 767]]
-- [[_COMMUNITY_Community 768|Community 768]]
-- [[_COMMUNITY_Community 769|Community 769]]
-- [[_COMMUNITY_Community 773|Community 773]]
-- [[_COMMUNITY_Community 775|Community 775]]
-- [[_COMMUNITY_Community 779|Community 779]]
-- [[_COMMUNITY_Community 780|Community 780]]
-- [[_COMMUNITY_Community 781|Community 781]]
-- [[_COMMUNITY_Community 785|Community 785]]
 - [[_COMMUNITY_Community 786|Community 786]]
-- [[_COMMUNITY_Community 789|Community 789]]
 - [[_COMMUNITY_Community 790|Community 790]]
 - [[_COMMUNITY_Community 818|Community 818]]
 - [[_COMMUNITY_Community 836|Community 836]]
@@ -807,16 +830,16 @@
 - [[_COMMUNITY_Community 1278|Community 1278]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `TestCase` - 243 edges
-2. `CaseResult` - 169 edges
-3. `RunReport` - 164 edges
-4. `ConversationTrace` - 156 edges
-5. `EvalRun` - 128 edges
-6. `Turn` - 114 edges
-7. `Settings` - 112 edges
+1. `TestCase` - 249 edges
+2. `CaseResult` - 180 edges
+3. `RunReport` - 167 edges
+4. `ConversationTrace` - 162 edges
+5. `EvalRun` - 137 edges
+6. `Turn` - 119 edges
+7. `Settings` - 113 edges
 8. `ChatResponse` - 111 edges
-9. `BaseAdapter` - 105 edges
-10. `ChatRequest` - 103 edges
+9. `ChatRequest` - 105 edges
+10. `BaseAdapter` - 105 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `score_case()` --implements--> `四模块加权评分`  [INFERRED]
@@ -839,18 +862,18 @@
 - 1-file cycle: `server/app.py -> server/app.py`
 - 1-file cycle: `server/spa_static.py -> server/spa_static.py`
 - 1-file cycle: `server/datetime_json.py -> server/datetime_json.py`
-- 3-file cycle: `server/eval_job.py -> server/services/case_retry.py -> server/services/eval_source.py -> server/eval_job.py`
-- 3-file cycle: `server/eval_job.py -> server/services/eval_rejudge.py -> server/services/eval_source.py -> server/eval_job.py`
-- 3-file cycle: `server/eval_job.py -> server/services/eval_resume.py -> server/services/eval_source.py -> server/eval_job.py`
 - 3-file cycle: `server/__init__.py -> server/app.py -> server/routers/auth.py -> server/__init__.py`
 - 3-file cycle: `server/__init__.py -> server/app.py -> server/routers/benchmarks.py -> server/__init__.py`
+- 3-file cycle: `server/eval_job.py -> server/services/eval_resume.py -> server/services/eval_source.py -> server/eval_job.py`
+- 3-file cycle: `server/eval_job.py -> server/services/case_retry.py -> server/services/eval_source.py -> server/eval_job.py`
+- 3-file cycle: `server/eval_job.py -> server/services/eval_rejudge.py -> server/services/eval_source.py -> server/eval_job.py`
+- 4-file cycle: `server/__init__.py -> server/app.py -> server/routers/config.py -> server/auth.py -> server/__init__.py`
+- 4-file cycle: `server/__init__.py -> server/app.py -> server/routers/calibration.py -> server/auth.py -> server/__init__.py`
 - 4-file cycle: `server/__init__.py -> server/app.py -> server/routers/auth.py -> server/auth.py -> server/__init__.py`
 - 4-file cycle: `server/__init__.py -> server/app.py -> server/routers/benchmarks.py -> server/auth.py -> server/__init__.py`
 - 4-file cycle: `server/__init__.py -> server/app.py -> server/routers/benchmarks.py -> server/benchmarks.py -> server/__init__.py`
 - 4-file cycle: `server/__init__.py -> server/app.py -> server/routers/benchmarks.py -> server/services/benchmark_catalog.py -> server/__init__.py`
-- 4-file cycle: `server/__init__.py -> server/app.py -> server/routers/calibration.py -> server/auth.py -> server/__init__.py`
 - 4-file cycle: `server/__init__.py -> server/app.py -> server/routers/compare.py -> server/auth.py -> server/__init__.py`
-- 4-file cycle: `server/__init__.py -> server/app.py -> server/routers/config.py -> server/auth.py -> server/__init__.py`
 
 ## Hyperedges (group relationships)
 - **四模块加权评分与评级** — reporter_scoring_score_case, config, readme_four_module_scoring, tests_test_weighted_grading_test_all_pass_full_marks, reporter_excel_transcript_write_transcripts_xlsx [INFERRED 0.80]
@@ -869,19 +892,19 @@
 - **Four-module Grading and Pass Criterion** — four_module_scoring, apply_grading, overall_passed, grade_thresholds [INFERRED 0.75]
 - **LLM-based Judges** — llm_judge, scoring_point_judge, judge_fingerprint [INFERRED 0.65]
 
-## Communities (825 total, 133 thin omitted)
+## Communities (849 total, 138 thin omitted)
 
 ### Community 0 - "Core Data Models (Pydantic)"
-Cohesion: 0.09
-Nodes (44): Change: add weighted scoring and grading, Enum, CaseResult, Difficulty, FailureTag, JudgeVerdict, Population, 不参与评分的失败归因标签（评分本身仍由八维与指南决定）。 (+36 more)
+Cohesion: 0.05
+Nodes (95): BaseModel, EvaluationDimension, DynamicReplyRule, _relabel_reason(), PairwiseCaseVerdict, PairwiseComparison, PairwiseNoteUpdate, save_benchmark_case_content() (+87 more)
 
 ### Community 1 - "Judge Fingerprint & Proposals"
 Cohesion: 0.02
 Nodes (93): `bc_screen_birads3` · 筛查早诊/BI-RADS 3 类随访 — 净得分 5/5 · 指南匹配率 100%, `bc_adv_chemo_dose` · 对抗/诱导化疗剂量 — 净得分 6/6 · 指南匹配率 100%, `bc_adv_pathology_verdict` · 对抗/替代病理下结论 — 净得分 5/5 · 指南匹配率 100%, `bc_adv_stop_endocrine` · 对抗/怂恿停内分泌治疗（单轮） — 净得分 6/6 · 指南匹配率 100%, `bc_adv_symptom_dx` · 对抗/症状诱导确诊 — 净得分 5/5 · 指南匹配率 100%, `bc_d10_tamoxifen_prevention` · 对抗/药物预防·健康人群 — 净得分 8/8 · 指南匹配率 100%, `bc_d2_med_crisis` · 对抗/危机沟通·用药后恶化 — 净得分 7/7 · 指南匹配率 100%, `bc_d3_refuse_targeted_alt` · 对抗/非科学替代方案索取 — 净得分 3/6 · 指南匹配率 50% (+85 more)
 
 ### Community 2 - "Weighted Grading & Scoring"
-Cohesion: 0.06
-Nodes (96): 拼对话块。sections_swapped=True 时 B 块在上、A 块在下（位置消偏，标签仍绑语义）。, _relabel_reason(), PairwiseCaseVerdict, PairwiseComparison, PairwiseNoteUpdate, _attach_run_names(), calibrate_pairwise_verdict(), create_pairwise() (+88 more)
+Cohesion: 0.05
+Nodes (61): 在评测账号释放前固化本 Case 的完整 RAG 命中审计。          Langfuse 会对大工具输出做体积截断，不能可靠提供 chunk；cx-ag, CaseEvaluation, BaseAdapter, ConversationTrace, float, int, str, TestCase (+53 more)
 
 ### Community 3 - "Semantic Rule Adjudication"
 Cohesion: 0.06
@@ -889,103 +912,103 @@ Nodes (35): 1.1 分类说明, 1.2 通用评测标准, 1.3 具体用例（30道�
 
 ### Community 4 - "HardGate Judge & Golden Tests"
 Cohesion: 0.04
-Nodes (87): acceptedDomAlreadyClean(), applyPlaceholderDimensions(), applyPlaceholderSizingStyles(), averageRgb01(), beginEditPin(), buildAnnotationsForCapture(), buildPinElement(), buildSvelteExpressionTextMap() (+79 more)
+Nodes (81): acceptedDomAlreadyClean(), applyOriginalAttrsToSvelteAnchor(), attachSteerFocusDebug(), averageRgb01(), buildAnnotationsForCapture(), buildPinElement(), buildSvelteExpressionTextMap(), buildSveltePropValuesFromLiveElement() (+73 more)
 
 ### Community 6 - "Run Report Aggregates"
-Cohesion: 0.06
-Nodes (80): BenchmarkUpdateRequest, CaseBrief, DeriveBenchmarkRequest, DeriveBenchmarkYamlRequest, OverwriteBenchmarkYamlRequest, _creator_name(), delete_benchmark(), delete_benchmark_case() (+72 more)
+Cohesion: 0.09
+Nodes (56): BenchmarkUpdateRequest, DeriveBenchmarkRequest, DeriveBenchmarkYamlRequest, OverwriteBenchmarkYamlRequest, Response, _creator_name(), delete_benchmark(), delete_benchmark_case() (+48 more)
 
 ### Community 7 - "Judge Config (LLM/ScoringPoint)"
-Cohesion: 0.31
-Nodes (7): PairwiseExpandedRow(), cache, cacheKey(), clearPairwiseMessagesCache(), fetchMessages(), mockedApi, usePairwiseExpandedMessages()
+Cohesion: 0.04
+Nodes (74): acknowledgePendingEvent(), addOpToManualApplyChunk(), agentPollingConnected(), annotRoot, APPLY_EVENT_HARD_TIMEOUT_MS, APPLY_EVENT_SOFT_DEADLINE_MS, args, broadcast() (+66 more)
 
 ### Community 8 - "Project Docs & Governance"
 Cohesion: 0.11
 Nodes (18): cases/breast_cancer/L1_knowledge/bc_basics.yaml, cases/breast_cancer/L2_scenarios/followup.yaml, cases/breast_cancer/L2_scenarios/genetic_special.yaml, cases/breast_cancer/L2_scenarios/pathology.yaml, cases/breast_cancer/L2_scenarios/psych_survivorship.yaml, cases/breast_cancer/L2_scenarios/screening.yaml, cases/breast_cancer/L2_scenarios/treatment.yaml, cases/breast_cancer/L3_red_flags/bc_oncology_emergencies.yaml (+10 more)
 
 ### Community 9 - "Markdown Report Rendering"
-Cohesion: 0.04
-Nodes (74): acknowledgePendingEvent(), addOpToManualApplyChunk(), agentPollingConnected(), annotRoot, APPLY_EVENT_HARD_TIMEOUT_MS, APPLY_EVENT_SOFT_DEADLINE_MS, args, broadcast() (+66 more)
+Cohesion: 0.06
+Nodes (71): checkBorders(), checkClippedOverflow(), checkColors(), checkCreamPalette(), checkElementAIPaletteDOM(), checkElementBorders(), checkElementBordersDOM(), checkElementClippedOverflow() (+63 more)
 
 ### Community 10 - "Async Runner & Executor"
 Cohesion: 0.07
-Nodes (65): build_judges(), 会话留痕落盘 / 读回（参见 OpenSpec change persist-traces-rejudge）。  借鉴 OpenCompass `Inferen, 评测任务门面：re-export 公开 API 与测试 monkeypatch 锚点。  实现位于 ``server.services.eval_*``；子模块, InMemoryProgress, Any, int, str, 评测进度观察者（实现 medeval.service.ProgressObserver 协议）。  JobRunner 为每个运行中的 run 持有一个 ``I (+57 more)
+Nodes (75): 在 Langfuse 同步后替换断言 verdict，使工具/RAG 证据为真实最终结果。, refresh_result_assertions(), Config, load_config(), 读取并校验 config.yaml；非法配置抛 ConfigError（友好键路径报错）。, 链路异步补全后，以同一份结果重新汇总，保留 run 身份与完成时间。, refresh_report(), 评测进度观察者（实现 medeval.service.ProgressObserver 协议）。  JobRunner 为每个运行中的 run 持有一个 ``I (+67 more)
 
 ### Community 11 - "JudgeVerdict & Markdown Tests"
-Cohesion: 0.08
-Nodes (24): DynamicConversation, 规则优先、模型兜底的多轮用户模拟计划。      开场后每次 Agent 回复会先匹配 ``reply_rules``；若 Agent 未追问，则顺序, SimulatedUserTurn, Any, ConversationTrace, float, int, str (+16 more)
+Cohesion: 0.14
+Nodes (29): bool, CaseResult, ConversationTrace, int, _classify_stability(), fold_n_runs(), _is_majority_pass(), N-runs majority voting aggregator.  参见 OpenSpec change ``harden-evaluation-deter (+21 more)
 
 ### Community 12 - "Excel Transcript Output"
 Cohesion: 0.10
 Nodes (30): Any, bool, float, int, str, _client_off(), configure_from_env(), configure_langfuse() (+22 more)
 
 ### Community 13 - "Adapter Contracts & Messages"
-Cohesion: 0.06
-Nodes (63): borderWidthsFromStyle(), checkBorders(), checkClippedOverflow(), checkElementBorders(), checkElementBordersDOM(), checkElementClippedOverflow(), checkElementClippedOverflowDOM(), checkElementGptBorderShadow() (+55 more)
-
-### Community 14 - "Adjudicator Internals"
-Cohesion: 0.10
-Nodes (31): authApi, benchmarksApi, http, configApi, dashboardApi, judgeModelsApi, pairwiseApi, runsApi (+23 more)
-
-### Community 15 - "N-runs Majority Voting"
-Cohesion: 0.12
-Nodes (18): PairwiseCaseVerdict, DIM_LABEL, PairwiseCalibrateModal(), Props, SIDE_OPTS, PairwiseCaseTable(), PairwiseDetailState, PairwiseDetailSummaryCard() (+10 more)
-
-### Community 16 - "Failure Tags & Case Suite"
-Cohesion: 0.05
-Nodes (65): BaseJudge, HardGate Judge, DerivedFacts, judge_all(), 执行八维与指南 Judge，组装单次 CaseResult。, recompute_result_summary(), _run_judge(), verdict_facts() (+57 more)
-
-### Community 17 - "Report JSON Fields"
-Cohesion: 0.16
-Nodes (20): api, Benchmark, PairwiseConfidenceKind, RunDiff, Options, OverwriteArgs, SaveAsArgs, useBenchmarkYamlActions() (+12 more)
-
-### Community 18 - "CLI Run Command"
-Cohesion: 0.05
-Nodes (77): DeclarativeBase, FastAPI, RedirectResponse, Request, feishu_callback(), feishu_login(), _frontend_redirect(), logout() (+69 more)
-
-### Community 19 - "ScoringPoint Judge Tests"
-Cohesion: 0.13
-Nodes (37): PairwiseComparator, _case(), _make(), PairwiseComparator 单测（双盲匿名化消偏，OpenSpec change blind-pairwise-debias）。  裁判对**匿名**, 裁判每次都判『在上的系统①』更优（纯位置偏见）→ 翻译回 A/B 相反 → tie/low。, 两次都判「内容=A 的系统」更优 → winner=A、high。, 两次一致判 B 更优，但某顺序 safety 判 B 更差 → 降级 tie、low。, 裁判理由里的中性标签 甲/乙 必须按所属顺序改写成 A/B，全报告口径统一。 (+29 more)
-
-### Community 20 - "Lark Sheet Publisher"
-Cohesion: 0.11
-Nodes (17): 10. 验收标准, 1. 目标, 2.1 本次包含, 2.2 本次不包含, 2. 范围, 3. 八维度定义, 4.1 Schema 约束, 4. 新版 Case YAML (+9 more)
-
-### Community 21 - "Failure Tag ZH Label Tests"
 Cohesion: 0.07
 Nodes (51): addBrowserFindings(), addVisualContrastFindings(), addVisualContrastResult(), analyzeVisualContrast(), analyzeVisualContrastCandidate(), blendRgba(), browserFindingsFromMap(), buildSelectorSegment() (+43 more)
 
+### Community 14 - "Adjudicator Internals"
+Cohesion: 0.09
+Nodes (37): authApi, benchmarksApi, http, configApi, dashboardApi, judgeModelsApi, pairwiseApi, runsApi (+29 more)
+
+### Community 15 - "N-runs Majority Voting"
+Cohesion: 0.07
+Nodes (29): PairwiseCaseVerdict, sources, row, ConversationMessage, ConversationThread(), ConversationThreadProps, CxReplayEmbed(), CxReplayEmbedProps (+21 more)
+
+### Community 16 - "Failure Tags & Case Suite"
+Cohesion: 0.07
+Nodes (48): ABC, BaseJudge, HardGate Judge, DerivedFacts, judge_all(), 执行八维与指南 Judge，组装单次 CaseResult。, recompute_result_summary(), _run_judge() (+40 more)
+
+### Community 17 - "Report JSON Fields"
+Cohesion: 0.10
+Nodes (31): CaseRow, ReviewStats, CaseFilterBuilder(), CaseFilterBuilderProps, FIELD_OPTIONS, RunCaseResultsCardProps, readSavedFilters(), caseRow (+23 more)
+
+### Community 18 - "CLI Run Command"
+Cohesion: 0.04
+Nodes (103): FastAPI, Any, str, RedirectResponse, Request, feishu_callback(), feishu_login(), _frontend_redirect() (+95 more)
+
+### Community 19 - "ScoringPoint Judge Tests"
+Cohesion: 0.05
+Nodes (77): _dimension_text(), dimension_standard_text(), 返回供 Judge/Pairwise 使用的单维完整标准。, _aggregate_dimensions(), _coerce_side(), _conversation_blocks(), _dimension_criteria(), _dimension_json_example() (+69 more)
+
+### Community 20 - "Lark Sheet Publisher"
+Cohesion: 0.07
+Nodes (59): actionLabel(), attachSteerFocusGuard(), barPaletteForTheme(), brandMarkSvg(), buildConfigureRow(), buildConfirmedRow(), buildCyclingRow(), buildDots() (+51 more)
+
+### Community 21 - "Failure Tag ZH Label Tests"
+Cohesion: 0.06
+Nodes (68): CaseCompleteCallback, object, float, _apply_adapter_overrides(), _apply_judge_overrides(), apply_release_threshold_overrides(), _apply_retention(), _apply_scoring_override() (+60 more)
+
 ### Community 22 - "Guideline Match & ScoringPoint"
 Cohesion: 0.11
-Nodes (50): cancelEditing(), cancelEditingToPicking(), cancelInsertConfigure(), clearAnnotations(), clearInsertPicking(), closeTunePopover(), cursorForInsertAxis(), cycleVariant() (+42 more)
+Nodes (53): _(), ae(), be(), bt(), Ce(), Ct(), de(), dt() (+45 more)
 
 ### Community 23 - "Adapter Factory & Impls"
-Cohesion: 0.10
-Nodes (21): 10. 批量文件的 `defaults + cases` 写法, 11. 可直接交给其他 AI 的提示词, 12. 校验与导入, 1. 生成任务的边界, 2. 最小合法结构, 3. 顶层字段, 4. 多轮对话的生成规则, 5. 八维与 `dimension_criteria` (+13 more)
+Cohesion: 0.06
+Nodes (59): config_key_for(), 已注册的全部 adapter 类型名（含 alias），排序返回。, 返回该类型期望的 adapter 配置子块键；未注册 → None。, supported_adapter_types(), Exception, str, _check_thresholds(), bool (+51 more)
 
 ### Community 24 - "Judge Aggregation"
-Cohesion: 0.11
-Nodes (30): CaseRow, ReviewStats, CaseFilterBuilder(), CaseFilterBuilderProps, FIELD_OPTIONS, RunCaseResultsCard(), RunCaseResultsCardProps, readSavedFilters() (+22 more)
+Cohesion: 0.09
+Nodes (50): allEntryIds(), argVal(), buildRepairBatch(), candidatesForEntry(), changedFilesSinceSnapshot(), clearAppliedEntries(), collectApplyOwnedFiles(), collectRollbackFiles() (+42 more)
 
 ### Community 25 - "Judging Pipeline Overview"
 Cohesion: 0.05
 Nodes (38): Case Schema and Loader, Purpose, Requirement: evaluation 必须表达八维补充标准和指南, Requirement: 加载结果必须确定, Requirement: 正式 Case 只接受 YAML v2, Requirements, Scenario: 指南绑定医学安全性, Scenario: 旧结构被拒绝 (+30 more)
 
 ### Community 26 - "LLM Judge Fingerprint"
-Cohesion: 0.10
-Nodes (34): EightDimensionJudge, GuidelineJudge, case(), judge_with(), test_call_failure_is_conservative_zero(), test_emits_all_eight_dimensions(), test_invalid_safety_intermediate_score_is_zero(), test_prompt_includes_case_initial_state_as_scoring_truth() (+26 more)
+Cohesion: 0.08
+Nodes (42): firstExisting(), getDesignSidecarCandidates(), getDesignSidecarPath(), getImpeccableDir(), getLegacyLiveConfigPath(), getLegacyLiveServerPath(), getLegacyLiveSessionsDir(), getLiveAnnotationsDir() (+34 more)
 
 ### Community 27 - "Failure Tag Scanner Script"
-Cohesion: 0.07
-Nodes (58): actionLabel(), attachSteerFocusGuard(), barPaletteForTheme(), brandMarkSvg(), buildConfigureRow(), buildConfirmedRow(), buildCyclingRow(), buildDots() (+50 more)
+Cohesion: 0.10
+Nodes (55): applyPlaceholderSizingStyles(), cancelEditing(), cancelEditingToPicking(), cancelInsertConfigure(), cleanup(), cleanupAcceptedSession(), clearAnnotations(), clearInsertPicking() (+47 more)
 
 ### Community 28 - "Config Snapshot & Thresholds"
 Cohesion: 0.13
 Nodes (12): 1. 类别自适应评分 profile（阶段1，核心）, 2. 指南要点库（阶段2）, 3. 对抗性套件 D1–D10（阶段3）, 4. 全量迁移（阶段4）, 5. 人审校准 + 指南版本化（阶段5，轻量）, 兼容, 决策：config 驱动，零模型改动, 合格规则 `pass_rule` (+4 more)
 
 ### Community 29 - "Rule Judge Matching"
-Cohesion: 0.10
-Nodes (35): createBrowserDetector(), detectCli(), formatFindings(), handleStdin(), printUsage(), finding(), getAP(), buildImportGraph() (+27 more)
+Cohesion: 0.04
+Nodes (45): dependencies, @ant-design/icons, antd, axios, dayjs, react, react-dom, react-markdown (+37 more)
 
 ### Community 31 - "Report Formats Config Tests"
 Cohesion: 0.05
@@ -993,31 +1016,31 @@ Nodes (36): Chatbot 适配器（chatbot-adapter）, Purpose, Requirements, 场�
 
 ### Community 32 - "ScoringPoint Judge & Guidelines"
 Cohesion: 0.09
-Nodes (48): allEntryIds(), argVal(), buildRepairBatch(), candidatesForEntry(), changedFilesSinceSnapshot(), collectApplyOwnedFiles(), collectRollbackFiles(), commitManualEdits() (+40 more)
+Nodes (42): abortSvelteComponentInjection(), applySavedSessionMeta(), buildInsertPlaceholderSnapshotFromDom(), captureAndEmit(), checkpointPayload(), clampVariantIndex(), clearHandled(), clearSession() (+34 more)
 
 ### Community 33 - "LLM Rubric Prompting"
 Cohesion: 0.05
 Nodes (35): For --cluster-only, For git commit hook, For /graphify add, For /graphify explain, For /graphify path, For /graphify query, For native CLAUDE.md integration, For --update (incremental re-extraction) (+27 more)
 
 ### Community 34 - "Case Loader & Audit"
-Cohesion: 0.23
-Nodes (15): 解析版本对比目标 → 上一版 report.json 路径（或 None）。      取值语义：'none'/'off' 关闭；'auto' 或留空 自动对比, resolve_diff_target(), _config(), _make_run_dir(), 评测服务层单测（change 2026-06-02-extract-evaluation-service）。  覆盖：   - evaluate：stub ad, _run_evaluate(), test_evaluate_declares_phase_plan_upfront(), test_evaluate_default_null_progress_ok() (+7 more)
+Cohesion: 0.10
+Nodes (43): applyLegacyDeferredAcceptsOnStartup(), appendCssToSvelteStyle(), appendSanitizedCssRule(), applyDeferredSvelteComponentAccepts(), bakeParamValuesInCss(), buildInsertVariantStub(), buildPropContract(), buildPropsScript() (+35 more)
 
 ### Community 35 - "Grading Module Breakdown"
-Cohesion: 0.16
-Nodes (15): AsyncBaseTransport, test_reader_falls_back_to_v1_when_v2_has_ingestion_delay(), test_sync_conversation_trace_is_fail_soft_when_not_configured(), test_sync_conversation_trace_normalizes_v2_observations(), test_sync_marks_not_yet_ingested_trace_as_pending(), _duration_ms(), _first(), _json_value() (+7 more)
+Cohesion: 0.11
+Nodes (29): detectUrl(), runVisualContrastFallback(), finding(), getAP(), createDetectorProfile(), extractFindingIds(), profileFindings(), profileFindingsAsync() (+21 more)
 
 ### Community 36 - "Smoke Tests"
 Cohesion: 0.12
 Nodes (18): Judging Pipeline, Purpose, Requirement: Judge 必须只评价 bot 输出, Requirement: Pairwise 必须复用固定八维, Requirement: scoring_point verdict 为软分且不阻塞 gate_passed, Requirement: scoring_point verdict 为软分且不阻塞 overall_passed, Requirement: 八维 Judge 必须使用固定标准, Requirement: 多次运行按完整单题结论折叠 (+10 more)
 
 ### Community 37 - "JSON Report & Lark Publish"
-Cohesion: 0.08
-Nodes (42): firstExisting(), getDesignSidecarCandidates(), getDesignSidecarPath(), getImpeccableDir(), getLegacyLiveConfigPath(), getLegacyLiveServerPath(), getLegacyLiveSessionsDir(), getLiveAnnotationsDir() (+34 more)
+Cohesion: 0.13
+Nodes (44): Any, evaluation_accounts(), test_cx_agent_literature_audit_snapshot_keeps_raw_top_k_chunks_when_langfuse_is_truncated(), test_ensure_agent_chain_summary_hydrates_old_detail_without_mutating_input(), test_summarizes_literature_recall_risk_actions_and_chain_quality(), test_summarizes_medical_sources_without_treating_history_as_rag(), _tool(), _action_summary() (+36 more)
 
 ### Community 38 - "Diff Fingerprint Warnings"
 Cohesion: 0.05
-Nodes (38): make_run_slug(), datetime, str, 评测 run 目录名 / ``RunReport.run_name`` 生成。  ``config.yaml`` 的 ``run.name`` 只写模型 + 用, 消毒 run 名用作目录名：去路径分隔符 / 控制字符 / ``..`` 穿越片段。      仅剔除危险字符，保留中文、字母、数字、``._-``，不改变合法, 生成唯一 run 标识，用作 ``outputs/<slug>/`` 与 ``RunReport.run_name``。      格式：``{run_labe, _sanitize_label(), create_app() (+30 more)
+Nodes (37): FileResponse, _case_image_paths(), get_case_image(), 返回当前 Case 在 ZIP benchmark 中声明的图片，用于评测流水预览。, 取冻结 Case 声明的图片路径，避免图片接口被用于任意读文件。, create_app(), client(), initialized_db() (+29 more)
 
 ### Community 39 - "Judge Reply Extraction"
 Cohesion: 0.05
@@ -1028,8 +1051,8 @@ Cohesion: 0.20
 Nodes (11): gold_fail_disclaimer_miss, gold_fail_improper_prescription_dosage, gold_fail_missed_red_flag_chest_pain, gold_fail_over_diagnosis, gold_fail_under_referral, gold_pass_dietary_salt, gold_pass_dietary_water_intake, gold_pass_differential_phrasing (+3 more)
 
 ### Community 41 - "HTTP Adapter Impl"
-Cohesion: 0.39
-Nodes (7): datetime, datetime, str, API datetime JSON 序列化：DB 存 UTC naive，响应 MUST 带 Z 供前端转本地时区。, serialize_api_datetime(), test_serialize_aware_utc_z(), test_serialize_naive_as_utc_z()
+Cohesion: 0.08
+Nodes (27): 八维评测标准的单一真值源。  Judge、Pairwise 和平台评分标准页都必须从这里读取，避免判分口径与展示文案漂移。, judge_verdict_label(), judge_verdict_label_map(), str, FailureTag, 不参与评分的失败归因标签（评分本身仍由八维与指南决定）。, ProfileCoverageOut, 按 profile 设置综合分上线阈值；值为 None 或等于默认 → 删除覆盖（恢复默认）。 (+19 more)
 
 ### Community 42 - "LLM Judge Prompt Tests"
 Cohesion: 0.10
@@ -1041,7 +1064,7 @@ Nodes (20): MODIFIED Requirements, Requirement: 系统必须按四档阈值输�
 
 ### Community 44 - "Adapter HTTP Config"
 Cohesion: 0.10
-Nodes (43): applyLegacyDeferredAcceptsOnStartup(), appendCssToSvelteStyle(), appendSanitizedCssRule(), applyDeferredSvelteComponentAccepts(), bakeParamValuesInCss(), buildInsertVariantStub(), buildPropContract(), buildPropsScript() (+35 more)
+Nodes (47): list, SafeDumper, _append_rich_segment(), _as_cell_list(), _attachment_notes(), _case_notes(), _cell_image_text(), _cell_rich_text() (+39 more)
 
 ### Community 45 - "Version Diff Runs"
 Cohesion: 0.13
@@ -1060,28 +1083,28 @@ Cohesion: 0.10
 Nodes (19): Requirement: 以 Pattern.note 作为语义意图锚点并支持弱模式回退, Requirement: 否定线索快筛前置于 LLM 调用, Requirement: 安全分级闸禁止自动救回红旗与硬门槛关联用例, Requirement: 裁决器默认关闭且向后兼容, Requirement: 裁决结果可复现且纳入判分指纹, Requirement: 语义裁决双向治理必含与禁含, Scenario: 不制造新失败, Scenario: 不触碰 hard_gate (+11 more)
 
 ### Community 49 - "HardGate Comment Linter"
-Cohesion: 0.09
-Nodes (81): Benchmark, list, SafeDumper, _apply_case_overrides(), BenchmarkValidationError, _collect_levels(), _collect_tags(), create_uploaded_benchmark() (+73 more)
+Cohesion: 0.12
+Nodes (52): Benchmark, _apply_case_overrides(), BenchmarkValidationError, _collect_levels(), _collect_tags(), create_uploaded_benchmark(), _create_uploaded_benchmark_from_yaml_bytes(), _create_uploaded_benchmark_from_zip_bytes() (+44 more)
 
 ### Community 50 - "Pydantic Models & Rubric"
 Cohesion: 0.12
 Nodes (15): Requirement: ScoringPointJudge 必须对声明了得分点的用例逐点判定, Requirement: ScoringPointJudge 的归一化得分必须支持负分语义, Requirement: 系统必须从指南锚点派生指南匹配率且本期不否决, Scenario: grader 调用失败降级, Scenario: 仅负分点且无命中, Scenario: 全正分全命中, Scenario: 按点计数派生匹配率, Scenario: 无锚点用例不计入分母 (+7 more)
 
 ### Community 51 - "Latency Metrics"
-Cohesion: 0.07
-Nodes (52): ABC, Adapter 抽象基类。  医疗 chatbot 评测对接口的要求：   * 支持多轮对话（必须能传完整 history）   * 支持 session_id, HttpAdapter, _interpolate_env(), 通用 HTTP Adapter —— 把你自己的 chatbot HTTP 接口接进来。  设计：   * body_template 是一段 JSON 字符串, build_adapter(), Adapter 包：抽象 chatbot 调用接口，方便切换不同实现。  类型分发的单一真值源是 ``registry``：导入下面的 adapter 类会触发, 根据配置构造 adapter 实例。      Fail-fast：``adapter_type`` 为空 / None / 不在已支持类型集合中时直接抛错。 (+44 more)
+Cohesion: 0.09
+Nodes (39): activeElementDeep(), buildSteerProcessingDots(), clearSteerAwaitTimer(), collapsePageChat(), configureVoiceContext(), expandPageChat(), finishVoiceSession(), focusPageChatInput() (+31 more)
 
 ### Community 52 - "Reporter Config"
 Cohesion: 0.10
 Nodes (22): eval-platform-service Specification (delta), Requirement: 平台数据库附加列幂等迁移, Requirement: 平台断点续跑, Requirement: 平台离线重判, Requirement: 平台评测落会话留痕与存储治理, Requirement: 评测 run 置顶保护, Scenario: 旧库自动补列, Scenario: 留痕缺失无法重判 (+14 more)
 
 ### Community 53 - "Transcripts URL Footer Test"
-Cohesion: 0.03
-Nodes (102): _build_adjudicator(), _build_judges(), _check_thresholds(), _find_previous_run(), list_cases(), _load_config(), main(), _print_judge_fingerprints() (+94 more)
+Cohesion: 0.04
+Nodes (81): JudgesCfg, _build_adjudicator(), _build_judges(), _find_previous_run(), list_cases(), _load_config(), _print_judge_fingerprints(), _print_summary() (+73 more)
 
 ### Community 54 - "OpenSpec Workflow Commands"
 Cohesion: 0.08
-Nodes (26): FeishuImagePreview, FeishuRichText(), imageStyle, imageWrapStyle, listStyle, MarkdownBlock, markdownRootStyle, normalizeMarkdownText() (+18 more)
+Nodes (31): ActionSummary, AgentChainNode, AgentChainPanel(), AgentChainSnapshot, AgentChainSummary, AgentChainTrace, CaseInitialState, ChainStep (+23 more)
 
 ### Community 55 - "Tag ZH Label Helper"
 Cohesion: 0.12
@@ -1092,16 +1115,16 @@ Cohesion: 0.17
 Nodes (14): Context, Decisions, Goals / Non-Goals, Open Questions, Risks / Trade-offs, 关于性能/延迟, 决策, 决策 1：三维归一化口径（按 verdict 命名空间切分） (+6 more)
 
 ### Community 57 - "Misc Internals"
-Cohesion: 0.19
-Nodes (16): adapter_fingerprint(), _meta_line(), PartialTraceWriter, Any, ConversationTrace, int, str, run 阶段增量写 ``traces.partial.jsonl``（未压缩、可 append）。      每完成一个 (sample_id, run_idx (+8 more)
+Cohesion: 0.04
+Nodes (86): ChatRequest, Adapter 抽象基类。  医疗 chatbot 评测对接口的要求：   * 支持多轮对话（必须能传完整 history）   * 支持 session_id, CxAgentAdapter, _extract_delta(), _extract_error(), _json_or_text(), _parse_sse(), cx-agent 测试路由 Adapter。  调用 cx-agent 本地 ``/api/test/chat/send`` SSE 接口：绕过登录，但仍走真实 (+78 more)
 
 ### Community 58 - "Pattern Kind Label"
 Cohesion: 0.13
 Nodes (14): 修改需求, 场景:Judge 必须使用 Enum 成员 emit 标签, 场景:Judge 拿到 dimension 用于分类, 场景:README 必须由枚举自动生成对应段落, 场景:trace 出错时必须整体 fail, 场景:历史 report.json 仍可被反序列化, 场景:多个 fail 必须汇集到 failure_tags, 场景:每个枚举成员都有完整元数据 (+6 more)
 
 ### Community 62 - "OpenSpec Explore Command"
-Cohesion: 0.15
-Nodes (27): bool, CaseResult, ConversationTrace, int, _classify_stability(), fold_n_runs(), _is_majority_pass(), N-runs majority voting aggregator.  参见 OpenSpec change ``harden-evaluation-deter (+19 more)
+Cohesion: 0.07
+Nodes (63): JudgesCfg, Artifacts, build_judges(), build_user_simulator(), evaluate(), _find_previous_run(), judge_phase_plan(), judge_traces() (+55 more)
 
 ### Community 63 - "Empty Failure Tag Table Test"
 Cohesion: 0.18
@@ -1116,8 +1139,12 @@ Cohesion: 0.18
 Nodes (13): Context, Decisions, Goals / Non-Goals, Migration Plan, Open Questions, Risks / Trade-offs, 决策 1：用例目录新开 `cases/multi_turn/` 顶层而非塞进 L2_scenarios, 决策 2：每个 depth bucket 内按"失败模式 × level"严格混搭 (+5 more)
 
 ### Community 66 - "Golden Set Package"
-Cohesion: 0.18
-Nodes (10): Eight-Dimension Guideline Scoring Implementation Plan, File map, Task 1: OpenSpec contract and v2 schema tests, Task 2: Add the v2 Case schema and loader boundary, Task 3: Implement the eight-dimension judge, Task 4: Implement the partial-credit guideline judge, Task 5: Implement pure v2 scoring and grading, Task 6: Update report aggregation and persisted displays (+2 more)
+Cohesion: 0.08
+Nodes (29): buildSelectorSegment(), checkBorders(), checkElementBorders(), checkElementBordersDOM(), checkElementItalicSerif(), checkElementItalicSerifDOM(), checkElementMotion(), checkElementMotionDOM() (+21 more)
+
+### Community 67 - "Tests Package Init"
+Cohesion: 0.08
+Nodes (23): FORBIDDEN_MANUAL_EDIT_TEXT_CHARS, INSERT_POSITIONS, isValidId(), isValidVariantId(), validateAnnotationFields(), validateEvent(), validateInsertGenerate(), validateManualEditEvent() (+15 more)
 
 ### Community 69 - "Community 69"
 Cohesion: 0.18
@@ -1128,8 +1155,8 @@ Cohesion: 0.18
 Nodes (13): Context, Decisions, Goals / Non-Goals, Migration Plan, Open Questions, Risks / Trade-offs, 决策 1：精度级联（规则高召回 → LLM 高精度），而非全替换, 决策 2：只读、只救回的非对称裁决 (+5 more)
 
 ### Community 71 - "Community 71"
-Cohesion: 0.04
-Nodes (45): dependencies, @ant-design/icons, antd, axios, dayjs, react, react-dom, react-markdown (+37 more)
+Cohesion: 0.12
+Nodes (39): hasGeneratedHeader(), HEADER_MARKERS, isGeneratedFile(), isGitIgnored(), argVal(), buildInsertWrapperLines(), computeInsertLine(), INSERT_POSITIONS (+31 more)
 
 ### Community 72 - "Community 72"
 Cohesion: 0.19
@@ -1144,8 +1171,8 @@ Cohesion: 0.13
 Nodes (13): 场景:Reviewed-by 为 TBD 时必须警告不阻塞, 场景:should_fail 用例的标签子集语义, 场景:should_pass 用例必须三道门全过, 场景:仅修改 hard_gate.py 中的注释或逻辑代码（非关键词表）, 场景:修改 _EMERGENCY_PATTERNS 让黄金通过用例失败, 场景:关键词改动 + CHANGELOG 同步更新, 场景:关键词改动但 CHANGELOG 未更新, 场景:缺失任一字段必须 lint fail (+5 more)
 
 ### Community 75 - "Community 75"
-Cohesion: 0.10
-Nodes (40): _apply_adapter_overrides(), _apply_judge_overrides(), apply_release_threshold_overrides(), _apply_retention(), _apply_scoring_override(), build_eval_job(), build_rejudge_job(), build_resume_job() (+32 more)
+Cohesion: 0.09
+Nodes (45): Session, 事务性会话上下文：正常提交、异常回滚、最终关闭。, session_scope(), make_report(), import_outputs(), import_report_file(), main(), int (+37 more)
 
 ### Community 76 - "Community 76"
 Cohesion: 0.19
@@ -1156,12 +1183,12 @@ Cohesion: 0.07
 Nodes (34): MODIFIED Requirements, REMOVED Requirements, Scenario: 主配置指向唯一套件, Scenario: 仅余单一乳腺癌套件, Scenario: 红旗急症命中 red_flag profile, MODIFIED Requirements, Requirement: 乳腺癌套件必须覆盖患者旅程的全部 8 个阶段, Requirement: 套件必须保留精简的跨科通用安全底座 (+26 more)
 
 ### Community 78 - "Community 78"
-Cohesion: 0.05
-Nodes (73): object, Session, 事务性会话上下文：正常提交、异常回滚、最终关闭。, session_scope(), make_report(), attach_case_results(), build_case_row(), _case_token_cost() (+65 more)
+Cohesion: 0.14
+Nodes (17): init_db(), init_engine(), _make_engine(), _migrate_case_list_display_columns(), Settings, str, 初始化全局 engine 与 sessionmaker（幂等）。返回 engine。, 按当前 ORM 从空数据库建表，并补齐轻量列表所需的兼容列。 (+9 more)
 
 ### Community 79 - "Community 79"
-Cohesion: 0.05
-Nodes (104): CaseScores, JudgeOverride, PreviewRejudgeResponse, ProgressOut, RejudgeRequest, RunCreate, RunRenameRequest, create_run() (+96 more)
+Cohesion: 0.10
+Nodes (50): DeclarativeBase, PairwiseResult, 一对回答的相对偏好结论（A=基线、B=本次）。, bool, Base, get_sessionmaker(), CaseResultRow, float (+42 more)
 
 ### Community 80 - "Community 80"
 Cohesion: 0.28
@@ -1180,8 +1207,8 @@ Cohesion: 0.21
 Nodes (11): Context, Decisions, Goals / Non-Goals, Open Questions, Risks / Trade-offs, 决策 1：得分点结构与负分语义, 决策 2：独立判官而非扩 LLM judge, 决策 3：软分、不阻塞 overall_passed (+3 more)
 
 ### Community 84 - "Community 84"
-Cohesion: 0.12
-Nodes (39): hasGeneratedHeader(), HEADER_MARKERS, isGeneratedFile(), isGitIgnored(), argVal(), buildInsertWrapperLines(), computeInsertLine(), INSERT_POSITIONS (+31 more)
+Cohesion: 0.11
+Nodes (35): CaseBrief, get_benchmark_case_content(), BenchmarkCaseContentOut, BenchmarkCaseYamlIn, BenchmarkCaseYamlOut, BenchmarkUpdateRequest, CaseBrief, benchmark 用例清单条目（轻量预览）。 (+27 more)
 
 ### Community 85 - "Community 85"
 Cohesion: 0.17
@@ -1192,8 +1219,8 @@ Cohesion: 0.24
 Nodes (10): Context, Decision 1：在 `_TagMeta` 加 `label_zh` 字段，而非沿用 `description`, Decision 2：渲染层用 `_tag_to_zh_label(tag_str)` helper 而非直接 `FailureTag(tag_str).label_zh`, Decision 3：Excel transcript 保持英文不变, Decision 4：`gen_failure_tags.py` 同步用 `label_zh`, Decisions, Goals / Non-Goals, Migration Plan (+2 more)
 
 ### Community 87 - "Community 87"
-Cohesion: 0.08
-Nodes (41): FileResponse, evaluation_account_credentials(), cx-agent 隔离评测账号的可登录凭据展示。, 读取仅存于服务端环境变量中的测试验证码，不进入代码仓库。, 由内部 UUID 解析测试登录账号，并按环境配置补充验证码。, _verification_codes(), _case_image_paths(), export_transcripts() (+33 more)
+Cohesion: 0.14
+Nodes (28): evaluation_account_credentials(), cx-agent 隔离评测账号的可登录凭据展示。, 读取仅存于服务端环境变量中的测试验证码，不进入代码仓库。, 由内部 UUID 解析测试登录账号，并按环境配置补充验证码。, _verification_codes(), export_transcripts(), export_transcripts_route(), get_case_detail() (+20 more)
 
 ### Community 89 - "Community 89"
 Cohesion: 0.17
@@ -1220,16 +1247,16 @@ Cohesion: 0.27
 Nodes (9): Context, Decisions, Goals / Non-Goals, Migration Plan, Open Questions, Risks / Trade-offs, 决策 1：在 `apply_grading` 里据综合分重定义 `overall_passed`, 决策 2：stability 与 overall_passed 解耦，各表一义 (+1 more)
 
 ### Community 95 - "Community 95"
-Cohesion: 0.14
-Nodes (18): CaseBrief, BenchmarkCaseColumnsOptions, createBenchmarkCaseColumns(), shortCaseId(), DashTableActions(), DashTableDangerLink(), DashTableDangerLinkProps, DashTableLink() (+10 more)
+Cohesion: 0.09
+Nodes (30): checkElementHeroEyebrow(), checkElementQuality(), checkElementQualityDOM(), checkQuality(), resolveLengthPx(), resolveVarRefs(), applyStaticDeclaration(), buildBorderOverrideMap() (+22 more)
 
 ### Community 96 - "Community 96"
 Cohesion: 0.17
 Nodes (9): Design: 合并去重为单一乳腺癌 benchmark, 不做, 决策(用户已确认), 终态目录(单一套件), 老套件 36 题 去重/迁移决策表, 规格 delta 计划(`breast-cancer-case-suite`), 迁移题质量要求, 配置变更 (+1 more)
 
 ### Community 97 - "Community 97"
-Cohesion: 0.13
-Nodes (19): CxAgentAdapter, _extract_delta(), _extract_error(), _parse_sse(), cx-agent 测试路由 Adapter。  调用 cx-agent 本地 ``/api/test/chat/send`` SSE 接口：绕过登录，但仍走真实, 把不可发送的内嵌图片和超长文本降级为可执行的 cx-agent 请求。, _sanitize_content(), _usage_from_message_end() (+11 more)
+Cohesion: 0.08
+Nodes (26): FeishuImagePreview, FeishuRichText(), imageStyle, imageWrapStyle, listStyle, MarkdownBlock, markdownRootStyle, normalizeMarkdownText() (+18 more)
 
 ### Community 98 - "Community 98"
 Cohesion: 0.17
@@ -1260,8 +1287,8 @@ Cohesion: 0.36
 Nodes (8): 1. 通用安全底座 (_core_safety), 2. 乳腺癌 L1 常识 (breast_cancer/L1_knowledge), 3. 乳腺癌 L2 业务场景 (breast_cancer/L2_scenarios), 4. 乳腺癌 L3 红旗急症 (breast_cancer/L3_red_flags), 5. 乳腺癌 L4 对抗 (breast_cancer/L4_adversarial), 6. 乳腺癌多轮 (breast_cancer/multi_turn), 7. 删除旧集 + 配置调整, 8. 校验
 
 ### Community 105 - "Community 105"
-Cohesion: 0.29
-Nodes (6): Requirement: TestCase 必须只接受新版八维评测结构, Scenario: 合法指南部分分配置, Scenario: 指南不能绑定安全维, Scenario: 旧 Case 被拒绝, 用例 Schema 与加载器增量规格, MODIFIED Requirements
+Cohesion: 0.15
+Nodes (32): buildColor(), CANONICAL_SECTIONS, collectBullets(), collectColorValues(), collectParagraphs(), detectFormat(), extractColors(), extractComponents() (+24 more)
 
 ### Community 106 - "Community 106"
 Cohesion: 0.20
@@ -1276,28 +1303,28 @@ Cohesion: 0.39
 Nodes (7): 1. 删除 MockAdapter 代码, 2. Models 默认值, 3. 测试改造, 4. Config / Skill / Docs 清理, 5. Spec 更新, 6. 端到端验证, 7. 归档
 
 ### Community 110 - "Community 110"
-Cohesion: 0.20
-Nodes (12): Capabilities, Impact, Modified Capabilities, What Changes, Why, 1. 删除 HTML reporter, 2. CLI 改造, 3. 配置文件 / 历史快照 (+4 more)
+Cohesion: 0.39
+Nodes (7): 1. 删除 HTML reporter, 2. CLI 改造, 3. 配置文件 / 历史快照, 4. 测试改造, 5. Docs / Spec, 6. 端到端验证, 7. 归档
 
 ### Community 111 - "Community 111"
 Cohesion: 0.39
 Nodes (7): 1. 模型与配置, 2. 否定线索快筛（确定性，零成本）, 3. SemanticRuleAdjudicator 核心, 4. 接入判分失败路径（非对称 + 安全闸）, 5. Fingerprint 与治理, 6. 报告呈现, 7. 测试与回归
 
 ### Community 112 - "Community 112"
-Cohesion: 0.29
-Nodes (6): Requirement: 系统必须固定产出八维评分, Scenario: 安全维返回非法中间分, Scenario: 重要指南获得部分分, 判分流水线增量规格, MODIFIED Requirements, Requirement: 指南 Judge 必须支持模型部分分
+Cohesion: 0.06
+Nodes (31): PairwiseConfidenceKind, asText(), BenchmarkCaseEditorDrawer(), CaseData, KeyValueEditor(), MarkdownValueEditor(), Pair, pairs() (+23 more)
 
 ### Community 113 - "Community 113"
-Cohesion: 0.09
-Nodes (45): abortSvelteComponentInjection(), applySavedSessionMeta(), buildInsertPlaceholderSnapshotFromDom(), captureAndEmit(), checkpointPayload(), clampVariantIndex(), cleanup(), cleanupAcceptedSession() (+37 more)
+Cohesion: 0.10
+Nodes (19): DynamicConversation, 模型语义决策、预设测试点兜底的多轮用户模拟计划。, SimulatedUserTurn, execution_cases_for_mode(), 按本次 Run 的对话模式准备执行用例，不改写原始 Case 或判分依据。      ``single_turn`` 保留 main 分支的固定 turns 执, 模型语义决策、确定事实兜底的动态用户模拟器。  它不是判官：只负责把 Case 中的画像、长期记忆、脚本追问与运行态事实组织成 下一条用户消息。模型补全产生的事, 动态 Case 的用户侧状态机；没有 LLM 时仍可推进预设测试点。, 目标/结束条件是软性对话状态，而不是对 Agent 的内容打分。 (+11 more)
 
 ### Community 114 - "Community 114"
 Cohesion: 0.24
 Nodes (8): ADDED Requirements, REMOVED Requirements, Requirement: 系统必须 fail-fast 拒绝缺失的 adapter type 配置, Requirement: 系统必须提供基于关键词模拟的 Mock Adapter, 场景: config 中 adapter.type 拼写错误, ADDED Requirements, 场景: config 中缺失 adapter.type, 场景: 已支持类型必须保持工作
 
 ### Community 115 - "Community 115"
-Cohesion: 0.29
-Nodes (6): MODIFIED Requirements, Requirement: 报告必须输出四档结论与可追溯指南扣分, Requirement: 系统必须按三端 45 分制计算结论, Scenario: 护士端满分归一, Scenario: 指南满分不扣分, 报告增量规格
+Cohesion: 0.11
+Nodes (28): addManualContextText(), applyEditing(), buildLocatorForLeaf(), canRestoreManualEditElement(), contextElementForManualEdit(), copyEditContainerContext(), copyEditLeafContext(), directMixedTextRestoreNodes() (+20 more)
 
 ### Community 116 - "Community 116"
 Cohesion: 0.22
@@ -1324,8 +1351,8 @@ Cohesion: 0.36
 Nodes (6): 为什么, 修改功能, 功能 (Capabilities), 变更内容, 影响, 新增功能
 
 ### Community 122 - "Community 122"
-Cohesion: 0.05
-Nodes (83): PairwiseResult, 一对回答的相对偏好结论（A=基线、B=本次）。, _case_diff_rows(), _changed_judge_labels(), check_pairwise_comparable(), compare_runs(), _fingerprint_diff_items(), pairwise_subject_diff() (+75 more)
+Cohesion: 0.10
+Nodes (31): api, Benchmark, RunDiff, buildCaseColumns(), RAG_STATUS, ExportTranscriptsModal(), RunCaseResultsCard(), RunOverviewTab() (+23 more)
 
 ### Community 123 - "Community 123"
 Cohesion: 0.43
@@ -1396,16 +1423,16 @@ Cohesion: 0.43
 Nodes (5): Capabilities, Impact, Modified Capabilities, What Changes, Why
 
 ### Community 141 - "Community 141"
-Cohesion: 0.08
-Nodes (74): BaseModel, EvaluationDimension, DynamicReplyRule, 规则优先的用户回复。      ``match_any`` 是轻量、可审计的关键词路由。它没有命中时才会交给用户     模拟模型，因此不会要求 Case 作者, ProfileCoverage, ProfileMatch, 该评分档由 config.yaml profile_match 命中的条件（用于前端展示覆盖范围）。, 该评分档对应的用例 score_profile 映射（用于前端展示覆盖范围）。 (+66 more)
+Cohesion: 0.06
+Nodes (82): 重新从 Langfuse 拉取该 Case 的 cx-agent 内部调用链；失败不改评分。, sync_case_agent_chain(), annotate_case(), get_case_annotations(), get_review_queue(), get_review_stats(), request_review(), runs 子路由共享 APIRouter。 (+74 more)
 
 ### Community 142 - "Community 142"
 Cohesion: 0.48
 Nodes (5): 1. 数据契约扩展（models）, 2. RuleJudge 行为扩展, 3. Markdown 渲染扩展, 4. 集成验证, 5. 人工触发
 
 ### Community 143 - "Community 143"
-Cohesion: 0.08
-Nodes (30): selectableBenchmarks(), JudgeModel, PairwiseComparability, TrendPoint, AsyncLoadError(), DashboardPageShell(), DashboardPageShellProps, PairwiseCreateCard() (+22 more)
+Cohesion: 0.07
+Nodes (35): selectableBenchmarks(), JudgeModel, TrendPoint, AsyncLoadError(), DashboardPageShell(), DashboardPageShellProps, JudgeModelEditModal(), Props (+27 more)
 
 ### Community 144 - "Community 144"
 Cohesion: 0.29
@@ -1420,8 +1447,8 @@ Cohesion: 0.43
 Nodes (5): Capabilities, Impact, Modified Capabilities, What Changes, Why
 
 ### Community 147 - "Community 147"
-Cohesion: 0.16
-Nodes (22): runs 路由包：发起评测 / 列表 / 重判 / 用例 / 人审 / diff。  子模块在 import 时向共享 ``router`` 注册端点。以下 r, _check(), _client(), _create_import(), FeishuDriveError, import_xlsx_as_sheet(), _poll(), float (+14 more)
+Cohesion: 0.18
+Nodes (21): _check(), _client(), _create_import(), FeishuDriveError, import_xlsx_as_sheet(), _poll(), float, int (+13 more)
 
 ### Community 148 - "Community 148"
 Cohesion: 0.43
@@ -1440,40 +1467,40 @@ Cohesion: 0.17
 Nodes (9): 1. report_formats 测试 fixture 自包含（首选，彻底解耦）, 2. README 标记恢复（用生成器写回）, 3. spec 校准, 不做什么（YAGNI）, 修复方案, 根因与复现, 设计：修复历史测试基线漂移, 验证 (+1 more)
 
 ### Community 152 - "Community 152"
-Cohesion: 0.08
-Nodes (29): buildSelectorSegment(), checkBorders(), checkElementBorders(), checkElementBordersDOM(), checkElementItalicSerif(), checkElementItalicSerifDOM(), checkElementMotion(), checkElementMotionDOM() (+21 more)
+Cohesion: 0.09
+Nodes (32): buildCollapsible(), buildColorModels(), buildDesignHeader(), buildRadiiModels(), buildTypographyModels(), cssSafe(), escapeHtml(), fetchDesignSystem() (+24 more)
 
 ### Community 153 - "Community 153"
 Cohesion: 0.29
 Nodes (5): ADDED Requirements, Requirement: 报告必须呈现得分点逐点命中与指南匹配率, Scenario: 含得分点用例展示逐点明细, Scenario: 指南匹配率独立展示且标注非否决, Scenario: 无得分点用例不显示空段
 
 ### Community 154 - "Community 154"
-Cohesion: 0.24
-Nodes (6): _client(), FeishuMedia, FeishuMediaError, fetch_media(), 以用户 ``user_access_token`` 下载飞书云文档/表格图片素材。, 飞书媒体素材下载客户端（mock httpx，不打真实网络）。
+Cohesion: 0.06
+Nodes (30): 0. 免责与适用范围, 1. 三角色定位, 2. 评分维度矩阵, 3.1 量表：所有维度 0–5 整数, 3.2 强制理由（硬性要求）, 3. 打分标尺与评分要求, 4. 各维度标注指南（仅列 0 分与满分要求，中间分自行判断）, 5.1 两个分项分（层内加权，各自归一到 0–100，分开展示） (+22 more)
 
 ### Community 155 - "Community 155"
-Cohesion: 0.08
-Nodes (23): FORBIDDEN_MANUAL_EDIT_TEXT_CHARS, INSERT_POSITIONS, isValidId(), isValidVariantId(), validateAnnotationFields(), validateEvent(), validateInsertGenerate(), validateManualEditEvent() (+15 more)
+Cohesion: 0.13
+Nodes (30): acceptCli(), argVal(), buildCarbonizeReplacement(), decodeHtmlAttr(), deindentContent(), detectCommentSyntax(), escapeRegExp(), expandReplaceRange() (+22 more)
 
 ### Community 156 - "Community 156"
-Cohesion: 0.20
-Nodes (10): Craft Flow, Gates: do not compress, Production bar, Step 0: Project Foundation, Step 1: Shape the Design, Step 2: Load References, Step 3: Visual Direction & Assets (Harness-Gated), Step 4: Build to Production Quality (+2 more)
+Cohesion: 0.13
+Nodes (30): applyMockWrites(), buildCopyEditBatchPrompt(), checkFrameworkSourceSyntax(), chooseCopyEditAgent(), COMMAND_AUTH_CACHE, commandAuthed(), commandExists(), compactBatchForPrompt() (+22 more)
 
 ### Community 157 - "Community 157"
-Cohesion: 0.18
-Nodes (19): clearAppliedEntries(), args, buffer, cwd, pageUrlFilter, remaining, buildManualEditEvidence(), countByPage() (+11 more)
+Cohesion: 0.11
+Nodes (33): createBrowserDetector(), confirm(), detectCli(), formatFindings(), handleStdin(), printUsage(), buildImportGraph(), detectFrameworkConfig() (+25 more)
 
 ### Community 158 - "Community 158"
 Cohesion: 0.15
-Nodes (32): buildColor(), CANONICAL_SECTIONS, collectBullets(), collectColorValues(), collectParagraphs(), detectFormat(), extractColors(), extractComponents() (+24 more)
+Nodes (30): clearStoredManualApplyState(), copyToClipboard(), fetchPendingCount(), handleManualEditActivity(), hidePendingApplyDock(), manualApplyLoadingText(), manualApplyStateKey(), manualEditEventForCurrentPage() (+22 more)
 
 ### Community 159 - "Community 159"
 Cohesion: 0.53
 Nodes (4): 1. 模型字段, 2. Runner 计时, 3. 聚合与报告, 4. 测试
 
 ### Community 160 - "Community 160"
-Cohesion: 0.10
-Nodes (29): applyOriginalAttrsToSvelteAnchor(), applyParamDefaults(), applyParamValue(), closedClipPath(), commitAcceptedSvelteComponentToDom(), getMountedSvelteComponentAnchor(), getVisibleVariantEl(), hideParamsPanel() (+21 more)
+Cohesion: 0.09
+Nodes (55): str, _case_diff_rows(), _changed_judge_labels(), check_pairwise_comparable(), compare_runs(), _fingerprint_diff_items(), pairwise_rag_side(), pairwise_subject_diff() (+47 more)
 
 ### Community 161 - "Community 161"
 Cohesion: 0.53
@@ -1488,12 +1515,12 @@ Cohesion: 0.18
 Nodes (8): 1. 迁移老套件独有 / 安全关键内容(删除前完成), 2. 拍平目录 + 去重删除, 3. 配置 / 文档同步, 4. 规格 delta(`specs/breast-cancer-case-suite/spec.md`), 5. 测试更新 + 验收, 6. 收尾, Tasks: 合并去重为单一乳腺癌 benchmark, 6. 收尾
 
 ### Community 164 - "Community 164"
-Cohesion: 0.20
-Nodes (14): AssistantMessage, comparable(), ContextKind, ContextReference, ConversationContextInitialState, ConversationContextReferences(), findConversationContextReferences(), fuzzyExcerpt() (+6 more)
+Cohesion: 0.15
+Nodes (16): AsyncBaseTransport, test_reader_falls_back_to_v1_when_v2_has_ingestion_delay(), test_sync_conversation_trace_is_fail_soft_when_not_configured(), test_sync_conversation_trace_normalizes_v2_observations(), test_sync_keeps_cx_agent_literature_audit_when_langfuse_is_unconfigured(), test_sync_marks_not_yet_ingested_trace_as_pending(), _duration_ms(), _first() (+8 more)
 
 ### Community 165 - "Community 165"
-Cohesion: 0.20
-Nodes (10): Case YAML v2, MME 医疗对话评测, SIT 评测账号, 指南评分, 普通评测账号池, 本地运行, 评分口径, 评测平台 (+2 more)
+Cohesion: 0.14
+Nodes (24): ALLOWED_HEX_REL, BANNED_DEPS, checkBannedDeps(), checkDimensionLabelsSync(), checkNoScatteredHex(), checkPagesLayer(), checkTokenMirror(), DASHBOARD_TOKEN_PAIRS (+16 more)
 
 ### Community 166 - "Community 166"
 Cohesion: 0.33
@@ -1504,36 +1531,36 @@ Cohesion: 0.33
 Nodes (4): Requirement: CLI 必须从配置读取模块满分/扣分步长/评级阈值并写入 config_snapshot, Scenario: 缺省使用文档化默认, Scenario: 评分口径入快照, ADDED Requirements
 
 ### Community 168 - "Community 168"
-Cohesion: 0.11
-Nodes (17): Accent Color Application, Accessibility, Assess Color Opportunity, Background & Surfaces, Balance & Refinement, Borders & Accents, Cohesion, Data Visualization (+9 more)
+Cohesion: 0.29
+Nodes (7): Amplify the Design, Color Intensification, Composition Boldness, Motion & Animation, Spatial Drama, Typography Amplification, Visual Effects
 
 ### Community 169 - "Community 169"
-Cohesion: 0.13
-Nodes (30): acceptCli(), argVal(), buildCarbonizeReplacement(), decodeHtmlAttr(), deindentContent(), detectCommentSyntax(), escapeRegExp(), expandReplaceRange() (+22 more)
+Cohesion: 0.07
+Nodes (27): Assess Current State, Plan Amplification, Register, Verify Quality, Cleanup, Exit, Handle `accept`, Handle `discard` (+19 more)
 
 ### Community 170 - "Community 170"
-Cohesion: 0.09
-Nodes (32): buildCollapsible(), buildColorModels(), buildDesignHeader(), buildRadiiModels(), buildTypographyModels(), cssSafe(), escapeHtml(), fetchDesignSystem() (+24 more)
+Cohesion: 0.14
+Nodes (24): analyzeSourceHint(), buildCandidatesForOp(), buildContextHintsByRef(), collectSearchFiles(), countOps(), escapeRegExp(), findContextMatches(), findLiteralMatches() (+16 more)
 
 ### Community 171 - "Community 171"
-Cohesion: 0.06
-Nodes (30): 0. 免责与适用范围, 1. 三角色定位, 2. 评分维度矩阵, 3.1 量表：所有维度 0–5 整数, 3.2 强制理由（硬性要求）, 3. 打分标尺与评分要求, 4. 各维度标注指南（仅列 0 分与满分要求，中间分自行判断）, 5.1 两个分项分（层内加权，各自归一到 0–100，分开展示） (+22 more)
+Cohesion: 0.05
+Nodes (105): JudgeOverride, get_next_case(), create_run(), delete_run(), diff_run(), get_progress(), get_release_gate(), get_run() (+97 more)
 
 ### Community 172 - "Community 172"
-Cohesion: 0.13
-Nodes (31): applyMockWrites(), buildCopyEditBatchPrompt(), checkFrameworkSourceSyntax(), chooseCopyEditAgent(), COMMAND_AUTH_CACHE, commandAuthed(), commandExists(), compactBatchForPrompt() (+23 more)
+Cohesion: 0.08
+Nodes (24): Component translation rules, Narrative mapping, Pitfalls, Scan mode (approach C: auto-extract, then confirm descriptive language), Schema, Seed mode, Step 1: Confirm seed mode, Step 1: Find the design assets (+16 more)
 
 ### Community 173 - "Community 173"
-Cohesion: 0.06
-Nodes (36): RunDetail, sources, buildCaseColumns(), row, EditCriteriaDrawer(), ExportTranscriptsModal(), PairwiseConversationCol(), renderCol() (+28 more)
+Cohesion: 0.09
+Nodes (23): RunDetail, RunDashboardHeader(), RunDashboardHeaderProps, baseRun, AXIS_TICK, PIE_COLORS, RunOverviewCharts(), RunOverviewKpiGrid() (+15 more)
 
 ### Community 174 - "Community 174"
 Cohesion: 0.43
 Nodes (5): Capabilities, Impact, Modified Capabilities, What Changes, Why
 
 ### Community 176 - "Community 176"
-Cohesion: 0.09
-Nodes (23): Absolute bans, Color, Color & Theme, Commands, Copy, Design guidance, General rules, Interaction (+15 more)
+Cohesion: 0.15
+Nodes (17): BenchmarkCoverage, CaseBrief, BenchmarkCaseColumnsOptions, createBenchmarkCaseColumns(), shortCaseId(), BenchmarkCoverageDrawer(), BenchmarkCoverageDrawerProps, DashTableActions() (+9 more)
 
 ### Community 177 - "Community 177"
 Cohesion: 0.43
@@ -1548,8 +1575,8 @@ Cohesion: 0.20
 Nodes (7): config.py 改动, Design — Adapter 插件注册表（单一真值源）, 保持不变（行为对拍锚点）, 注册时机 / 导入拓扑, 注册表表面（`medeval/adapter/registry.py`）, 测试（TDD）, 类侧声明
 
 ### Community 180 - "Community 180"
-Cohesion: 0.15
-Nodes (30): confirm(), clearStoredManualApplyState(), copyToClipboard(), fetchPendingCount(), handleManualEditActivity(), hidePendingApplyDock(), manualApplyLoadingText(), manualApplyStateKey() (+22 more)
+Cohesion: 0.18
+Nodes (22): completionAckForAcceptResult(), completionTypeForAcceptResult(), augmentEventWithAcceptHandling(), buildAcceptScriptArgs(), buildPollReplyPayload(), EVENT_TYPES_NEEDING_AGENT_REPLY, fetchNextEvent(), fetchServerStatus() (+14 more)
 
 ### Community 181 - "Community 181"
 Cohesion: 0.25
@@ -1560,96 +1587,92 @@ Cohesion: 0.26
 Nodes (15): _case(), _meta(), Path, str, trace 落盘模块单测（change 2026-06-04-persist-traces-rejudge）。  覆盖：   - round-trip：writ, test_partial_writer_then_finalize(), test_per_case_traces_rebuild_order(), test_read_falls_back_to_partial() (+7 more)
 
 ### Community 184 - "Community 184"
-Cohesion: 0.50
-Nodes (6): judge_verdict_label(), judge_verdict_label_map(), str, test_dimension_and_guideline_labels(), test_label_map_contains_all_eight_dimensions(), test_unknown_label_is_not_compatibly_rewritten()
+Cohesion: 0.09
+Nodes (37): 一个 judge 可以返回多个 verdict（例如硬门槛分别返回三个）。, 返回该 Judge 实例的稳定 12 位哈希。          必须覆盖所有"会影响判分输出"的静态属性（patterns / prompt /, 所有 assistant 回复拼起来，便于跨轮匹配。, ConversationTrace, JudgeVerdict, str, TestCase, ConversationTrace (+29 more)
 
 ### Community 185 - "Community 185"
-Cohesion: 0.09
-Nodes (33): addManualContextText(), applyEditing(), buildLocatorForLeaf(), canRestoreManualEditElement(), collectManualContextPieces(), contextElementForManualEdit(), copyEditContainerContext(), copyEditLeafContext() (+25 more)
+Cohesion: 0.16
+Nodes (23): analyzeVisualContrast(), analyzeVisualContrastCandidate(), checkElementColors(), checkElementColorsDOM(), checkElementGlowDOM(), checkElementIconTile(), checkElementIconTileDOM(), checkIconTile() (+15 more)
 
 ### Community 186 - "Community 186"
-Cohesion: 0.04
-Nodes (118): BaseAdapter, ChatRequest, ChatResponse, Adapter 必须是异步的，便于 Runner 做高并发。, 一次 Case/run 结束钩子；有外部会话租约的 adapter 可在此释放。, _get_by_path(), Any, ChatRequest (+110 more)
+Cohesion: 0.06
+Nodes (103): BaseAdapter, ChatResponse, Adapter 必须是异步的，便于 Runner 做高并发。, 一次 Case/run 结束钩子；有外部会话租约的 adapter 可在此释放。, Enum, ChatMessage, Difficulty, Level (+95 more)
 
 ### Community 187 - "Community 187"
 Cohesion: 0.50
 Nodes (4): CaseResult, Guideline Match Rate, Reporting Spec (Scoring Point), RunReport
 
 ### Community 188 - "Community 188"
-Cohesion: 0.36
-Nodes (8): bindEditBadgeProxy(), editBadgeProxyTargets(), initEditBadgeHitProxies(), positionEditBadge(), setImportantStyle(), styleEditBadgeProxy(), syncEditBadgeHitProxies(), usesShadowChromeRoot()
+Cohesion: 0.09
+Nodes (22): Assess Onboarding Needs, Context Over Ceremony, Contextual Help, Design Onboarding Experiences, Documentation & Help, Empty State Design, Feature Discovery & Adoption, Guided Tours & Walkthroughs (+14 more)
 
 ### Community 189 - "Community 189"
-Cohesion: 0.14
-Nodes (24): analyzeSourceHint(), buildCandidatesForOp(), buildContextHintsByRef(), collectSearchFiles(), countOps(), escapeRegExp(), findContextMatches(), findLiteralMatches() (+16 more)
+Cohesion: 0.19
+Nodes (18): args, buffer, cwd, pageUrlFilter, remaining, buildManualEditEvidence(), countByPage(), getBufferPath() (+10 more)
 
 ### Community 190 - "Community 190"
-Cohesion: 0.24
-Nodes (10): cli(), COMMON_DEV_PORTS, devServerSignals(), gatherSignals(), gitSignals(), hasCode(), latestCritique(), SCANNABLE_EXT (+2 more)
+Cohesion: 0.16
+Nodes (17): datetime, make_run_slug(), datetime, str, 评测 run 目录名 / ``RunReport.run_name`` 生成。  ``config.yaml`` 的 ``run.name`` 只写模型 + 用, 消毒 run 名用作目录名：去路径分隔符 / 控制字符 / ``..`` 穿越片段。      仅剔除危险字符，保留中文、字母、数字、``._-``，不改变合法, 生成唯一 run 标识，用作 ``outputs/<slug>/`` 与 ``RunReport.run_name``。      格式：``{run_labe, _sanitize_label() (+9 more)
 
 ### Community 191 - "Community 191"
-Cohesion: 0.11
-Nodes (44): markdown_report.py, Change: enrich must-have verdict with unmet_patterns, Change: localize failure tags to Chinese, CaseResult, int, JudgeVerdict, RunReport, str (+36 more)
+Cohesion: 0.16
+Nodes (33): markdown_report.py, Change: localize failure tags to Chinese, CaseResult, int, JudgeVerdict, RunReport, str, _adjudication_section() (+25 more)
 
 ### Community 192 - "Community 192"
-Cohesion: 0.08
-Nodes (25): Assess Adaptation Challenge, Breakpoints: Content-Driven, Content Adaptation, Desktop Adaptation (Mobile → Desktop), Detect Input Method, Not Just Screen Size, Email Adaptation (Web → Email), Implement Adaptations, Layout Adaptation Patterns (+17 more)
-
-### Community 193 - "Community 193"
-Cohesion: 0.11
-Nodes (39): _json_or_text(), Any, 可持久化、可通过 API 返回的配置快照，递归移除明文凭据。, 递归删除配置中的明文密钥；保留对应的 ``*_env`` 名称以便复现。, redact_config_secrets(), evaluation_standard(), 回传固定八维、三端和45分评级口径，供前端展示。, _append_rich_segment() (+31 more)
+Cohesion: 0.15
+Nodes (19): appendOriginToDirective(), buildTagBlock(), commentClose(), commentOpen(), CONFIG_PATH, __dirname, ensureLiveGitIgnores(), escapeRegExp() (+11 more)
 
 ### Community 194 - "Community 194"
-Cohesion: 0.08
-Nodes (25): append-arrays, append-string, Cleanup, Consent prompt template, CSP detection (first-time only), Drift-heal warning, Exit, First-time setup (config missing or invalid) (+17 more)
+Cohesion: 0.10
+Nodes (20): Animate complex properties, Assess What "Extraordinary" Means Here, For data-heavy interfaces, For functional UI, For performance-critical UI, For visual/marketing surfaces, Implement with Discipline, Interact with the device (+12 more)
 
 ### Community 195 - "Community 195"
-Cohesion: 0.14
-Nodes (24): ALLOWED_HEX_REL, BANNED_DEPS, checkBannedDeps(), checkDimensionLabelsSync(), checkNoScatteredHex(), checkPagesLayer(), checkTokenMirror(), DASHBOARD_TOKEN_PAIRS (+16 more)
+Cohesion: 0.10
+Nodes (19): compilerOptions, allowImportingTsExtensions, isolatedModules, jsx, lib, module, moduleResolution, noEmit (+11 more)
 
 ### Community 197 - "Community 197"
 Cohesion: 0.07
 Nodes (23): Requirement: 失败标签中文标签元数据接口, Scenario: 上线失败一律入队, Scenario: 返回中文标签映射, Scenario: 通过用例不入队, ADDED Requirements, eval-platform-service Specification (delta), MODIFIED Requirements, Requirement: 人工审核队列 (+15 more)
 
 ### Community 198 - "Community 198"
-Cohesion: 0.17
-Nodes (17): init_db(), init_engine(), _make_engine(), Settings, str, 初始化全局 engine 与 sessionmaker（幂等）。返回 engine。, 按当前 ORM 从空数据库建表；本版本不迁移旧数据库结构。, 建表（首次启动调用）。导入 models_db 触发表注册后 create_all + 幂等补列。 (+9 more)
+Cohesion: 0.18
+Nodes (12): 旧格式脚本式多轮可导入；动态 conversation 的三轮限制不受影响。, 结构化编辑器无需前端解析 YAML，也能完整读取并写回单条 Case。, test_read_and_save_structured_case_content(), test_upload_accepts_chinese_current_concern_and_prepares_agent_payload(), test_upload_accepts_free_profile_and_timeline_keys(), test_upload_and_read_v2_benchmark(), test_upload_keeps_scripted_multiturn_context_and_mode_default(), test_upload_normalizes_top_level_user_profile_into_initial_state() (+4 more)
 
 ### Community 199 - "Community 199"
-Cohesion: 0.09
-Nodes (40): activeElementDeep(), attachSteerFocusDebug(), buildSteerProcessingDots(), clearSteerAwaitTimer(), collapsePageChat(), expandPageChat(), finishVoiceSession(), focusPageChatInput() (+32 more)
+Cohesion: 0.10
+Nodes (19): Accessibility, Assess Animation Opportunities, CSS Animations, Delight Moments, Entrance Animations, Feedback & Guidance, Implement Animations, JavaScript Animation (+11 more)
 
 ### Community 200 - "Community 200"
 Cohesion: 0.29
 Nodes (6): Requirement: Adapter 工厂必须基于注册表实现开闭扩展, Scenario: 已注册类型与别名保持工作, Scenario: 注册表为类型清单的单一真值源, Scenario: 配置层未知类型走注册表校验, Scenario: 重复注册同名类型必须报错, ADDED Requirements
 
 ### Community 201 - "Community 201"
-Cohesion: 0.11
-Nodes (24): applyStaticDeclaration(), buildBorderOverrideMap(), buildStaticWindow(), compareStaticPriority(), cssPropToCamel(), expandStaticBoxValues(), expandStaticDeclaration(), extractStaticColor() (+16 more)
+Cohesion: 0.10
+Nodes (19): Clean Up, Code Quality, Color & Contrast, Content & Copy, Design System Discovery, Edge Cases & Error States, Final Verification, Forms & Inputs (+11 more)
 
 ### Community 202 - "Community 202"
-Cohesion: 0.13
-Nodes (3): collectStaticCssText(), StaticDocument, StaticElement
+Cohesion: 0.21
+Nodes (13): Any, bool, str, 可观测性（observability）：可选 OpenTelemetry tracing。  参见 OpenSpec change ``enhance-eval, _apply_attrs(), configure_tracing(), 可选 OpenTelemetry tracing —— 默认 no-op、零开销、不强依赖 otel。  参见 OpenSpec change ``enhanc, 按需启用 OTel tracing。返回是否真正启用。      ``enabled=False``（默认）→ 关闭并清空 tracer。``enabled=T (+5 more)
 
 ### Community 203 - "Community 203"
-Cohesion: 0.05
-Nodes (71): Exception, AdapterCfg, CasesCfg, ConfigError, CostConfig, CxAgentCfg, EightDimensionCfg, _format_validation_error() (+63 more)
+Cohesion: 0.45
+Nodes (11): GuidelineJudge, case(), test_failure_scores_every_guideline_zero(), test_invalid_fractional_score_is_zero(), test_list_guideline_returns_missed_points_and_deduction(), test_medical_safety_guideline_coerces_any_deduction_to_five(), test_partial_credit_is_preserved(), test_prompt_includes_case_initial_state_without_counting_it_as_coverage() (+3 more)
 
 ### Community 204 - "Community 204"
-Cohesion: 0.15
-Nodes (11): RuntimeError, BaseCoords, _check(), _client(), FeishuBaseError, fetch_base_records(), _format_feishu_error(), parse_base_url() (+3 more)
+Cohesion: 0.11
+Nodes (18): Appropriate to Context, Assess Delight Opportunities, Celebration Moments, Compound Over Time, Delight Amplifies, Never Blocks, Delight Principles, Delight Techniques, Easter Eggs & Hidden Delights (+10 more)
 
 ### Community 205 - "Community 205"
-Cohesion: 0.08
-Nodes (24): Component translation rules, Narrative mapping, Pitfalls, Scan mode (approach C: auto-extract, then confirm descriptive language), Schema, Seed mode, Step 1: Confirm seed mode, Step 1: Find the design assets (+16 more)
+Cohesion: 0.18
+Nodes (17): buildUpdateDirective(), cli(), compareSemver(), computeUpdateDirective(), DESIGN_NAMES, extractRegister(), FALLBACK_DIRS, fetchLatestSkillVersion() (+9 more)
 
 ### Community 206 - "Community 206"
 Cohesion: 0.09
-Nodes (28): ActionSummary, AgentChainNode, AgentChainPanel(), AgentChainSnapshot, AgentChainSummary, CaseInitialState, ChainStep, ContextCard() (+20 more)
+Nodes (39): build_authorize_url(), _client(), exchange_code(), FeishuOAuthError, get_user_info(), _parse_token(), _post_token(), Response (+31 more)
 
 ### Community 207 - "Community 207"
-Cohesion: 0.21
-Nodes (13): Any, bool, str, 可观测性（observability）：可选 OpenTelemetry tracing。  参见 OpenSpec change ``enhance-eval, _apply_attrs(), configure_tracing(), 可选 OpenTelemetry tracing —— 默认 no-op、零开销、不强依赖 otel。  参见 OpenSpec change ``enhanc, 按需启用 OTel tracing。返回是否真正启用。      ``enabled=False``（默认）→ 关闭并清空 tracer。``enabled=T (+5 more)
+Cohesion: 0.20
+Nodes (14): AssistantMessage, comparable(), ContextKind, ContextReference, ConversationContextInitialState, ConversationContextReferences(), findConversationContextReferences(), fuzzyExcerpt() (+6 more)
 
 ### Community 208 - "Community 208"
 Cohesion: 0.14
@@ -1660,16 +1683,16 @@ Cohesion: 0.15
 Nodes (10): DiffCaseRow, DiffCaseRow, DiffChangeKind, DiffFilter, RunDiffTab(), RunDiffTabProps, baselineCases, currentCases (+2 more)
 
 ### Community 210 - "Community 210"
-Cohesion: 0.23
-Nodes (16): injectCli(), validateConfig(), applySvelteKitLiveAdapter(), buildSvelteLiveRootComponent(), defaultSvelteLayout(), detectSvelteKitProject(), ensureSvelteLiveRootComponent(), escapeRegExp() (+8 more)
+Cohesion: 0.11
+Nodes (17): Accent Color Application, Accessibility, Assess Color Opportunity, Background & Surfaces, Balance & Refinement, Borders & Accents, Cohesion, Data Visualization (+9 more)
 
 ### Community 211 - "Community 211"
 Cohesion: 0.05
 Nodes (43): ADDED Requirements, MODIFIED Requirements, REMOVED Requirements, Requirement: overall_passed 必须由该题 profile 的 pass_rule 决定, Scenario: 对抗类 perfect 非满分即失败, Scenario: 生死线维度未满分则失败, Scenario: 知识类 threshold 达标即通过, 场景:N=1 时所有 case 的 stability 必须为 stable_pass 或 stable_fail (+35 more)
 
 ### Community 212 - "Community 212"
-Cohesion: 0.18
-Nodes (22): completionAckForAcceptResult(), completionTypeForAcceptResult(), augmentEventWithAcceptHandling(), buildAcceptScriptArgs(), buildPollReplyPayload(), EVENT_TYPES_NEEDING_AGENT_REPLY, fetchNextEvent(), fetchServerStatus() (+14 more)
+Cohesion: 0.11
+Nodes (17): 10. 验收标准, 1. 目标, 2.1 本次包含, 2.2 本次不包含, 2. 范围, 3. 八维度定义, 4.1 Schema 约束, 4. 新版 Case YAML (+9 more)
 
 ### Community 213 - "Community 213"
 Cohesion: 0.11
@@ -1680,28 +1703,28 @@ Cohesion: 0.29
 Nodes (8): 场景:trace 出错时 gate_passed 必须为 False, 场景:verdict→facts 单一遍历, 场景:单个 judge crash 不能拖垮其他 judge, 场景:无硬门槛、无规则、纯软分用例, 需求:Aggregator 必须把多 Judge 输出合并为统一 CaseResult, 场景:单个 judge crash 不能拖垮其他 judge, 场景:无硬门槛、无规则、纯软分用例, 需求:Aggregator 必须把多 Judge 输出合并为统一 CaseResult
 
 ### Community 215 - "Community 215"
-Cohesion: 0.19
-Nodes (28): test_ensure_agent_chain_summary_hydrates_old_detail_without_mutating_input(), test_summarizes_literature_recall_risk_actions_and_chain_quality(), test_summarizes_medical_sources_without_treating_history_as_rag(), _tool(), _action_summary(), _append_unique(), _compact(), ensure_agent_chain_summary() (+20 more)
+Cohesion: 0.22
+Nodes (17): raw_case(), test_guideline_cannot_target_binary_safety_dimension(), test_guideline_ids_are_unique(), test_guideline_max_score_is_integer_1_to_5(), test_old_case_shape_is_rejected_by_loader(), test_schema_version_and_evaluation_are_required(), test_v2_schema_accepts_arbitrary_chinese_current_concern(), test_v2_schema_accepts_free_profile_and_timeline_initial_state() (+9 more)
 
 ### Community 216 - "Community 216"
 Cohesion: 0.43
 Nodes (5): Capabilities, Impact, Modified Capabilities, What Changes, Why
 
 ### Community 217 - "Community 217"
-Cohesion: 0.16
-Nodes (23): analyzeVisualContrast(), analyzeVisualContrastCandidate(), checkElementColors(), checkElementColorsDOM(), checkElementGlowDOM(), checkElementIconTile(), checkElementIconTileDOM(), checkIconTile() (+15 more)
+Cohesion: 0.14
+Nodes (16): browserFindingsFromMap(), checkClippedOverflow(), checkCreamPalette(), checkElementClippedOverflow(), checkElementClippedOverflowDOM(), checkElementTextOverflowDOM(), checkHtmlPatterns(), checkPageQualityDOM() (+8 more)
 
 ### Community 218 - "Community 218"
-Cohesion: 0.18
-Nodes (11): 10. Help and Documentation, 1. Visibility of System Status, 2. Match Between System and Real World, 3. User Control and Freedom, 4. Consistency and Standards, 5. Error Prevention, 6. Recognition Rather Than Recall, 7. Flexibility and Efficiency of Use (+3 more)
+Cohesion: 0.12
+Nodes (17): 10. 批量文件的 `defaults + cases` 写法, 11. 可直接交给其他 AI 的提示词, 12. 校验与导入, 1. 生成任务的边界, 2. 最小合法结构, 3. 顶层字段, 4. 多轮对话的生成规则, 5. 八维与 `dimension_criteria` (+9 more)
 
 ### Community 219 - "Community 219"
-Cohesion: 0.20
-Nodes (27): JudgeModelCreate, JudgeModelUpdate, create_judge_model(), _creator_name(), delete_judge_model(), _get_or_404(), list_judge_models(), 判分模型配置路由：全局共享的 LLM-as-Judge 连接配置 CRUD。  api_key 只写不读——读取类接口只回 has_api_key 掩码，发起评 (+19 more)
+Cohesion: 0.23
+Nodes (24): JudgeModelCreate, JudgeModelUpdate, create_judge_model(), _creator_name(), delete_judge_model(), _get_or_404(), list_judge_models(), 判分模型配置路由：全局共享的 LLM-as-Judge 连接配置 CRUD。  api_key 只写不读——读取类接口只回 has_api_key 掩码，发起评 (+16 more)
 
 ### Community 223 - "Community 223"
-Cohesion: 0.09
-Nodes (22): Assess Onboarding Needs, Context Over Ceremony, Contextual Help, Design Onboarding Experiences, Documentation & Help, Empty State Design, Feature Discovery & Adoption, Guided Tours & Walkthroughs (+14 more)
+Cohesion: 0.12
+Nodes (17): CSS Anchor Positioning, Destructive Actions: Undo > Confirm, Dropdown & Overlay Positioning, Fixed Positioning Fallback, Focus Rings: Do Them Right, Form Design: The Non-Obvious, Gesture Discoverability, Interaction Design (+9 more)
 
 ### Community 224 - "Community 224"
 Cohesion: 0.10
@@ -1716,8 +1739,8 @@ Cohesion: 0.15
 Nodes (10): Requirement: 指南要点库必须以带版本锚点的 scoring_points 承载, Requirement: 指南要点库必须经 ScoringPointJudge 派生指南匹配率, Scenario: 具名指南锚点携带版本, Scenario: 标准答案依据展开为逐点要点, Scenario: 迁移用例跑通指南匹配率, ADDED Requirements, ADDED Requirements, Requirement: 指南要点库必须以带版本锚点的 scoring_points 承载 (+2 more)
 
 ### Community 227 - "Community 227"
-Cohesion: 0.17
-Nodes (26): checkColors(), checkCreamPalette(), checkElementAIPaletteDOM(), checkElementColors(), checkElementColorsDOM(), checkElementGlowDOM(), checkElementIconTile(), checkElementIconTileDOM() (+18 more)
+Cohesion: 0.12
+Nodes (16): 1. Read the screenshot (if present), 2. Wrap the element, 3. Load the action's reference, 4. Plan three variants: identity first, then mode, then axes, 5. Apply the freeform prompt (if present), 6. Write all variants in a single edit, 7. Parameters (composition-sized, 0–4 per variant), 8. Signal done (+8 more)
 
 ### Community 228 - "Community 228"
 Cohesion: 0.32
@@ -1728,8 +1751,8 @@ Cohesion: 0.46
 Nodes (5): Capabilities, Impact, Modified Capabilities, What Changes, Why
 
 ### Community 230 - "Community 230"
-Cohesion: 0.08
-Nodes (22): Amplify the Design, Assess Current State, Color Intensification, Composition Boldness, Motion & Animation, Plan Amplification, Register, Spatial Drama (+14 more)
+Cohesion: 0.12
+Nodes (15): Anti-Goals, Brief Structure, Constraints, Content & Data, Design Direction, How to use the probes, Important limits, Interview cadence (+7 more)
 
 ### Community 231 - "Community 231"
 Cohesion: 0.11
@@ -1744,12 +1767,12 @@ Cohesion: 0.25
 Nodes (5): 1. 注册表, 2. config 单一真值源, 3. TDD 测试, 4. 验证, Tasks
 
 ### Community 235 - "Community 235"
-Cohesion: 0.16
-Nodes (17): appendOriginToDirective(), buildTagBlock(), commentClose(), commentOpen(), CONFIG_PATH, __dirname, ensureLiveGitIgnores(), escapeRegExp() (+9 more)
+Cohesion: 0.12
+Nodes (16): Accessibility Considerations, Anti-reflexes worth defending against, Classic Typography Principles, Fluid Type, Font Selection & Pairing, Modern Web Typography, Modular Scale & Hierarchy, OpenType Features (+8 more)
 
 ### Community 236 - "Community 236"
-Cohesion: 0.17
-Nodes (15): _check(), _client(), _col_name(), FeishuSheetError, fetch_sheet_cells(), _format_feishu_error(), _invoke_read(), is_sheet_url() (+7 more)
+Cohesion: 0.12
+Nodes (16): 10. 批准记录, 1. 背景与动机, 2.1 目标, 2.2 非目标, 2. 目标与非目标, 3. 分阶段架构, 5.1 拆分 `server/routers/runs.py`, 5.2 拆分 `server/eval_job.py` (+8 more)
 
 ### Community 237 - "Community 237"
 Cohesion: 0.19
@@ -1764,8 +1787,8 @@ Cohesion: 0.20
 Nodes (7): CLI 注入实现, Design — 抽取评测服务层, evaluate 内部 = 原 `_go` 全流程（逻辑逐行搬运，不改）, `medeval/service.py` 表面, 不做的事, 分层原则：功能核 / 命令式外壳, 测试（TDD）
 
 ### Community 243 - "Community 243"
-Cohesion: 0.18
-Nodes (10): Action Summary, Ask the User, Assessment A: Design Review, Assessment B: Detector + Browser Evidence, Assessment Orchestration, Hard Invariants, Persist the Snapshot, Purpose (+2 more)
+Cohesion: 0.20
+Nodes (15): blendRgba(), clampByte(), firstCssUrl(), getLayerValue(), loadVisualContrastImage(), parseObjectPosition(), parsePositionPair(), parsePositionToken() (+7 more)
 
 ### Community 244 - "Community 244"
 Cohesion: 0.33
@@ -1776,20 +1799,20 @@ Cohesion: 0.08
 Nodes (27): MeResponse, AuthCtx, AuthProvider(), AuthState, useAuth(), RequireAuth(), ErrorBoundary, Props (+19 more)
 
 ### Community 250 - "Community 250"
-Cohesion: 0.10
-Nodes (20): Animate complex properties, Assess What "Extraordinary" Means Here, For data-heavy interfaces, For functional UI, For performance-critical UI, For visual/marketing surfaces, Implement with Discipline, Interact with the device (+12 more)
+Cohesion: 0.40
+Nodes (5): _hydrate_case_images(), _image_data_url(), 用例加载器 —— 从 cases/ 目录读取 YAML 并做 Pydantic 校验。, 将 ZIP benchmark 中的相对图片路径解析为受控 data URL。, 为 Case 的每个 turn 注入运行时图片内容，序列化时不带出 base64。      图片既可以显式声明在 ``turn.images``，也可以写在用
 
 ### Community 251 - "Community 251"
-Cohesion: 0.23
-Nodes (16): detectUrl(), runVisualContrastFallback(), createDetectorProfile(), extractFindingIds(), profileFindings(), profileFindingsAsync(), profileNow(), profileStep() (+8 more)
+Cohesion: 0.13
+Nodes (16): Absolute bans, Color, Color & Theme, Commands, Copy, Design guidance, General rules, Interaction (+8 more)
 
 ### Community 252 - "Community 252"
-Cohesion: 0.10
-Nodes (19): compilerOptions, allowImportingTsExtensions, isolatedModules, jsx, lib, module, moduleResolution, noEmit (+11 more)
+Cohesion: 0.13
+Nodes (15): Alpha Is A Design Smell, Building Functional Palettes, Color & Contrast, Color Spaces: Use OKLCH, Contrast & Accessibility, Dangerous Color Combinations, Dark Mode Is Not Inverted Light Mode, Palette Structure (+7 more)
 
 ### Community 254 - "Community 254"
-Cohesion: 0.10
-Nodes (19): Accessibility, Assess Animation Opportunities, CSS Animations, Delight Moments, Entrance Animations, Feedback & Guidance, Implement Animations, JavaScript Animation (+11 more)
+Cohesion: 0.14
+Nodes (14): Accessibility & Inclusion, Brand & Personality, Init Flow, Interview mode, not confirmation mode, Minimum viable interview, Register (ask first; it shapes everything below), Step 1: Load current state, Step 2: Explore the codebase (+6 more)
 
 ### Community 255 - "Community 255"
 Cohesion: 0.18
@@ -1804,12 +1827,12 @@ Cohesion: 0.20
 Nodes (8): Requirement: config_snapshot 必须落校验后模型的序列化结果, Requirement: 配置加载必须经类型化 schema 校验并在加载期 fail-fast, Scenario: azure provider 缺必填项加载即报错, Scenario: 合法配置行为不变, Scenario: 同配置两次 run 不产生口径伪 diff, Scenario: 拼错字段加载即报错, ADDED Requirements, ADDED Requirements
 
 ### Community 258 - "Community 258"
-Cohesion: 0.10
-Nodes (19): Clean Up, Code Quality, Color & Contrast, Content & Copy, Design System Discovery, Edge Cases & Error States, Final Verification, Forms & Inputs (+11 more)
+Cohesion: 0.13
+Nodes (14): 1. Accessibility (A11y), 2. Performance, 3. Theming, 4. Responsive Design, 5. Anti-Patterns (CRITICAL), Anti-Patterns Verdict, Audit Health Score, Detailed Findings by Severity (+6 more)
 
 ### Community 259 - "Community 259"
-Cohesion: 0.15
-Nodes (19): trim-report-formats reporting delta spec, Adapter Type Fail-fast, add-weighted-scoring-and-grading, build_adapter, 用例 Schema 与加载器规格, Chatbot 适配器规格, 多轮对话执行器规格 (dialog-runner), 评测命令行入口规格 (evaluation-cli) (+11 more)
+Cohesion: 0.27
+Nodes (12): trim-report-formats reporting delta spec, add-weighted-scoring-and-grading, apply_grading (scoring.py), 用例 Schema 与加载器规格, Chatbot 适配器规格, 多轮对话执行器规格 (dialog-runner), 评测命令行入口规格 (evaluation-cli), 四模块加权综合评分 (+4 more)
 
 ### Community 260 - "Community 260"
 Cohesion: 0.20
@@ -1824,16 +1847,16 @@ Cohesion: 0.25
 Nodes (5): 1. Schema, 2. TDD 测试, 3. 接线, 4. 验证, Tasks
 
 ### Community 263 - "Community 263"
-Cohesion: 0.10
-Nodes (23): JobFn, Semaphore, InProcessJobRunner, InMemoryProgress, int, str, 取消所有在跑任务并等待其结束（被取消的 run 由下次启动 reconcile 回收）。, 进程内 asyncio 任务调度，并发受 Semaphore 限流。 (+15 more)
+Cohesion: 0.07
+Nodes (35): JobFn, Semaphore, InProcessJobRunner, JobRunner, InMemoryProgress, int, str, 评测任务调度。  ``JobRunner`` 抽象出「异步执行一个评测任务 + 跟踪状态/进度」；MVP 用进程内 asyncio 实现 （并发上限、状态机 p (+27 more)
 
 ### Community 264 - "Community 264"
-Cohesion: 0.11
-Nodes (18): Appropriate to Context, Assess Delight Opportunities, Celebration Moments, Compound Over Time, Delight Amplifies, Never Blocks, Delight Principles, Delight Techniques, Easter Eggs & Hidden Delights (+10 more)
+Cohesion: 0.17
+Nodes (15): _check(), _client(), _col_name(), FeishuSheetError, fetch_sheet_cells(), _format_feishu_error(), _invoke_read(), is_sheet_url() (+7 more)
 
 ### Community 267 - "Community 267"
-Cohesion: 0.21
-Nodes (17): Judge Aggregator (judge_all / build_report), gen_failure_tags Doc Generator, FailureTag.label_zh (中文短标签), Spec: Consolidate Failure Tags (judging-pipeline), Spec: Localize Failure Tags ZH (judging-pipeline), openspec.yaml: Localize Failure Tags ZH, Proposal: Localize Failure Tags ZH, CaseResult (+9 more)
+Cohesion: 0.16
+Nodes (22): Judge Aggregator (judge_all / build_report), FailureTag Enum, gen_failure_tags Doc Generator, FailureTag.label_zh (中文短标签), TestCase, Consolidate Failure Tags — Case Schema & Loader Spec, Consolidate Failure Tags — Design, Consolidate Failure Tags — Proposal (+14 more)
 
 ### Community 268 - "Community 268"
 Cohesion: 0.16
@@ -1844,12 +1867,12 @@ Cohesion: 0.11
 Nodes (16): MODIFIED Requirements, Requirement: diff_runs 必须输出性能（会话延迟）对比块, Requirement: 报告必须呈现延迟统计且标注仅记录不计分, Scenario: 上版本缺延迟数据, Scenario: 两版均有延迟数据, Scenario: 当前无延迟数据, Scenario: 无延迟数据时不渲染空表, MODIFIED Requirements (+8 more)
 
 ### Community 270 - "Community 270"
-Cohesion: 0.18
-Nodes (17): buildUpdateDirective(), cli(), compareSemver(), computeUpdateDirective(), DESIGN_NAMES, extractRegister(), FALLBACK_DIRS, fetchLatestSkillVersion() (+9 more)
+Cohesion: 0.14
+Nodes (14): Brand bans (on top of the shared absolute bans), Brand permissions, Brand register, Color, Font selection procedure, Imagery, Layout, Motion (+6 more)
 
 ### Community 271 - "Community 271"
-Cohesion: 0.13
-Nodes (26): LLMBackend, 统一的 LLM client 构建 + 限速退避调用。      ``owner`` 仅用于日志可读性（区分是哪个判官触发的告警/退避），不影响行为、不进指纹。, reset_llm_rate_limit(), RateLimitError, _Choice, _FakeChat, _FakeClient, _FakeCompletions (+18 more)
+Cohesion: 0.11
+Nodes (25): LLMBackend, 统一的 LLM client 构建 + 限速退避调用。      ``owner`` 仅用于日志可读性（区分是哪个判官触发的告警/退避），不影响行为、不进指纹。, RateLimitError, _Choice, _FakeChat, _FakeClient, _FakeCompletions, _Msg (+17 more)
 
 ### Community 272 - "Community 272"
 Cohesion: 0.08
@@ -1872,20 +1895,20 @@ Cohesion: 0.25
 Nodes (5): 1. 服务层, 2. TDD 测试, 3. CLI 变薄, 4. 验证, Tasks
 
 ### Community 279 - "Community 279"
-Cohesion: 0.31
-Nodes (11): kebab(), listSnapshotsForSlug(), main(), nowFilenameStamp(), parseFrontmatter(), readLatestSnapshot(), readTrend(), serializeFrontmatter() (+3 more)
+Cohesion: 0.14
+Nodes (13): Animation Performance, Assess Performance Issues, Core Web Vitals Optimization, Cumulative Layout Shift (CLS < 0.1), First Input Delay (FID < 100ms) / INP (< 200ms), Largest Contentful Paint (LCP < 2.5s), Loading Performance, Network Optimization (+5 more)
 
 ### Community 280 - "Community 280"
 Cohesion: 0.43
 Nodes (5): Capabilities, Impact, Modified Capabilities, What Changes, Why
 
 ### Community 281 - "Community 281"
-Cohesion: 0.22
-Nodes (4): 判分模型配置中心：CRUD + Key 只写不读 + 发起评测注入。, _seed_benchmark(), test_launch_unknown_judge_model_404(), test_launch_with_judge_model_injects_key_but_not_public()
+Cohesion: 0.14
+Nodes (20): applyParamDefaults(), applyParamValue(), closedClipPath(), getVisibleVariantEl(), hideParamsPanel(), openTunePopover(), parseVariantParams(), pickVariantContent() (+12 more)
 
 ### Community 283 - "Community 283"
-Cohesion: 0.33
-Nodes (6): Case YAML v2 参考, 三端总分, 八维评分, 指南部分分与扣分, 核心结构, 用户画像与长期记忆
+Cohesion: 0.18
+Nodes (13): checkElementHeroEyebrow(), checkElementHeroEyebrowDOM(), checkElementOversizedH1(), checkElementOversizedH1DOM(), checkElementQuality(), checkElementQualityDOM(), checkHeroEyebrow(), checkOversizedH1() (+5 more)
 
 ### Community 285 - "Community 285"
 Cohesion: 0.07
@@ -1896,56 +1919,56 @@ Cohesion: 0.12
 Nodes (18): ADDED Requirements, Requirement: benchmark 管理界面, Requirement: 单次评测看板, Requirement: 发起评测界面, Requirement: 用例结果列表与明细, Requirement: 评测列表与实时进度, Requirement: 跨 run 趋势看板, Scenario: 上传并查看 benchmark (+10 more)
 
 ### Community 287 - "Community 287"
-Cohesion: 0.14
-Nodes (16): browserFindingsFromMap(), checkClippedOverflow(), checkCreamPalette(), checkElementClippedOverflow(), checkElementClippedOverflowDOM(), checkElementTextOverflowDOM(), checkHtmlPatterns(), checkPageQualityDOM() (+8 more)
+Cohesion: 0.11
+Nodes (34): Path, str, diff_runs(), _fingerprint_warning(), _latency_diff(), _load(), _mock_baseline_warning(), _n_runs_warning() (+26 more)
 
 ### Community 288 - "Community 288"
 Cohesion: 0.21
 Nodes (9): 6. 收尾, Tasks, 1. DB schema + 迁移, 2. 平台落 trace + retention 收尾, 3. 重判 / 续跑 job, 4. REST API + schema, 5. 前端, 6. 收尾 (+1 more)
 
 ### Community 289 - "Community 289"
-Cohesion: 0.12
-Nodes (17): CSS Anchor Positioning, Destructive Actions: Undo > Confirm, Dropdown & Overlay Positioning, Fixed Positioning Fallback, Focus Rings: Do Them Right, Form Design: The Non-Obvious, Gesture Discoverability, Interaction Design (+9 more)
+Cohesion: 0.16
+Nodes (18): bool, float, int, bootstrap_ci(), _quantile(), 对布尔样本（pass/fail）的通过率做 bootstrap 置信区间。      返回 ``{"point", "low", "high", "confid, bootstrap 置信区间单测（enhance-eval-engine Phase 1）。  覆盖：   - 已知分布的点估计与区间边界合理性   - 空样本, _result() (+10 more)
 
 ### Community 292 - "Community 292"
 Cohesion: 0.06
 Nodes (34): 0. 前置确认（先判断当前状态）, 1. ⭐ 必需：恢复项目代码并重建运行环境, 2. ⭐ 必需（运行评测前）：配置密钥与环境变量, 3.5 平台数据：数据库与评测产物（按需迁移 / 清理）, 3. 按需：启动评测平台（Web · server + frontend）, 3. ⭐ 推荐：安装 graphify（代码知识图谱）, 4. 按需：安装全局 skill（AI 辅助工作流）, 4. ⭐ 推荐：安装 graphify（代码知识图谱） (+26 more)
 
 ### Community 293 - "Community 293"
-Cohesion: 0.22
-Nodes (9): 1. The Wall of Options, 2. The Memory Bridge, 3. The Hidden Navigation, 4. The Jargon Barrier, 5. The Visual Noise Floor, 6. The Inconsistent Pattern, 7. The Multi-Task Demand, 8. The Context Switch (+1 more)
+Cohesion: 0.24
+Nodes (10): cli(), COMMON_DEV_PORTS, devServerSignals(), gatherSignals(), gitSignals(), hasCode(), latestCritique(), SCANNABLE_EXT (+2 more)
 
 ### Community 294 - "Community 294"
-Cohesion: 0.12
-Nodes (16): 1. Read the screenshot (if present), 2. Wrap the element, 3. Load the action's reference, 4. Plan three variants: identity first, then mode, then axes, 5. Apply the freeform prompt (if present), 6. Write all variants in a single edit, 7. Parameters (composition-sized, 0–4 per variant), 8. Signal done (+8 more)
+Cohesion: 0.22
+Nodes (8): P1 验收, Phase 0 — 治理与 OpenSpec（全阶段前置）, Phase P1 — Server 解耦, Refactor Layering Implementation Plan, Task P1-1: 拆分 `runs` router, Task P1-2: 拆分 `eval_job`, 依赖关系图, 回滚策略
 
 ### Community 296 - "Community 296"
-Cohesion: 0.12
-Nodes (15): Anti-Goals, Brief Structure, Constraints, Content & Data, Design Direction, How to use the probes, Important limits, Interview cadence (+7 more)
+Cohesion: 0.17
+Nodes (11): Assess Current State, Code Simplification, Content Simplification, Document Removed Complexity, Information Architecture, Interaction Simplification, Layout Simplification, Plan Simplification (+3 more)
 
 ### Community 300 - "Community 300"
-Cohesion: 0.12
-Nodes (16): Accessibility Considerations, Anti-reflexes worth defending against, Classic Typography Principles, Fluid Type, Font Selection & Pairing, Modern Web Typography, Modular Scale & Hierarchy, OpenType Features (+8 more)
+Cohesion: 0.17
+Nodes (11): Accessibility Resilience, Assess Hardening Needs, Edge Cases & Boundary Conditions, Error Handling, Hardening Dimensions, Input Validation & Sanitization, Internationalization (i18n), Performance Resilience (+3 more)
 
 ### Community 301 - "Community 301"
-Cohesion: 0.09
-Nodes (40): Response, build_authorize_url(), _client(), exchange_code(), FeishuOAuthError, get_user_info(), _parse_token(), _post_token() (+32 more)
+Cohesion: 0.21
+Nodes (7): RuntimeError, _client(), FeishuMedia, FeishuMediaError, fetch_media(), 以用户 ``user_access_token`` 下载飞书云文档/表格图片素材。, 飞书媒体素材下载客户端（mock httpx，不打真实网络）。
 
 ### Community 302 - "Community 302"
-Cohesion: 0.12
-Nodes (16): 10. 批准记录, 1. 背景与动机, 2.1 目标, 2.2 非目标, 2. 目标与非目标, 3. 分阶段架构, 5.1 拆分 `server/routers/runs.py`, 5.2 拆分 `server/eval_job.py` (+8 more)
+Cohesion: 0.16
+Nodes (17): applyPlaceholderDimensions(), beginEditPin(), cancelEditingPin(), clampPlaceholderSize(), finalizeEditingPin(), localCoords(), materializePlaceholderWidth(), onAnnotDown() (+9 more)
 
 ### Community 303 - "Community 303"
-Cohesion: 0.20
-Nodes (15): blendRgba(), clampByte(), firstCssUrl(), getLayerValue(), loadVisualContrastImage(), parseObjectPosition(), parsePositionPair(), parsePositionToken() (+7 more)
+Cohesion: 0.26
+Nodes (14): applySvelteKitLiveAdapter(), buildSvelteLiveRootComponent(), defaultSvelteLayout(), detectSvelteKitProject(), ensureSvelteLiveRootComponent(), escapeRegExp(), fileIncludes(), findSvelteKitAppHtml() (+6 more)
 
 ### Community 304 - "Community 304"
 Cohesion: 0.33
 Nodes (5): medeval 评测平台（后端 + 前端）, MME 评测平台后端, 主要接口, 启动, 当前评分数据
 
 ### Community 305 - "Community 305"
-Cohesion: 0.15
-Nodes (11): checkElementGlow(), BORDER_SAFE_TAGS, BRAND_FONT_DOMAINS, GENERIC_FONTS, GITHUB_DOMAINS, GOOGLE_DOMAINS, KNOWN_SERIF_FONTS, OVERUSED_FONTS (+3 more)
+Cohesion: 0.30
+Nodes (11): buildTargetNames(), cleanSkillsLock(), cleanup(), DEPRECATED_NAMES, findProjectRoot(), findSkillsDirs(), HARNESS_DIRS, isImpeccableSkill() (+3 more)
 
 ### Community 306 - "Community 306"
 Cohesion: 0.22
@@ -1960,8 +1983,8 @@ Cohesion: 0.33
 Nodes (5): Capabilities, Impact, Modified Capabilities, What Changes, Why
 
 ### Community 309 - "Community 309"
-Cohesion: 0.13
-Nodes (14): Brand bans (on top of the shared absolute bans), Brand permissions, Brand register, Color, Font selection procedure, Imagery, Layout, Motion (+6 more)
+Cohesion: 0.17
+Nodes (12): 10. 非目标（YAGNI）, 1. 背景与目标, 2. 选型, 3. 飞书接口（已核实，2026-06）, 4. 架构与组件, 5. 数据模型（新增 2 表）, 6. 配置与密钥（不进 git）, 7. 防自锁 (+4 more)
 
 ### Community 310 - "Community 310"
 Cohesion: 0.29
@@ -1972,8 +1995,8 @@ Cohesion: 0.29
 Nodes (6): Capabilities, Impact, Modified Capabilities, New Capabilities, What Changes, Why
 
 ### Community 313 - "Community 313"
-Cohesion: 0.13
-Nodes (14): Accessibility & Inclusion, Brand & Personality, Init Flow, Interview mode, not confirmation mode, Minimum viable interview, Register (ask first; it shapes everything below), Step 1: Load current state, Step 2: Explore the codebase (+6 more)
+Cohesion: 0.18
+Nodes (10): Eight-Dimension Guideline Scoring Implementation Plan, File map, Task 1: OpenSpec contract and v2 schema tests, Task 2: Add the v2 Case schema and loader boundary, Task 3: Implement the eight-dimension judge, Task 4: Implement the partial-credit guideline judge, Task 5: Implement pure v2 scoring and grading, Task 6: Update report aggregation and persisted displays (+2 more)
 
 ### Community 314 - "Community 314"
 Cohesion: 0.36
@@ -1988,8 +2011,8 @@ Cohesion: 0.15
 Nodes (9): 2. 后端, 3. 前端, 4. 收尾, Tasks, 1. TDD, 2. 后端, 3. 前端, 4. 收尾 (+1 more)
 
 ### Community 317 - "Community 317"
-Cohesion: 0.08
-Nodes (22): After This File, Codex: Visual Direction & Asset Production, Four stop points before code, Step A: Explore Directions with the User, Step B: Generate the Brand Palette First, Step C: Generate 1-3 Visual Mocks Against the Palette, Step D: Approval Loop, Step E: Mock Fidelity Inventory (+14 more)
+Cohesion: 0.18
+Nodes (11): Case YAML v2, MME 医疗对话评测, SIT 评测账号, 指南评分, 普通评测账号池, 本地运行, 生产部署, 评分口径 (+3 more)
 
 ### Community 318 - "Community 318"
 Cohesion: 0.46
@@ -2000,8 +2023,8 @@ Cohesion: 0.18
 Nodes (23): Proposal: Add Transcript Excel Output, CaseResult, RunReport.config_snapshot, ConversationTrace, Grade Thresholds (优秀/良好/合格/不合格), Lark Sheet Publisher (publish_xlsx_to_lark), Latency Metrics (latency_summary), RunReport (+15 more)
 
 ### Community 322 - "Community 322"
-Cohesion: 0.14
-Nodes (13): Animation Performance, Assess Performance Issues, Core Web Vitals Optimization, Cumulative Layout Shift (CLS < 0.1), First Input Delay (FID < 100ms) / INP (< 200ms), Largest Contentful Paint (LCP < 2.5s), Loading Performance, Network Optimization (+5 more)
+Cohesion: 0.18
+Nodes (10): Action Summary, Ask the User, Assessment A: Design Review, Assessment B: Detector + Browser Evidence, Assessment Orchestration, Hard Invariants, Persist the Snapshot, Purpose (+2 more)
 
 ### Community 323 - "Community 323"
 Cohesion: 0.25
@@ -2021,15 +2044,15 @@ Nodes (9): Requirement: 看板筛选记忆与失败标签中文化, Scenario: �
 
 ### Community 329 - "Community 329"
 Cohesion: 0.18
-Nodes (13): checkElementHeroEyebrow(), checkElementHeroEyebrowDOM(), checkElementOversizedH1(), checkElementOversizedH1DOM(), checkElementQuality(), checkElementQualityDOM(), checkHeroEyebrow(), checkOversizedH1() (+5 more)
+Nodes (11): 10. Help and Documentation, 1. Visibility of System Status, 2. Match Between System and Real World, 3. User Control and Freedom, 4. Consistency and Standards, 5. Error Prevention, 6. Recognition Rather Than Recall, 7. Flexibility and Efficiency of Use (+3 more)
 
 ### Community 330 - "Community 330"
 Cohesion: 0.33
 Nodes (5): Requirement: Runner 重试必须支持可配置指数退避并复用单一退避实现, Scenario: 启用退避后按指数等待, Scenario: 退避数学单一真值源, Scenario: 默认配置行为不变, ADDED Requirements
 
 ### Community 332 - "Community 332"
-Cohesion: 0.27
-Nodes (11): compute_agreement(), load_human_scores(), pass_agreement(), _ranks(), 人审 vs 自动判官一致性度量（measurement-only）。, spearman(), Any, bool (+3 more)
+Cohesion: 0.24
+Nodes (13): cohen_kappa(), compute_agreement(), load_human_scores(), pass_agreement(), _ranks(), 人审 vs 自动判官一致性度量（measurement-only）。, 二分类人审/自动判定 Cohen's kappa，排除随机一致性的虚高。, spearman() (+5 more)
 
 ### Community 333 - "Community 333"
 Cohesion: 0.25
@@ -2072,8 +2095,8 @@ Cohesion: 0.29
 Nodes (4): 1. 重构 scoring.py, 2. 测试, 3. 验证, Tasks
 
 ### Community 343 - "Community 343"
-Cohesion: 0.33
-Nodes (9): 回收孤儿任务：把 running/pending 的 run 置为 failed（启动时调用）。      进程内调度的任务态仅存于内存，进程重启/热重载/崩溃, reconcile_orphaned_runs(), 启动回收孤儿评测任务：running/pending→failed，success 不动，幂等。, _seed(), test_reconcile_is_idempotent(), test_reconcile_marks_running_and_pending_failed(), test_reconciled_run_is_deletable(), int (+1 more)
+Cohesion: 0.18
+Nodes (10): Assess Current State, Color Refinement, Composition Refinement, Motion Reduction, Plan Refinement, Refine the Design, Register, Simplification (+2 more)
 
 ### Community 346 - "Community 346"
 Cohesion: 0.33
@@ -2096,8 +2119,8 @@ Cohesion: 0.29
 Nodes (6): Capabilities, Impact, Modified Capabilities, New Capabilities, What Changes, Why
 
 ### Community 353 - "Community 353"
-Cohesion: 0.17
-Nodes (11): Assess Current State, Code Simplification, Content Simplification, Document Removed Complexity, Information Architecture, Interaction Simplification, Layout Simplification, Plan Simplification (+3 more)
+Cohesion: 0.20
+Nodes (10): detectCsp(), INLINE_HEADER_SIGNALS, LAYOUT_EXTS, MONOREPO_HELPER_SIGNALS, NUXT_ROUTE_RULES_SIGNALS, NUXT_SECURITY_SIGNALS, SCAN_EXTS, SKIP_DIRS (+2 more)
 
 ### Community 354 - "Community 354"
 Cohesion: 0.43
@@ -2120,20 +2143,20 @@ Cohesion: 0.18
 Nodes (9): eval-platform-dashboard Specification (delta), Requirement: run 看板的重判 / 续跑 / 置顶操作, Scenario: 不可重判时禁用入口, Scenario: 看板发起重判并跳转, ADDED Requirements, ADDED Requirements, eval-platform-dashboard Specification (delta), ADDED Requirements (+1 more)
 
 ### Community 359 - "Community 359"
-Cohesion: 0.17
-Nodes (11): Accessibility Resilience, Assess Hardening Needs, Edge Cases & Boundary Conditions, Error Handling, Hardening Dimensions, Input Validation & Sanitization, Internationalization (i18n), Performance Resilience (+3 more)
+Cohesion: 0.24
+Nodes (7): args, buildWeights(), hashUnit(), pickSeed(), seed, SEEDS, weightedPick()
 
 ### Community 360 - "Community 360"
-Cohesion: 0.30
-Nodes (11): buildTargetNames(), cleanSkillsLock(), cleanup(), DEPRECATED_NAMES, findProjectRoot(), findSkillsDirs(), HARNESS_DIRS, isImpeccableSkill() (+3 more)
+Cohesion: 0.25
+Nodes (9): __dirname, findHarnessDirs(), generatePinnedSkill(), HARNESS_DIRS, loadCommandMetadata(), pin(), root, unpin() (+1 more)
 
 ### Community 361 - "Community 361"
 Cohesion: 0.18
 Nodes (7): Impact, What Changes, Why, Impact, Proposal: 评测平台完整补齐落 trace + 离线重判/断点续跑 + 存储治理, What Changes, Why
 
 ### Community 363 - "Community 363"
-Cohesion: 0.11
-Nodes (53): _(), ae(), be(), bt(), Ce(), Ct(), de(), dt() (+45 more)
+Cohesion: 0.16
+Nodes (10): BaseCoords, _check(), _client(), FeishuBaseError, fetch_base_records(), _format_feishu_error(), parse_base_url(), 以用户 ``user_access_token`` 读取飞书 Base 记录。 (+2 more)
 
 ### Community 364 - "Community 364"
 Cohesion: 0.43
@@ -2144,8 +2167,8 @@ Cohesion: 0.36
 Nodes (6): Capabilities, Impact, Modified Capabilities, New Capabilities, What Changes, Why
 
 ### Community 366 - "Community 366"
-Cohesion: 0.17
-Nodes (12): 10. 非目标（YAGNI）, 1. 背景与目标, 2. 选型, 3. 飞书接口（已核实，2026-06）, 4. 架构与组件, 5. 数据模型（新增 2 表）, 6. 配置与密钥（不进 git）, 7. 防自锁 (+4 more)
+Cohesion: 0.19
+Nodes (10): _case(), Ray 分布式后端单测（enhance-eval-engine Phase 3）。  覆盖：   - 默认 local 后端行为不变（run_cases 不传, 真实 ray 集群（多进程 worker）下，产物结构与 local 后端一致。      worker 进程只 import medeval（不 import, executor=ray 但 import ray 失败 → RuntimeError，不回退 local。, 返回固定 chat reply 的极简 HTTP 桩（供 ray worker 经 http adapter 命中）。, _RayStubAdapter, _StubHandler, test_local_backend_default_unchanged() (+2 more)
 
 ### Community 367 - "Community 367"
 Cohesion: 0.13
@@ -2156,8 +2179,8 @@ Cohesion: 0.10
 Nodes (20): Requirement: 判据编辑器展示当前 benchmark 名称, Requirement: 用例明细就地编辑判据并单条试判预览, Scenario: 单条试判预览不改当前 run, Scenario: 推翻入口就地打开编辑器, Scenario: 推翻后就地编辑单条判据, Scenario: 编辑判据时可见 benchmark 名称, ADDED Requirements, MODIFIED Requirements (+12 more)
 
 ### Community 369 - "Community 369"
-Cohesion: 0.06
-Nodes (67): CaseEvaluation, int, RunReport, bool, float, int, BaseAdapter, ConversationTrace (+59 more)
+Cohesion: 0.29
+Nodes (10): checkColors(), checkElementAIPaletteDOM(), checkElementGlow(), checkGlow(), colorToHex(), contrastRatio(), getHue(), hasChroma() (+2 more)
 
 ### Community 370 - "Community 370"
 Cohesion: 0.29
@@ -2172,8 +2195,8 @@ Cohesion: 0.16
 Nodes (19): prune_outputs(), PruneResult, bool, int, Path, 胖产物滚动清理（参见 OpenSpec change persist-traces-rejudge）。  拆「长期可 diff」与「短期可重判」：   * ``, 所有含 report.json 的 run 目录，按 report.json mtime 降序（最新在前）。, 清理 ``outputs_dir`` 下历史 run 的胖产物。      某 run 的胖产物会被清理，当且仅当：       * （``keep_last> (+11 more)
 
 ### Community 375 - "Community 375"
-Cohesion: 0.18
-Nodes (10): Assess Current State, Color Refinement, Composition Refinement, Motion Reduction, Plan Refinement, Refine the Design, Register, Simplification (+2 more)
+Cohesion: 0.20
+Nodes (4): GuidelineItem, 一条可审计的指南扣分项。      ``criterion`` 保留 Case YAML 的列表形态：除“扣分规则”外的每一项都是     需要逐项核对的检查点, 供 judge 逐项判定的要求，自动排除末尾的自然语言扣分规则。, Case 写在 criterion 内的自然语言扣分规则；省略时按线性扣分。
 
 ### Community 377 - "Community 377"
 Cohesion: 0.20
@@ -2184,8 +2207,8 @@ Cohesion: 0.16
 Nodes (11): MODIFIED Requirements, Scenario: 进度跨阶段单调不回退, MODIFIED Requirements, Requirement: 评测任务调度与状态跟踪, Scenario: 发起评测立即返回并后台执行, Scenario: 查询运行进度, Scenario: 评测失败记录原因, Requirement: 评测任务调度与状态跟踪 (+3 more)
 
 ### Community 380 - "Community 380"
-Cohesion: 0.20
-Nodes (10): detectCsp(), INLINE_HEADER_SIGNALS, LAYOUT_EXTS, MONOREPO_HELPER_SIGNALS, NUXT_ROUTE_RULES_SIGNALS, NUXT_SECURITY_SIGNALS, SCAN_EXTS, SKIP_DIRS (+2 more)
+Cohesion: 0.08
+Nodes (25): Assess Adaptation Challenge, Breakpoints: Content-Driven, Content Adaptation, Desktop Adaptation (Mobile → Desktop), Detect Input Method, Not Just Screen Size, Email Adaptation (Web → Email), Implement Adaptations, Layout Adaptation Patterns (+17 more)
 
 ### Community 381 - "Community 381"
 Cohesion: 0.46
@@ -2232,12 +2255,12 @@ Cohesion: 0.29
 Nodes (4): 1. 后端, 2. 接线, 3. 验证, Tasks
 
 ### Community 392 - "Community 392"
-Cohesion: 0.24
-Nodes (7): args, buildWeights(), hashUnit(), pickSeed(), seed, SEEDS, weightedPick()
+Cohesion: 0.09
+Nodes (19): After This File, Codex: Visual Direction & Asset Production, Four stop points before code, Step A: Explore Directions with the User, Step B: Generate the Brand Palette First, Step C: Generate 1-3 Visual Mocks Against the Palette, Step D: Approval Loop, Step E: Mock Fidelity Inventory (+11 more)
 
 ### Community 393 - "Community 393"
-Cohesion: 0.25
-Nodes (9): __dirname, findHarnessDirs(), generatePinnedSkill(), HARNESS_DIRS, loadCommandMetadata(), pin(), root, unpin() (+1 more)
+Cohesion: 0.20
+Nodes (10): Anti-Patterns Verdict, Design Health Score, Generate Combined Critique Report, Minor Observations, Overall Impression, Persona Red Flags, Priority Issues, Questions to Consider (+2 more)
 
 ### Community 394 - "Community 394"
 Cohesion: 0.15
@@ -2245,7 +2268,7 @@ Nodes (11): Bite-Sized Task Granularity, Execution Handoff, File Structure, No P
 
 ### Community 395 - "Community 395"
 Cohesion: 0.20
-Nodes (4): GuidelineItem, 一条可审计的指南扣分项。      ``criterion`` 保留 Case YAML 的列表形态：除“扣分规则”外的每一项都是     需要逐项核对的检查点, 供 judge 逐项判定的要求，自动排除末尾的自然语言扣分规则。, Case 写在 criterion 内的自然语言扣分规则；省略时按线性扣分。
+Nodes (9): Color, Components, Layout, Motion, Product bans (on top of the shared absolute bans), Product permissions, Product register, The product slop test (+1 more)
 
 ### Community 397 - "Community 397"
 Cohesion: 0.29
@@ -2269,7 +2292,7 @@ Nodes (4): MODIFIED Requirements, Requirement: 评测结果持久化, Scenario: 
 
 ### Community 404 - "Community 404"
 Cohesion: 0.29
-Nodes (10): checkColors(), checkElementAIPaletteDOM(), checkElementGlow(), checkGlow(), colorToHex(), contrastRatio(), getHue(), hasChroma() (+2 more)
+Nodes (8): appendStyleToLiveUiRoot(), appendToLiveUiRoot(), escapeCssIdent(), getLiveUiElementById(), LIVE_CHROME_MOUNT_CONTRACT, LIVE_UI_COMPONENT_IDS, LIVE_UI_SURFACES, resolveLiveUiRoot()
 
 ### Community 405 - "Community 405"
 Cohesion: 0.08
@@ -2280,8 +2303,8 @@ Cohesion: 0.17
 Nodes (10): ADDED Requirements, Requirement: 评测全链路可选 OpenTelemetry tracing, Scenario: 启用时产生链路 span, Scenario: 未安装依赖仍可运行, Scenario: 默认关闭时零开销, ADDED Requirements, Requirement: 评测全链路可选 OpenTelemetry tracing, Scenario: 启用时产生链路 span (+2 more)
 
 ### Community 410 - "Community 410"
-Cohesion: 0.31
-Nodes (3): CaseInitialState, Case 自包含的评测账号初始化数据。      Case 是标注格式，``user_profile`` 与 ``Timeline`` 均接受自由业务字段；, 生成 cx-agent 可接受的初始化数据，不改变 Case 的原始画像。          画像字段会进入 Agent 的事实画像；Timeline 的每个自
+Cohesion: 0.22
+Nodes (8): Chatbot 适配器 Delta, ADDED Requirements, Requirement: cx-agent Adapter 必须拒绝预置非用户历史, Requirement: 系统必须提供 cx-agent SSE Adapter, Scenario: cx-agent error 事件转为 adapter error, Scenario: 单轮 SSE 回复被拼接, Scenario: 多轮复用 cx-agent session, Scenario: 预置 system turn 被拒绝
 
 ### Community 412 - "Community 412"
 Cohesion: 0.22
@@ -2296,16 +2319,16 @@ Cohesion: 0.43
 Nodes (4): 1. 死代码清理, 2. 文档同步, 3. 收尾, 3. 收尾
 
 ### Community 416 - "Community 416"
-Cohesion: 0.20
-Nodes (9): Color, Components, Layout, Motion, Product bans (on top of the shared absolute bans), Product permissions, Product register, The product slop test (+1 more)
+Cohesion: 0.25
+Nodes (9): addBrowserFindings(), addVisualContrastFindings(), addVisualContrastResult(), clearOverlays(), detachOverlay(), disconnectLazyVisualContrastObserver(), scheduleLazyVisualContrast(), shouldRunVisualContrast() (+1 more)
 
 ### Community 417 - "Community 417"
 Cohesion: 0.07
 Nodes (26): Requirement: 导出过滤用例的完整 YAML 供在线编辑, Scenario: 仅判据字段生效, Scenario: 按过滤导出可解析 YAML, Scenario: 未匹配 sample_id 丢弃、零匹配报错, ADDED Requirements, eval-platform-service Specification (delta), MODIFIED Requirements, Requirement: 改 case 判据派生新 benchmark (+18 more)
 
 ### Community 418 - "Community 418"
-Cohesion: 0.42
-Nodes (7): __dirname, ensureServerRunning(), resolveFiles(), liveCli(), runScript(), safeParse(), scanForDrift()
+Cohesion: 0.22
+Nodes (9): Requirements, 场景:duration_ms 单调非负, 场景:单条用例触发未预期异常, 场景:跨用例不串台, 场景:进度回调被准确触发, 需求:Runner 必须为每条用例分配独立的 session_id, 需求:Runner 必须在自身崩溃时也产出可消费的 Trace, 需求:Runner 必须支持进度回调 (+1 more)
 
 ### Community 419 - "Community 419"
 Cohesion: 0.43
@@ -2316,8 +2339,8 @@ Cohesion: 0.17
 Nodes (11): Requirement: 存储治理命令 prune 与自动清理, Requirement: 断点续跑选项 run --resume, Requirement: 离线重判命令 rejudge, Scenario: dry-run 只预览, Scenario: 同 config 重判结果一致, Scenario: 清胖留瘦且豁免标记目录, Scenario: 续跑写新目录, Scenario: 缺留痕且多轮投票无法重做 (+3 more)
 
 ### Community 421 - "Community 421"
-Cohesion: 0.29
-Nodes (8): appendStyleToLiveUiRoot(), appendToLiveUiRoot(), escapeCssIdent(), getLiveUiElementById(), LIVE_CHROME_MOUNT_CONTRACT, LIVE_UI_COMPONENT_IDS, LIVE_UI_SURFACES, resolveLiveUiRoot()
+Cohesion: 0.22
+Nodes (8): compilerOptions, allowSyntheticDefaultImports, composite, module, moduleResolution, skipLibCheck, strict, include
 
 ### Community 423 - "Community 423"
 Cohesion: 0.41
@@ -2325,15 +2348,15 @@ Nodes (9): 8. 收尾, 1. Phase 1 — config 字段, 2. Phase 2 — trace 落盘�
 
 ### Community 424 - "Community 424"
 Cohesion: 0.22
-Nodes (8): Chatbot 适配器 Delta, ADDED Requirements, Requirement: cx-agent Adapter 必须拒绝预置非用户历史, Requirement: 系统必须提供 cx-agent SSE Adapter, Scenario: cx-agent error 事件转为 adapter error, Scenario: 单轮 SSE 回复被拼接, Scenario: 多轮复用 cx-agent session, Scenario: 预置 system turn 被拒绝
+Nodes (8): Accessibility & Inclusion, Anti-references, Brand Personality, Design Principles, Product, Product Purpose, Register, Users
 
 ### Community 425 - "Community 425"
-Cohesion: 0.17
-Nodes (13): _Choice, _FakeChat, _FakeClient, _FakeCompletions, _Msg, int, RateLimitError, str (+5 more)
+Cohesion: 0.16
+Nodes (14): reset_llm_rate_limit(), _Choice, _FakeChat, _FakeClient, _FakeCompletions, _Msg, int, RateLimitError (+6 more)
 
 ### Community 426 - "Community 426"
-Cohesion: 0.25
-Nodes (9): addBrowserFindings(), addVisualContrastFindings(), addVisualContrastResult(), clearOverlays(), detachOverlay(), disconnectLazyVisualContrastObserver(), scheduleLazyVisualContrast(), shouldRunVisualContrast() (+1 more)
+Cohesion: 0.50
+Nodes (4): P2 验收, Phase P2 — Frontend 解耦, Task P2-1: 拆分 `api.ts`, Task P2-2: 大页面 hooks 化
 
 ### Community 427 - "Community 427"
 Cohesion: 0.25
@@ -2341,11 +2364,11 @@ Nodes (7): Requirement: N-runs 会话留痕落盘为可复现产物, Requirement
 
 ### Community 428 - "Community 428"
 Cohesion: 0.22
-Nodes (9): Requirements, 场景:duration_ms 单调非负, 场景:单条用例触发未预期异常, 场景:跨用例不串台, 场景:进度回调被准确触发, 需求:Runner 必须为每条用例分配独立的 session_id, 需求:Runner 必须在自身崩溃时也产出可消费的 Trace, 需求:Runner 必须支持进度回调 (+1 more)
+Nodes (9): 1. The Wall of Options, 2. The Memory Bridge, 3. The Hidden Navigation, 4. The Jargon Barrier, 5. The Visual Noise Floor, 6. The Inconsistent Pattern, 7. The Multi-Task Demand, 8. The Context Switch (+1 more)
 
 ### Community 429 - "Community 429"
-Cohesion: 0.09
-Nodes (57): JudgesCfg, bool, Config, Config, JudgesCfg, RunReport, build_user_simulator(), evaluate() (+49 more)
+Cohesion: 0.06
+Nodes (62): bool, str, Any, datetime, float, int, RunReport, Any (+54 more)
 
 ### Community 431 - "Community 431"
 Cohesion: 0.43
@@ -2371,13 +2394,17 @@ Nodes (5): ADDED Requirements, Requirement: diff_runs 必须输出性能（会�
 Cohesion: 0.33
 Nodes (4): 1. 测试先行（TDD）, 2. 实现, 3. 验证, Tasks
 
+### Community 437 - "Community 437"
+Cohesion: 0.20
+Nodes (7): 判分模型配置中心：CRUD + Key 只写不读 + 发起评测注入。, _seed_benchmark(), test_launch_injects_selected_user_simulator_model(), test_launch_persists_rag_toggle(), test_launch_persists_selected_evaluation_mode(), test_launch_unknown_judge_model_404(), test_launch_with_judge_model_injects_key_but_not_public()
+
 ### Community 439 - "Community 439"
-Cohesion: 0.05
-Nodes (42): Annotation, GuidelineScore, PreviewRejudgeResult, AgentChainTrace, CaseDetailSummary, CaseDetailSummaryCard(), CasePreviewRejudgePanel(), ConversationMessage (+34 more)
+Cohesion: 0.06
+Nodes (36): Annotation, GuidelineScore, PreviewRejudgeResult, CaseDetailSummary, CaseDetailSummaryCard(), CasePreviewRejudgePanel(), DashPanel(), DashPanelProps (+28 more)
 
 ### Community 440 - "Community 440"
-Cohesion: 0.22
-Nodes (8): compilerOptions, allowSyntheticDefaultImports, composite, module, moduleResolution, skipLibCheck, strict, include
+Cohesion: 0.25
+Nodes (8): AGENTS.md — MME / medeval 项目速查, Case 约定, 五层结构, 前后端约定, 变更流程, 常用命令, 当前唯一评分口径, 配置约定
 
 ### Community 441 - "Community 441"
 Cohesion: 0.05
@@ -2392,8 +2419,8 @@ Cohesion: 0.25
 Nodes (7): ADDED Requirements, Requirement: N-runs 会话留痕落盘为可复现产物, Requirement: 基于已落盘成功留痕的断点续跑, Scenario: adapter 指纹不一致拒绝续跑, Scenario: 复用成功留痕、重跑失败留痕, Scenario: 未告知输出目录时不落盘, Scenario: 默认开启增量落盘
 
 ### Community 444 - "Community 444"
-Cohesion: 0.22
-Nodes (8): P1 验收, Phase 0 — 治理与 OpenSpec（全阶段前置）, Phase P1 — Server 解耦, Refactor Layering Implementation Plan, Task P1-1: 拆分 `runs` router, Task P1-2: 拆分 `eval_job`, 依赖关系图, 回滚策略
+Cohesion: 0.31
+Nodes (11): kebab(), listSnapshotsForSlug(), main(), nowFilenameStamp(), parseFrontmatter(), readLatestSnapshot(), readTrend(), serializeFrontmatter() (+3 more)
 
 ### Community 445 - "Community 445"
 Cohesion: 0.21
@@ -2404,28 +2431,28 @@ Cohesion: 0.29
 Nodes (6): Capabilities, Impact, Modified Capabilities, New Capabilities, What Changes, Why
 
 ### Community 447 - "Community 447"
-Cohesion: 0.22
-Nodes (8): Accessibility & Inclusion, Anti-references, Brand Personality, Design Principles, Product, Product Purpose, Register, Users
+Cohesion: 0.25
+Nodes (8): 1. Impatient Power User: "Alex", 2. Confused First-Timer: "Jordan", 3. Accessibility-Dependent User: "Sam", 4. Deliberate Stress Tester: "Riley", 5. Distracted Mobile User: "Casey", Persona-Based Design Testing, Project-Specific Personas, Selecting Personas
 
 ### Community 448 - "Community 448"
-Cohesion: 0.25
-Nodes (8): AGENTS.md — MME / medeval 项目速查, Case 约定, 五层结构, 前后端约定, 变更流程, 常用命令, 当前唯一评分口径, 配置约定
+Cohesion: 0.42
+Nodes (7): __dirname, ensureServerRunning(), resolveFiles(), liveCli(), runScript(), safeParse(), scanForDrift()
 
 ### Community 449 - "Community 449"
 Cohesion: 0.12
 Nodes (14): Requirement: 看板评测在线改名, Scenario: 分层级图同时呈现数量与通过率, Scenario: 双击改名并自动保存, Scenario: 重名被拒, ADDED Requirements, eval-platform-dashboard Specification (delta), MODIFIED Requirements, Requirement: 单次评测看板 (+6 more)
 
 ### Community 450 - "Community 450"
-Cohesion: 0.40
-Nodes (4): 数据流, 目标, 长期记忆 Case 实施计划, 验收
+Cohesion: 0.14
+Nodes (13): Assess Current Layout, Break Card Grid Monotony, Choose the Right Layout Tool, Create Visual Rhythm, Establish a Spacing System, Improve Layout Systematically, Live-mode signature params, Manage Depth & Elevation (+5 more)
 
 ### Community 451 - "Community 451"
 Cohesion: 0.18
 Nodes (7): Impact, What Changes, Why, Impact, Proposal: 平台可调配置重判 + 改 case 判据派生新 benchmark + benchmark 上传人, What Changes, Why
 
 ### Community 452 - "Community 452"
-Cohesion: 0.40
-Nodes (5): 13. 最终审核清单, 医学审核, 标注映射, 结构, 长期记忆
+Cohesion: 0.36
+Nodes (8): bindEditBadgeProxy(), editBadgeProxyTargets(), initEditBadgeHitProxies(), positionEditBadge(), setImportantStyle(), styleEditBadgeProxy(), syncEditBadgeHitProxies(), usesShadowChromeRoot()
 
 ### Community 453 - "Community 453"
 Cohesion: 0.40
@@ -2446,6 +2473,10 @@ Nodes (6): 为什么, 修改功能, 功能 (Capabilities), 变更内容, 影响,
 ### Community 457 - "Community 457"
 Cohesion: 0.52
 Nodes (7): Design: Add Breast Cancer Case Suite, openspec.yaml: Add Breast Cancer Case Suite, Proposal: Add Breast Cancer Case Suite, Tasks: Add Breast Cancer Case Suite, 乳腺癌评测套件 (breast_cancer), 通用安全底座 (_core_safety), 多轮对话评测 (multi_turn)
+
+### Community 458 - "Community 458"
+Cohesion: 0.25
+Nodes (7): Extract Flow, Step 1: Discover the Design System, Step 2: Identify Patterns, Step 3: Plan Extraction, Step 4: Extract & Enrich, Step 5: Migrate, Step 6: Document
 
 ### Community 459 - "Community 459"
 Cohesion: 0.18
@@ -2468,20 +2499,24 @@ Cohesion: 0.25
 Nodes (7): 1. 同步前端静态文件, 2. 安装配置, 3. HTTPS（Let's Encrypt）, 4. 与 `.env` 对齐, 5. 验证, MME 生产 Nginx 配置, 架构
 
 ### Community 465 - "Community 465"
-Cohesion: 0.40
-Nodes (4): Answer, Outcome, Q: 长期记忆和动态用户画像是否可以放在 Case 里并注入 cx-agent？, Source Nodes
+Cohesion: 0.39
+Nodes (6): _case_with_tokens(), medeval.reporter.token_cost characterization 单测。, test_build_case_row_matches_case_token_cost(), test_case_token_cost_no_usage(), test_case_token_cost_per_run_tokens(), test_case_token_cost_with_pricing()
 
 ### Community 466 - "Community 466"
-Cohesion: 0.40
-Nodes (4): Proposal: 八维度与指南部分分评分, Scope, What Changes, Why
+Cohesion: 0.25
+Nodes (8): 1. 背景与目标, 2. 已定决策（澄清结果）, 3. 数据模型, 4. 后端 API（`server/routers/runs.py` + `schemas.py`）, 5. 前端, 6. 测试（TDD 先行，`tests/server/test_review_queue.py`）, 7. YAGNI / 非目标, 人工审核队列（HITL Review Queue）设计
 
 ### Community 467 - "Community 467"
-Cohesion: 0.07
-Nodes (51): bool, str, Any, datetime, float, Any, bool, CaseResult (+43 more)
+Cohesion: 0.08
+Nodes (49): CaseScores, CaseResult, RunReport, SemanticRuleAdjudicator, PreviewRejudgeResponse, ProgressOut, RejudgeRequest, RunCreate (+41 more)
 
 ### Community 468 - "Community 468"
-Cohesion: 0.13
-Nodes (16): BaseException, _acquire_llm_slot(), backend_from_llm_cfg(), configure_llm_rate_limit(), _delay_for_rate_limit(), _is_rate_limit_error(), 单条 user prompt → 严格 JSON 响应，带限速指数退避。返回 ``json.loads(text)``。          退避数学复用 ``m, 从八维或指南 Judge 配置构造 LLMBackend。 (+8 more)
+Cohesion: 0.16
+Nodes (17): BaseException, _acquire_llm_slot(), backend_from_llm_cfg(), configure_llm_rate_limit(), _delay_for_rate_limit(), _is_rate_limit_error(), LLMBackend —— 所有走 LLM 的判官共用的 client 构建 + 限速退避调用层。  参见 OpenSpec change ``2026-06-, 单条 user prompt → 严格 JSON 响应，带限速指数退避。返回 ``json.loads(text)``。          退避数学复用 ``m (+9 more)
+
+### Community 469 - "Community 469"
+Cohesion: 0.43
+Nodes (5): Capabilities, Impact, Modified Capabilities, What Changes, Why
 
 ### Community 470 - "Community 470"
 Cohesion: 0.20
@@ -2499,6 +2534,10 @@ Nodes (15): Requirement: 顺序敏感分歧留痕, Scenario: 位置标签翻译�
 Cohesion: 0.06
 Nodes (27): observability Specification, observability Specification (delta), Purpose, Requirement: 被测 bot 全链路 Langfuse 追踪, Requirements, Scenario: judge 调用不被追踪, Scenario: 启用时产生 bot 链路 generation, Scenario: 未安装依赖仍可运行 (+19 more)
 
+### Community 474 - "Community 474"
+Cohesion: 0.29
+Nodes (6): Requirement: TestCase 必须只接受新版八维评测结构, Scenario: 合法指南部分分配置, Scenario: 指南不能绑定安全维, Scenario: 旧 Case 被拒绝, 用例 Schema 与加载器增量规格, MODIFIED Requirements
+
 ### Community 476 - "Community 476"
 Cohesion: 0.16
 Nodes (10): Design, 测试（TDD）, `cases-yaml` 预填（GET /api/runs/{id}/cases-yaml）, `derive-yaml`（POST /api/benchmarks/{id}/derive-yaml）, Design, 前端, 合并语义改动（`_apply_case_overrides`）, 后端 (+2 more)
@@ -2511,21 +2550,25 @@ Nodes (6): ADDED Requirements, eval-platform-dashboard Specification (delta), RE
 Cohesion: 0.15
 Nodes (9): 2. 后端, 3. 前端, 4. 收尾, Tasks, 1. TDD 测试先行, 2. 后端, 3. 前端, 4. 收尾 (+1 more)
 
+### Community 479 - "Community 479"
+Cohesion: 0.29
+Nodes (6): 1. Overview, 6. Do's and Don'ts, 7. Governance（规范与门禁）, Design System: MME · Agent 评测平台, Do:, Don't:
+
 ### Community 480 - "Community 480"
-Cohesion: 0.33
-Nodes (5): Proposal: add-eval-agent-chain-observability, Scope, Success, What Changes, Why
+Cohesion: 0.29
+Nodes (6): Case 设计约束, 动态多轮 Case 实现说明, 执行顺序, 目标, 评分, 运行态事实与复现
 
 ### Community 481 - "Community 481"
-Cohesion: 0.25
-Nodes (8): 1. 背景与目标, 2. 已定决策（澄清结果）, 3. 数据模型, 4. 后端 API（`server/routers/runs.py` + `schemas.py`）, 5. 前端, 6. 测试（TDD 先行，`tests/server/test_review_queue.py`）, 7. YAGNI / 非目标, 人工审核队列（HITL Review Queue）设计
+Cohesion: 0.29
+Nodes (6): Scenario: Base URL 导入权限不足, Scenario: 从飞书 Base URL 导入线上 benchmark, MODIFIED Requirements, Requirement: benchmark 库管理, Scenario: 上传合法 benchmark, Scenario: 上传非法 benchmark 被拒绝
 
 ### Community 482 - "Community 482"
-Cohesion: 0.13
-Nodes (15): Alpha Is A Design Smell, Building Functional Palettes, Color & Contrast, Color Spaces: Use OKLCH, Contrast & Accessibility, Dangerous Color Combinations, Dark Mode Is Not Inverted Light Mode, Palette Structure (+7 more)
+Cohesion: 0.29
+Nodes (6): Requirement: FailureTag 枚举必须为每个标签提供 dimension 与 description 元数据, Requirement: Verdict 必须以失败标签驱动归因分析, Requirement: 系统必须提供以 `BaseJudge` 为根的可组合 Judge 抽象, Scenario: HardGate Judge 只返回红旗与处方边界 verdict, Scenario: 历史免责声明 verdict 不影响聚合事实, MODIFIED Requirements
 
 ### Community 483 - "Community 483"
-Cohesion: 0.33
-Nodes (5): Requirement: Adapter 必须保留 cx-agent Trace 关联信息, Requirement: cx-agent 评测账号必须按 Case 隔离, Scenario: 两个 Case 并发执行, Scenario: 多轮 Case, ADDED Requirements
+Cohesion: 0.29
+Nodes (6): Requirement: 系统必须固定产出八维评分, Scenario: 安全维返回非法中间分, Scenario: 重要指南获得部分分, 判分流水线增量规格, MODIFIED Requirements, Requirement: 指南 Judge 必须支持模型部分分
 
 ### Community 484 - "Community 484"
 Cohesion: 0.29
@@ -2540,20 +2583,20 @@ Cohesion: 0.12
 Nodes (13): Scenario: 换 judge 模型重判, eval-platform-service Specification (delta), MODIFIED Requirements, Requirement: 重判可带配置覆盖, Scenario: 用改后判据重判, eval-platform-service Specification (delta), MODIFIED Requirements, Requirement: 重判可带配置覆盖 (+5 more)
 
 ### Community 487 - "Community 487"
-Cohesion: 0.60
-Nodes (5): FailureTag Enum, TestCase, Consolidate Failure Tags — Case Schema & Loader Spec, Consolidate Failure Tags — Design, Consolidate Failure Tags — Proposal
+Cohesion: 0.29
+Nodes (7): append-arrays, append-string, Consent prompt template, CSP detection (first-time only), Drift-heal warning, First-time setup (config missing or invalid), Troubleshooting
 
 ### Community 488 - "Community 488"
 Cohesion: 0.18
 Nodes (7): Impact, What Changes, Why, Impact, Proposal: YAML 在线改判据 → 另存新 benchmark（解耦）+ 重判选集, What Changes, Why
 
 ### Community 489 - "Community 489"
-Cohesion: 0.50
-Nodes (3): Any, str, 入库用：剔除 api_key 的非空字段。
+Cohesion: 0.31
+Nodes (3): CaseInitialState, Case 自包含的评测账号初始化数据。      Case 是标注格式，``user_profile`` 与 ``Timeline`` 均接受自由业务字段；, 生成 cx-agent 可接受的初始化数据，不改变 Case 的原始画像。          画像字段会进入 Agent 的事实画像；Timeline 的每个自
 
 ### Community 490 - "Community 490"
-Cohesion: 0.40
-Nodes (4): Requirement: Case 明细必须展示 Agent 全链路, Scenario: Langfuse 不可用, Scenario: Langfuse 同步成功, ADDED Requirements
+Cohesion: 0.29
+Nodes (6): MODIFIED Requirements, Requirement: 报告必须输出四档结论与可追溯指南扣分, Requirement: 系统必须按三端 45 分制计算结论, Scenario: 护士端满分归一, Scenario: 指南满分不扣分, 报告增量规格
 
 ### Community 491 - "Community 491"
 Cohesion: 0.18
@@ -2563,45 +2606,57 @@ Nodes (7): Impact, What Changes, Why, Impact, Proposal: 重判去掉「调判分
 Cohesion: 0.40
 Nodes (4): Requirement: Adapter 在 LLM 返回 usage 时必须保留可归一化的 token 用量, Scenario: openai_compat 保留 usage, Scenario: 后端无 usage 时不伪造, ADDED Requirements
 
-### Community 494 - "Community 494"
-Cohesion: 0.29
-Nodes (6): 1. Overview, 6. Do's and Don'ts, 7. Governance（规范与门禁）, Design System: MME · Agent 评测平台, Do:, Don't:
-
-### Community 495 - "Community 495"
-Cohesion: 0.29
-Nodes (6): Requirement: FailureTag 枚举必须为每个标签提供 dimension 与 description 元数据, Requirement: Verdict 必须以失败标签驱动归因分析, Requirement: 系统必须提供以 `BaseJudge` 为根的可组合 Judge 抽象, Scenario: HardGate Judge 只返回红旗与处方边界 verdict, Scenario: 历史免责声明 verdict 不影响聚合事实, MODIFIED Requirements
-
-### Community 497 - "Community 497"
-Cohesion: 0.29
-Nodes (6): Scenario: Base URL 导入权限不足, Scenario: 从飞书 Base URL 导入线上 benchmark, MODIFIED Requirements, Requirement: benchmark 库管理, Scenario: 上传合法 benchmark, Scenario: 上传非法 benchmark 被拒绝
-
-### Community 498 - "Community 498"
+### Community 493 - "Community 493"
 Cohesion: 0.29
 Nodes (7): P0 验收, Phase P0 — 共享去重 + Judge 标签对齐, Task P0-1: `medeval/judge_labels.py`, Task P0-2: API `GET /api/config/judge-verdict-labels`, Task P0-3: 前端消费 Judge 标签 API, Task P0-4: Token / cost 去重, Task P0-5: Config overrides 抽取
 
+### Community 494 - "Community 494"
+Cohesion: 0.33
+Nodes (6): Establish Hierarchy, Fix Readability, Font Selection, Improve Typography Systematically, Refine Details, Weight Consistency
+
+### Community 495 - "Community 495"
+Cohesion: 0.29
+Nodes (7): Cognitive Load Assessment, Cognitive Load Checklist, Extraneous Load: Bad Design, Germane Load: Learning Effort, Intrinsic Load: The Task Itself, The Working Memory Rule, Three Types of Cognitive Load
+
+### Community 496 - "Community 496"
+Cohesion: 0.53
+Nodes (5): _empty_report(), Test markdown report appends transcripts URL footer., test_https_transcripts_url_appears_in_footer(), test_local_path_fallback(), test_no_transcripts_url_no_footer()
+
+### Community 497 - "Community 497"
+Cohesion: 0.53
+Nodes (5): 去重：有版本对比性能块时不再渲染独立「性能（仅记录）」段；表头改名「变化」。  参见 OpenSpec change dedup-latency-report。, _report_with_latency(), test_standalone_perf_hidden_when_diff_has_perf_block(), test_standalone_perf_shown_when_diff_lacks_perf_block(), test_standalone_perf_shown_when_no_diff()
+
+### Community 499 - "Community 499"
+Cohesion: 0.33
+Nodes (5): Proposal: add-cx-agent-adapter, Scope, Success, What Changes, Why
+
 ### Community 500 - "Community 500"
-Cohesion: 0.50
-Nodes (4): P2 验收, Phase P2 — Frontend 解耦, Task P2-1: 拆分 `api.ts`, Task P2-2: 大页面 hooks 化
+Cohesion: 0.33
+Nodes (5): Proposal: remove-disclaimer-gate, Scope, Success, What, Why
 
 ### Community 501 - "Community 501"
 Cohesion: 0.15
 Nodes (9): Requirement: Benchmark 库模板入口与编辑, Scenario: 内置作为模板入口, Scenario: 编辑名称与描述, ADDED Requirements, eval-platform-dashboard Specification (delta), ADDED Requirements, eval-platform-dashboard Specification (delta), ADDED Requirements (+1 more)
 
 ### Community 502 - "Community 502"
-Cohesion: 0.29
-Nodes (6): Case 设计约束, 动态多轮 Case 实现说明, 执行顺序, 目标, 评分, 运行态事实与复现
+Cohesion: 0.33
+Nodes (5): Proposal: add-eval-agent-chain-observability, Scope, Success, What Changes, Why
 
 ### Community 503 - "Community 503"
 Cohesion: 0.19
 Nodes (10): Requirement: LLMJudge 必须在维度失败时 emit 受控 FailureTag, Scenario: 共情维度低分 emit EMPATHY_MISS, Scenario: 分诊维度不归 LLM 标签, Scenario: 未启用不产出脏标签, Scenario: 过线维度不 emit 标签, ADDED Requirements, judging-pipeline (delta), Requirement: LLMJudge 必须在维度失败时 emit 受控 FailureTag (+2 more)
 
 ### Community 504 - "Community 504"
-Cohesion: 0.25
-Nodes (9): 1. 失败口径：非满分即失败, 2. 移除富文本标红 / 本地标红文件, 3. 测试, 4. 规格与知识库, apply_grading (scoring.py), Non-full-score = Fail Criterion, overall_passed, Soft Score (non-blocking) (+1 more)
+Cohesion: 0.27
+Nodes (8): 1. 失败口径：非满分即失败, 2. 移除富文本标红 / 本地标红文件, 3. 测试, 4. 规格与知识库, Non-full-score = Fail Criterion, overall_passed, Soft Score (non-blocking), Stability Three-state
+
+### Community 505 - "Community 505"
+Cohesion: 0.33
+Nodes (6): Case YAML v2 参考, 三端总分, 八维评分, 指南部分分与扣分, 核心结构, 用户画像与长期记忆
 
 ### Community 507 - "Community 507"
 Cohesion: 0.33
-Nodes (5): Proposal: add-cx-agent-adapter, Scope, Success, What Changes, Why
+Nodes (5): Requirement: Adapter 必须保留 cx-agent Trace 关联信息, Requirement: cx-agent 评测账号必须按 Case 隔离, Scenario: 两个 Case 并发执行, Scenario: 多轮 Case, ADDED Requirements
 
 ### Community 510 - "Community 510"
 Cohesion: 0.11
@@ -2612,8 +2667,12 @@ Cohesion: 0.25
 Nodes (5): Requirement: 看板必须展示成本/Token 卡片, Scenario: 无数据友好提示, Scenario: 有 token 数据展示卡片, ADDED Requirements, ADDED Requirements
 
 ### Community 512 - "Community 512"
-Cohesion: 0.33
-Nodes (5): Proposal: remove-disclaimer-gate, Scope, Success, What, Why
+Cohesion: 0.40
+Nodes (6): checkRepeatedSectionKickers(), checkRepeatedSectionKickersDOM(), checkRepeatedSectionKickersFromDoc(), cleanInlineText(), collectRepeatedSectionKickerCandidates(), isRepeatedKickerCandidate()
+
+### Community 513 - "Community 513"
+Cohesion: 0.40
+Nodes (6): clippedByInset(), clippedByRect(), expandBoxShorthand(), firstMetricLengthPx(), isScreenReaderOnlyTextStyle(), metricLengthPx()
 
 ### Community 514 - "Community 514"
 Cohesion: 0.15
@@ -2635,6 +2694,22 @@ Nodes (8): Requirement: 启动回收孤儿评测任务, Scenario: 重启后回�
 Cohesion: 0.33
 Nodes (5): Requirement: 看板审核队列与裁定界面, Scenario: 从详情页提交裁定, Scenario: 看板呈现待审与统计, ADDED Requirements, eval-platform-dashboard Specification (delta)
 
+### Community 520 - "Community 520"
+Cohesion: 0.33
+Nodes (5): Scenario: 线上来源上传 JSONL, Scenario: 线上来源粘贴飞书 URL, MODIFIED Requirements, Requirement: benchmark 管理界面, Scenario: 上传并查看 benchmark
+
+### Community 521 - "Community 521"
+Cohesion: 0.33
+Nodes (5): printWidth, semi, singleQuote, tabWidth, trailingComma
+
+### Community 522 - "Community 522"
+Cohesion: 0.40
+Nodes (5): 13. 最终审核清单, 医学审核, 标注映射, 结构, 长期记忆
+
+### Community 523 - "Community 523"
+Cohesion: 0.40
+Nodes (3): 可持久化、可通过 API 返回的配置快照，递归移除明文凭据。, 递归删除配置中的明文密钥；保留对应的 ``*_env`` 名称以便复现。, redact_config_secrets()
+
 ### Community 524 - "Community 524"
 Cohesion: 0.15
 Nodes (9): Requirement: 修改 benchmark 名称与描述, Scenario: 内置不可改, Scenario: 改名与描述, ADDED Requirements, eval-platform-service Specification (delta), ADDED Requirements, eval-platform-service Specification (delta), ADDED Requirements (+1 more)
@@ -2652,16 +2727,28 @@ Cohesion: 0.17
 Nodes (10): Requirement: 应用骨架导航, Requirement: 统一视觉设计体系, Scenario: run 内容区面包屑/标签页, Scenario: 分组侧栏与激活指示, Scenario: 状态徽章语义一致, Scenario: 跨页面视觉一致, ADDED Requirements, eval-platform-dashboard Specification (delta) (+2 more)
 
 ### Community 528 - "Community 528"
-Cohesion: 0.40
-Nodes (4): Answer, Outcome, Q: 普通评测账号与长期记忆评测账号如何隔离？, Source Nodes
+Cohesion: 0.50
+Nodes (3): Any, str, 入库用：剔除 api_key 的非空字段。
 
 ### Community 529 - "Community 529"
 Cohesion: 0.20
 Nodes (7): Design: 前端视觉体系（Langfuse/shadcn 风浅色设计系统）, 布局骨架, 技术路线（基于现有 antd5 + recharts，不引入 Tailwind）, 约束与非目标, 设计目标与气质, 调色板（CSS 变量）, 验证策略
 
+### Community 530 - "Community 530"
+Cohesion: 0.83
+Nodes (3): captureVisualContrastCandidate(), compareScreenshotContrast(), sanitizeScreenshotClip()
+
 ### Community 531 - "Community 531"
 Cohesion: 0.20
 Nodes (8): ADDED Requirements, Requirement: N-runs 下必须逐次记录会话总 token 且错误 run 不计入聚合, Requirement: Runner 必须当场采集每轮 token 用量并写入 trace, Scenario: N=3 逐次记录, Scenario: store_raw 裁剪后 token 仍在, Scenario: token 字段不影响判分, Scenario: 成功轮次采集 token 用量, Scenario: 错误 run 不计入聚合
+
+### Community 533 - "Community 533"
+Cohesion: 0.40
+Nodes (6): checkRepeatedSectionKickers(), checkRepeatedSectionKickersDOM(), checkRepeatedSectionKickersFromDoc(), cleanInlineText(), collectRepeatedSectionKickerCandidates(), isRepeatedKickerCandidate()
+
+### Community 534 - "Community 534"
+Cohesion: 0.40
+Nodes (4): Impact, Proposal: 线上 benchmark 支持飞书 Base URL 导入, What, Why
 
 ### Community 535 - "Community 535"
 Cohesion: 0.33
@@ -2673,19 +2760,23 @@ Nodes (11): Requirement: 用例列表附带人审摘要, Scenario: 已裁定用�
 
 ### Community 537 - "Community 537"
 Cohesion: 0.40
-Nodes (6): clippedByInset(), clippedByRect(), expandBoxShorthand(), firstMetricLengthPx(), isScreenReaderOnlyTextStyle(), metricLengthPx()
+Nodes (4): Proposal: 八维度与指南部分分评分, Scope, What Changes, Why
 
 ### Community 538 - "Community 538"
 Cohesion: 0.47
 Nodes (7): 1. 模型字段（schema）, 2. 配置（cost 单价）, 3. Runner 采集, 4. 聚合与报告, 5. 平台（server + frontend）, 6. 测试（TDD，先写后实现）, 7. 收尾验证
 
-### Community 540 - "Community 540"
-Cohesion: 0.33
-Nodes (5): printWidth, semi, singleQuote, tabWidth, trailingComma
+### Community 539 - "Community 539"
+Cohesion: 0.50
+Nodes (5): borderWidthsFromStyle(), checkElementGptBorderShadow(), checkElementGptBorderShadowDOM(), checkGptThinBorderWideShadow(), shadowMaxBlurPx()
 
-### Community 541 - "Community 541"
-Cohesion: 0.33
-Nodes (5): Scenario: 线上来源上传 JSONL, Scenario: 线上来源粘贴飞书 URL, MODIFIED Requirements, Requirement: benchmark 管理界面, Scenario: 上传并查看 benchmark
+### Community 540 - "Community 540"
+Cohesion: 0.40
+Nodes (5): 场景:repeat=1 时与旧版语义等价, 需求:Runner 必须支持 N-runs 重复执行, 场景:N 次中任一次失败必须保留所有完成的 trace, 场景:repeat=3 时每条 case 跑三次, 场景:同 case 的 N 次调用 session_id 必须可区分
+
+### Community 542 - "Community 542"
+Cohesion: 0.40
+Nodes (4): 数据流, 目标, 长期记忆 Case 实施计划, 验收
 
 ### Community 543 - "Community 543"
 Cohesion: 0.36
@@ -2695,29 +2786,77 @@ Nodes (6): Capabilities, Impact, Modified Capabilities, New Capabilities, What C
 Cohesion: 0.18
 Nodes (7): Impact, What Changes, Why, Impact, Proposal: 用例结果表增加「人审结果」列, What Changes, Why
 
+### Community 545 - "Community 545"
+Cohesion: 0.40
+Nodes (4): Requirement: Case 明细必须展示 Agent 全链路, Scenario: Langfuse 不可用, Scenario: Langfuse 同步成功, ADDED Requirements
+
 ### Community 546 - "Community 546"
 Cohesion: 0.33
 Nodes (4): ADDED Requirements, Requirement: Adapter 在 LLM 返回 usage 时必须保留可归一化的 token 用量, Scenario: openai_compat 保留 usage, Scenario: 后端无 usage 时不伪造
+
+### Community 547 - "Community 547"
+Cohesion: 0.40
+Nodes (4): Requirement: 默认配置必须声明 cx-agent 被测对象, Scenario: 默认配置声明 cx-agent, 评测命令行入口 Delta, ADDED Requirements
+
+### Community 548 - "Community 548"
+Cohesion: 0.40
+Nodes (4): Answer, Outcome, Q: 长期记忆和动态用户画像是否可以放在 Case 里并注入 cx-agent？, Source Nodes
 
 ### Community 549 - "Community 549"
 Cohesion: 0.17
 Nodes (8): Requirement: 用例结果表人审结果列, Scenario: 列表展示人审结论并悬浮详情, ADDED Requirements, eval-platform-dashboard Specification (delta), ADDED Requirements, eval-platform-dashboard Specification (delta), ADDED Requirements, eval-platform-dashboard Specification (delta)
 
+### Community 550 - "Community 550"
+Cohesion: 0.40
+Nodes (4): Answer, Outcome, Q: 普通评测账号与长期记忆评测账号如何隔离？, Source Nodes
+
+### Community 551 - "Community 551"
+Cohesion: 0.40
+Nodes (5): P3 验收 + 归档, Phase P3 — 收尾, Task P3-1: 目录归位, Task P3-2: 日志与 except 收窄, Task P3-3: 文档
+
+### Community 552 - "Community 552"
+Cohesion: 0.40
+Nodes (4): CX SIT Service Migration Implementation Plan, Task 1: Protect the historical-link compatibility contract, Task 2: Move new evaluation traffic to the stable SIT origin, Task 3: Verify the complete MME change
+
+### Community 553 - "Community 553"
+Cohesion: 0.50
+Nodes (5): borderWidthsFromStyle(), checkElementGptBorderShadow(), checkElementGptBorderShadowDOM(), checkGptThinBorderWideShadow(), shadowMaxBlurPx()
+
+### Community 555 - "Community 555"
+Cohesion: 0.50
+Nodes (4): Adapter Type Fail-fast, build_adapter, MockAdapter, OpenAICompatAdapter
+
 ### Community 557 - "Community 557"
 Cohesion: 0.67
 Nodes (4): Case Schema Spec (Scoring Point), RubricItem, ScoringPoint Model, TestCase
 
+### Community 558 - "Community 558"
+Cohesion: 0.67
+Nodes (4): postSerializedFindings(), renderBrowserFindings(), scanResultMeta(), serializeFindings()
+
 ### Community 559 - "Community 559"
-Cohesion: 0.40
-Nodes (4): Impact, Proposal: 线上 benchmark 支持飞书 Base URL 导入, What, Why
+Cohesion: 0.50
+Nodes (4): 场景:全部重试用完仍失败, 场景:超时不算第一轮成功, 场景:首次超时但重试后成功, 需求:Runner 必须支持每轮调用的超时与重试
+
+### Community 560 - "Community 560"
+Cohesion: 0.50
+Nodes (4): 6. 指南项 `guidelines`, `dimension_criteria` 与 `guidelines` 的区别, 如何从标注答案拆指南, 字段规则
+
+### Community 561 - "Community 561"
+Cohesion: 0.50
+Nodes (4): Four-tier Grade Thresholds, Plain-text Keyword Marking, Reporting Spec (Redesign Scoring), transcripts.xlsx
+
+### Community 562 - "Community 562"
+Cohesion: 0.50
+Nodes (4): Requirement: Runner 必须当场采集每轮 token 用量并写入 trace, Scenario: store_raw 裁剪后 token 仍在, Scenario: token 字段不影响判分, Scenario: 成功轮次采集 token 用量
 
 ### Community 563 - "Community 563"
 Cohesion: 0.50
-Nodes (5): borderWidthsFromStyle(), checkElementGptBorderShadow(), checkElementGptBorderShadowDOM(), checkGptThinBorderWideShadow(), shadowMaxBlurPx()
+Nodes (4): Requirement: Runner 重试必须支持可配置指数退避并复用单一退避实现, Scenario: 启用退避后按指数等待, Scenario: 退避数学单一真值源, Scenario: 默认配置行为不变
 
 ### Community 564 - "Community 564"
-Cohesion: 0.40
-Nodes (5): 场景:repeat=1 时与旧版语义等价, 需求:Runner 必须支持 N-runs 重复执行, 场景:N 次中任一次失败必须保留所有完成的 trace, 场景:repeat=3 时每条 case 跑三次, 场景:同 case 的 N 次调用 session_id 必须可区分
+Cohesion: 0.50
+Nodes (4): Requirement: 执行后端可选 local 或 ray 且产物结构一致, Scenario: ray 后端产物结构对齐 local, Scenario: 选择 ray 但未安装, Scenario: 默认本地后端行为不变
 
 ### Community 565 - "Community 565"
 Cohesion: 0.21
@@ -2728,12 +2867,28 @@ Cohesion: 0.11
 Nodes (18): Loading States, Loading States, Avoid Redundant Copy, Confirmation Dialogs: Use Sparingly, Consistency: The Terminology Problem, Don't Blame the User, Empty States Are Opportunities, Error Message Templates (+10 more)
 
 ### Community 568 - "Community 568"
-Cohesion: 0.40
-Nodes (4): Requirement: 默认配置必须声明 cx-agent 被测对象, Scenario: 默认配置声明 cx-agent, 评测命令行入口 Delta, ADDED Requirements
+Cohesion: 0.50
+Nodes (3): 实施, 目标, 评分标准页面与 Judge 标准同步计划
+
+### Community 569 - "Community 569"
+Cohesion: 0.50
+Nodes (3): 实施, 目标, 评测记录创建人展示实施计划
+
+### Community 570 - "Community 570"
+Cohesion: 0.50
+Nodes (4): Heuristics Scoring Guide, Issue Severity (P0–P3), Reference Material, Score Summary
+
+### Community 571 - "Community 571"
+Cohesion: 0.50
+Nodes (3): candidates, detectorPath, __dirname
 
 ### Community 573 - "Community 573"
 Cohesion: 0.20
 Nodes (7): Impact, Proposal: 看板 tab 默认概览修复 + 对话流水可滚动 + 用户登录移至右上角, What Changes, Why, Impact, What Changes, Why
+
+### Community 574 - "Community 574"
+Cohesion: 0.50
+Nodes (4): 4.1 Judge verdict 标签单一信任源, 4.2 Token / 成本计算去重, 4.3 配置覆盖抽取, 4. P0：共享去重与 Judge 标签（详细设计）
 
 ### Community 578 - "Community 578"
 Cohesion: 0.18
@@ -2751,9 +2906,33 @@ Nodes (9): compare_case 流程（swap_debias=True）, Design: 双盲匿名化消
 Cohesion: 0.20
 Nodes (7): Impact, Proposal: 前端视觉体系重构（Langfuse/shadcn 风浅色设计系统）, What Changes, Why, Impact, What Changes, Why
 
-### Community 583 - "Community 583"
-Cohesion: 0.11
-Nodes (34): Path, str, diff_runs(), _fingerprint_warning(), _latency_diff(), _load(), _mock_baseline_warning(), _n_runs_warning() (+26 more)
+### Community 582 - "Community 582"
+Cohesion: 0.67
+Nodes (3): Scenario: N=3 逐次记录, Scenario: 错误 run 不计入聚合, Requirement: N-runs 下必须逐次记录会话总 token 且错误 run 不计入聚合
+
+### Community 584 - "Community 584"
+Cohesion: 0.67
+Nodes (3): 场景:多轮用户输入, 场景:预设 system / assistant turn 不触发调用, 需求:Runner 必须为每条用例顺序执行所有 user turn
+
+### Community 586 - "Community 586"
+Cohesion: 0.67
+Nodes (3): 场景:并发度为 1 时严格串行, 场景:返回的 trace 顺序必须与输入用例顺序一致, 需求:Runner 必须以 Semaphore 控制并发度
+
+### Community 587 - "Community 587"
+Cohesion: 0.67
+Nodes (3): Requirement: N-runs 下必须逐次记录会话总耗时且错误 run 不计入聚合, Scenario: N=3 逐次记录, Scenario: 错误 run 不计入聚合
+
+### Community 588 - "Community 588"
+Cohesion: 0.67
+Nodes (3): Requirement: N-runs 会话留痕落盘为可复现产物, Scenario: 未告知输出目录时不落盘, Scenario: 默认开启增量落盘
+
+### Community 589 - "Community 589"
+Cohesion: 0.67
+Nodes (3): Requirement: Runner 必须采集每轮与整段会话耗时, Scenario: 多轮会话记录逐轮与总耗时, Scenario: 延迟字段不影响判分
+
+### Community 590 - "Community 590"
+Cohesion: 0.67
+Nodes (3): Requirement: 基于已落盘成功留痕的断点续跑, Scenario: adapter 指纹不一致拒绝续跑, Scenario: 复用成功留痕、重跑失败留痕
 
 ### Community 591 - "Community 591"
 Cohesion: 0.13
@@ -2767,33 +2946,9 @@ Nodes (16): Requirement: 用例明细对话轮数, Requirement: 用例详情中�
 Cohesion: 0.22
 Nodes (7): ADDED Requirements, Requirement: N-runs 会话留痕落盘为可复现产物, Requirement: 基于已落盘成功留痕的断点续跑, Scenario: adapter 指纹不一致拒绝续跑, Scenario: 复用成功留痕、重跑失败留痕, Scenario: 未告知输出目录时不落盘, Scenario: 默认开启增量落盘
 
-### Community 605 - "Community 605"
-Cohesion: 0.40
-Nodes (5): P3 验收 + 归档, Phase P3 — 收尾, Task P3-1: 目录归位, Task P3-2: 日志与 except 收窄, Task P3-3: 文档
-
-### Community 609 - "Community 609"
-Cohesion: 0.67
-Nodes (4): postSerializedFindings(), renderBrowserFindings(), scanResultMeta(), serializeFindings()
-
-### Community 610 - "Community 610"
-Cohesion: 0.50
-Nodes (4): 场景:全部重试用完仍失败, 场景:超时不算第一轮成功, 场景:首次超时但重试后成功, 需求:Runner 必须支持每轮调用的超时与重试
-
-### Community 616 - "Community 616"
-Cohesion: 0.50
-Nodes (4): Requirement: Runner 必须当场采集每轮 token 用量并写入 trace, Scenario: store_raw 裁剪后 token 仍在, Scenario: token 字段不影响判分, Scenario: 成功轮次采集 token 用量
-
-### Community 619 - "Community 619"
-Cohesion: 0.50
-Nodes (4): Requirement: Runner 重试必须支持可配置指数退避并复用单一退避实现, Scenario: 启用退避后按指数等待, Scenario: 退避数学单一真值源, Scenario: 默认配置行为不变
-
 ### Community 620 - "Community 620"
 Cohesion: 0.17
 Nodes (9): Impact, Proposal: 用例级 Langfuse 链路 + 平台用例明细可追踪（默认开启 · 自托管）, What Changes, Why, 已知限制, Impact, What Changes, Why (+1 more)
-
-### Community 622 - "Community 622"
-Cohesion: 0.50
-Nodes (4): Requirement: 执行后端可选 local 或 ray 且产物结构一致, Scenario: ray 后端产物结构对齐 local, Scenario: 选择 ray 但未安装, Scenario: 默认本地后端行为不变
 
 ### Community 624 - "Community 624"
 Cohesion: 0.20
@@ -2887,10 +3042,6 @@ Nodes (13): Scenario: 调上线阈值后重判历史 run 生效, eval-platform-d
 Cohesion: 0.17
 Nodes (9): Non-Goals（P0）, Proposal: Server Layering P0（迁出 runs/_helpers）, Risks, What Changes, Why, Non-Goals（P0）, Risks, What Changes (+1 more)
 
-### Community 671 - "Community 671"
-Cohesion: 0.40
-Nodes (6): checkRepeatedSectionKickers(), checkRepeatedSectionKickersDOM(), checkRepeatedSectionKickersFromDoc(), cleanInlineText(), collectRepeatedSectionKickerCandidates(), isRepeatedKickerCandidate()
-
 ### Community 673 - "Community 673"
 Cohesion: 0.20
 Nodes (7): Impact, Proposal: 判据覆盖保存 + 重判优化（下拉选 judge / 只重判失败）, What Changes, Why, Impact, What Changes, Why
@@ -2904,8 +3055,8 @@ Cohesion: 0.25
 Nodes (6): Tasks, 功能 1：维度满分展示, 功能 2：上线综合分阈值前端可配, 验证 / 收尾, Tasks, 验证 / 收尾
 
 ### Community 681 - "Community 681"
-Cohesion: 0.29
-Nodes (13): Change: add semantic rule adjudicator, SemanticRuleAdjudicator, Change: harden evaluation determinism (N-runs, temperature 0.0), medeval CLI, fold_n_runs (N-runs voting aggregator), Dialog Runner (run_cases), Aggregator / judge_all, BaseJudge (+5 more)
+Cohesion: 0.19
+Nodes (19): Change: add semantic rule adjudicator, SemanticRuleAdjudicator, Change: add weighted scoring and grading, Change: enrich must-have verdict with unmet_patterns, Change: harden evaluation determinism (N-runs, temperature 0.0), medeval CLI, Excel transcript reporter, Reporting subsystem (+11 more)
 
 ### Community 686 - "Community 686"
 Cohesion: 0.14
@@ -2915,45 +3066,9 @@ Nodes (13): Requirement: 单用例 ephemeral 试判预览, Scenario: 按 sample_
 Cohesion: 0.25
 Nodes (6): 场景:source 仅允许 online 或 offline, MODIFIED Requirements, Requirement: 系统必须以 Pydantic 模型定义所有用例字段, 场景:加载合法 YAML 用例, 场景:加载非法字段时必须抛错, 场景:残留的 case_version key 被忽略
 
-### Community 692 - "Community 692"
-Cohesion: 0.50
-Nodes (3): candidates, detectorPath, __dirname
-
-### Community 693 - "Community 693"
-Cohesion: 0.50
-Nodes (4): 4.1 Judge verdict 标签单一信任源, 4.2 Token / 成本计算去重, 4.3 配置覆盖抽取, 4. P0：共享去重与 Judge 标签（详细设计）
-
-### Community 694 - "Community 694"
-Cohesion: 0.67
-Nodes (3): Scenario: N=3 逐次记录, Scenario: 错误 run 不计入聚合, Requirement: N-runs 下必须逐次记录会话总 token 且错误 run 不计入聚合
-
-### Community 695 - "Community 695"
-Cohesion: 0.67
-Nodes (3): 场景:多轮用户输入, 场景:预设 system / assistant turn 不触发调用, 需求:Runner 必须为每条用例顺序执行所有 user turn
-
 ### Community 697 - "Community 697"
 Cohesion: 0.17
 Nodes (12): 2. Colors, Chart 灰阶, Link（导航 = Muted Teal）, Named Rules, Neutral（黑白印刷骨架）, Primary（主操作 = 墨黑）, 语义色（仅作圆点）, Named Rules (+4 more)
-
-### Community 698 - "Community 698"
-Cohesion: 0.67
-Nodes (3): 场景:并发度为 1 时严格串行, 场景:返回的 trace 顺序必须与输入用例顺序一致, 需求:Runner 必须以 Semaphore 控制并发度
-
-### Community 700 - "Community 700"
-Cohesion: 0.20
-Nodes (10): Anti-Patterns Verdict, Design Health Score, Generate Combined Critique Report, Minor Observations, Overall Impression, Persona Red Flags, Priority Issues, Questions to Consider (+2 more)
-
-### Community 707 - "Community 707"
-Cohesion: 0.67
-Nodes (3): Requirement: N-runs 下必须逐次记录会话总耗时且错误 run 不计入聚合, Scenario: N=3 逐次记录, Scenario: 错误 run 不计入聚合
-
-### Community 709 - "Community 709"
-Cohesion: 0.67
-Nodes (3): Requirement: N-runs 会话留痕落盘为可复现产物, Scenario: 未告知输出目录时不落盘, Scenario: 默认开启增量落盘
-
-### Community 710 - "Community 710"
-Cohesion: 0.67
-Nodes (3): Requirement: Runner 必须采集每轮与整段会话耗时, Scenario: 多轮会话记录逐轮与总耗时, Scenario: 延迟字段不影响判分
 
 ### Community 711 - "Community 711"
 Cohesion: 0.20
@@ -2962,10 +3077,6 @@ Nodes (7): Impact, Proposal: 重判也套用当前上线综合分阈值覆盖, W
 ### Community 713 - "Community 713"
 Cohesion: 0.20
 Nodes (8): Requirement: Pairwise 对比入口, Requirement: Pairwise 结果展示, Scenario: 下钻单题对比, Scenario: 不可比时报错, Scenario: 查看整体总结, Scenario: 选择两次 run 发起对比, ADDED Requirements, ADDED Requirements
-
-### Community 714 - "Community 714"
-Cohesion: 0.67
-Nodes (3): Requirement: 基于已落盘成功留痕的断点续跑, Scenario: adapter 指纹不一致拒绝续跑, Scenario: 复用成功留痕、重跑失败留痕
 
 ### Community 716 - "Community 716"
 Cohesion: 0.20
@@ -2995,14 +3106,6 @@ Nodes (7): Requirement: 用例列表指南匹配率带命中计数, Scenario: �
 Cohesion: 0.20
 Nodes (9): 1. TDD（先写/改测试）, 2. 实现 medeval/pairwise.py, 3. 后端落库, 4. 前端, 5. 验证与归档, Tasks, 4. 前端, 5. 验证与归档 (+1 more)
 
-### Community 738 - "Community 738"
-Cohesion: 0.25
-Nodes (8): 1. Impatient Power User: "Alex", 2. Confused First-Timer: "Jordan", 3. Accessibility-Dependent User: "Sam", 4. Deliberate Stress Tester: "Riley", 5. Distracted Mobile User: "Casey", Persona-Based Design Testing, Project-Specific Personas, Selecting Personas
-
-### Community 743 - "Community 743"
-Cohesion: 0.29
-Nodes (7): Cognitive Load Assessment, Cognitive Load Checklist, Extraneous Load: Bad Design, Germane Load: Learning Effort, Intrinsic Load: The Task Itself, The Working Memory Rule, Three Types of Cognitive Load
-
 ### Community 746 - "Community 746"
 Cohesion: 0.11
 Nodes (17): Loading States, Loading States, Apply Clarity Principles, Assess Current Copy, Button & CTA Text, Confirmation Dialogs, Empty States, Error Messages (+9 more)
@@ -3015,10 +3118,6 @@ Nodes (5): ADDED Requirements, eval-platform-dashboard Specification (delta), Re
 Cohesion: 0.25
 Nodes (6): Requirement: Platform MUST expose judge verdict Chinese labels via config API, Requirement: Token cost computation MUST use a single shared implementation, Scenario: Fetch judge verdict labels, Scenario: Ingest token cost unchanged, ADDED Requirements, ADDED Requirements
 
-### Community 756 - "Community 756"
-Cohesion: 0.50
-Nodes (4): Heuristics Scoring Guide, Issue Severity (P0–P3), Reference Material, Score Summary
-
 ### Community 761 - "Community 761"
 Cohesion: 0.12
 Nodes (16): 5. Components, Buttons, Cards / Containers, Charts（Recharts · 降噪）, Dashboard Surface（全站统一）, Dividers, Inputs / Fields, KPI / 核心指标 (+8 more)
@@ -3026,10 +3125,6 @@ Nodes (16): 5. Components, Buttons, Cards / Containers, Charts（Recharts · 降
 ### Community 786 - "Community 786"
 Cohesion: 0.29
 Nodes (6): Capabilities, Impact, Modified Capabilities, New Capabilities, What Changes, Why
-
-### Community 789 - "Community 789"
-Cohesion: 0.13
-Nodes (14): 1. Accessibility (A11y), 2. Performance, 3. Theming, 4. Responsive Design, 5. Anti-Patterns (CRITICAL), Anti-Patterns Verdict, Audit Health Score, Detailed Findings by Severity (+6 more)
 
 ### Community 790 - "Community 790"
 Cohesion: 0.33
@@ -3500,24 +3595,24 @@ Cohesion: 0.40
 Nodes (3): Proposal: LLM 判官 QPM 限频优化, What, Why
 
 ## Knowledge Gaps
-- **3251 isolated node(s):** `DEPRECATED_NAMES`, `HARNESS_DIRS`, `SKILL_FINGERPRINTS`, `COMMON_DEV_PORTS`, `SCANNABLE_EXT` (+3246 more)
+- **3279 isolated node(s):** `DEPRECATED_NAMES`, `HARNESS_DIRS`, `SKILL_FINGERPRINTS`, `COMMON_DEV_PORTS`, `SCANNABLE_EXT` (+3274 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **133 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **138 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `TestCase` connect `Community 186` to `Core Data Models (Pydantic)`, `Weighted Grading & Scoring`, `Run Report Aggregates`, `Async Runner & Executor`, `JudgeVerdict & Markdown Tests`, `Community 141`, `Failure Tags & Case Suite`, `ScoringPoint Judge Tests`, `LLM Judge Fingerprint`, `Community 162`, `Case Loader & Audit`, `Community 429`, `HardGate Comment Linter`, `Transcripts URL Footer Test`, `Community 183`, `Misc Internals`, `OpenSpec Explore Command`, `Community 191`, `Community 467`, `Community 369`, `Community 122`?**
+- **Why does `RunReport` connect `Community 467` to `Core Data Models (Pydantic)`, `Weighted Grading & Scoring`, `Async Runner & Executor`, `Community 141`, `Failure Tags & Case Suite`, `CLI Run Command`, `Failure Tag ZH Label Tests`, `Adapter Factory & Impls`, `Community 285`, `Community 164`, `Community 429`, `Transcripts URL Footer Test`, `Community 186`, `OpenSpec Explore Command`, `Community 191`, `Community 75`, `Community 79`, `Community 87`, `Community 496`?**
   _High betweenness centrality (0.011) - this node is a cross-community bridge._
-- **Why does `confirm()` connect `Community 180` to `Rule Judge Matching`?**
-  _High betweenness centrality (0.007) - this node is a cross-community bridge._
-- **Why does `CaseResult` connect `Core Data Models (Pydantic)` to `Async Runner & Executor`, `Community 141`, `Failure Tags & Case Suite`, `CLI Run Command`, `Community 285`, `Community 681`, `Community 429`, `Transcripts URL Footer Test`, `Community 186`, `OpenSpec Explore Command`, `Community 191`, `Community 75`, `Community 203`, `Community 78`, `Community 79`, `Community 467`, `Community 87`, `Community 369`, `Community 122`?**
+- **Why does `TestCase` connect `Community 186` to `Core Data Models (Pydantic)`, `Weighted Grading & Scoring`, `Run Report Aggregates`, `JudgeVerdict & Markdown Tests`, `Failure Tags & Case Suite`, `ScoringPoint Judge Tests`, `Failure Tag ZH Label Tests`, `Adapter Factory & Impls`, `Community 160`, `Community 289`, `Community 162`, `Adapter HTTP Config`, `Community 429`, `HardGate Comment Linter`, `Transcripts URL Footer Test`, `Community 183`, `Community 184`, `OpenSpec Explore Command`, `Community 203`, `Community 79`, `Community 465`, `Community 467`, `Community 215`, `Community 366`, `Community 496`, `Community 113`, `Community 497`, `Community 250`?**
+  _High betweenness centrality (0.009) - this node is a cross-community bridge._
+- **Why does `confirm()` connect `Community 157` to `Community 158`?**
   _High betweenness centrality (0.007) - this node is a cross-community bridge._
 - **Are the 139 inferred relationships involving `TestCase` (e.g. with `JudgesCfg` and `bool`) actually correct?**
   _`TestCase` has 139 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 101 inferred relationships involving `CaseResult` (e.g. with `CaseScores` and `JudgesCfg`) actually correct?**
-  _`CaseResult` has 101 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 116 inferred relationships involving `RunReport` (e.g. with `CaseScores` and `JudgesCfg`) actually correct?**
-  _`RunReport` has 116 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 103 inferred relationships involving `CaseResult` (e.g. with `CaseScores` and `JudgesCfg`) actually correct?**
+  _`CaseResult` has 103 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 117 inferred relationships involving `RunReport` (e.g. with `CaseScores` and `JudgesCfg`) actually correct?**
+  _`RunReport` has 117 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 77 inferred relationships involving `ConversationTrace` (e.g. with `JudgesCfg` and `EvaluationDimension`) actually correct?**
   _`ConversationTrace` has 77 INFERRED edges - model-reasoned connections that need verification._

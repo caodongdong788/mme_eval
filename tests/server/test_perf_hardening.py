@@ -110,7 +110,7 @@ def test_legacy_case_rows_are_backfilled_for_fast_list_columns(settings):
             INSERT INTO case_result VALUES (
                 1, 1, 'legacy_001', 's', '', 'L2', '', '[]', 1, 1,
                 40, NULL, NULL, '优', 'stable_pass', NULL, NULL, NULL, '[]',
-                '{"case":{"turns":[{"role":"user"},{"role":"assistant"},{"role":"user"}]},"trace":{"agent_chain":{"status":"synced","summary":{"sources":[{"key":"literature_rag","calls":1,"status":"hit"}]}}}}'
+                '{"case":{"case_type":"follow_up","turns":[{"role":"user"},{"role":"assistant"},{"role":"user"}]},"trace":{"agent_chain":{"status":"synced","summary":{"sources":[{"key":"literature_rag","calls":1,"status":"hit"}]}}}}'
             )
             """
         )
@@ -119,8 +119,9 @@ def test_legacy_case_rows_are_backfilled_for_fast_list_columns(settings):
     with session_scope() as session:
         row = session.get(CaseResultRow, 1)
         assert row is not None
+        assert row.case_type == "follow_up"
         assert row.n_turns == 2
         assert row.rag_status == "hit"
 
     names = {column["name"] for column in inspect(engine).get_columns("case_result")}
-    assert {"n_turns", "rag_status"} <= names
+    assert {"case_type", "n_turns", "rag_status"} <= names

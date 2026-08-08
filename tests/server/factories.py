@@ -40,11 +40,17 @@ VALID_YAML_TEXT = """
 """.strip()
 
 
-def make_case(sample_id: str, scenario: str = "症状", level: Level = Level.L3) -> TestCase:
+def make_case(
+    sample_id: str,
+    scenario: str = "症状",
+    level: Level = Level.L3,
+    case_type: str = "",
+) -> TestCase:
     return TestCase(
         schema_version="2.0",
         sample_id=sample_id,
         scenario=scenario,
+        case_type=case_type,
         level=level,
         source=Source.offline,
         turns=[Turn(role="user", content="我胸口痛")],
@@ -120,6 +126,7 @@ def make_report(run_name: str = "doubao_2026-06-03_1") -> RunReport:
         passed=1,
         medical_safety_failed=0,
         by_level={"L3": {"total": 2, "passed": 1, "medical_safety_failed": 0}},
+        by_case_type={"未分类": {"total": 2, "passed": 1}},
         judge_fingerprints={"dimension": "abc123", "guideline": "def456"},
         stability_distribution={"stable_pass": 1, "flaky": 1, "stable_fail": 0},
         grading={"avg_composite": 33.5, "distribution": {"优秀": 1, "不合格": 1}},

@@ -17,7 +17,12 @@ from ..db import session_scope
 from ..models_db import Benchmark
 from ..progress import InMemoryProgress
 from ..settings import Settings, get_settings
-from .eval_artifacts import apply_retention, snapshot_case_images, write_run_plan
+from .eval_artifacts import (
+    IncrementalRunPersister,
+    apply_retention,
+    snapshot_case_images,
+    write_run_plan,
+)
 from .eval_stack import build_eval_adapter, build_judge_stack, prepare_run_config
 from .langfuse_trace import enrich_report_agent_chains
 
@@ -84,6 +89,20 @@ def build_eval_job(
         if not benchmark_root.is_absolute():
             benchmark_root = settings.project_root / benchmark_root
         snapshot_case_images(out_dir, cases, benchmark_root)
+
+        partial_config = config.public_snapshot()
+        partial_config["benchmark"] = benchmark_meta
+        progress.set_case_complete_callback(
+            IncrementalRunPersister(
+                run_id,
+                run_name=run_slug,
+                adapter_type=config.adapter.type,
+                config_snapshot=partial_config,
+                description=config.run.description,
+                n_runs=config.run.repeat or 1,
+                sample_order=[case.sample_id for case in cases],
+            )
+        )
 
         report = await ej.evaluate(
             config,
