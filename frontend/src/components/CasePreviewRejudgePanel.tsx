@@ -3,14 +3,14 @@ import type { PreviewRejudgeResult } from "../api/index";
 
 export function CasePreviewRejudgePanel({
   previewing,
-  yamlLoading,
-  yamlText,
+  editorLoading,
+  canPreview,
   previewResult,
   onPreview,
 }: {
   previewing: boolean;
-  yamlLoading: boolean;
-  yamlText: string;
+  editorLoading: boolean;
+  canPreview: boolean;
   previewResult: PreviewRejudgeResult | null;
   onPreview: () => void;
 }) {
@@ -22,12 +22,12 @@ export function CasePreviewRejudgePanel({
         block
         loading={previewing}
         onClick={onPreview}
-        disabled={yamlLoading || !yamlText}
+        disabled={editorLoading || !canPreview}
       >
         试判此用例（预览）
       </Button>
       <span style={{ fontSize: 12, color: "var(--muted)" }}>
-        用编辑后的判据跑一次试判，仅预览、不修改当前 run；满意后点右上「覆盖当前 benchmark」。
+        试判会应用当前编辑的八维要求与指南扣分点，仅预览、不修改当前 run；满意后点右上「覆盖当前 benchmark」。
       </span>
       {previewResult && (
         <Alert

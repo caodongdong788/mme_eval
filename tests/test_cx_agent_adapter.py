@@ -170,6 +170,7 @@ def test_cx_agent_adapter_replaces_inline_image_before_sending():
     assert "图片附件已省略" in bodies[0]["content"]
     assert response.raw["input_sanitization"] == {
         "removed_inline_images": 1,
+        "removed_attachment_markdown": 0,
         "original_length": len(f"[报告图] ({image})"),
         "sent_length": len(bodies[0]["content"]),
         "truncated": False,
@@ -211,6 +212,43 @@ def test_cx_agent_adapter_sends_turn_images_in_dedicated_field():
         }
     ]
     assert response.raw["input_images"] == {"count": 1}
+    asyncio.run(adapter.close())
+
+
+def test_cx_agent_adapter_removes_markdown_for_attached_case_image():
+    bodies: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content.decode()))
+        return httpx.Response(
+            200,
+            text=_sse(
+                ("session", {"sessionId": "cx-image-markdown"}),
+                ("text_delta", {"content": "已收到图片"}),
+                ("message_end", {}),
+            ),
+        )
+
+    adapter = _adapter_with_transport(handler)
+    response = asyncio.run(
+        adapter.chat(
+            ChatRequest(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": "请解读这份报告\n\n![报告图]\n(images/report.jpg)",
+                    }
+                ],
+                images=["data:image/jpeg;base64,aGVsbG8="],
+                session_id="mme-image-markdown",
+            )
+        )
+    )
+
+    assert response.reply == "已收到图片"
+    assert bodies[0]["content"] == "请解读这份报告"
+    assert bodies[0]["images"] == ["data:image/jpeg;base64,aGVsbG8="]
+    assert response.raw["input_sanitization"]["removed_attachment_markdown"] == 1
     asyncio.run(adapter.close())
 
 

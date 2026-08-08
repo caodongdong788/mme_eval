@@ -1,6 +1,48 @@
 import { Table, Tag, Typography } from "antd";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { GuidelineScore } from "../api";
 import { DashPanel } from "./DashPanel";
+
+function EvidenceQuote({ value }: { value: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{ p: ({ children }) => <span>{children}</span> }}
+    >
+      {value}
+    </ReactMarkdown>
+  );
+}
+
+function GuidelineDecision({ row }: { row: GuidelineScore }) {
+  const deduction = row.deduction ?? Math.max(0, row.max_score - row.score);
+  const deducted = row.applicable !== false && deduction > 0;
+  if (!deducted) {
+    return <Typography.Text type="secondary">{row.reason || "符合要求，未扣分"}</Typography.Text>;
+  }
+  return (
+    <div data-testid={`guideline-decision-${row.id}`}>
+      <div>
+        <Typography.Text type="danger">
+          <strong>扣分理由：</strong>{row.reason || "未满足指南要求"}
+        </Typography.Text>
+      </div>
+      <div style={{ marginTop: 8 }}>
+        <Typography.Text strong>扣分原文：</Typography.Text>
+        {row.evidence?.length ? (
+          row.evidence.map((quote, index) => (
+            <div key={`${index}-${quote}`} style={{ marginTop: index === 0 ? 0 : 4 }}>
+              <EvidenceQuote value={quote} />
+            </div>
+          ))
+        ) : (
+          <Typography.Text type="secondary">—</Typography.Text>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function GuidelineScoresTable({ scores }: { scores: GuidelineScore[] }) {
   if (!scores.length) return null;
@@ -38,15 +80,7 @@ export function GuidelineScoresTable({ scores }: { scores: GuidelineScore[] }) {
           },
           {
             title: "判定理由",
-            render: (_, row) => (
-              <div>
-                <div>{row.reason || "—"}</div>
-                {row.missed_points?.length ? <Typography.Text type="danger">遗漏：{row.missed_points.join("；")}</Typography.Text> : null}
-                {row.evidence?.length ? (
-                  <Typography.Text type="secondary">{row.evidence.join("；")}</Typography.Text>
-                ) : null}
-              </div>
-            ),
+            render: (_, row) => <GuidelineDecision row={row} />,
           },
         ]}
       />

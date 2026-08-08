@@ -36,7 +36,7 @@ export function HumanReviewCard({
         type="info"
         showIcon
         style={{ marginBottom: 12 }}
-        message="裁定为旁路记录，不会修改机器判分（verdict / 综合分 / 上线判定均保持不变）。若要按新判据重判，可用「推翻」后就地「改判据(YAML)」改这一条、先「试判预览」验证，满意后覆盖当前 benchmark 或另存新集；要让某个 run 反映新判据需另行「重判」。"
+        message="裁定为旁路记录，不会修改机器判分（verdict / 综合分 / 上线判定均保持不变）。若要按新判据重判，可用「推翻」后打开结构化判据编辑器，先试判验证，满意后覆盖当前 benchmark；要让某个 run 反映新判据需另行「重判」。"
       />
       <Space direction="vertical" style={{ width: "100%" }}>
         <Radio.Group value={verdict} onChange={(e) => onVerdictChange(e.target.value)}>
@@ -47,7 +47,7 @@ export function HumanReviewCard({
           <Space>
             <Text type="secondary">想真正改判据并重判？</Text>
             <Button size="small" type="primary" ghost onClick={onOpenEditor}>
-              改判据(YAML)
+              改判据
             </Button>
           </Space>
         )}

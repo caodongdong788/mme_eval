@@ -37,20 +37,35 @@ _INLINE_IMAGE_DATA_URI_RE = re.compile(
     re.IGNORECASE,
 )
 _INLINE_IMAGE_PLACEHOLDER = "[图片附件已省略：cx-agent 测试接口仅支持文本，请结合报告文字说明]"
+_ATTACHED_IMAGE_MARKDOWN_RE = re.compile(
+    r"!\[[^\]]*\]\s*\(\s*images/[^)\s]+(?:\s+[\"'][^)]*[\"'])?\s*\)",
+    re.IGNORECASE,
+)
 
 
-def _sanitize_content(content: str) -> tuple[str, dict[str, Any]]:
+def _sanitize_content(
+    content: str,
+    *,
+    has_image_attachments: bool = False,
+) -> tuple[str, dict[str, Any]]:
     """把不可发送的内嵌图片和超长文本降级为可执行的 cx-agent 请求。"""
     original_length = len(content)
     sanitized, removed_inline_images = _INLINE_IMAGE_DATA_URI_RE.subn(
         _INLINE_IMAGE_PLACEHOLDER, content
     )
+    removed_attachment_markdown = 0
+    if has_image_attachments:
+        # Case 图片已经通过 images 字段发送。若正文仍携带同一类 Markdown，CX
+        # 分享回放会同时展示图片卡片和原始路径，造成重复内容。
+        sanitized, removed_attachment_markdown = _ATTACHED_IMAGE_MARKDOWN_RE.subn("", sanitized)
+        sanitized = re.sub(r"\n[ \t]*\n(?:[ \t]*\n)+", "\n\n", sanitized).strip()
     truncated = len(sanitized) > CX_AGENT_MAX_CONTENT_CHARS
     if truncated:
         suffix = "\n[内容过长，已截断]"
         sanitized = sanitized[: CX_AGENT_MAX_CONTENT_CHARS - len(suffix)] + suffix
     return sanitized, {
         "removed_inline_images": removed_inline_images,
+        "removed_attachment_markdown": removed_attachment_markdown,
         "original_length": original_length,
         "sent_length": len(sanitized),
         "truncated": truncated,
@@ -219,7 +234,10 @@ class CxAgentAdapter(BaseAdapter):
         content = str(latest.get("content") or "")
         if not content.strip() and not req.images:
             return ChatResponse(reply="", error="cx_agent adapter requires non-empty user content")
-        content, input_sanitization = _sanitize_content(content)
+        content, input_sanitization = _sanitize_content(
+            content,
+            has_image_attachments=bool(req.images),
+        )
 
         cx_session_id = self._sessions.get(req.session_id)
         if cx_session_id is None and len(req.messages) > 1:
@@ -350,7 +368,11 @@ class CxAgentAdapter(BaseAdapter):
             raw["ttft_ms"] = ttft_ms
         if req.images:
             raw["input_images"] = {"count": len(req.images)}
-        if input_sanitization["removed_inline_images"] or input_sanitization["truncated"]:
+        if (
+            input_sanitization["removed_inline_images"]
+            or input_sanitization["removed_attachment_markdown"]
+            or input_sanitization["truncated"]
+        ):
             raw["input_sanitization"] = input_sanitization
         if usage:
             raw["usage"] = usage

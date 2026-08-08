@@ -21,7 +21,19 @@ function assistantMarkdown(content: string): string {
 }
 
 function imagePathsInMarkdown(content: string): string[] {
-  return Array.from(content.matchAll(/!\[[^\]]*\]\(\s*(images\/[^\s)]+)/gi), (match) => match[1]);
+  return Array.from(content.matchAll(/!\[[^\]]*\]\s*\(\s*(images\/[^\s)]+)/gi), (match) => match[1]);
+}
+
+function withoutAttachedImageMarkdown(content: string, attachedImages: string[]): string {
+  if (!attachedImages.length) return content;
+  const imagePaths = new Set(attachedImages);
+  return content
+    .replace(
+      /!\[[^\]]*\]\s*\(\s*(images\/[^\s)]+)(?:\s+["'][^)]*["'])?\s*\)/gi,
+      (markdown, imagePath: string) => imagePaths.has(imagePath) ? "" : markdown
+    )
+    .replace(/\n[ \t]*\n(?:[ \t]*\n)+/g, "\n\n")
+    .trim();
 }
 
 export function ConversationThread({ messages, maxHeight = 560, resolveImageSrc }: ConversationThreadProps) {
@@ -32,7 +44,8 @@ export function ConversationThread({ messages, maxHeight = 560, resolveImageSrc 
           const isUser = m.role === "user";
           const isAsst = m.role === "assistant";
           const roleLabel = isUser ? "用户" : isAsst ? "AI 回复" : m.role;
-          const inlineImagePaths = imagePathsInMarkdown(m.content);
+          const displayedContent = withoutAttachedImageMarkdown(m.content, m.images || []);
+          const inlineImagePaths = imagePathsInMarkdown(displayedContent);
           const attachedImages = (m.images || []).filter((path) => !inlineImagePaths.includes(path));
           return (
             <div
@@ -65,7 +78,7 @@ export function ConversationThread({ messages, maxHeight = 560, resolveImageSrc 
               >
                 {isAsst ? (
                   <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
-                    {assistantMarkdown(m.content)}
+                    {assistantMarkdown(displayedContent)}
                   </ReactMarkdown>
                 ) : resolveImageSrc ? (
                   <ReactMarkdown
@@ -82,9 +95,9 @@ export function ConversationThread({ messages, maxHeight = 560, resolveImageSrc 
                       ),
                     }}
                   >
-                    {m.content}
+                    {displayedContent}
                   </ReactMarkdown>
-                ) : m.content}
+                ) : displayedContent}
                 {resolveImageSrc && attachedImages.map((imagePath) => (
                   <Image
                     key={imagePath}

@@ -1,7 +1,7 @@
 import { Button, Col, Empty, Result, Row, Spin } from "antd";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { BenchmarkCaseEditorDrawer } from "../components/BenchmarkCaseEditorDrawer";
 import { CasePreviewRejudgePanel } from "../components/CasePreviewRejudgePanel";
-import { EditCriteriaDrawer } from "../components/EditCriteriaDrawer";
 import { CaseDetailSummary, CaseDetailSummaryCard } from "../components/CaseDetailSummaryCard";
 import { ConversationContextReferences } from "../components/ConversationContextReferences";
 import { CxReplayEmbed } from "../components/CxReplayEmbed";
@@ -160,31 +160,33 @@ export default function CaseDetailPage() {
         annotations={cd.annotations}
       />
 
-      <EditCriteriaDrawer
-        open={cd.yamlOpen}
-        loading={cd.yamlActions.saving}
+      <BenchmarkCaseEditorDrawer
+        open={cd.criteriaOpen}
+        loading={cd.criteriaLoading}
+        saving={cd.criteriaSaving}
+        source={cd.isBuiltin ? "builtin" : "uploaded"}
+        caseFile={cd.caseContent?.case_file}
+        value={cd.caseContent?.case || null}
+        onChange={(nextCase) =>
+          cd.setCaseContent((current) => current ? { ...current, case: nextCase } : current)
+        }
+        onClose={() => cd.setCriteriaOpen(false)}
+        variant="criteria"
         isBuiltin={cd.isBuiltin}
-        hideAlert
-        hideSaveAs
         benchmarkLabel={
           cd.run?.benchmark_id
             ? `#${cd.run.benchmark_id}「${cd.benchmarkName || "—"}」`
             : undefined
         }
         title={`改判据 · ${caseInfo?.scenario || sampleId}`}
-        name={cd.yamlName}
-        onNameChange={cd.setYamlName}
-        yamlText={cd.yamlText}
-        onYamlChange={cd.setYamlText}
-        yamlLoading={cd.yamlLoading}
-        onClose={() => cd.setYamlOpen(false)}
-        onSaveAs={cd.saveYamlAsBenchmark}
-        onOverwrite={cd.saveYamlOverwrite}
-        slot={
+        subtitle="Benchmark 结构化编辑"
+        saveHint="覆盖后将更新当前 benchmark；当前 run 分数不会自动变化"
+        onOverwrite={cd.saveCaseOverwrite}
+        headerContent={
           <CasePreviewRejudgePanel
             previewing={cd.previewing}
-            yamlLoading={cd.yamlLoading}
-            yamlText={cd.yamlText}
+            editorLoading={cd.criteriaLoading}
+            canPreview={Boolean(cd.caseContent)}
             previewResult={cd.previewResult}
             onPreview={cd.runPreview}
           />

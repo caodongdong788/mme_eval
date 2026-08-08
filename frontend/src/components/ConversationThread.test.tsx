@@ -41,4 +41,22 @@ describe("ConversationThread", () => {
       "/api/runs/1/cases/case_1/images/images%2Freport.jpg"
     );
   });
+
+  it("hides markdown text when the same Case image is rendered as an attachment", () => {
+    const { container } = renderWithProviders(
+      <ConversationThread
+        resolveImageSrc={(path) => `/api/runs/1/cases/case_1/images/${encodeURIComponent(path)}`}
+        messages={[{
+          role: "user",
+          content: "请看这份报告\n\n![报告图]\n(images/report.jpg)",
+          images: ["images/report.jpg"],
+        }]}
+      />
+    );
+
+    expect(screen.getByText("请看这份报告")).toBeInTheDocument();
+    expect(container.querySelector('[data-testid="case-conversation-image"]')).toBeInTheDocument();
+    expect(container).not.toHaveTextContent("![报告图]");
+    expect(container).not.toHaveTextContent("images/report.jpg");
+  });
 });

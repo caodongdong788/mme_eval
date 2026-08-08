@@ -14,7 +14,7 @@ import {
   Typography,
 } from "antd";
 import { CodeOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { DIM_LABEL, EVALUATION_DIMENSIONS } from "../labels";
@@ -223,6 +223,14 @@ export function BenchmarkCaseEditorDrawer({
   onSave,
   onDelete,
   onLoadSourceYaml,
+  variant = "benchmark",
+  title,
+  subtitle,
+  isBuiltin = false,
+  benchmarkLabel,
+  headerContent,
+  onOverwrite,
+  saveHint,
 }: {
   open: boolean;
   loading: boolean;
@@ -232,9 +240,17 @@ export function BenchmarkCaseEditorDrawer({
   value: CaseData | null;
   onChange: (next: CaseData) => void;
   onClose: () => void;
-  onSave: () => void;
-  onDelete: () => void;
-  onLoadSourceYaml: () => Promise<string>;
+  onSave?: () => void;
+  onDelete?: () => void;
+  onLoadSourceYaml?: () => Promise<string>;
+  variant?: "benchmark" | "criteria";
+  title?: string;
+  subtitle?: string;
+  isBuiltin?: boolean;
+  benchmarkLabel?: string;
+  headerContent?: ReactNode;
+  onOverwrite?: () => void;
+  saveHint?: string;
 }) {
   const [sourceOpen, setSourceOpen] = useState(false);
   const [sourceLoading, setSourceLoading] = useState(false);
@@ -246,6 +262,7 @@ export function BenchmarkCaseEditorDrawer({
   const updateInitialState = (patch: CaseData) => update({ initial_state: { ...initialState, ...patch } });
   const updateEvaluation = (patch: CaseData) => update({ evaluation: { ...evaluation, ...patch } });
   const openSourceYaml = async () => {
+    if (!onLoadSourceYaml) return;
     setSourceOpen(true);
     setSourceLoading(true);
     try {
@@ -322,27 +339,50 @@ export function BenchmarkCaseEditorDrawer({
     <>
     <Drawer
       className="case-editor-drawer"
-      title={<div className="case-editor-title"><span>{value ? value.scenario || value.sample_id : "编辑用例"}</span><small>结构化编辑</small></div>}
+      title={<div className="case-editor-title"><span>{title || (value ? value.scenario || value.sample_id : "编辑用例")}</span><small>{subtitle || "结构化编辑"}</small></div>}
       width={1120}
       open={open}
       onClose={onClose}
       extra={
-        <Button icon={<CodeOutlined />} onClick={() => void openSourceYaml()} disabled={loading || !value}>查看源 YAML</Button>
+        variant === "criteria" ? (
+          <Space>
+            <Button onClick={onClose}>取消</Button>
+            <Popconfirm
+              title="覆盖当前 benchmark？"
+              description="保存后会更新当前 benchmark 中的这条用例；当前 run 已产生的分数不会改变。"
+              okText="确认覆盖"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+              onConfirm={onOverwrite}
+              disabled={isBuiltin}
+            >
+              <Button danger loading={saving} disabled={loading || !value || isBuiltin}>
+                覆盖当前 benchmark
+              </Button>
+            </Popconfirm>
+          </Space>
+        ) : (
+          <Button icon={<CodeOutlined />} onClick={() => void openSourceYaml()} disabled={loading || !value}>查看源 YAML</Button>
+        )
       }
-      footer={<div className="case-editor-footer"><Popconfirm title="确认删除这条用例？删除后不可恢复。" okText="删除" cancelText="取消" onConfirm={onDelete}><Button danger disabled={source === "builtin"}>删除用例</Button></Popconfirm><Space><Button onClick={onClose}>取消</Button><Button type="primary" loading={saving} disabled={loading || !value} onClick={onSave}>保存用例</Button></Space></div>}
+      footer={variant === "criteria" ? null : <div className="case-editor-footer"><Popconfirm title="确认删除这条用例？删除后不可恢复。" okText="删除" cancelText="取消" onConfirm={onDelete}><Button danger disabled={source === "builtin"}>删除用例</Button></Popconfirm><Space><Button onClick={onClose}>取消</Button><Button type="primary" loading={saving} disabled={loading || !value} onClick={onSave}>保存用例</Button></Space></div>}
     >
       {loading || !value ? <Spin tip="正在加载用例内容…" /> : (
         <div className="case-editor-layout">
+          {benchmarkLabel ? <Typography.Paragraph type="secondary">当前 benchmark：<Typography.Text strong>{benchmarkLabel}</Typography.Text></Typography.Paragraph> : null}
+          {headerContent ? <div style={{ marginBottom: 16 }}>{headerContent}</div> : null}
           {source === "builtin" && <Typography.Text type="warning">内置用例可查看，但不建议直接修改；生产镜像重建后修改可能丢失。</Typography.Text>}
-          <div className="case-editor-meta"><span>用例编号 <strong>{value.sample_id}</strong></span><span>来源文件 <strong>{caseFile || "—"}</strong></span><span>保存后将同步更新源 YAML</span></div>
+          <div className="case-editor-meta"><span>用例编号 <strong>{value.sample_id}</strong></span><span>来源文件 <strong>{caseFile || "—"}</strong></span><span>{saveHint || "保存后将同步更新源 YAML"}</span></div>
           <Tabs className="case-editor-tabs" defaultActiveKey="basic" items={tabItems} />
         </div>
       )}
     </Drawer>
-    <Drawer title="源 YAML（只读）" width={680} open={sourceOpen} onClose={() => setSourceOpen(false)} extra={<Button onClick={() => setSourceOpen(false)}>关闭</Button>}>
-      <Typography.Paragraph type="secondary">这里展示最近一次保存后的源文件内容。当前界面的未保存修改会在点击“保存用例”后同步写回 YAML。</Typography.Paragraph>
-      <Input.TextArea value={sourceYaml} readOnly placeholder={sourceLoading ? "正在加载源 YAML…" : ""} autoSize={{ minRows: 24, maxRows: 42 }} className="case-editor-source-yaml" />
-    </Drawer>
+    {variant === "benchmark" ? (
+      <Drawer title="源 YAML（只读）" width={680} open={sourceOpen} onClose={() => setSourceOpen(false)} extra={<Button onClick={() => setSourceOpen(false)}>关闭</Button>}>
+        <Typography.Paragraph type="secondary">这里展示最近一次保存后的源文件内容。当前界面的未保存修改会在点击“保存用例”后同步写回 YAML。</Typography.Paragraph>
+        <Input.TextArea value={sourceYaml} readOnly placeholder={sourceLoading ? "正在加载源 YAML…" : ""} autoSize={{ minRows: 24, maxRows: 42 }} className="case-editor-source-yaml" />
+      </Drawer>
+    ) : null}
     </>
   );
 }

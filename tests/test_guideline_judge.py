@@ -134,6 +134,9 @@ def test_list_guideline_returns_missed_points_and_deduction() -> None:
     assert verdict.details["missed_points"] == ["应追问医生拟开的具体药名。"]
     assert "检查点" in captured
     assert "扣分规则" in captured
+    assert "reason 只写本次扣分的直接原因" in captured
+    assert "不得复述检查点原文" in captured
+    assert "evidence 应截取导致扣分的最短 bot 原文" in captured
 
 
 def test_untriggered_guideline_does_not_deduct() -> None:
