@@ -176,3 +176,14 @@ def test_open_api_rejects_invalid_key(client):
     _open_headers(client, ["benchmarks:read"])
     response = client.get("/api/open/v1/benchmarks", headers={"X-MME-API-Key": "wrong"})
     assert response.status_code == 403
+
+
+def test_open_api_reports_config_backed_dashscope_model_as_available(client, monkeypatch):
+    monkeypatch.setenv("LLM_API_KEY", "server-only-key")
+    headers = _open_headers(client, ["judge_models:read"])
+    response = client.get("/api/open/v1/judge-models", headers=headers)
+    assert response.status_code == 200
+    default = next(
+        item for item in response.json() if item["name"] == "百炼 DashScope · kimi-k2.6"
+    )
+    assert default["has_api_key"] is True

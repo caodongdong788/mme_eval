@@ -109,7 +109,7 @@ def list_open_judge_models(session: Session = Depends(get_session)) -> list[Open
             name=row.name,
             provider=row.provider,
             model=row.model,
-            has_api_key=row.has_api_key,
+            has_api_key=judge_models_svc.has_judge_model_api_key(row),
         )
         for row in judge_models_svc.list_judge_models(session)
     ]

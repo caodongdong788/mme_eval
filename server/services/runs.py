@@ -20,6 +20,7 @@ from ..models_db import Benchmark, CaseAnnotation, CaseResultRow, EvalRun, Judge
 from ..paths import safe_join
 from ..schemas import JudgeOverride, RunCreate, RunRenameRequest
 from ..settings import get_settings
+from . import judge_models as judge_models_svc
 
 
 def get_run_or_404(session: Session, run_id: int) -> EvalRun:
@@ -156,6 +157,11 @@ def prepare_create_run(
         if jm is None:
             raise HTTPException(
                 status_code=404, detail=f"判分模型 {payload.judge_model_id} 不存在"
+            )
+        if judge_ov.enabled is not False and not judge_models_svc.has_judge_model_api_key(jm):
+            raise HTTPException(
+                status_code=422,
+                detail=f"判分模型「{jm.name}」未配置可用的 API Key",
             )
         judge_ov = JudgeOverride(
             enabled=judge_ov.enabled,

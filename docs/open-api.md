@@ -96,7 +96,7 @@ curl -sS "$MME_BASE_URL/api/open/v1/judge-models" \
 ]
 ```
 
-只可传入 `has_api_key: true` 的模型 ID。接口不会返回任何模型密钥。
+只可传入 `has_api_key: true` 的模型 ID。该字段表示模型在当前平台可用：它既包括页面保存的模型密钥，也包括平台服务端安全注入的默认 DashScope 密钥。接口不会返回任何模型密钥。
 
 ## 5. 创建评测任务
 

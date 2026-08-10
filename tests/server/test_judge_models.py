@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from server.benchmarks import create_uploaded_benchmark
 from server.db import session_scope
-from server.models_db import EvalRun
+from server.models_db import EvalRun, JudgeModelConfig
+from server.services.default_judge_model import ensure_default_judge_model
 
 
 def _seed_benchmark(settings) -> int:
@@ -67,7 +68,15 @@ def test_crud_and_key_masking(client, settings):
     assert all(r["id"] != mid for r in client.get("/api/judge-models").json())
 
 
-def test_default_dashscope_judge_is_available_without_storing_a_key(client):
+def test_default_dashscope_judge_without_runtime_key_is_marked_unavailable(
+    client, session, monkeypatch
+):
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    stored = session.query(JudgeModelConfig).filter_by(
+        name="百炼 DashScope · kimi-k2.6"
+    ).one()
+    stored.api_key = None
+    session.commit()
     models = client.get("/api/judge-models").json()
     default = next(m for m in models if m["name"] == "百炼 DashScope · kimi-k2.6")
     assert default["provider"] == "openai"
@@ -75,6 +84,39 @@ def test_default_dashscope_judge_is_available_without_storing_a_key(client):
     assert default["base_url"] == "https://dashscope.aliyuncs.com/compatible-mode/v1"
     assert default["enable_thinking"] is False
     assert default["has_api_key"] is False
+
+
+def test_default_dashscope_judge_persists_server_env_key_without_exposing_it(
+    client, session, settings, monkeypatch
+):
+    monkeypatch.setenv("LLM_API_KEY", "server-only-key")
+    ensure_default_judge_model(session, settings)
+    session.commit()
+    stored = session.query(JudgeModelConfig).filter_by(
+        name="百炼 DashScope · kimi-k2.6"
+    ).one()
+    assert stored.api_key == "server-only-key"
+    models = client.get("/api/judge-models").json()
+    default = next(m for m in models if m["name"] == "百炼 DashScope · kimi-k2.6")
+    assert default["has_api_key"] is True
+    assert "api_key" not in default
+
+
+def test_config_matching_kimi_model_also_receives_default_key(client, session, settings, monkeypatch):
+    monkeypatch.setenv("LLM_API_KEY", "server-only-key")
+    row = JudgeModelConfig(
+        name="kimi-k2.6",
+        provider="openai",
+        model="kimi-k2.6",
+        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        api_key=None,
+    )
+    session.add(row)
+    session.commit()
+
+    ensure_default_judge_model(session, settings)
+    session.commit()
+    assert row.api_key == "server-only-key"
 
 
 def test_pairwise_concurrency_default_and_update(client, settings):
