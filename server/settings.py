@@ -119,11 +119,6 @@ class Settings:
             os.environ.get("MEDEVAL_MAX_UPLOAD_BYTES", str(50 * 1024 * 1024))
         )
     )
-    # 对外自动化接口密钥。未配置时 OpenAPI 路由明确返回 503，避免在生产环境意外裸露。
-    open_api_key: str = field(
-        default_factory=lambda: os.environ.get("MEDEVAL_OPEN_API_KEY", "")
-    )
-
     # cx-agent 内部 Langfuse Trace 只读同步。与 MME 自身是否写 Langfuse 解耦；
     # 凭据仅在服务端环境变量中使用，不进入 Case 明细或配置快照。
     langfuse_host: str = field(

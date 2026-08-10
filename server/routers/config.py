@@ -10,7 +10,12 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user_optional
 from ..db import get_session
 from ..models_db import FeishuUser
-from ..schemas import OpenApiKeyStatusOut, OpenApiKeyUpdate
+from ..schemas import (
+    OpenApiAccessKeyCreate,
+    OpenApiAccessKeyCreatedOut,
+    OpenApiAccessKeyOut,
+    OpenApiAccessKeyUpdate,
+)
 from ..services import open_api_config as open_api_config_service
 from ..services import platform_config as config_service
 
@@ -43,27 +48,47 @@ def evaluation_standard() -> dict[str, Any]:
     return config_service.evaluation_standard()
 
 
-@router.get("/open-api-key", response_model=OpenApiKeyStatusOut)
-def open_api_key_status(
+@router.get("/open-api-keys", response_model=list[OpenApiAccessKeyOut])
+def list_open_api_keys(
     session: Session = Depends(get_session),
-) -> dict:
-    return open_api_config_service.get_open_api_key_status(session)
+) -> list:
+    return open_api_config_service.list_open_api_keys(session)
 
 
-@router.put("/open-api-key", response_model=OpenApiKeyStatusOut)
-def update_open_api_key(
-    payload: OpenApiKeyUpdate,
+@router.post("/open-api-keys", response_model=OpenApiAccessKeyCreatedOut, status_code=201)
+def create_open_api_key(
+    payload: OpenApiAccessKeyCreate,
     session: Session = Depends(get_session),
     current_user: Optional[FeishuUser] = Depends(get_current_user_optional),
 ) -> dict:
-    open_api_config_service.save_open_api_key(
+    row, _raw_key = open_api_config_service.create_open_api_key(
         session,
-        payload.api_key,
-        updated_by=current_user.name if current_user else None,
+        name=payload.name,
+        permissions=list(payload.permissions),
+        created_by=current_user.name if current_user else None,
     )
-    return open_api_config_service.get_open_api_key_status(session)
+    return OpenApiAccessKeyOut.model_validate(row).model_dump()
 
 
-@router.delete("/open-api-key", status_code=204)
-def clear_open_api_key(session: Session = Depends(get_session)) -> None:
-    open_api_config_service.clear_open_api_key(session)
+@router.patch("/open-api-keys/{key_id}", response_model=OpenApiAccessKeyOut)
+def update_open_api_key(
+    key_id: int,
+    payload: OpenApiAccessKeyUpdate,
+    session: Session = Depends(get_session),
+) -> OpenApiAccessKeyOut:
+    return open_api_config_service.update_open_api_key(
+        session, key_id, name=payload.name, permissions=list(payload.permissions)
+    )
+
+
+@router.post("/open-api-keys/{key_id}/rotate", response_model=OpenApiAccessKeyCreatedOut)
+def rotate_open_api_key(
+    key_id: int, session: Session = Depends(get_session)
+) -> dict:
+    row, _raw_key = open_api_config_service.rotate_open_api_key(session, key_id)
+    return OpenApiAccessKeyOut.model_validate(row).model_dump()
+
+
+@router.delete("/open-api-keys/{key_id}", status_code=204)
+def delete_open_api_key(key_id: int, session: Session = Depends(get_session)) -> None:
+    open_api_config_service.delete_open_api_key(session, key_id)

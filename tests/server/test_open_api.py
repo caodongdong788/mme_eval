@@ -5,15 +5,24 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from server.models_db import Benchmark, JudgeModelConfig
-from server.settings import get_settings
 
 
-OPEN_HEADERS = {"X-MME-API-Key": "open-test-key"}
-
-
-def _enable_open_api(monkeypatch) -> None:
-    monkeypatch.setenv("MEDEVAL_OPEN_API_KEY", OPEN_HEADERS["X-MME-API-Key"])
-    get_settings.cache_clear()
+def _open_headers(client, permissions: list[str] | None = None) -> dict[str, str]:
+    response = client.post(
+        "/api/config/open-api-keys",
+        json={
+            "name": "OpenAPI 测试 Key",
+            "permissions": permissions
+            or [
+                "benchmarks:read",
+                "judge_models:read",
+                "evaluations:create",
+                "evaluations:read",
+            ],
+        },
+    )
+    assert response.status_code == 201, response.text
+    return {"X-MME-API-Key": response.json()["api_key"]}
 
 
 def test_open_api_is_disabled_without_key(client):
@@ -23,7 +32,7 @@ def test_open_api_is_disabled_without_key(client):
 
 
 def test_open_api_lists_resources_and_creates_evaluation(client, session, monkeypatch):
-    _enable_open_api(monkeypatch)
+    open_headers = _open_headers(client)
     benchmark = Benchmark(
         name="开放接口测试集",
         description="用于 OpenAPI 测试",
@@ -66,11 +75,11 @@ def test_open_api_lists_resources_and_creates_evaluation(client, session, monkey
         ),
     )
 
-    benchmarks = client.get("/api/open/v1/benchmarks", headers=OPEN_HEADERS)
+    benchmarks = client.get("/api/open/v1/benchmarks", headers=open_headers)
     assert benchmarks.status_code == 200
     assert any(item["id"] == benchmark.id for item in benchmarks.json())
 
-    models = client.get("/api/open/v1/judge-models", headers=OPEN_HEADERS)
+    models = client.get("/api/open/v1/judge-models", headers=open_headers)
     assert models.status_code == 200
     model = next(item for item in models.json() if item["id"] == judge_model.id)
     assert model == {
@@ -83,7 +92,7 @@ def test_open_api_lists_resources_and_creates_evaluation(client, session, monkey
 
     response = client.post(
         "/api/open/v1/evaluations",
-        headers=OPEN_HEADERS,
+        headers=open_headers,
         json={
             "benchmark_id": benchmark.id,
             "name": "OpenAPI 自动化评测",
@@ -113,20 +122,20 @@ def test_open_api_lists_resources_and_creates_evaluation(client, session, monkey
     assert captured["judge_full"]["model"] == "judge-test-model"
     assert captured["judge_full"]["api_key"] == "judge-secret"
 
-    status = client.get(f"/api/open/v1/evaluations/{body['id']}", headers=OPEN_HEADERS)
+    status = client.get(f"/api/open/v1/evaluations/{body['id']}", headers=open_headers)
     assert status.status_code == 200
     assert status.json()["judge_model_id"] == judge_model.id
 
 
-def test_open_api_rejects_model_when_judge_is_disabled(client, session, monkeypatch):
-    _enable_open_api(monkeypatch)
+def test_open_api_rejects_model_when_judge_is_disabled(client, session):
+    open_headers = _open_headers(client, ["evaluations:create"])
     benchmark = Benchmark(name="无判分测试集", source="offline")
     session.add(benchmark)
     session.commit()
 
     response = client.post(
         "/api/open/v1/evaluations",
-        headers=OPEN_HEADERS,
+        headers=open_headers,
         json={
             "benchmark_id": benchmark.id,
             "name": "不应创建",
@@ -138,7 +147,7 @@ def test_open_api_rejects_model_when_judge_is_disabled(client, session, monkeypa
     assert "不能传 judge_model_id" in response.text
 
 
-def test_open_api_rejects_invalid_key(client, monkeypatch):
-    _enable_open_api(monkeypatch)
+def test_open_api_rejects_invalid_key(client):
+    _open_headers(client, ["benchmarks:read"])
     response = client.get("/api/open/v1/benchmarks", headers={"X-MME-API-Key": "wrong"})
     assert response.status_code == 403

@@ -318,11 +318,22 @@ export interface EvaluationAccountsConfig {
   allocation_rule: string;
 }
 
-export interface OpenApiKeyStatus {
-  configured: boolean;
-  source: "page" | "environment" | "none";
-  updated_by?: string | null;
+export type OpenApiPermission =
+  | "benchmarks:read"
+  | "judge_models:read"
+  | "evaluations:create"
+  | "evaluations:read";
+
+export interface OpenApiAccessKey {
+  id: number;
+  name: string;
+  api_key: string;
+  key_prefix: string;
+  permissions: OpenApiPermission[];
+  created_by?: string | null;
+  created_at?: string | null;
   updated_at?: string | null;
+  last_used_at?: string | null;
 }
 
 export interface EvaluationStandard {

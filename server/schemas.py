@@ -292,25 +292,47 @@ class OpenEvaluationOut(BaseModel):
     error_msg: str = ""
 
 
-class OpenApiKeyStatusOut(BaseModel):
-    """OpenAPI 密钥状态；明确不含密钥正文。"""
+OpenApiPermission = Literal[
+    "benchmarks:read",
+    "judge_models:read",
+    "evaluations:create",
+    "evaluations:read",
+]
 
-    configured: bool
-    source: Literal["page", "environment", "none"]
-    updated_by: Optional[str] = None
+
+class OpenApiAccessKeyOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    api_key: str
+    key_prefix: str
+    permissions: list[OpenApiPermission]
+    created_by: Optional[str] = None
+    created_at: Optional[ApiDateTime] = None
     updated_at: Optional[ApiDateTime] = None
+    last_used_at: Optional[ApiDateTime] = None
 
 
-class OpenApiKeyUpdate(BaseModel):
-    api_key: str = Field(..., min_length=1, max_length=1000)
+class OpenApiAccessKeyCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=120)
+    permissions: list[OpenApiPermission] = Field(..., min_length=1)
 
-    @field_validator("api_key")
+    @field_validator("name")
     @classmethod
-    def _api_key_not_blank(cls, value: str) -> str:
+    def _name_not_blank(cls, value: str) -> str:
         value = value.strip()
         if not value:
-            raise ValueError("API Key 不能为空")
+            raise ValueError("Key 名称不能为空")
         return value
+
+
+class OpenApiAccessKeyUpdate(OpenApiAccessKeyCreate):
+    pass
+
+
+class OpenApiAccessKeyCreatedOut(OpenApiAccessKeyOut):
+    """创建或轮换后的 OpenAPI Key。"""
 
 
 # ---------------------------------------------------------------------------

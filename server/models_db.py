@@ -349,22 +349,28 @@ class JudgeModelConfig(Base):
         return bool(self.api_key)
 
 
-class OpenApiKeyConfig(Base):
-    """OpenAPI 调用密钥的唯一运行期配置。
+class OpenApiAccessKey(Base):
+    """一把可独立授权、可撤销的 OpenAPI 密钥。
 
-    密钥仅可写入、校验使用；任何读取接口都只返回是否已配置及其来源，绝不返回明文。
-    环境变量仍可作为首次部署的兜底，页面保存的值优先级更高且立即生效。
+    为满足管理员可随时复制的需求，明文只在平台登录后的参数配置接口中可读取；
+    对外 OpenAPI 的鉴权始终只使用 ``key_hash``。
     """
 
-    __tablename__ = "open_api_key_config"
+    __tablename__ = "open_api_access_key"
 
-    # 固定为 1，避免出现多条互相冲突的全局密钥配置。
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    # 仅参数配置页（需平台登录）可读取，用于管理员复制；OpenAPI 本身只按 key_hash 校验。
     api_key: Mapped[str] = mapped_column(Text, default="")
-    updated_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    key_prefix: Mapped[str] = mapped_column(String(32), default="")
+    key_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    permissions: Mapped[list[str]] = mapped_column(JSON, default=list)
+    created_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
+    last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
 class FeishuUser(Base):

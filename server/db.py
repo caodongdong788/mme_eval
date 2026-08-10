@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine, inspect, select, update
+from sqlalchemy import create_engine, inspect, select, text, update
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from .settings import Settings, get_settings
@@ -47,7 +47,66 @@ def init_db(settings: Settings | None = None) -> None:
     from . import models_db  # noqa: F401  触发 ORM 表注册
 
     Base.metadata.create_all(engine)
+    _migrate_legacy_open_api_key(engine)
     _migrate_case_list_display_columns(engine)
+
+
+def _migrate_legacy_open_api_key(engine) -> None:
+    """将旧版单一 OpenAPI Key 平滑迁移为一把独立授权的 Key。
+
+    旧表只会保留在已使用过早期页面配置的实例中。迁移按摘要去重，因此应用后续
+    重启不会重复创建；保留旧值可避免现有自动化调用因升级而中断。
+    """
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+    if not {"open_api_key_config", "open_api_access_key"}.issubset(tables):
+        return
+    legacy_columns = {
+        column["name"] for column in inspector.get_columns("open_api_key_config")
+    }
+    if not {"api_key", "updated_by"}.issubset(legacy_columns):
+        return
+
+    import hashlib
+
+    with engine.begin() as connection:
+        legacy = connection.execute(
+            text("SELECT api_key, updated_by FROM open_api_key_config WHERE id = 1")
+        ).mappings().first()
+        raw_key = str(legacy["api_key"] or "").strip() if legacy else ""
+        if not raw_key:
+            return
+        key_hash = hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
+        exists = connection.execute(
+            text("SELECT 1 FROM open_api_access_key WHERE key_hash = :key_hash"),
+            {"key_hash": key_hash},
+        ).first()
+        if exists:
+            return
+
+        name = "迁移的历史 Key"
+        suffix = 2
+        while connection.execute(
+            text("SELECT 1 FROM open_api_access_key WHERE name = :name"), {"name": name}
+        ).first():
+            name = f"迁移的历史 Key {suffix}"
+            suffix += 1
+        connection.execute(
+            text(
+                "INSERT INTO open_api_access_key "
+                "(name, api_key, key_prefix, key_hash, permissions, created_by) "
+                "VALUES (:name, :api_key, :key_prefix, :key_hash, :permissions, :created_by)"
+            ),
+            {
+                "name": name,
+                "api_key": raw_key,
+                "key_prefix": f"{raw_key[:14]}…",
+                "key_hash": key_hash,
+                "permissions": '["benchmarks:read", "judge_models:read", '
+                '"evaluations:create", "evaluations:read"]',
+                "created_by": legacy["updated_by"],
+            },
+        )
 
 
 def _migrate_case_list_display_columns(engine) -> None:

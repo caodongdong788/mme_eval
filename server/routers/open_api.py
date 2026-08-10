@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from ..db import get_session
 from ..jobs import get_job_runner
 from ..models_db import EvalRun
-from ..open_api_auth import require_open_api_key
+from ..open_api_auth import require_open_api_permission
 from medeval.evaluation_account_limiter import account_queue_snapshot
 from ..schemas import (
     AdapterOverride,
@@ -28,7 +28,6 @@ from .runs import build_eval_job
 router = APIRouter(
     prefix="/api/open/v1",
     tags=["open-api"],
-    dependencies=[Depends(require_open_api_key)],
 )
 
 
@@ -62,7 +61,12 @@ def _as_open_evaluation(run: EvalRun, payload: OpenEvaluationCreate | None = Non
     )
 
 
-@router.get("/benchmarks", response_model=list[OpenBenchmarkOut], summary="查询可用评测用例集")
+@router.get(
+    "/benchmarks",
+    response_model=list[OpenBenchmarkOut],
+    summary="查询可用评测用例集",
+    dependencies=[Depends(require_open_api_permission("benchmarks:read"))],
+)
 def list_open_benchmarks(session: Session = Depends(get_session)) -> list[OpenBenchmarkOut]:
     return [
         OpenBenchmarkOut(
@@ -78,7 +82,12 @@ def list_open_benchmarks(session: Session = Depends(get_session)) -> list[OpenBe
     ]
 
 
-@router.get("/judge-models", response_model=list[OpenJudgeModelOut], summary="查询可用判分模型")
+@router.get(
+    "/judge-models",
+    response_model=list[OpenJudgeModelOut],
+    summary="查询可用判分模型",
+    dependencies=[Depends(require_open_api_permission("judge_models:read"))],
+)
 def list_open_judge_models(session: Session = Depends(get_session)) -> list[OpenJudgeModelOut]:
     return [
         OpenJudgeModelOut(
@@ -92,7 +101,13 @@ def list_open_judge_models(session: Session = Depends(get_session)) -> list[Open
     ]
 
 
-@router.post("/evaluations", response_model=OpenEvaluationOut, status_code=201, summary="创建评测任务")
+@router.post(
+    "/evaluations",
+    response_model=OpenEvaluationOut,
+    status_code=201,
+    summary="创建评测任务",
+    dependencies=[Depends(require_open_api_permission("evaluations:create"))],
+)
 async def create_open_evaluation(
     payload: OpenEvaluationCreate,
     session: Session = Depends(get_session),
@@ -129,7 +144,12 @@ async def create_open_evaluation(
     return _as_open_evaluation(plan.run, payload)
 
 
-@router.get("/evaluations/{run_id}", response_model=OpenEvaluationOut, summary="查询评测任务状态")
+@router.get(
+    "/evaluations/{run_id}",
+    response_model=OpenEvaluationOut,
+    summary="查询评测任务状态",
+    dependencies=[Depends(require_open_api_permission("evaluations:read"))],
+)
 def get_open_evaluation(run_id: int, session: Session = Depends(get_session)) -> OpenEvaluationOut:
     run = session.get(EvalRun, run_id)
     if run is None:
