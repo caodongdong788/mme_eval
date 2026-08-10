@@ -277,6 +277,7 @@ class OpenJudgeModelOut(BaseModel):
 
 class OpenEvaluationOut(BaseModel):
     id: int
+    dashboard_url: str
     name: str
     status: str
     benchmark_id: int

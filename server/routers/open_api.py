@@ -9,6 +9,7 @@ from ..db import get_session
 from ..jobs import get_job_runner
 from ..models_db import EvalRun
 from ..open_api_auth import require_open_api_permission
+from ..settings import get_settings
 from medeval.evaluation_account_limiter import account_queue_snapshot
 from ..schemas import (
     AdapterOverride,
@@ -41,6 +42,7 @@ def _as_open_evaluation(run: EvalRun, payload: OpenEvaluationCreate | None = Non
     account_queue = account_queue_snapshot(str(run.id))
     return OpenEvaluationOut(
         id=run.id,
+        dashboard_url=f"{get_settings().frontend_url.rstrip('/')}/runs/{run.id}",
         name=run.name,
         status=run.status,
         benchmark_id=run.benchmark_id or 0,

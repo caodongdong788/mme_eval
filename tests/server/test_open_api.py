@@ -31,7 +31,9 @@ def test_open_api_is_disabled_without_key(client):
     assert "尚未启用" in response.json()["detail"]
 
 
-def test_open_api_lists_resources_and_creates_evaluation(client, session, monkeypatch):
+def test_open_api_lists_resources_and_creates_evaluation(
+    client, session, monkeypatch, settings
+):
     open_headers = _open_headers(client)
     benchmark = Benchmark(
         name="开放接口测试集",
@@ -107,6 +109,7 @@ def test_open_api_lists_resources_and_creates_evaluation(client, session, monkey
     assert response.status_code == 201, response.text
     body = response.json()
     assert body["status"] == "pending"
+    assert body["dashboard_url"] == f"{settings.frontend_url}/runs/{body['id']}"
     assert body["evaluation_mode"] == "multi_turn"
     assert body["repeat"] == 3
     assert body["enable_rag"] is True
@@ -125,6 +128,7 @@ def test_open_api_lists_resources_and_creates_evaluation(client, session, monkey
     status = client.get(f"/api/open/v1/evaluations/{body['id']}", headers=open_headers)
     assert status.status_code == 200
     assert status.json()["judge_model_id"] == judge_model.id
+    assert status.json()["dashboard_url"] == f"{settings.frontend_url}/runs/{body['id']}"
 
 
 def test_open_api_rejects_model_when_judge_is_disabled(client, session):
