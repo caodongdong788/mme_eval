@@ -140,6 +140,7 @@ def build_retry_case_job(
             judges,
             progress=progress,
             run_name=src_slug,
+            account_owner=str(run_id),
         )
         new_result = retried.results[0]
         await enrich_report_agent_chains(retried, settings)

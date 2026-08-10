@@ -77,7 +77,7 @@ def test_eval_job_persists_traces_and_runs_retention(
         bid, rid = bm.id, run.id
 
     async def fake_eval(config, cases, adapter, judges, *, progress=None,
-                        run_name=None, out_dir=None, resume_dir=None):
+                        run_name=None, account_owner="", out_dir=None, resume_dir=None):
         # 模拟内核落盘：在给定 out_dir 写下 traces.jsonl.gz。
         assert out_dir is not None and run_name is not None
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -201,7 +201,7 @@ def test_resume_job_passes_resume_dir(initialized_db, settings, monkeypatch):
     captured: dict = {}
 
     async def fake_eval(config, cases, adapter, judges, *, progress=None,
-                        run_name=None, out_dir=None, resume_dir=None):
+                        run_name=None, account_owner="", out_dir=None, resume_dir=None):
         captured["resume_dir"] = resume_dir
         captured["out_dir"] = out_dir
         captured["sample_ids"] = [c.sample_id for c in cases]
@@ -327,6 +327,12 @@ def test_retry_case_endpoint_submits_current_run(client, settings, monkeypatch):
             "percent": 0,
             "phases": {},
             "context": {"kind": "case_retry", "sample_id": target_id},
+        },
+        "queue_position": None,
+        "account_queue": {
+            "enabled": False,
+            "waiting_for_accounts": False,
+            "pools": {},
         },
     }
 

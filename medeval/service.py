@@ -183,6 +183,7 @@ async def run_traces(
     resume_dir: Path | None = None,
     adapter_config: dict | None = None,
     run_name: str = "",
+    account_owner: str = "",
     on_case_complete=None,
 ) -> list[list[ConversationTrace]]:
     """run 阶段：唯一 adapter 副作用，产出 ``list[list[ConversationTrace]]``。
@@ -263,6 +264,7 @@ async def run_traces(
                 ray_num_workers=config.run.ray_num_workers,
                 resume_index=resume_index,
                 run_name=run_name,
+                account_owner=account_owner,
                 user_simulator=build_user_simulator(config),
                 on_case_complete=on_case_complete,
             )
@@ -356,6 +358,7 @@ async def evaluate(
     *,
     progress: ProgressObserver | None = None,
     run_name: str | None = None,
+    account_owner: str = "",
     out_dir: Path | None = None,
     resume_dir: Path | None = None,
 ) -> RunReport:
@@ -423,6 +426,7 @@ async def evaluate(
             adapter,
             progress=progress,
             run_name=run_name or "",
+            account_owner=account_owner,
             out_dir=Path(out_dir) if out_dir is not None else None,
             resume_dir=Path(resume_dir) if resume_dir is not None else None,
             on_case_complete=judge_completed_case,
@@ -439,9 +443,10 @@ async def evaluate(
             n_runs=n_runs,
         )
 
-        await adapter.close()
         return report
     finally:
+        # 失败、取消和服务关闭时也必须释放 cx-agent 账号租约，避免依赖租约 TTL 回收。
+        await adapter.close()
         # 短命进程收尾 flush，保证缓冲的 trace 不丢；关闭/失败时为 no-op。
         lf.flush()
 

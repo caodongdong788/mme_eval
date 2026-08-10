@@ -124,6 +124,12 @@ class CxAgentCfg(_Strict):
     test_token: str = ""
     timeout_s: float = 120.0
     isolated_accounts: bool = False
+    # 隔离评测账号池容量。账号由 cx-agent 租约服务实际分配；MME 在本进程内预先限流，
+    # 避免多个评测任务同时抢空账号池。
+    stateless_account_capacity: int = Field(default=8, ge=1)
+    stateful_account_capacity: int = Field(default=8, ge=1)
+    # 单个评测任务在同一账号池最多同时占用的账号数，避免大任务独占整个池。
+    per_run_account_limit: int = Field(default=2, ge=1)
     # 仅影响 cx-agent 测试接口是否向模型暴露医学文献 RAG 工具；不影响画像、长期记忆或聊天历史。
     enable_rag: bool = False
 

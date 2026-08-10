@@ -105,6 +105,21 @@ Case/run 临时租用一个账号，执行前清空，完成全部多轮后释�
 
 带非空 `initial_state` 的 Case 自动使用长期记忆池；其他 Case 使用普通池。
 
+当多个评测同时运行时，MME 会在领取真实账号前按这两个池分别排队：同一个评测在
+每个池中最多同时占用 `per_run_account_limit` 个账号（默认 2），其余 Case 等待而不会
+因为账号暂时不足直接失败。容量与实际账号数保持一致即可：
+
+```yaml
+adapter:
+  cx_agent:
+    stateless_account_capacity: 8
+    stateful_account_capacity: 8
+    per_run_account_limit: 2
+```
+
+`GET /api/runs/{run_id}/progress` 和 OpenAPI 的任务查询会返回任务队列位置，以及是否正在
+等待账号和两个账号池的实时占用情况。
+
 ## 本地运行
 
 ```bash
@@ -137,6 +152,24 @@ cd frontend && npm install && npm run dev
 
 ```bash
 cd frontend && npm run build
+```
+
+### 自动化 OpenAPI
+
+设置服务端环境变量 `MEDEVAL_OPEN_API_KEY` 后，可用请求头 `X-MME-API-Key` 调用
+`/api/open/v1`。接口提供可用评测集、可用判分模型、创建评测和按 ID 查询任务状态；不接受
+明文模型密钥。详细请求/响应结构可在运行服务的 `/docs` 中查看。
+
+```bash
+# 先查询可用资源
+curl -H "X-MME-API-Key: <key>" http://localhost:8000/api/open/v1/benchmarks
+curl -H "X-MME-API-Key: <key>" http://localhost:8000/api/open/v1/judge-models
+
+# 创建评测：levels 为空表示评全部 Level；judge_model_id 为空使用平台默认判分模型
+curl -X POST http://localhost:8000/api/open/v1/evaluations \
+  -H "Content-Type: application/json" \
+  -H "X-MME-API-Key: <key>" \
+  -d '{"benchmark_id": 1, "name": "自动化回归-001", "evaluation_mode": "single_turn", "enable_rag": false, "repeat": 1, "levels": ["L2"], "enable_judge": true, "judge_model_id": null}'
 ```
 
 ### 生产部署

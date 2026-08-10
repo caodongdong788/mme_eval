@@ -73,6 +73,7 @@ async def _run_one(
     backoff_max_s: float = 40.0,
     run_idx: int = 0,
     run_name: str = "",
+    account_owner: str = "",
     user_simulator: UserSimulator | None = None,
 ) -> ConversationTrace:
     """跑一条用例的完整多轮对话。
@@ -159,6 +160,7 @@ async def _run_one(
                 )
             metadata = {
                 "eval_run_id": run_name,
+                "evaluation_account_owner": account_owner,
                 "sample_id": case.sample_id,
                 "run_idx": run_idx,
             }
@@ -360,6 +362,7 @@ async def run_cases(
     ray_num_workers: int = 0,
     resume_index: dict[tuple[str, int], ConversationTrace] | None = None,
     run_name: str = "",
+    account_owner: str = "",
     user_simulator: UserSimulator | None = None,
 ) -> list[list[ConversationTrace]]:
     """并发执行所有用例。
@@ -433,6 +436,7 @@ async def run_cases(
                         backoff_max_s=retry_backoff_max_s,
                         run_idx=run_idx,
                         run_name=run_name,
+                        account_owner=account_owner,
                         user_simulator=user_simulator,
                     )
                 except Exception as e:

@@ -111,6 +111,7 @@ def build_eval_job(
             judges,
             progress=progress,
             run_name=run_slug,
+            account_owner=str(run_id),
             out_dir=out_dir,
         )
         await enrich_report_agent_chains(report, settings)

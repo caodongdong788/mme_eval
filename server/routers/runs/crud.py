@@ -11,6 +11,7 @@ from ...auth import get_current_user_optional
 from ...constants import LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX
 from ...db import get_session
 from ...jobs import get_job_runner
+from medeval.evaluation_account_limiter import account_queue_snapshot
 from ...models_db import EvalRun, FeishuUser
 from ...schemas import ProgressOut, RunCreate, RunDetailOut, RunRenameRequest, RunSummaryOut
 from ...services import runs as runs_svc
@@ -89,13 +90,22 @@ def pin_run(
 @router.get("/{run_id}/progress", response_model=ProgressOut)
 def get_progress(run_id: int, session: Session = Depends(get_session)) -> ProgressOut:
     run = runs_svc.get_run_or_404(session, run_id)
-    snap = get_job_runner().progress_snapshot(run_id)
+    runner = get_job_runner()
+    snap = runner.progress_snapshot(run_id)
     stored = run.progress if isinstance(run.progress, dict) else {}
     if snap is None:
         snap = dict(stored) or None
     elif isinstance(stored.get("context"), dict):
         snap = {**snap, "context": dict(stored["context"])}
-    return ProgressOut(status=run.status, progress=snap)
+    # 兼容自定义/旧版 JobRunner：队列状态是增强信息，不能影响原有进度查询。
+    queue_snapshot = getattr(runner, "queue_snapshot", None)
+    queue = queue_snapshot(run_id) if callable(queue_snapshot) else None
+    return ProgressOut(
+        status=run.status,
+        progress=snap,
+        queue_position=(queue or {}).get("position"),
+        account_queue=account_queue_snapshot(str(run_id)),
+    )
 
 
 @router.get("/{run_id}/diff")

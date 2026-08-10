@@ -52,9 +52,12 @@ def client(initialized_db):
 
     from server.app import create_app
     from server.jobs import reset_job_runner_for_tests
+    from medeval.evaluation_account_limiter import reset_account_limiter_for_tests
 
     reset_job_runner_for_tests()
+    reset_account_limiter_for_tests()
     app = create_app()
     with TestClient(app) as c:
         yield c
     reset_job_runner_for_tests()
+    reset_account_limiter_for_tests()

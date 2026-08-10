@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from medeval.evaluation import EvaluationDimension
 
@@ -221,6 +221,78 @@ class RunCreate(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# OpenAPI：第三方自动发起评测
+
+
+class OpenEvaluationCreate(BaseModel):
+    """OpenAPI 发起评测的稳定入参，不接受任意连接地址或明文模型密钥。"""
+
+    benchmark_id: int = Field(..., description="评测用例集 ID，可通过 GET /api/open/v1/benchmarks 查询")
+    name: str = Field(..., min_length=1, max_length=200, description="本次评测名称，必须唯一")
+    evaluation_mode: Literal["single_turn", "multi_turn"] = Field(
+        default="single_turn", description="single_turn=固定对话；multi_turn=动态多轮对话"
+    )
+    enable_rag: bool = Field(default=False, description="是否向被测 CX Agent 开放医学文献 RAG")
+    repeat: int = Field(default=1, ge=1, description="每个用例重复评测次数")
+    levels: list[Literal["L1", "L2", "L3", "L4"]] = Field(
+        default_factory=list, description="只评指定 Level；空数组表示评全部 Level"
+    )
+    enable_judge: bool = Field(default=True, description="是否启用八维与指南判分模型")
+    judge_model_id: Optional[int] = Field(
+        default=None, description="已保存判分模型 ID；为空时使用平台默认模型"
+    )
+
+    @field_validator("name")
+    @classmethod
+    def _name_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("评测名称不能为空")
+        return value
+
+    @model_validator(mode="after")
+    def _judge_model_requires_judge(self) -> "OpenEvaluationCreate":
+        if not self.enable_judge and self.judge_model_id is not None:
+            raise ValueError("未启用判分模型时不能传 judge_model_id")
+        return self
+
+
+class OpenBenchmarkOut(BaseModel):
+    id: int
+    name: str
+    description: str
+    version: str
+    case_count: int
+    levels: list[str] = Field(default_factory=list)
+    default_evaluation_mode: Literal["single_turn", "multi_turn"] = "single_turn"
+
+
+class OpenJudgeModelOut(BaseModel):
+    id: int
+    name: str
+    provider: str
+    model: str
+    has_api_key: bool
+
+
+class OpenEvaluationOut(BaseModel):
+    id: int
+    name: str
+    status: str
+    benchmark_id: int
+    evaluation_mode: Literal["single_turn", "multi_turn"]
+    repeat: int
+    enable_rag: bool
+    enable_judge: bool
+    judge_model_id: Optional[int] = None
+    progress: Optional[dict[str, Any]] = None
+    queue_position: Optional[int] = None
+    waiting_for_accounts: bool = False
+    account_queue: dict[str, Any] = Field(default_factory=dict)
+    error_msg: str = ""
+
+
+# ---------------------------------------------------------------------------
 # 判分模型配置中心（全局共享；api_key 只写不读）
 
 
@@ -344,6 +416,8 @@ class RunDetailOut(RunSummaryOut):
 class ProgressOut(BaseModel):
     status: str
     progress: Optional[dict[str, Any]] = None
+    queue_position: Optional[int] = None
+    account_queue: dict[str, Any] = Field(default_factory=dict)
 
 
 class ReviewSummary(BaseModel):

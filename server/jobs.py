@@ -32,6 +32,10 @@ class JobRunner(ABC):
     @abstractmethod
     def progress_snapshot(self, run_id: int) -> dict | None: ...
 
+    def queue_snapshot(self, run_id: int) -> dict | None:
+        """任务调度队列状态；非进程内实现可按需覆盖。"""
+        return None
+
     async def shutdown(self) -> None:
         """优雅关闭钩子：默认 no-op，子类按需取消在跑任务。"""
         return None
@@ -85,6 +89,9 @@ class InProcessJobRunner(JobRunner):
         self._sem: asyncio.Semaphore | None = None
         self._progress: dict[int, InMemoryProgress] = {}
         self._tasks: dict[int, asyncio.Task] = {}
+        self._states: dict[int, str] = {}
+        self._submitted_order: dict[int, int] = {}
+        self._next_order = 0
 
     def _semaphore(self) -> asyncio.Semaphore:
         # 惰性创建：绑定到首次 await 时的事件循环。
@@ -95,24 +102,49 @@ class InProcessJobRunner(JobRunner):
     async def submit(self, run_id: int, job: JobFn) -> asyncio.Task:
         progress = InMemoryProgress()
         self._progress[run_id] = progress
+        self._states[run_id] = "queued"
+        self._next_order += 1
+        self._submitted_order[run_id] = self._next_order
         task = asyncio.create_task(self._run(run_id, job, progress))
         self._tasks[run_id] = task
         return task
 
     async def _run(self, run_id: int, job: JobFn, progress: InMemoryProgress) -> None:
         async with self._semaphore():
+            self._states[run_id] = "running"
             _set_status(run_id, "running")
             try:
                 await job(progress)
             except Exception as exc:  # noqa: BLE001 —— 失败兜底落 error_msg
                 log.exception("eval job run_id=%s failed", run_id)
                 _set_status(run_id, "failed", error=EVAL_JOB_USER_ERROR)
-                return
-            _set_status(run_id, "success")
+            else:
+                _set_status(run_id, "success")
+            finally:
+                self._states[run_id] = "done"
 
     def progress_snapshot(self, run_id: int) -> dict | None:
         p = self._progress.get(run_id)
         return p.snapshot() if p else None
+
+    def queue_snapshot(self, run_id: int) -> dict | None:
+        state = self._states.get(run_id)
+        if state is None or state == "done":
+            return None
+        if state == "running":
+            return {"state": "running", "position": 0}
+        queued = sorted(
+            (
+                (order, queued_run_id)
+                for queued_run_id, order in self._submitted_order.items()
+                if self._states.get(queued_run_id) == "queued"
+            ),
+        )
+        position = next(
+            (index for index, (_order, queued_run_id) in enumerate(queued, start=1) if queued_run_id == run_id),
+            None,
+        )
+        return {"state": "queued", "position": position}
 
     async def shutdown(self) -> None:
         """取消所有在跑任务并等待其结束（被取消的 run 由下次启动 reconcile 回收）。"""

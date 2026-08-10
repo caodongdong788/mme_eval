@@ -18,6 +18,10 @@ from typing import Any
 import httpx
 
 from medeval.evaluation_accounts import evaluation_account_credentials
+from medeval.evaluation_account_limiter import (
+    AccountPool,
+    evaluation_account_limiter,
+)
 
 from .base import BaseAdapter, ChatRequest, ChatResponse
 from .registry import register_adapter
@@ -180,6 +184,9 @@ class CxAgentAdapter(BaseAdapter):
         test_token: str = "",
         timeout_s: float = 120.0,
         isolated_accounts: bool = False,
+        stateless_account_capacity: int = 8,
+        stateful_account_capacity: int = 8,
+        per_run_account_limit: int = 2,
         enable_rag: bool = False,
     ):
         token = test_token or os.environ.get(test_token_env, "")
@@ -195,7 +202,13 @@ class CxAgentAdapter(BaseAdapter):
         self._isolated_accounts = isolated_accounts
         self._enable_rag = enable_rag
         self._leases: dict[str, dict[str, Any]] = {}
+        self._account_slots: dict[str, tuple[AccountPool, str]] = {}
         self._lease_locks: dict[str, asyncio.Lock] = {}
+        evaluation_account_limiter.configure(
+            stateless_capacity=stateless_account_capacity,
+            stateful_capacity=stateful_account_capacity,
+            per_owner_limit=per_run_account_limit,
+        )
 
     async def _ensure_lease(self, req: ChatRequest) -> dict[str, Any] | None:
         if not self._isolated_accounts:
@@ -210,21 +223,31 @@ class CxAgentAdapter(BaseAdapter):
             existing = self._leases.get(req.session_id)
             if existing is not None:
                 return existing
+            pool: AccountPool = "stateful" if isinstance(initial_state, dict) and initial_state else "stateless"
+            owner = str(req.metadata.get("evaluation_account_owner") or req.metadata.get("eval_run_id") or req.session_id)
+            # 先从 MME 的全局池领取名额，再向 cx-agent 领取真实租约。这样账号不足时
+            # 会等待而非把该 Case 标记为失败；每个任务同池最多占用配置的额度。
+            await evaluation_account_limiter.acquire(pool, owner)
             body: dict[str, Any] = {"leaseId": req.session_id}
             if isinstance(initial_state, dict) and initial_state:
                 body["initialState"] = _initial_state_json_payload(initial_state)
-            response = await self._client.post(
-                self.base_url + CX_AGENT_ACCOUNT_LEASE_ENDPOINT,
-                headers={"X-Test-Token": self._test_token},
-                json=body,
-            )
-            response.raise_for_status()
-            payload = response.json()
-            data = payload.get("data") if isinstance(payload, dict) else None
-            if not isinstance(data, dict) or not isinstance(data.get("userId"), str):
-                raise RuntimeError("cx-agent evaluation account lease returned invalid payload")
-            self._leases[req.session_id] = data
-            return data
+            try:
+                response = await self._client.post(
+                    self.base_url + CX_AGENT_ACCOUNT_LEASE_ENDPOINT,
+                    headers={"X-Test-Token": self._test_token},
+                    json=body,
+                )
+                response.raise_for_status()
+                payload = response.json()
+                data = payload.get("data") if isinstance(payload, dict) else None
+                if not isinstance(data, dict) or not isinstance(data.get("userId"), str):
+                    raise RuntimeError("cx-agent evaluation account lease returned invalid payload")
+                self._leases[req.session_id] = data
+                self._account_slots[req.session_id] = (pool, owner)
+                return data
+            except BaseException:
+                await evaluation_account_limiter.release(pool, owner)
+                raise
 
     async def chat(self, req: ChatRequest) -> ChatResponse:
         latest = req.messages[-1] if req.messages else {}
@@ -434,16 +457,19 @@ class CxAgentAdapter(BaseAdapter):
 
     async def end_session(self, session_id: str) -> None:
         lease = self._leases.pop(session_id, None)
+        slot = self._account_slots.pop(session_id, None)
         self._sessions.pop(session_id, None)
         self._lease_locks.pop(session_id, None)
-        if lease is None:
-            return
         try:
-            await self._client.post(
-                self.base_url + CX_AGENT_ACCOUNT_RELEASE_ENDPOINT,
-                headers={"X-Test-Token": self._test_token},
-                json={"leaseId": session_id, "testUserId": lease.get("userId")},
-            )
+            if lease is not None:
+                await self._client.post(
+                    self.base_url + CX_AGENT_ACCOUNT_RELEASE_ENDPOINT,
+                    headers={"X-Test-Token": self._test_token},
+                    json={"leaseId": session_id, "testUserId": lease.get("userId")},
+                )
         except Exception:
             # 租约自身有 TTL；释放失败不得覆盖已完成的评测结果。
-            return
+            pass
+        finally:
+            if slot is not None:
+                await evaluation_account_limiter.release(*slot)

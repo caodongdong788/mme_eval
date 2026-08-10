@@ -122,6 +122,7 @@ def build_resume_job(
             judges,
             progress=progress,
             run_name=new_slug,
+            account_owner=str(run_id),
             out_dir=out_dir,
             resume_dir=src_dir,
         )

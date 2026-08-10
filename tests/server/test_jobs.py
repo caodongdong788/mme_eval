@@ -136,3 +136,29 @@ def test_concurrency_limit_respected(initialized_db):
     asyncio.run(scenario())
     assert state["peak"] <= 2
     assert all(_status(rid) == "success" for rid in run_ids)
+
+
+def test_queue_snapshot_reports_waiting_job_position(initialized_db):
+    runner = InProcessJobRunner(max_concurrent=1)
+    first_id, second_id = _new_pending_run(), _new_pending_run()
+    first_started = asyncio.Event()
+    release_first = asyncio.Event()
+
+    async def first_job(_progress):
+        first_started.set()
+        await release_first.wait()
+
+    async def second_job(_progress):
+        return None
+
+    async def scenario():
+        first = await runner.submit(first_id, first_job)
+        await first_started.wait()
+        second = await runner.submit(second_id, second_job)
+        await asyncio.sleep(0)
+        assert runner.queue_snapshot(first_id) == {"state": "running", "position": 0}
+        assert runner.queue_snapshot(second_id) == {"state": "queued", "position": 1}
+        release_first.set()
+        await asyncio.gather(first, second)
+
+    asyncio.run(scenario())

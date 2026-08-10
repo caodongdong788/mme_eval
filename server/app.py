@@ -21,7 +21,7 @@ from .spa_static import install_frontend_spa
 logger = logging.getLogger("mme.server")
 
 # 强制登录豁免：健康检查与认证流程本身。
-_AUTH_EXEMPT_PREFIXES = ("/api/health", "/api/auth/")
+_AUTH_EXEMPT_PREFIXES = ("/api/health", "/api/auth/", "/api/open/")
 
 
 def _configure_logging() -> None:
@@ -129,6 +129,7 @@ def create_app() -> FastAPI:
         config,
         dashboard,
         judge_models,
+        open_api,
         runs,
     )
 
@@ -140,6 +141,7 @@ def create_app() -> FastAPI:
     app.include_router(config.router)
     app.include_router(judge_models.router)
     app.include_router(compare.router)
+    app.include_router(open_api.router)
 
     # 生产：托管前端构建产物（frontend/dist）。开发时不存在则跳过。
     dist = settings.project_root / "frontend" / "dist"
