@@ -156,6 +156,7 @@ curl -sS -X POST "$MME_BASE_URL/api/open/v1/evaluations" \
   "enable_rag": false,
   "enable_judge": true,
   "judge_model_id": 1,
+  "result": null,
   "progress": null,
   "queue_position": 1,
   "waiting_for_accounts": false,
@@ -164,7 +165,7 @@ curl -sS -X POST "$MME_BASE_URL/api/open/v1/evaluations" \
 }
 ```
 
-`dashboard_url` 是该任务在评测平台中的看板链接，可直接在浏览器打开。`queue_position` 表示当前服务内任务队列中的位置；账号资源紧张时，`waiting_for_accounts` 可能为 `true`。这两项均可能为空或随轮询变化，调用方不应据此判断任务失败。
+`dashboard_url` 是该任务在评测平台中的看板链接，可直接在浏览器打开。`result` 仅在任务成功完成（`status: "success"`）时返回运行结果；排队、运行或失败时固定为 `null`。`queue_position` 表示当前服务内任务队列中的位置；账号资源紧张时，`waiting_for_accounts` 可能为 `true`。这两项均可能为空或随轮询变化，调用方不应据此判断任务失败。
 
 ## 6. 查询评测任务状态
 
@@ -184,25 +185,37 @@ curl -sS "$MME_BASE_URL/api/open/v1/evaluations/42" \
   "id": 42,
   "dashboard_url": "https://mme.senzco.com/runs/42",
   "name": "my-agent-回归-20260810-001",
-  "status": "running",
+  "status": "success",
   "benchmark_id": 19,
   "evaluation_mode": "single_turn",
   "repeat": 1,
   "enable_rag": false,
   "enable_judge": true,
   "judge_model_id": 1,
-  "progress": {
-    "phase": "evaluating",
-    "label": "正在评测",
-    "done": 12,
-    "total": 63
+  "result": {
+    "total_cases": 63,
+    "passed_cases": 48,
+    "failed_cases": 15,
+    "pass_rate": 0.7619
   },
+  "progress": null,
   "queue_position": null,
   "waiting_for_accounts": false,
   "account_queue": {},
   "error_msg": ""
 }
 ```
+
+`result` 字段只有在 `status` 为 `success` 时才有值：
+
+| 字段 | 说明 |
+| --- | --- |
+| `total_cases` | 本次实际完成评测的用例数 |
+| `passed_cases` | 合格用例数 |
+| `failed_cases` | 不合格用例数（`total_cases - passed_cases`） |
+| `pass_rate` | 通过率，0–1 小数；例如 `0.7619` 表示 76.19% |
+
+当 `status` 为 `pending`、`running` 或 `failed` 时，`result` 均为 `null`。
 
 ### 状态含义与轮询建议
 

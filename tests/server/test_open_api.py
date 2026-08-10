@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from server.models_db import Benchmark, JudgeModelConfig
+from server.models_db import Benchmark, EvalRun, JudgeModelConfig
 
 
 def _open_headers(client, permissions: list[str] | None = None) -> dict[str, str]:
@@ -109,6 +109,7 @@ def test_open_api_lists_resources_and_creates_evaluation(
     assert response.status_code == 201, response.text
     body = response.json()
     assert body["status"] == "pending"
+    assert body["result"] is None
     assert body["dashboard_url"] == f"{settings.frontend_url}/runs/{body['id']}"
     assert body["evaluation_mode"] == "multi_turn"
     assert body["repeat"] == 3
@@ -129,6 +130,26 @@ def test_open_api_lists_resources_and_creates_evaluation(
     assert status.status_code == 200
     assert status.json()["judge_model_id"] == judge_model.id
     assert status.json()["dashboard_url"] == f"{settings.frontend_url}/runs/{body['id']}"
+    assert status.json()["result"] is None
+
+    completed = session.get(EvalRun, body["id"])
+    assert completed is not None
+    completed.status = "success"
+    completed.total = 63
+    completed.passed = 48
+    completed.pass_rate = 48 / 63
+    session.commit()
+
+    completed_status = client.get(
+        f"/api/open/v1/evaluations/{body['id']}", headers=open_headers
+    )
+    assert completed_status.status_code == 200
+    assert completed_status.json()["result"] == {
+        "total_cases": 63,
+        "passed_cases": 48,
+        "failed_cases": 15,
+        "pass_rate": 48 / 63,
+    }
 
 
 def test_open_api_rejects_model_when_judge_is_disabled(client, session):

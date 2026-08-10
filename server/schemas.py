@@ -275,6 +275,15 @@ class OpenJudgeModelOut(BaseModel):
     has_api_key: bool
 
 
+class OpenEvaluationResult(BaseModel):
+    """评测成功后可用的运行汇总。"""
+
+    total_cases: int
+    passed_cases: int
+    failed_cases: int
+    pass_rate: float
+
+
 class OpenEvaluationOut(BaseModel):
     id: int
     dashboard_url: str
@@ -286,6 +295,8 @@ class OpenEvaluationOut(BaseModel):
     enable_rag: bool
     enable_judge: bool
     judge_model_id: Optional[int] = None
+    # 仅 status=success 时返回；未完成或失败时严格为 null，避免读取中间统计。
+    result: Optional[OpenEvaluationResult] = None
     progress: Optional[dict[str, Any]] = None
     queue_position: Optional[int] = None
     waiting_for_accounts: bool = False

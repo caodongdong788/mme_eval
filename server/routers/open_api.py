@@ -17,6 +17,7 @@ from ..schemas import (
     OpenBenchmarkOut,
     OpenEvaluationCreate,
     OpenEvaluationOut,
+    OpenEvaluationResult,
     OpenJudgeModelOut,
     RunCreate,
 )
@@ -40,6 +41,16 @@ def _as_open_evaluation(run: EvalRun, payload: OpenEvaluationCreate | None = Non
     queue = queue_snapshot(run.id) if callable(queue_snapshot) else {}
     queue = queue or {}
     account_queue = account_queue_snapshot(str(run.id))
+    result = (
+        OpenEvaluationResult(
+            total_cases=run.total,
+            passed_cases=run.passed,
+            failed_cases=max(run.total - run.passed, 0),
+            pass_rate=run.pass_rate,
+        )
+        if run.status == "success"
+        else None
+    )
     return OpenEvaluationOut(
         id=run.id,
         dashboard_url=f"{get_settings().frontend_url.rstrip('/')}/runs/{run.id}",
@@ -55,6 +66,7 @@ def _as_open_evaluation(run: EvalRun, payload: OpenEvaluationCreate | None = Non
             if payload is not None
             else adapter.get("open_api_judge_model_id")
         ),
+        result=result,
         progress=runner.progress_snapshot(run.id) or run.progress or None,
         queue_position=queue.get("position"),
         waiting_for_accounts=bool(account_queue.get("waiting_for_accounts", False)),
