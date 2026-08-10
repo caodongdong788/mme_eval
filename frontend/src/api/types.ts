@@ -318,6 +318,13 @@ export interface EvaluationAccountsConfig {
   allocation_rule: string;
 }
 
+export interface OpenApiKeyStatus {
+  configured: boolean;
+  source: "page" | "environment" | "none";
+  updated_by?: string | null;
+  updated_at?: string | null;
+}
+
 export interface EvaluationStandard {
   roles: Array<{
     key: "doctor" | "nurse" | "user";

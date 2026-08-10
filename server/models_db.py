@@ -349,6 +349,24 @@ class JudgeModelConfig(Base):
         return bool(self.api_key)
 
 
+class OpenApiKeyConfig(Base):
+    """OpenAPI 调用密钥的唯一运行期配置。
+
+    密钥仅可写入、校验使用；任何读取接口都只返回是否已配置及其来源，绝不返回明文。
+    环境变量仍可作为首次部署的兜底，页面保存的值优先级更高且立即生效。
+    """
+
+    __tablename__ = "open_api_key_config"
+
+    # 固定为 1，避免出现多条互相冲突的全局密钥配置。
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    api_key: Mapped[str] = mapped_column(Text, default="")
+    updated_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
 class FeishuUser(Base):
     """一个飞书登录用户及其 per-user OAuth token 缓存。
 

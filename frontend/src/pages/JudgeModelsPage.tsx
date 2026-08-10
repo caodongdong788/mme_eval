@@ -1,7 +1,7 @@
-import { useState } from "react";
-import { Alert, Button, Popconfirm, Table, Tabs, Tag, Typography } from "antd";
+import { useEffect, useState } from "react";
+import { Alert, Button, Input, Popconfirm, Table, Tabs, Tag, Typography, message } from "antd";
 import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
-import { EvaluationAccount, JudgeModel } from "../api/index";
+import { api, EvaluationAccount, JudgeModel, OpenApiKeyStatus } from "../api/index";
 import { AsyncLoadError } from "../components/AsyncLoadError";
 import {
   DashTableActions,
@@ -16,6 +16,10 @@ import { useJudgeModelsPage } from "../hooks/useJudgeModelsPage";
 export default function JudgeModelsPage() {
   const jm = useJudgeModelsPage();
   const [activeTab, setActiveTab] = useState("models");
+  const [openApiStatus, setOpenApiStatus] = useState<OpenApiKeyStatus>();
+  const [openApiKey, setOpenApiKey] = useState("");
+  const [openApiLoading, setOpenApiLoading] = useState(false);
+  const [openApiSaving, setOpenApiSaving] = useState(false);
   const accounts = useEvaluationAccounts();
   const accountRows = accounts.data?.accounts ?? [];
   const statelessCount = accountRows.filter(
@@ -24,6 +28,52 @@ export default function JudgeModelsPage() {
   const statefulCount = accountRows.filter(
     (account) => account.pool === "stateful"
   ).length;
+
+  const loadOpenApiStatus = async () => {
+    setOpenApiLoading(true);
+    try {
+      setOpenApiStatus(await api.getOpenApiKeyStatus());
+    } catch {
+      message.error("读取 OpenAPI 配置失败");
+    } finally {
+      setOpenApiLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadOpenApiStatus();
+  }, []);
+
+  const saveOpenApiKey = async () => {
+    const value = openApiKey.trim();
+    if (!value) {
+      message.warning("请先填写 API Key");
+      return;
+    }
+    setOpenApiSaving(true);
+    try {
+      setOpenApiStatus(await api.updateOpenApiKey(value));
+      setOpenApiKey("");
+      message.success("OpenAPI Key 已保存并立即生效");
+    } catch {
+      message.error("保存 OpenAPI Key 失败");
+    } finally {
+      setOpenApiSaving(false);
+    }
+  };
+
+  const clearOpenApiKey = async () => {
+    setOpenApiSaving(true);
+    try {
+      await api.clearOpenApiKey();
+      await loadOpenApiStatus();
+      message.success("页面配置的 OpenAPI Key 已清空");
+    } catch {
+      message.error("清空 OpenAPI Key 失败");
+    } finally {
+      setOpenApiSaving(false);
+    }
+  };
 
   const modelColumns = [
     { title: "ID", dataIndex: "id", width: 60 },
@@ -118,13 +168,17 @@ export default function JudgeModelsPage() {
           >
             新增判分模型
           </Button>
-        ) : (
+        ) : activeTab === "accounts" ? (
           <Button
             icon={<ReloadOutlined />}
             loading={accounts.loading}
             onClick={accounts.reload}
           >
             刷新账号
+          </Button>
+        ) : (
+          <Button icon={<ReloadOutlined />} loading={openApiLoading} onClick={loadOpenApiStatus}>
+            刷新状态
           </Button>
         )
       }
@@ -186,6 +240,54 @@ export default function JudgeModelsPage() {
                     style={{ marginTop: 16 }}
                   />
                 )}
+              </div>
+            ),
+          },
+          {
+            key: "open-api",
+            label: "开放 API",
+            children: (
+              <div className="dash-table-card" style={{ padding: 24, maxWidth: 760 }}>
+                <Typography.Title level={4} style={{ marginTop: 0 }}>OpenAPI 访问密钥</Typography.Title>
+                <Typography.Paragraph type="secondary">
+                  外部系统调用评测创建接口时，需在请求头中传入 <Typography.Text code>X-MME-API-Key</Typography.Text>。
+                  密钥保存后仅用于服务端校验，不会再次展示。
+                </Typography.Paragraph>
+                <Alert
+                  showIcon
+                  type={openApiStatus?.configured ? "success" : "warning"}
+                  message={openApiStatus?.configured ? "OpenAPI 已启用" : "OpenAPI 尚未启用"}
+                  description={
+                    openApiStatus?.configured
+                      ? openApiStatus.source === "page"
+                        ? "当前密钥由本页面配置，已立即生效。"
+                        : "当前密钥来自服务器环境变量。"
+                      : "保存一个 API Key 后，外部系统即可调用 OpenAPI。"
+                  }
+                  style={{ marginBottom: 20 }}
+                />
+                <Typography.Text strong>设置或替换 API Key</Typography.Text>
+                <Input.Password
+                  value={openApiKey}
+                  onChange={(event) => setOpenApiKey(event.target.value)}
+                  placeholder="请输入新的 API Key"
+                  autoComplete="new-password"
+                  style={{ display: "block", marginTop: 8, maxWidth: 560 }}
+                />
+                <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+                  <Button type="primary" loading={openApiSaving} onClick={saveOpenApiKey}>
+                    保存并启用
+                  </Button>
+                  {openApiStatus?.source === "page" && (
+                    <Popconfirm
+                      title="确认清空页面配置的 API Key？"
+                      description="清空后会回退到服务器环境变量；若未设置环境变量，OpenAPI 将关闭。"
+                      onConfirm={clearOpenApiKey}
+                    >
+                      <Button danger loading={openApiSaving}>清空密钥</Button>
+                    </Popconfirm>
+                  )}
+                </div>
               </div>
             ),
           },

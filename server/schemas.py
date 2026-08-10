@@ -292,6 +292,27 @@ class OpenEvaluationOut(BaseModel):
     error_msg: str = ""
 
 
+class OpenApiKeyStatusOut(BaseModel):
+    """OpenAPI 密钥状态；明确不含密钥正文。"""
+
+    configured: bool
+    source: Literal["page", "environment", "none"]
+    updated_by: Optional[str] = None
+    updated_at: Optional[ApiDateTime] = None
+
+
+class OpenApiKeyUpdate(BaseModel):
+    api_key: str = Field(..., min_length=1, max_length=1000)
+
+    @field_validator("api_key")
+    @classmethod
+    def _api_key_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("API Key 不能为空")
+        return value
+
+
 # ---------------------------------------------------------------------------
 # 判分模型配置中心（全局共享；api_key 只写不读）
 

@@ -5,10 +5,12 @@ from __future__ import annotations
 import secrets
 from typing import Annotated
 
-from fastapi import HTTPException, Security, status
+from fastapi import Depends, HTTPException, Security, status
 from fastapi.security import APIKeyHeader
+from sqlalchemy.orm import Session
 
-from .settings import get_settings
+from .db import get_session
+from .services.open_api_config import resolve_open_api_key
 
 
 open_api_key_header = APIKeyHeader(
@@ -20,8 +22,9 @@ open_api_key_header = APIKeyHeader(
 
 def require_open_api_key(
     supplied_key: Annotated[str | None, Security(open_api_key_header)],
+    session: Session = Depends(get_session),
 ) -> None:
-    configured_key = get_settings().open_api_key.strip()
+    configured_key = resolve_open_api_key(session)
     if not configured_key:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
