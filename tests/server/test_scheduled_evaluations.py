@@ -50,7 +50,7 @@ def test_fetches_latest_active_deeptrace_version_name(settings):
 
     async def handler(request: httpx.Request) -> httpx.Response:
         assert str(request.url).startswith(
-            "http://deeptrace.senzco.com/api/open/v1/spaces/space-cx/versions?"
+            "http://deeptrace.senzco.com/api/open/v1/spaces/cx/versions?"
         )
         assert str(request.url.params) == "status=active&page=1&pageSize=50"
         assert request.headers["Authorization"] == "Bearer test-deeptrace-token"
