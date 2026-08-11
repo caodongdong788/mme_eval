@@ -105,6 +105,8 @@ class EvalRun(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     # pending | running | success | failed
     status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    # manual（页面发起） | scheduled（定时任务） | open_api（开放接口）。
+    trigger_type: Mapped[str] = mapped_column(String(20), default="manual", index=True)
     error_msg: Mapped[str] = mapped_column(Text, default="")
 
     benchmark_id: Mapped[Optional[int]] = mapped_column(
@@ -169,6 +171,42 @@ class EvalRun(Base):
     case_results: Mapped[list["CaseResultRow"]] = relationship(
         back_populates="run", cascade="all, delete-orphan"
     )
+
+
+class ScheduledEvaluation(Base):
+    """用户配置的周期性评测任务。
+
+    任务本身只保存运行参数；每次触发都会创建一个独立 EvalRun，便于审计和看板追溯。
+    """
+
+    __tablename__ = "scheduled_evaluation"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(200), unique=True, index=True)
+    benchmark_id: Mapped[int] = mapped_column(ForeignKey("benchmark.id"), index=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    # daily | weekly；weekly 使用 weekdays（0=周一，6=周日）。
+    schedule_kind: Mapped[str] = mapped_column(String(20), default="daily")
+    schedule_time: Mapped[str] = mapped_column(String(5), default="09:00")
+    weekdays: Mapped[list[int]] = mapped_column(JSON, default=list)
+
+    evaluation_mode: Mapped[str] = mapped_column(String(20), default="single_turn")
+    levels: Mapped[list[str]] = mapped_column(JSON, default=list)
+    limit: Mapped[int] = mapped_column(Integer, default=0)
+    repeat: Mapped[int] = mapped_column(Integer, default=1)
+    enable_rag: Mapped[bool] = mapped_column(Boolean, default=False)
+    enable_judge: Mapped[bool] = mapped_column(Boolean, default=True)
+    judge_model_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    user_simulator_model_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    next_run_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, index=True)
+    last_run_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    last_error: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+    created_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
 
 class CaseResultRow(Base):

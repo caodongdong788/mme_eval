@@ -29,25 +29,31 @@ export type CaseFilterOperator =
   | "is_empty"
   | "is_not_empty";
 
-export interface CaseFilterCondition {
+export interface FilterCondition<Field extends string = string> {
   id: string;
-  field: CaseFilterField;
+  field: Field;
   operator: CaseFilterOperator;
   value?: string;
 }
 
+export type CaseFilterCondition = FilterCondition<CaseFilterField>;
+
 export type CaseFilterFieldKind = "text" | "number" | "select";
 
-export interface CaseFilterFieldDefinition {
-  value: CaseFilterField;
+export interface FilterFieldDefinition<Field extends string = string> {
+  value: Field;
   label: string;
   kind: CaseFilterFieldKind;
   options?: Array<{ value: string; label: string }>;
 }
 
-export type CaseFilterValueOptions = Partial<
-  Record<CaseFilterField, Array<{ value: string; label: string }>>
+export type CaseFilterFieldDefinition = FilterFieldDefinition<CaseFilterField>;
+
+export type FilterValueOptions<Field extends string = string> = Partial<
+  Record<Field, Array<{ value: string; label: string }>>
 >;
+
+export type CaseFilterValueOptions = FilterValueOptions<CaseFilterField>;
 
 export const CASE_FILTER_FIELDS: CaseFilterFieldDefinition[] = [
   { value: "sub_scenario", label: "场景描述", kind: "text" },
@@ -153,16 +159,20 @@ const SELECT_OPERATORS: Array<{ value: CaseFilterOperator; label: string }> = [
   { value: "is_not_empty", label: "不为空" },
 ];
 
-export function fieldDefinition(
-  field: CaseFilterField,
-  fields: CaseFilterFieldDefinition[] = CASE_FILTER_FIELDS
-): CaseFilterFieldDefinition {
-  return fields.find((item) => item.value === field) ?? fields[0] ?? CASE_FILTER_FIELDS[0];
+export function fieldDefinition<Field extends string>(
+  field: Field,
+  fields: FilterFieldDefinition<Field>[]
+): FilterFieldDefinition<Field> {
+  return fields.find((item) => item.value === field) ?? fields[0] ?? ({
+    value: field,
+    label: field,
+    kind: "text",
+  } as FilterFieldDefinition<Field>);
 }
 
-export function operatorsForField(
-  field: CaseFilterField,
-  fields: CaseFilterFieldDefinition[] = CASE_FILTER_FIELDS
+export function operatorsForField<Field extends string>(
+  field: Field,
+  fields: FilterFieldDefinition<Field>[]
 ) {
   const kind = fieldDefinition(field, fields).kind;
   if (kind === "number") return NUMBER_OPERATORS;
@@ -174,15 +184,19 @@ export function operatorNeedsValue(operator: CaseFilterOperator): boolean {
   return operator !== "is_empty" && operator !== "is_not_empty";
 }
 
-export function defaultOperator(
-  field: CaseFilterField,
-  fields: CaseFilterFieldDefinition[] = CASE_FILTER_FIELDS
+export function defaultOperator<Field extends string>(
+  field: Field,
+  fields: FilterFieldDefinition<Field>[]
 ): CaseFilterOperator {
   const kind = fieldDefinition(field, fields).kind;
   return kind === "text" ? "contains" : "equals";
 }
 
 export function isActiveCaseFilter(condition: CaseFilterCondition): boolean {
+  return !operatorNeedsValue(condition.operator) || String(condition.value ?? "").trim() !== "";
+}
+
+export function isActiveFilter<Field extends string>(condition: FilterCondition<Field>): boolean {
   return !operatorNeedsValue(condition.operator) || String(condition.value ?? "").trim() !== "";
 }
 

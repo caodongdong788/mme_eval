@@ -3,33 +3,33 @@ import { AutoComplete, Button, InputNumber, Popover, Select } from "antd";
 import { CloseOutlined, FilterOutlined, InfoCircleOutlined, PlusOutlined } from "@ant-design/icons";
 import {
   CASE_FILTER_FIELDS,
-  type CaseFilterCondition,
   type CaseFilterField,
-  type CaseFilterFieldDefinition,
-  type CaseFilterValueOptions,
+  type FilterCondition,
+  type FilterFieldDefinition,
+  type FilterValueOptions,
   defaultOperator,
   fieldDefinition,
-  isActiveCaseFilter,
+  isActiveFilter,
   operatorNeedsValue,
   operatorsForField,
 } from "../utils/caseFilters";
 
-interface CaseFilterBuilderProps {
-  conditions: CaseFilterCondition[];
-  onChange: (conditions: CaseFilterCondition[]) => void;
-  valueOptions: CaseFilterValueOptions;
-  fields?: CaseFilterFieldDefinition[];
-  defaultField?: CaseFilterField;
+interface CaseFilterBuilderProps<Field extends string> {
+  conditions: FilterCondition<Field>[];
+  onChange: (conditions: FilterCondition<Field>[]) => void;
+  valueOptions: FilterValueOptions<Field>;
+  fields?: FilterFieldDefinition<Field>[];
+  defaultField?: Field;
 }
 
-function newCondition(
-  fields: CaseFilterFieldDefinition[],
-  requestedDefault?: CaseFilterField
-): CaseFilterCondition {
+function newCondition<Field extends string>(
+  fields: FilterFieldDefinition<Field>[],
+  requestedDefault?: Field
+): FilterCondition<Field> {
   const field =
     fields.find((item) => item.value === requestedDefault)?.value ??
     fields[0]?.value ??
-    "sub_scenario";
+    ("sub_scenario" as Field);
   return {
     id: `case-filter-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     field,
@@ -38,22 +38,22 @@ function newCondition(
   };
 }
 
-export function CaseFilterBuilder({
+export function CaseFilterBuilder<Field extends string = CaseFilterField>({
   conditions,
   onChange,
   valueOptions,
-  fields = CASE_FILTER_FIELDS,
+  fields = CASE_FILTER_FIELDS as unknown as FilterFieldDefinition<Field>[],
   defaultField,
-}: CaseFilterBuilderProps) {
+}: CaseFilterBuilderProps<Field>) {
   const [open, setOpen] = useState(false);
-  const activeCount = conditions.filter(isActiveCaseFilter).length;
+  const activeCount = conditions.filter(isActiveFilter).length;
   const fieldOptions = fields.map(({ value, label }) => ({ value, label }));
 
-  const patchCondition = (id: string, patch: Partial<CaseFilterCondition>) => {
+  const patchCondition = (id: string, patch: Partial<FilterCondition<Field>>) => {
     onChange(conditions.map((item) => (item.id === id ? { ...item, ...patch } : item)));
   };
 
-  const changeField = (condition: CaseFilterCondition, field: CaseFilterField) => {
+  const changeField = (condition: FilterCondition<Field>, field: Field) => {
     patchCondition(condition.id, {
       field,
       operator: defaultOperator(field, fields),

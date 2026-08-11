@@ -127,6 +127,7 @@ export interface RunSummary {
   run_slug: string;
   name: string;
   status: string;
+  trigger_type: "manual" | "scheduled" | "open_api";
   benchmark_id?: number | null;
   adapter_type: string;
   total: number;
@@ -144,6 +145,35 @@ export interface RunSummary {
   parent_run_id?: number | null;
   evaluation_mode: "single_turn" | "multi_turn";
 }
+
+export interface ScheduledEvaluation {
+  id: number;
+  name: string;
+  benchmark_id: number;
+  enabled: boolean;
+  schedule_kind: "daily" | "weekly";
+  schedule_time: string;
+  weekdays: number[];
+  evaluation_mode: "single_turn" | "multi_turn";
+  levels: string[];
+  limit: number;
+  repeat: number;
+  enable_rag: boolean;
+  enable_judge: boolean;
+  judge_model_id?: number | null;
+  user_simulator_model_id?: number | null;
+  next_run_at?: string | null;
+  last_run_at?: string | null;
+  last_error: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+  created_by?: string | null;
+}
+
+export type ScheduledEvaluationPayload = Omit<
+  ScheduledEvaluation,
+  "id" | "next_run_at" | "last_run_at" | "last_error" | "created_at" | "updated_at" | "created_by"
+>;
 
 export interface RunDetail extends RunSummary {
   description: string;

@@ -56,9 +56,13 @@ async def _lifespan(app: FastAPI):
     n_runs = reconcile_orphaned_runs()
     n_pair = reconcile_orphaned_pairwise()
     logger.info("启动完成：回收孤儿评测 %s 条、孤儿对战 %s 条", n_runs, n_pair)
+    from .services.scheduled_evaluations import start_scheduler, stop_scheduler
+
+    start_scheduler()
     try:
         yield
     finally:
+        await stop_scheduler()
         # 优雅关闭：取消在跑评测任务，等待其结束（残留状态由下次启动 reconcile 回收）。
         from .jobs import get_job_runner
 
@@ -131,6 +135,7 @@ def create_app() -> FastAPI:
         judge_models,
         open_api,
         runs,
+        scheduled_evaluations,
     )
 
     app.include_router(auth.router)
@@ -142,6 +147,7 @@ def create_app() -> FastAPI:
     app.include_router(judge_models.router)
     app.include_router(compare.router)
     app.include_router(open_api.router)
+    app.include_router(scheduled_evaluations.router)
 
     # 生产：托管前端构建产物（frontend/dist）。开发时不存在则跳过。
     dist = settings.project_root / "frontend" / "dist"

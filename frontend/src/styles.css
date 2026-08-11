@@ -1920,6 +1920,28 @@ a.ant-typography-secondary:hover {
   color: var(--runs-text-muted);
 }
 
+.scheduled-evaluation-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--runs-border);
+}
+.scheduled-evaluation-head h3 {
+  margin: 0;
+  color: var(--runs-text);
+  font-size: 16px;
+}
+.scheduled-evaluation-head p {
+  margin: 5px 0 0;
+  color: var(--runs-text-muted);
+  font-size: 13px;
+}
+@media (max-width: 720px) {
+  .scheduled-evaluation-head { align-items: flex-start; flex-direction: column; }
+}
+
 .dash-table .ant-table,
 .runs-table .ant-table {
   background: transparent;

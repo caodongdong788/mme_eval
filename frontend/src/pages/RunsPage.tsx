@@ -15,6 +15,8 @@ import { formatApiDateTime } from "../utils/datetime";
 import { RunStatusTag } from "../components/RunStatusTag";
 import { RunsListOverview } from "../components/RunsListOverview";
 import { FeishuMention } from "../components/FeishuMention";
+import { RunTriggerTag } from "../components/RunTriggerTag";
+import { CaseFilterBuilder } from "../components/CaseFilterBuilder";
 import { useRunsList } from "../hooks/useRunsList";
 import {
   filterRunsByPeriod,
@@ -27,19 +29,31 @@ import {
   filterRuns,
   type RunsListFilter,
 } from "../utils/runsListOverview";
+import {
+  buildRunFilterValueOptions,
+  filterRunRows,
+  RUN_FILTER_FIELDS,
+  type RunFilterCondition,
+} from "../utils/runFilters";
 
 export default function RunsPage() {
   const navigate = useNavigate();
   const { runs, loading, progress, reload, onDelete } = useRunsList();
   const [filter, setFilter] = useState<RunsListFilter>("all");
   const [dateRange, setDateRange] = useState<RunsDateRangeValue | null>(null);
+  const [conditions, setConditions] = useState<RunFilterCondition[]>([]);
 
   const statusFiltered = useMemo(() => filterRuns(runs, filter), [runs, filter]);
+  const conditionFiltered = useMemo(
+    () => filterRunRows(statusFiltered, conditions),
+    [statusFiltered, conditions]
+  );
+  const filterValueOptions = useMemo(() => buildRunFilterValueOptions(runs), [runs]);
 
   const { displayRuns, periodBounds, previousBounds, periodDeltas } = useMemo(() => {
     if (!dateRange) {
       return {
-        displayRuns: statusFiltered,
+        displayRuns: conditionFiltered,
         periodBounds: null,
         previousBounds: null,
         periodDeltas: null,
@@ -47,15 +61,15 @@ export default function RunsPage() {
     }
     const bounds = toPeriodBounds(dateRange);
     const prevBounds = previousPeriodBounds(bounds);
-    const current = filterRunsByPeriod(statusFiltered, bounds);
-    const previous = filterRunsByPeriod(statusFiltered, prevBounds);
+    const current = filterRunsByPeriod(conditionFiltered, bounds);
+    const previous = filterRunsByPeriod(conditionFiltered, prevBounds);
     return {
       displayRuns: current,
       periodBounds: bounds,
       previousBounds: prevBounds,
       periodDeltas: computeRunsPeriodDeltas(current, previous),
     };
-  }, [statusFiltered, dateRange]);
+  }, [conditionFiltered, dateRange]);
 
   const onDateRangeChange = (range: RunsDateRangeValue | null) => {
     setDateRange(range);
@@ -85,9 +99,16 @@ export default function RunsPage() {
       ),
     },
     {
+      title: "任务类型",
+      dataIndex: "trigger_type",
+      width: "10%",
+      ...nowrap,
+      render: (type: RunSummary["trigger_type"]) => <RunTriggerTag type={type} />,
+    },
+    {
       title: "状态",
       dataIndex: "status",
-      width: "12%",
+      width: "11%",
       render: (s: string, r: RunSummary) => {
         if (s === "running" || s === "pending") {
           const p = progress[r.id]?.progress;
@@ -115,7 +136,7 @@ export default function RunsPage() {
     {
       title: "通过率",
       dataIndex: "pass_rate",
-      width: "13%",
+      width: "11%",
       ...nowrap,
       render: (v: number, r: RunSummary) =>
         r.status === "success" ? (
@@ -129,7 +150,7 @@ export default function RunsPage() {
     {
       title: "安全失败",
       dataIndex: "medical_safety_failed",
-      width: "9%",
+      width: "8%",
       ...nowrap,
       render: (v: number, r: RunSummary) =>
         r.status === "success" ? (
@@ -142,20 +163,20 @@ export default function RunsPage() {
     {
       title: "创建人",
       dataIndex: "created_by",
-      width: "12%",
+      width: "10%",
       ...nowrap,
       render: (name?: string | null) => <FeishuMention name={name} />,
     },
     {
       title: "创建时间",
       dataIndex: "created_at",
-      width: "13%",
+      width: "11%",
       ...nowrap,
       render: (v?: string) => formatApiDateTime(v),
     },
     {
       title: "操作",
-      width: "12%",
+      width: "11%",
       ...wrapCell,
       render: (_: unknown, r: RunSummary) => {
         const busy = r.status === "running" || r.status === "pending";
@@ -218,7 +239,16 @@ export default function RunsPage() {
       <div className="runs-table-card">
         <div className="runs-table-card__head">
           <h3>评测记录</h3>
-          <span className="runs-table-card__count">共 {displayRuns.length} 条</span>
+          <Space size={12}>
+            <CaseFilterBuilder
+              conditions={conditions}
+              onChange={setConditions}
+              valueOptions={filterValueOptions}
+              fields={RUN_FILTER_FIELDS}
+              defaultField="name"
+            />
+            <span className="runs-table-card__count">共 {displayRuns.length} 条</span>
+          </Space>
         </div>
         <Table
           rowKey="id"

@@ -220,6 +220,81 @@ class RunCreate(BaseModel):
     user_simulator_model_id: Optional[int] = None
 
 
+class ScheduledEvaluationCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    benchmark_id: int
+    enabled: bool = True
+    schedule_kind: Literal["daily", "weekly"] = "daily"
+    schedule_time: str = "09:00"
+    weekdays: list[int] = Field(default_factory=list)
+    evaluation_mode: Literal["single_turn", "multi_turn"] = "single_turn"
+    levels: list[str] = Field(default_factory=list)
+    limit: int = Field(default=0, ge=0)
+    repeat: int = Field(default=1, ge=1)
+    enable_rag: bool = False
+    enable_judge: bool = True
+    judge_model_id: Optional[int] = None
+    user_simulator_model_id: Optional[int] = None
+
+    @field_validator("name")
+    @classmethod
+    def _schedule_name_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("任务名称不能为空")
+        return value
+
+    @field_validator("schedule_time")
+    @classmethod
+    def _valid_schedule_time(cls, value: str) -> str:
+        import re
+
+        if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", value):
+            raise ValueError("执行时间需为 HH:MM（24 小时制）")
+        return value
+
+    @model_validator(mode="after")
+    def _validate_schedule(self) -> "ScheduledEvaluationCreate":
+        if self.schedule_kind == "weekly":
+            self.weekdays = sorted(set(self.weekdays))
+            if not self.weekdays or any(day < 0 or day > 6 for day in self.weekdays):
+                raise ValueError("每周执行至少选择一个有效星期")
+        else:
+            self.weekdays = []
+        if not self.enable_judge and self.judge_model_id is not None:
+            raise ValueError("未启用判分模型时不能选择打分模型")
+        return self
+
+
+class ScheduledEvaluationUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    benchmark_id: Optional[int] = None
+    enabled: Optional[bool] = None
+    schedule_kind: Optional[Literal["daily", "weekly"]] = None
+    schedule_time: Optional[str] = None
+    weekdays: Optional[list[int]] = None
+    evaluation_mode: Optional[Literal["single_turn", "multi_turn"]] = None
+    levels: Optional[list[str]] = None
+    limit: Optional[int] = Field(default=None, ge=0)
+    repeat: Optional[int] = Field(default=None, ge=1)
+    enable_rag: Optional[bool] = None
+    enable_judge: Optional[bool] = None
+    judge_model_id: Optional[int] = None
+    user_simulator_model_id: Optional[int] = None
+
+
+class ScheduledEvaluationOut(ScheduledEvaluationCreate):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    next_run_at: Optional[ApiDateTime] = None
+    last_run_at: Optional[ApiDateTime] = None
+    last_error: str = ""
+    created_at: Optional[ApiDateTime] = None
+    updated_at: Optional[ApiDateTime] = None
+    created_by: Optional[str] = None
+
+
 # ---------------------------------------------------------------------------
 # OpenAPI：第三方自动发起评测
 
@@ -284,6 +359,16 @@ class OpenEvaluationResult(BaseModel):
     pass_rate: float
 
 
+class OpenEvaluationGradeResult(OpenEvaluationResult):
+    """已完成评测的逐用例评级分布。"""
+
+    excellent_cases: int = 0
+    good_cases: int = 0
+    qualified_cases: int = 0
+    unqualified_cases: int = 0
+    other_cases: int = 0
+
+
 class OpenEvaluationOut(BaseModel):
     id: int
     dashboard_url: str
@@ -302,6 +387,25 @@ class OpenEvaluationOut(BaseModel):
     waiting_for_accounts: bool = False
     account_queue: dict[str, Any] = Field(default_factory=dict)
     error_msg: str = ""
+
+
+class OpenEvaluationBatchItem(BaseModel):
+    id: int
+    name: str
+    status: str
+    trigger_type: Literal["manual", "scheduled", "open_api"]
+    benchmark_id: int
+    dashboard_url: str
+    created_at: Optional[ApiDateTime] = None
+    finished_at: Optional[ApiDateTime] = None
+    # 仅成功任务提供；其他状态不可把中间结果误当最终结果。
+    result: Optional[OpenEvaluationGradeResult] = None
+    error_msg: str = ""
+
+
+class OpenEvaluationBatchOut(BaseModel):
+    total: int
+    items: list[OpenEvaluationBatchItem]
 
 
 OpenApiPermission = Literal[
@@ -423,6 +527,7 @@ class RunSummaryOut(BaseModel):
     run_slug: str
     name: str
     status: str
+    trigger_type: Literal["manual", "scheduled", "open_api"] = "manual"
     benchmark_id: Optional[int] = None
     adapter_type: str
     total: int

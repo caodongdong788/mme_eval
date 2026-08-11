@@ -11,6 +11,7 @@ import {
 import { DashboardPageShell } from "../components/DashboardPageShell";
 import { JudgeModelEditModal } from "../components/JudgeModelEditModal";
 import { OpenApiKeysPanel } from "../components/OpenApiKeysPanel";
+import { ScheduledEvaluationsPanel } from "../components/ScheduledEvaluationsPanel";
 import { useEvaluationAccounts } from "../hooks/useEvaluationAccounts";
 import { useJudgeModelsPage } from "../hooks/useJudgeModelsPage";
 
@@ -194,6 +195,11 @@ export default function JudgeModelsPage() {
             key: "open-api",
             label: "Open API",
             children: <OpenApiKeysPanel />,
+          },
+          {
+            key: "scheduled-evaluations",
+            label: "定时任务",
+            children: <ScheduledEvaluationsPanel />,
           },
         ]}
       />

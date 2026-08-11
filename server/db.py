@@ -49,6 +49,24 @@ def init_db(settings: Settings | None = None) -> None:
     Base.metadata.create_all(engine)
     _migrate_legacy_open_api_key(engine)
     _migrate_case_list_display_columns(engine)
+    _migrate_eval_run_trigger_type(engine)
+
+
+def _migrate_eval_run_trigger_type(engine) -> None:
+    """为历史评测记录补齐来源字段，历史记录统一视作人工发起。"""
+    inspector = inspect(engine)
+    if "eval_run" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("eval_run")}
+    if "trigger_type" in columns:
+        return
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "ALTER TABLE eval_run ADD COLUMN trigger_type VARCHAR(20) DEFAULT 'manual'"
+        )
+        connection.execute(
+            text("UPDATE eval_run SET trigger_type = 'manual' WHERE trigger_type IS NULL")
+        )
 
 
 def _migrate_legacy_open_api_key(engine) -> None:

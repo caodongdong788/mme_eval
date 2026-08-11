@@ -26,7 +26,7 @@ X-MME-API-Key: mme_xxxxxxxxxxxxxxxxx
 | `benchmarks:read` | 查询评测用例集 |
 | `judge_models:read` | 查询判分模型 |
 | `evaluations:create` | 创建评测任务 |
-| `evaluations:read` | 查询评测任务状态 |
+| `evaluations:read` | 查询单个或批量评测任务结果 |
 
 ## 2. 推荐调用流程
 
@@ -228,7 +228,80 @@ curl -sS "$MME_BASE_URL/api/open/v1/evaluations/42" \
 
 建议每 5–15 秒轮询一次。不要并发重复创建同一个业务任务；应先持久化本接口返回的 `id`，用它恢复轮询。
 
-## 7. Python 调用模板
+## 7. 按任务类型批量查询评测结果
+
+`GET /api/open/v1/evaluations`
+
+所需权限：`evaluations:read`
+
+用于按评测任务来源批量拉取结果与报告链接。支持的 `trigger_type`：
+
+| 值 | 任务类别 |
+| --- | --- |
+| `manual` | 人工触发 |
+| `scheduled` | 定时任务触发 |
+| `open_api` | Open API 触发 |
+
+查询参数：
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `trigger_type` | string | 否 | 全部 | 按任务类别筛选，取值见上表 |
+| `status` | string | 否 | 全部 | `pending`、`running`、`success`、`failed` |
+| `limit` | integer | 否 | `50` | 每页条数，1–200 |
+| `offset` | integer | 否 | `0` | 分页偏移量 |
+
+```bash
+curl -sS "$MME_BASE_URL/api/open/v1/evaluations?trigger_type=scheduled&status=success&limit=50" \
+  -H "X-MME-API-Key: $MME_API_KEY"
+```
+
+成功响应：
+
+```json
+{
+  "total": 1,
+  "items": [
+    {
+      "id": 58,
+      "name": "每日真实患者集回归 · 定时 20260811-093000",
+      "status": "success",
+      "trigger_type": "scheduled",
+      "benchmark_id": 19,
+      "dashboard_url": "https://mme.senzco.com/runs/58",
+      "created_at": "2026-08-11T01:30:00Z",
+      "finished_at": "2026-08-11T01:42:18Z",
+      "result": {
+        "total_cases": 63,
+        "passed_cases": 48,
+        "failed_cases": 15,
+        "pass_rate": 0.7619,
+        "excellent_cases": 18,
+        "good_cases": 12,
+        "qualified_cases": 18,
+        "unqualified_cases": 14,
+        "other_cases": 1
+      },
+      "error_msg": ""
+    }
+  ]
+}
+```
+
+每个 `items[]` 都有可直接打开的 `dashboard_url`（评测报告看板链接）。`result` 仅在该评测 `status=success` 时返回，其他状态为 `null`。
+
+结果字段含义：
+
+| 字段 | 说明 |
+| --- | --- |
+| `excellent_cases` | 评级为“优秀”的用例数量 |
+| `good_cases` | 评级为“良好”的用例数量 |
+| `qualified_cases` | 评级为“合格”的用例数量 |
+| `unqualified_cases` | 评级明确为“不合格”的用例数量 |
+| `other_cases` | 没有以上四种最终评级的用例数量，如历史数据缺少评级或执行异常 |
+| `failed_cases` | 所有最终未通过的用例数量；它可能包含 `unqualified_cases` 之外的异常未通过用例 |
+
+## 8. Python 调用模板
 
 ```python
 import os
@@ -284,7 +357,7 @@ if run["status"] != "success":
 print(f"评测完成，run_id={run['id']}，看板：{run['dashboard_url']}")
 ```
 
-## 8. 错误码
+## 9. 错误码
 
 | 状态码 | 说明 | 常见处理方式 |
 | --- | --- | --- |
@@ -296,7 +369,7 @@ print(f"评测完成，run_id={run['id']}，看板：{run['dashboard_url']}")
 | `503` | 平台尚未创建可用 API Key | 请平台管理员在「Open API」页签创建并授权 |
 | `5xx` | 平台暂时异常 | 使用指数退避重试查询；创建任务前先确认是否已创建成功，避免重复任务 |
 
-## 9. 给 AI 调用方的约束
+## 10. 给 AI 调用方的约束
 
 1. 只能调用本文列出的 `/api/open/v1` 接口，不要尝试调用平台后台管理接口。
 2. API Key 只能从安全环境变量读取，绝不在回复中输出其完整值。

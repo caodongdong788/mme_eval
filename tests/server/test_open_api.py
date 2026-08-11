@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from server.models_db import Benchmark, EvalRun, JudgeModelConfig
+from server.models_db import Benchmark, CaseResultRow, EvalRun, JudgeModelConfig
 
 
 def _open_headers(client, permissions: list[str] | None = None) -> dict[str, str]:
@@ -170,6 +170,67 @@ def test_open_api_rejects_model_when_judge_is_disabled(client, session):
     )
     assert response.status_code == 422
     assert "不能传 judge_model_id" in response.text
+
+
+def test_open_api_lists_results_by_trigger_type_with_dashboard_links(client, session, settings):
+    headers = _open_headers(client, ["evaluations:read"])
+    scheduled = EvalRun(
+        run_slug="scheduled-result",
+        name="定时回归",
+        status="success",
+        trigger_type="scheduled",
+        total=5,
+        passed=3,
+        pass_rate=0.6,
+    )
+    pending = EvalRun(
+        run_slug="scheduled-pending",
+        name="定时等待中",
+        status="pending",
+        trigger_type="scheduled",
+    )
+    manual = EvalRun(
+        run_slug="manual-result",
+        name="人工评测",
+        status="success",
+        trigger_type="manual",
+    )
+    session.add_all([scheduled, pending, manual])
+    session.flush()
+    session.add_all(
+        [
+            CaseResultRow(run_id=scheduled.id, sample_id="c1", grade="优秀"),
+            CaseResultRow(run_id=scheduled.id, sample_id="c2", grade="良好"),
+            CaseResultRow(run_id=scheduled.id, sample_id="c3", grade="合格"),
+            CaseResultRow(run_id=scheduled.id, sample_id="c4", grade="不合格"),
+            CaseResultRow(run_id=scheduled.id, sample_id="c5", grade=""),
+        ]
+    )
+    session.commit()
+
+    response = client.get(
+        "/api/open/v1/evaluations?trigger_type=scheduled",
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["total"] == 2
+    finished = next(item for item in body["items"] if item["id"] == scheduled.id)
+    assert finished["dashboard_url"] == f"{settings.frontend_url}/runs/{scheduled.id}"
+    assert finished["result"] == {
+        "total_cases": 5,
+        "passed_cases": 3,
+        "failed_cases": 2,
+        "pass_rate": 0.6,
+        "excellent_cases": 1,
+        "good_cases": 1,
+        "qualified_cases": 1,
+        "unqualified_cases": 1,
+        "other_cases": 1,
+    }
+    waiting = next(item for item in body["items"] if item["id"] == pending.id)
+    assert waiting["result"] is None
+    assert all(item["trigger_type"] == "scheduled" for item in body["items"])
 
 
 def test_open_api_rejects_invalid_key(client):
