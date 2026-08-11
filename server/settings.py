@@ -148,7 +148,9 @@ class Settings:
     # 运行环境注入，绝不落库、回传前端或进入评测配置快照。
     deeptrace_base_url: str = field(
         default_factory=lambda: os.environ.get(
-            "DEEPTRACE_BASE_URL", "https://deeptrace.senzco.com"
+            # DeepTrace 生产当前只开放 HTTP；必须保留域名访问以命中正确 Nginx Host。
+            # 不可替换为解析出的内网 IP，否则会落到默认站点返回 404。
+            "DEEPTRACE_BASE_URL", "http://deeptrace.senzco.com"
         ).rstrip("/")
     )
     deeptrace_space_key: str = field(
