@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from server.models_db import Benchmark, ScheduledEvaluation
 from server.services.scheduled_evaluations import compute_next_run_at
+from server.services.scheduled_evaluations import fetch_latest_active_deeptrace_version_name
 
 
 def test_scheduled_evaluation_crud_and_next_run(client, session):
@@ -40,3 +41,22 @@ def test_schedule_uses_shanghai_clock_but_stores_utc():
     assert compute_next_run_at(task, datetime(2026, 8, 11, 0, 0, tzinfo=timezone.utc)) == datetime(
         2026, 8, 11, 1, 30
     )
+
+
+def test_fetches_latest_active_deeptrace_version_name(settings):
+    import asyncio
+    from dataclasses import replace
+    import httpx
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert str(request.url.params) == "status=active&page=1&pageSize=50"
+        assert request.headers["Authorization"] == "Bearer test-deeptrace-token"
+        return httpx.Response(200, json={"data": {"items": [{"id": "v2", "name": "0808版本"}]}})
+
+    async def check() -> None:
+        configured = replace(settings, deeptrace_open_api_token="test-deeptrace-token")
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            name = await fetch_latest_active_deeptrace_version_name(configured, client=client)
+        assert name == "0808版本"
+
+    asyncio.run(check())

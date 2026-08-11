@@ -9,6 +9,7 @@ from typing import Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
+import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -16,11 +17,63 @@ from ..db import session_scope
 from ..jobs import get_job_runner
 from ..models_db import Benchmark, ScheduledEvaluation
 from ..schemas import AdapterOverride, JudgeOverride, RunCreate, ScheduledEvaluationCreate, ScheduledEvaluationUpdate
+from ..settings import Settings, get_settings
 from . import runs as runs_svc
 
 logger = logging.getLogger("mme.scheduled-evaluations")
 _SHANGHAI = ZoneInfo("Asia/Shanghai")
 _scheduler_task: asyncio.Task | None = None
+
+
+def _version_items(payload: object) -> list[dict]:
+    """兼容 DeepTrace 常见的分页包装和直接数组返回。"""
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+    if not isinstance(payload, dict):
+        return []
+    for key in ("items", "data", "versions", "list", "records"):
+        value = payload.get(key)
+        if isinstance(value, list):
+            return [item for item in value if isinstance(item, dict)]
+        if isinstance(value, dict):
+            nested = _version_items(value)
+            if nested:
+                return nested
+    return [payload] if "name" in payload else []
+
+
+async def fetch_latest_active_deeptrace_version_name(
+    settings: Settings | None = None,
+    *,
+    client: httpx.AsyncClient | None = None,
+) -> str | None:
+    """读取 DeepTrace 第一页 active 版本的 name；不可用时降级为无版本后缀。"""
+    settings = settings or get_settings()
+    token = settings.deeptrace_open_api_token.strip()
+    space_key = settings.deeptrace_space_key.strip()
+    if not token or not space_key:
+        return None
+    url = f"{settings.deeptrace_base_url}/api/open/v1/spaces/{space_key}/versions"
+    owns_client = client is None
+    client = client or httpx.AsyncClient(timeout=settings.deeptrace_timeout_seconds)
+    try:
+        response = await client.get(
+            url,
+            params={"status": "active", "page": 1, "pageSize": 50},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        response.raise_for_status()
+        versions = _version_items(response.json())
+        for version in versions:
+            name = str(version.get("name") or "").strip()
+            if name:
+                return name
+    except (httpx.HTTPError, ValueError):
+        logger.warning("读取 DeepTrace active 版本失败，将不追加版本名称", exc_info=True)
+    finally:
+        if owns_client:
+            await client.aclose()
+    return None
 
 
 def _utc_now(now: Optional[datetime] = None) -> datetime:
@@ -144,9 +197,14 @@ async def run_due_scheduled_evaluations_once() -> int:
                 if task is None or not task.enabled:
                     continue
                 timestamp = now.replace(tzinfo=timezone.utc).astimezone(_SHANGHAI).strftime("%Y%m%d-%H%M%S")
+                version_name = await fetch_latest_active_deeptrace_version_name()
+                run_name_parts = [task.name]
+                if version_name:
+                    run_name_parts.append(version_name)
+                run_name_parts.append(f"定时 {timestamp}")
                 run_payload = RunCreate(
                     benchmark_id=task.benchmark_id,
-                    run_name=f"{task.name} · 定时 {timestamp}",
+                    run_name=" · ".join(run_name_parts),
                     evaluation_mode=task.evaluation_mode,
                     levels=task.levels or [],
                     limit=task.limit,

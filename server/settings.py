@@ -144,6 +144,22 @@ class Settings:
             os.environ.get("LANGFUSE_SYNC_INITIAL_BACKOFF_SECONDS", "1")
         )
     )
+    # DeepTrace 当前上线版本：仅定时评测在创建 run 名称时读取。Token 只允许通过
+    # 运行环境注入，绝不落库、回传前端或进入评测配置快照。
+    deeptrace_base_url: str = field(
+        default_factory=lambda: os.environ.get(
+            "DEEPTRACE_BASE_URL", "https://deeptrace.senzco.com"
+        ).rstrip("/")
+    )
+    deeptrace_space_key: str = field(
+        default_factory=lambda: os.environ.get("DEEPTRACE_SPACE_KEY", "space-cx")
+    )
+    deeptrace_open_api_token: str = field(
+        default_factory=lambda: os.environ.get("DEEPTRACE_OPEN_API_TOKEN", "")
+    )
+    deeptrace_timeout_seconds: float = field(
+        default_factory=lambda: float(os.environ.get("DEEPTRACE_TIMEOUT_SECONDS", "8"))
+    )
 
     @property
     def auth_required(self) -> bool:
