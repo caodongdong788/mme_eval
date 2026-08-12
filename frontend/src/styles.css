@@ -1920,6 +1920,47 @@ a.ant-typography-secondary:hover {
   color: var(--runs-text-muted);
 }
 
+.runs-trigger-table-card .ant-tabs-nav {
+  margin: 0;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--runs-border);
+}
+.runs-trigger-table-card .ant-tabs-nav::before {
+  border-bottom: 0;
+}
+.runs-trigger-table-card .ant-tabs-tab {
+  padding: 16px 4px 13px;
+  margin-left: 0;
+  margin-right: 28px;
+  color: var(--runs-text-muted);
+  font-size: 15px;
+  font-weight: 600;
+}
+.runs-trigger-table-card .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--runs-purple);
+}
+.runs-trigger-tabs__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--runs-purple-soft);
+  color: var(--runs-purple);
+  font-size: 12px;
+  font-weight: 700;
+}
+.runs-trigger-table-card .ant-tabs-content-holder {
+  overflow: hidden;
+}
+@media (max-width: 720px) {
+  .runs-trigger-table-card .ant-tabs-nav { padding: 0 14px; overflow-x: auto; }
+  .runs-trigger-table-card .ant-tabs-tab { margin-right: 20px; white-space: nowrap; }
+}
+
 .scheduled-evaluation-head {
   display: flex;
   align-items: center;
