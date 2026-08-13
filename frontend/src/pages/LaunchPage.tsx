@@ -38,12 +38,6 @@ function judgeModelHint(lp: ReturnType<typeof useLaunchPage>) {
   }
   return <>可选；不选则{defaultHint || "沿用服务器 config.yaml 默认打分模型。"}</>;
 }
-function benchmarkSourceLabel(source: string) {
-  if (source === "builtin") return "内置";
-  if (source === "online") return "线上";
-  return "线下";
-}
-
 export default function LaunchPage() {
   const lp = useLaunchPage();
   const judgeEnabled = Form.useWatch("judge_enabled", lp.form) ?? true;
@@ -92,7 +86,7 @@ export default function LaunchPage() {
                   onChange={lp.onBenchmarkChange}
                   options={lp.benchmarks.map((b) => ({
                     value: b.id,
-                    label: `${b.name}（${benchmarkSourceLabel(b.source)} · ${b.case_count} 条）`,
+                    label: `${b.name}（${b.case_count} 条）`,
                   }))}
                 />
               </Form.Item>

@@ -23,29 +23,12 @@ import { BenchmarkCaseEditorDrawer } from "../components/BenchmarkCaseEditorDraw
 import { CaseFilterBuilder } from "../components/CaseFilterBuilder";
 import { useBenchmarksPage } from "../hooks/useBenchmarksPage";
 import { BENCHMARK_CASE_FILTER_FIELDS } from "../utils/caseFilters";
-function benchmarkSourceLabel(source: string) {
-  if (source === "builtin") return "内置";
-  if (source === "online") return "线上";
-  return "线下";
-}
-function benchmarkSourceColor(source: string) {
-  if (source === "builtin") return "blue";
-  if (source === "online") return "purple";
-  return "green";
-}
 export default function BenchmarksPage() {
   const bm = useBenchmarksPage();
 
   const columns = [
     { title: "ID", dataIndex: "id", width: 60 },
     { title: "名称", dataIndex: "name" },
-    {
-      title: "来源",
-      dataIndex: "source",
-      width: 90,
-      render: (s: string) =>
-        <Tag color={benchmarkSourceColor(s)}>{benchmarkSourceLabel(s)}</Tag>,
-    },
     { title: "用例数", dataIndex: "case_count", width: 80 },
     {
       title: "上传人",
@@ -186,46 +169,30 @@ export default function BenchmarksPage() {
               </Form.Item>
             </>
           )}
-          <Form.Item name="source" label="来源" initialValue="offline">
-            <Segmented
-              onChange={() => {
-                bm.setFileList([]);
-                bm.form.setFieldValue("source_url", "");
-              }}
-              options={[
-                { label: "线下", value: "offline" },
-                { label: "线上", value: "online" },
-              ]}
-            />
+          <Form.Item
+            label="用例文件 (.yaml / .zip)"
+            extra="纯文本用例上传 YAML；含图片请上传 ZIP（根目录 cases.yaml，图片放 images/，在 turn.images 引用相对路径）。"
+          >
+            <Upload.Dragger
+              accept=".yaml,.yml,.zip"
+              maxCount={1}
+              fileList={bm.fileList}
+              beforeUpload={() => false}
+              onChange={({ fileList }) => bm.setFileList(fileList)}
+            >
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined />
+              </p>
+              <p>点击或拖拽 YAML / ZIP benchmark 包到此处</p>
+            </Upload.Dragger>
           </Form.Item>
-          {bm.sourceMode === "online" ? (
-            <Form.Item
-              name="source_url"
-              label="飞书 URL（Base / Sheet / Wiki）"
-              rules={[{ required: true, message: "请粘贴飞书 Base / Sheet / Wiki 链接" }]}
-              extra="线上 benchmark 通过飞书表格导入，完整保留多轮对话；不支持文件上传。"
-            >
-              <Input placeholder="粘贴 https://*.feishu.cn/base、/sheets 或 /wiki 链接" />
-            </Form.Item>
-          ) : (
-            <Form.Item
-              label="用例文件 (.yaml / .zip)"
-              extra="纯文本用例上传 YAML；含图片请上传 ZIP（根目录 cases.yaml，图片放 images/，在 turn.images 引用相对路径）。"
-            >
-              <Upload.Dragger
-                accept=".yaml,.yml,.zip"
-                maxCount={1}
-                fileList={bm.fileList}
-                beforeUpload={() => false}
-                onChange={({ fileList }) => bm.setFileList(fileList)}
-              >
-                <p className="ant-upload-drag-icon">
-                  <InboxOutlined />
-                </p>
-                <p>点击或拖拽 YAML / ZIP benchmark 包到此处</p>
-              </Upload.Dragger>
-            </Form.Item>
-          )}
+          <Form.Item
+            name="source_url"
+            label="用例链接（可选）"
+            extra="也可以粘贴飞书 Base、Sheet 或 Wiki 链接导入；文件和链接二选一。"
+          >
+            <Input placeholder="粘贴 https://*.feishu.cn/base、/sheets 或 /wiki 链接" />
+          </Form.Item>
         </Form>
       </Modal>
 

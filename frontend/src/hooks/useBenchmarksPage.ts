@@ -23,7 +23,6 @@ export function useBenchmarksPage() {
   const [appendId, setAppendId] = useState<number | null>(null);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [form] = Form.useForm();
-  const sourceMode = Form.useWatch("source", form) ?? "offline";
   const [casesOpen, setCasesOpen] = useState(false);
   const [cases, setCases] = useState<CaseBrief[]>([]);
   const [casesLoading, setCasesLoading] = useState(false);
@@ -67,7 +66,7 @@ export function useBenchmarksPage() {
     setAppendId(null);
     setFileList([]);
     form.resetFields();
-    form.setFieldsValue({ source: "offline", default_evaluation_mode: "single_turn", suite_type: "capability" });
+    form.setFieldsValue({ default_evaluation_mode: "single_turn", suite_type: "capability" });
     setModalOpen(true);
   };
 
@@ -77,7 +76,6 @@ export function useBenchmarksPage() {
     setFileList([]);
     form.resetFields();
     form.setFieldsValue({
-      source: b.source === "online" ? "online" : "offline",
       default_evaluation_mode: b.default_evaluation_mode || "single_turn",
       suite_type: b.suite_type || "capability",
     });
@@ -89,34 +87,31 @@ export function useBenchmarksPage() {
     setAppendId(b.id);
     setFileList([]);
     form.resetFields();
-    form.setFieldsValue({ source: "offline" });
     setModalOpen(true);
   };
 
   const submit = async () => {
     try {
       const values = await form.validateFields();
-      const source = form.getFieldValue("source") || "offline";
-      const sourceUrl = String(values.source_url || "").trim();
       const file = fileList[0]?.originFileObj;
-      if (source === "online") {
-        if (!sourceUrl) {
-          message.error("请填写飞书 Base / Sheet / Wiki URL");
-          return;
-        }
-      } else if (!file) {
-        message.error("请选择一个 YAML 或 ZIP 用例文件");
+      const sourceUrl = String(values.source_url || "").trim();
+      if (!file && !sourceUrl) {
+        message.error("请选择一个 YAML / ZIP 用例文件，或填写用例链接");
+        return;
+      }
+      if (file && sourceUrl) {
+        message.error("用例文件和用例链接请二选一");
         return;
       }
       const fd = new FormData();
-      // 线上只走飞书 URL，不再上传文件；线下才带 YAML 文件。
-      if (source !== "online" && file) fd.append("file", file);
-      fd.append("source", source);
+      if (file) fd.append("file", file);
+      // 后端仍保留来源字段以兼容历史数据；页面不再展示线上/线下的概念。
+      fd.append("source", sourceUrl ? "online" : "offline");
+      if (sourceUrl) fd.append("source_url", sourceUrl);
       if (appendId == null) {
         fd.append("default_evaluation_mode", values.default_evaluation_mode || "single_turn");
         fd.append("suite_type", values.suite_type || "capability");
       }
-      if (sourceUrl) fd.append("source_url", sourceUrl);
       if (appendId != null) {
         await api.appendBenchmark(appendId, fd);
         message.success("追加成功");
@@ -287,7 +282,6 @@ export function useBenchmarksPage() {
     setModalOpen,
     replaceId,
     appendId,
-    sourceMode,
     fileList,
     setFileList,
     form,
