@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from server.models_db import Benchmark, ScheduledEvaluation
+from server.models_db import Benchmark, EvalRun, ScheduledEvaluation
 from server.services.scheduled_evaluations import compute_next_run_at
 from server.services.scheduled_evaluations import fetch_latest_active_deeptrace_version_name
 
@@ -41,6 +41,47 @@ def test_schedule_uses_shanghai_clock_but_stores_utc():
     assert compute_next_run_at(task, datetime(2026, 8, 11, 0, 0, tzinfo=timezone.utc)) == datetime(
         2026, 8, 11, 1, 30
     )
+
+
+def test_schedule_can_run_immediately_as_a_regression_task(client, session, monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    benchmark = Benchmark(name="立即回归测试集", source="offline")
+    session.add(benchmark)
+    session.commit()
+    task = ScheduledEvaluation(
+        name="立即回归", benchmark_id=benchmark.id, enable_judge=False, enable_rag=True, repeat=2
+    )
+    session.add(task)
+    session.commit()
+
+    from server.services import scheduled_evaluations as service
+    from server.routers import runs
+
+    async def submit(run_id, _job):
+        captured["run_id"] = run_id
+
+    def build_job(*_args, **_kwargs):
+        async def noop(_progress):
+            return None
+
+        return noop
+
+    captured = {}
+    monkeypatch.setattr(runs, "build_eval_job", build_job)
+    monkeypatch.setattr(service, "get_job_runner", lambda: SimpleNamespace(submit=submit))
+    monkeypatch.setattr(service, "fetch_latest_active_deeptrace_version_name", lambda: asyncio.sleep(0, result=None))
+
+    response = client.post(f"/api/scheduled-evaluations/{task.id}/run")
+    assert response.status_code == 201, response.text
+    run = session.get(EvalRun, response.json()["id"])
+    assert run is not None
+    assert run.trigger_type == "scheduled"
+    assert run.scheduled_evaluation_id == task.id
+    assert run.n_runs == 2
+    assert run.adapter_overrides["enable_rag"] is True
+    assert captured["run_id"] == run.id
 
 
 def test_fetches_latest_active_deeptrace_version_name(settings):

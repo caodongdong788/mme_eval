@@ -3,7 +3,7 @@ import {
   Button, Checkbox, Form, Input, InputNumber, Modal, Popconfirm, Radio,
   Select, Space, Switch, Table, Tag, TimePicker, Tooltip, message,
 } from "antd";
-import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import { CaretRightOutlined, DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { api, type Benchmark, type JudgeModel, type ScheduledEvaluation, type ScheduledEvaluationPayload } from "../api";
 import { formatApiDateTime } from "../utils/datetime";
@@ -29,6 +29,7 @@ export function ScheduledEvaluationsPanel() {
   const [models, setModels] = useState<JudgeModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [runningTaskId, setRunningTaskId] = useState<number | null>(null);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<ScheduledEvaluation | null>(null);
   const scheduleKind = Form.useWatch("schedule_kind", form) ?? "daily";
@@ -97,6 +98,18 @@ export function ScheduledEvaluationsPanel() {
     try { await api.deleteScheduledEvaluation(id); message.success("定时任务已删除"); await reload(); }
     catch (error) { message.error(formatApiError(error, "删除失败")); }
   };
+  const runNow = async (row: ScheduledEvaluation) => {
+    setRunningTaskId(row.id);
+    try {
+      const run = await api.runScheduledEvaluationNow(row.id);
+      message.success(`已发起回归任务 #${run.id}`);
+      await reload();
+    } catch (error) {
+      message.error(formatApiError(error, "立即执行失败"));
+    } finally {
+      setRunningTaskId(null);
+    }
+  };
 
   const columns = [
     { title: "任务名称", dataIndex: "name", width: 220, render: (value: string) => <strong>{value}</strong> },
@@ -106,7 +119,21 @@ export function ScheduledEvaluationsPanel() {
     { title: "运行参数", width: 230, render: (_: unknown, row: ScheduledEvaluation) => <Space size={4} wrap><Tag>{row.evaluation_mode === "multi_turn" ? "多轮" : "单轮"}</Tag><Tag color={row.enable_rag ? "green" : "default"}>RAG {row.enable_rag ? "开" : "关"}</Tag><Tag>N={row.repeat}</Tag>{row.enable_judge && <Tag color="purple">判分</Tag>}</Space> },
     { title: "下次执行", dataIndex: "next_run_at", width: 170, render: (value: string) => formatApiDateTime(value) },
     { title: "上次执行", dataIndex: "last_run_at", width: 170, render: (value: string, row: ScheduledEvaluation) => row.last_error ? <Tooltip title={row.last_error}><span className="runs-table__danger">触发失败</span></Tooltip> : formatApiDateTime(value) },
-    { title: "操作", width: 115, render: (_: unknown, row: ScheduledEvaluation) => <DashTableActions><DashTableLink onClick={() => openEdit(row)}><EditOutlined /> 编辑</DashTableLink><Popconfirm title="确认删除该定时任务？" onConfirm={() => void remove(row.id)}><DashTableDangerLink><DeleteOutlined /> 删除</DashTableDangerLink></Popconfirm></DashTableActions> },
+    {
+      title: "操作",
+      width: 160,
+      render: (_: unknown, row: ScheduledEvaluation) => (
+        <DashTableActions>
+          <DashTableLink onClick={() => void runNow(row)} disabled={runningTaskId === row.id}>
+            <CaretRightOutlined /> {runningTaskId === row.id ? "启动中" : "立即执行"}
+          </DashTableLink>
+          <DashTableLink onClick={() => openEdit(row)}><EditOutlined /> 编辑</DashTableLink>
+          <Popconfirm title="确认删除该定时任务？" onConfirm={() => void remove(row.id)}>
+            <DashTableDangerLink><DeleteOutlined /> 删除</DashTableDangerLink>
+          </Popconfirm>
+        </DashTableActions>
+      ),
+    },
   ];
 
   return <>

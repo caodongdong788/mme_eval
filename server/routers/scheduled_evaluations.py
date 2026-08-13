@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user_optional
 from ..db import get_session
 from ..models_db import FeishuUser
-from ..schemas import ScheduledEvaluationCreate, ScheduledEvaluationOut, ScheduledEvaluationUpdate
+from ..schemas import RunSummaryOut, ScheduledEvaluationCreate, ScheduledEvaluationOut, ScheduledEvaluationUpdate
 from ..services import scheduled_evaluations as service
 
 router = APIRouter(prefix="/api/scheduled-evaluations", tags=["scheduled-evaluations"])
@@ -35,6 +35,13 @@ def update_schedule(
     task_id: int, payload: ScheduledEvaluationUpdate, session: Session = Depends(get_session)
 ):
     return service.update_scheduled_evaluation(session, task_id, payload)
+
+
+@router.post("/{task_id}/run", response_model=RunSummaryOut, status_code=201)
+async def run_schedule_now(task_id: int) -> object:
+    """按定时任务当前配置立即发起一次回归评测。"""
+    plan = await service.launch_scheduled_evaluation(task_id)
+    return plan.run
 
 
 @router.delete("/{task_id}", status_code=204)

@@ -1,5 +1,5 @@
 import { http } from "./client";
-import type { EvaluationAccountsConfig, EvaluationStandard, JudgeDefaults, OpenApiAccessKey, OpenApiPermission, ScheduledEvaluation, ScheduledEvaluationPayload } from "./types";
+import type { EvaluationAccountsConfig, EvaluationStandard, JudgeDefaults, OpenApiAccessKey, OpenApiPermission, RunSummary, ScheduledEvaluation, ScheduledEvaluationPayload } from "./types";
 
 export const configApi = {
   getEvaluationStandard: () =>
@@ -27,5 +27,7 @@ export const configApi = {
     http.post<ScheduledEvaluation>("/scheduled-evaluations", payload).then((r) => r.data),
   updateScheduledEvaluation: (id: number, payload: Partial<ScheduledEvaluationPayload>) =>
     http.patch<ScheduledEvaluation>(`/scheduled-evaluations/${id}`, payload).then((r) => r.data),
+  runScheduledEvaluationNow: (id: number) =>
+    http.post<RunSummary>(`/scheduled-evaluations/${id}/run`).then((r) => r.data),
   deleteScheduledEvaluation: (id: number) => http.delete(`/scheduled-evaluations/${id}`),
 };

@@ -192,55 +192,9 @@ async def run_due_scheduled_evaluations_once() -> int:
     created = 0
     for task_id in due_ids:
         try:
-            with session_scope() as session:
-                task = session.get(ScheduledEvaluation, task_id)
-                if task is None or not task.enabled:
-                    continue
-                timestamp = now.replace(tzinfo=timezone.utc).astimezone(_SHANGHAI).strftime("%Y%m%d-%H%M%S")
-                version_name = await fetch_latest_active_deeptrace_version_name()
-                run_name_parts = [task.name]
-                if version_name:
-                    run_name_parts.append(version_name)
-                run_name_parts.append(f"定时 {timestamp}")
-                run_payload = RunCreate(
-                    benchmark_id=task.benchmark_id,
-                    run_name=" · ".join(run_name_parts),
-                    evaluation_mode=task.evaluation_mode,
-                    levels=task.levels or [],
-                    limit=task.limit,
-                    repeat=task.repeat,
-                    judge=JudgeOverride(enabled=task.enable_judge),
-                    adapter=AdapterOverride(enable_rag=task.enable_rag),
-                    judge_model_id=task.judge_model_id,
-                    user_simulator_model_id=(
-                        task.user_simulator_model_id
-                        if task.evaluation_mode == "multi_turn"
-                        else None
-                    ),
-                )
-                plan = runs_svc.prepare_create_run(
-                    session,
-                    run_payload,
-                    created_by=task.created_by or "定时任务",
-                    trigger_type="scheduled",
-                    scheduled_evaluation_id=task.id,
-                )
-                task.last_run_at = now
-                task.last_error = ""
-
-            from ..routers.runs import build_eval_job
-
-            job = build_eval_job(
-                plan.run.id,
-                benchmark_id=plan.benchmark_id,
-                run_name=plan.run_name,
-                levels=plan.levels,
-                limit=plan.limit,
-                repeat=plan.repeat,
-                judge_full=plan.judge_full,
-                adapter_full=plan.adapter_full,
-            )
-            await get_job_runner().submit(plan.run.id, job)
+            plan = await launch_scheduled_evaluation(task_id, now=now, require_enabled=True)
+            if plan is None:
+                continue
             created += 1
         except Exception as exc:  # noqa: BLE001 - 单个任务失败不阻塞其他定时任务
             logger.exception("定时评测任务 #%s 触发失败", task_id)
@@ -249,6 +203,68 @@ async def run_due_scheduled_evaluations_once() -> int:
                 if task is not None:
                     task.last_error = str(exc)[:1000]
     return created
+
+
+async def launch_scheduled_evaluation(
+    task_id: int,
+    *,
+    now: datetime | None = None,
+    require_enabled: bool = False,
+):
+    """按既定定时任务参数立刻创建一次回归 run。
+
+    手动点击“立即执行”与调度器到点执行共用这一入口，均绑定
+    ``scheduled_evaluation_id`` 和 ``trigger_type=scheduled``，确保回归趋势可连续分析。
+    """
+    triggered_at = _utc_now(now)
+    with session_scope() as session:
+        task = _get_or_404(session, task_id)
+        if require_enabled and not task.enabled:
+            return None
+        timestamp = triggered_at.replace(tzinfo=timezone.utc).astimezone(_SHANGHAI).strftime("%Y%m%d-%H%M%S")
+        version_name = await fetch_latest_active_deeptrace_version_name()
+        run_name_parts = [task.name]
+        if version_name:
+            run_name_parts.append(version_name)
+        run_name_parts.append(f"定时 {timestamp}")
+        run_payload = RunCreate(
+            benchmark_id=task.benchmark_id,
+            run_name=" · ".join(run_name_parts),
+            evaluation_mode=task.evaluation_mode,
+            levels=task.levels or [],
+            limit=task.limit,
+            repeat=task.repeat,
+            judge=JudgeOverride(enabled=task.enable_judge),
+            adapter=AdapterOverride(enable_rag=task.enable_rag),
+            judge_model_id=task.judge_model_id,
+            user_simulator_model_id=(
+                task.user_simulator_model_id if task.evaluation_mode == "multi_turn" else None
+            ),
+        )
+        plan = runs_svc.prepare_create_run(
+            session,
+            run_payload,
+            created_by=task.created_by or "定时任务",
+            trigger_type="scheduled",
+            scheduled_evaluation_id=task.id,
+        )
+        task.last_run_at = triggered_at
+        task.last_error = ""
+
+    from ..routers.runs import build_eval_job
+
+    job = build_eval_job(
+        plan.run.id,
+        benchmark_id=plan.benchmark_id,
+        run_name=plan.run_name,
+        levels=plan.levels,
+        limit=plan.limit,
+        repeat=plan.repeat,
+        judge_full=plan.judge_full,
+        adapter_full=plan.adapter_full,
+    )
+    await get_job_runner().submit(plan.run.id, job)
+    return plan
 
 
 async def _scheduler_loop() -> None:
