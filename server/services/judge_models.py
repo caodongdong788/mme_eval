@@ -11,10 +11,18 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from medeval.config import load_config
+from medeval.judges.llm_backend import is_kimi_k3_model
 
 from ..models_db import JudgeModelConfig
 from ..schemas import JudgeModelCreate, JudgeModelUpdate
 from ..settings import get_settings
+
+
+def _apply_model_defaults(row: JudgeModelConfig) -> None:
+    """将受限模型收敛到其官方支持的调用配置。"""
+    if is_kimi_k3_model(row.model):
+        row.temperature = 1.0
+        row.enable_thinking = True
 
 
 def has_judge_model_api_key(row: JudgeModelConfig) -> bool:
@@ -90,6 +98,7 @@ def create_judge_model(
         api_key=(payload.api_key or None),
         created_by=created_by,
     )
+    _apply_model_defaults(row)
     session.add(row)
     try:
         session.flush()
@@ -126,6 +135,7 @@ def update_judge_model(
         row.pairwise_concurrency = payload.pairwise_concurrency
     if payload.api_key:
         row.api_key = payload.api_key
+    _apply_model_defaults(row)
     session.flush()
     return row
 

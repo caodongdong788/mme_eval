@@ -140,6 +140,30 @@ def test_pairwise_concurrency_default_and_update(client, settings):
     assert other["pairwise_concurrency"] == 6
 
 
+def test_kimi_k3_model_uses_official_default_configuration(client, settings):
+    created = client.post(
+        "/api/judge-models",
+        json={
+            "name": "K3 默认配置",
+            "model": "kimi/kimi-k3",
+            "temperature": 0.6,
+            "enable_thinking": False,
+        },
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert body["temperature"] == 1.0
+    assert body["enable_thinking"] is True
+
+    updated = client.patch(
+        f"/api/judge-models/{body['id']}",
+        json={"temperature": 0.2, "enable_thinking": False},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["temperature"] == 1.0
+    assert updated.json()["enable_thinking"] is True
+
+
 def test_pairwise_concurrency_min_1_422(client, settings):
     resp = client.post(
         "/api/judge-models",

@@ -155,12 +155,12 @@ class _FakeBackend:
         }
 
 
-def test_kimi_k3_attribution_forces_supported_thinking_parameters():
+def test_kimi_k3_attribution_forces_official_default_parameters():
     judge = SimpleNamespace(model="kimi/kimi-k3", temperature=0.0, enable_thinking=False)
 
     temperature = _configure_attribution_model(judge)
 
-    assert temperature == 0.6
+    assert temperature == 1.0
     assert judge.enable_thinking is True
 
 

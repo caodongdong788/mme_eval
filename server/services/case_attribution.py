@@ -18,7 +18,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from medeval.judges.llm_backend import backend_from_llm_cfg
+from medeval.judges.llm_backend import backend_from_llm_cfg, is_kimi_k3_model
 from medeval.models import ConversationTrace
 
 from ..models_db import CaseResultRow, EvalRun, JudgeModelConfig, ScheduledEvaluation
@@ -559,12 +559,10 @@ def get_stored_attribution(detail: dict[str, Any]) -> dict[str, Any]:
 
 def _configure_attribution_model(judge):
     """补齐少数模型的强制推理参数，返回本次实际 temperature。"""
-    normalized_model = str(judge.model).strip().lower()
-    if normalized_model in {"kimi-k3", "kimi/kimi-k3"}:
-        # DashScope 的 Kimi K3 必须启用思考模式并使用 0.6；关闭思考时
-        # 接口会返回具有误导性的 “only 0.6 is allowed” 参数错误。
+    if is_kimi_k3_model(judge.model):
+        # DashScope 的 Kimi K3 是仅思考模型，temperature 必须为 1。
         judge.enable_thinking = True
-        judge.temperature = 0.6
+        judge.temperature = 1.0
     return float(getattr(judge, "temperature", 0.0) or 0.0)
 
 

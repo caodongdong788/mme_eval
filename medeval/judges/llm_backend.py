@@ -36,6 +36,11 @@ _interval_lock: asyncio.Lock | None = None
 _last_call_at: float = 0.0
 
 
+def is_kimi_k3_model(model: str | None) -> bool:
+    """Kimi K3 的 DashScope 标准模型名（兼容旧配置别名）。"""
+    return str(model or "").strip().lower() in {"kimi-k3", "kimi/kimi-k3"}
+
+
 def configure_llm_rate_limit(max_concurrent: int, min_interval_s: float = 0.0) -> None:
     """评测 judge 阶段启动前调用：全局限流八维与指南 chat_json。"""
     global _gate, _min_interval_s, _interval_lock, _last_call_at
@@ -191,13 +196,19 @@ class LLMBackend:
         from openai import RateLimitError  # type: ignore  # noqa: F401 — retryable 类型
 
         async def _create():
+            # Kimi K3 是仅思考模型：DashScope 要求 temperature 固定为 1，
+            # 并使用 reasoning_effort 而不是通用的 enable_thinking 开关。
+            # 这里兜底强制处理，避免历史配置或 Open API 直传错误参数导致实际调用失败。
+            is_kimi_k3 = is_kimi_k3_model(model)
             kwargs: dict[str, Any] = {
                 "model": model,
                 "messages": [{"role": "user", "content": prompt}],
-                "temperature": temperature,
+                "temperature": 1.0 if is_kimi_k3 else temperature,
                 "response_format": {"type": "json_object"},
             }
-            if self.enable_thinking is not None:
+            if is_kimi_k3:
+                kwargs["extra_body"] = {"reasoning_effort": "max"}
+            elif self.enable_thinking is not None:
                 kwargs["extra_body"] = {"enable_thinking": self.enable_thinking}
             return await self._client.chat.completions.create(  # type: ignore[union-attr]
                 **kwargs,

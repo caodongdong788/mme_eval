@@ -10,6 +10,14 @@ import {
   Switch,
 } from "antd";
 import type { FormInstance } from "antd";
+import { useEffect } from "react";
+
+const KIMI_K3_DASHSCOPE_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+
+function isKimiK3Model(model: unknown): boolean {
+  const normalized = String(model ?? "").trim().toLowerCase();
+  return normalized === "kimi-k3" || normalized === "kimi/kimi-k3";
+}
 
 type Props = {
   open: boolean;
@@ -28,6 +36,20 @@ export function JudgeModelEditModal({
   onCancel,
   onSubmit,
 }: Props) {
+  const model = Form.useWatch("model", form);
+  const isKimiK3 = isKimiK3Model(model);
+
+  useEffect(() => {
+    if (isKimiK3) {
+      form.setFieldsValue({
+        provider: form.getFieldValue("provider") || "openai",
+        base_url: form.getFieldValue("base_url") || KIMI_K3_DASHSCOPE_BASE_URL,
+        temperature: 1,
+        enable_thinking: true,
+      });
+    }
+  }, [form, isKimiK3]);
+
   return (
     <Modal
       title={editId != null ? "编辑判分模型" : "新增判分模型"}
@@ -81,16 +103,19 @@ export function JudgeModelEditModal({
         </Row>
         <Row gutter={16}>
           <Col xs={24} sm={12}>
-            <Form.Item label="回复随机性">
+            <Form.Item
+              label="回复随机性"
+              extra={isKimiK3 ? "Kimi K3 使用官方默认值 1.0，无法修改。" : undefined}
+            >
               <Row gutter={12} align="middle">
                 <Col flex="auto">
                   <Form.Item name="temperature" noStyle>
-                    <Slider min={0} max={2} step={0.1} />
+                    <Slider min={0} max={2} step={0.1} disabled={isKimiK3} />
                   </Form.Item>
                 </Col>
                 <Col>
                   <Form.Item name="temperature" noStyle>
-                    <InputNumber min={0} max={2} step={0.1} />
+                    <InputNumber min={0} max={2} step={0.1} disabled={isKimiK3} />
                   </Form.Item>
                 </Col>
               </Row>
@@ -115,11 +140,15 @@ export function JudgeModelEditModal({
         </Row>
         <Form.Item
           name="enable_thinking"
-          label="启用思考"
+          label={isKimiK3 ? "思考模式" : "启用思考"}
           valuePropName="checked"
-          extra="DashScope 等兼容接口可通过该选项控制是否输出思考过程。"
+          extra={
+            isKimiK3
+              ? "Kimi K3 为仅思考模型，系统会以官方默认推理配置调用。"
+              : "DashScope 等兼容接口可通过该选项控制是否输出思考过程。"
+          }
         >
-          <Switch />
+          <Switch disabled={isKimiK3} />
         </Form.Item>
         <Form.Item
           name="api_key"

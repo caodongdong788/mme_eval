@@ -118,6 +118,17 @@ def test_chat_json_passes_enable_thinking_via_extra_body():
     }
 
 
+def test_kimi_k3_forces_official_temperature_and_reasoning_mode():
+    backend = LLMBackend(provider="openai", api_key="k", enable_thinking=False)
+    backend._client = _FakeClient('{"ok": true}')
+
+    asyncio.run(backend.chat_json("kimi/kimi-k3", "prompt", 0.6))
+
+    kwargs = backend._client.chat.completions.last_kwargs
+    assert kwargs["temperature"] == 1.0
+    assert kwargs["extra_body"] == {"reasoning_effort": "max"}
+
+
 def test_chat_json_omits_extra_body_when_thinking_is_unspecified():
     backend = LLMBackend(provider="openai", api_key="k")
     backend._client = _FakeClient('{"ok": true}')
