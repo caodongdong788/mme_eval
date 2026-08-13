@@ -224,14 +224,13 @@ export default function RunsPage() {
             <DashTableNavLink to={`/runs/${r.id}`}>看板</DashTableNavLink>
             <Popconfirm
               title="确认删除该评测？"
-              description="将一并删除其用例结果与产物，且不可恢复。"
+              description={busy ? "将立即终止模型评测，并删除该记录、用例结果与产物，且不可恢复。" : "将一并删除其用例结果与产物，且不可恢复。"}
               okText="删除"
               cancelText="取消"
               okButtonProps={{ danger: true }}
               onConfirm={() => void onDelete(r.id)}
-              disabled={busy}
             >
-              <DashTableDangerLink disabled={busy}>
+              <DashTableDangerLink>
                 <DeleteOutlined /> 删除
               </DashTableDangerLink>
             </Popconfirm>

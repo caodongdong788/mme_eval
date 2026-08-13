@@ -48,3 +48,19 @@ def test_reconciled_run_is_deletable(client, initialized_db):
     assert client.delete(f"/api/runs/{rid}").status_code == 204
     with session_scope() as s:
         assert s.execute(select(EvalRun).where(EvalRun.id == rid)).scalar_one_or_none() is None
+
+
+def test_running_run_delete_cancels_job_before_removing_record(client, initialized_db, monkeypatch):
+    rid = _seed("running")
+    cancelled: list[int] = []
+
+    class Runner:
+        async def cancel(self, run_id: int) -> bool:
+            cancelled.append(run_id)
+            return True
+
+    monkeypatch.setattr("server.routers.runs.crud.get_job_runner", lambda: Runner())
+    assert client.delete(f"/api/runs/{rid}").status_code == 204
+    assert cancelled == [rid]
+    with session_scope() as s:
+        assert s.execute(select(EvalRun).where(EvalRun.id == rid)).scalar_one_or_none() is None

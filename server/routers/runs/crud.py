@@ -65,7 +65,9 @@ def get_run(run_id: int, session: Session = Depends(get_session)) -> EvalRun:
 
 
 @router.delete("/{run_id}", status_code=204)
-def delete_run(run_id: int, session: Session = Depends(get_session)) -> None:
+async def delete_run(run_id: int, session: Session = Depends(get_session)) -> None:
+    # 先终止进程内 Job，避免已取消的协程在记录删除后继续回写 Case 结果。
+    await get_job_runner().cancel(run_id)
     runs_svc.delete_run(session, run_id)
 
 

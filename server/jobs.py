@@ -32,6 +32,10 @@ class JobRunner(ABC):
     @abstractmethod
     def progress_snapshot(self, run_id: int) -> dict | None: ...
 
+    async def cancel(self, run_id: int) -> bool:
+        """终止指定任务。默认实现兼容不支持主动取消的调度器。"""
+        return False
+
     def queue_snapshot(self, run_id: int) -> dict | None:
         """任务调度队列状态；非进程内实现可按需覆盖。"""
         return None
@@ -126,6 +130,23 @@ class InProcessJobRunner(JobRunner):
     def progress_snapshot(self, run_id: int) -> dict | None:
         p = self._progress.get(run_id)
         return p.snapshot() if p else None
+
+    async def cancel(self, run_id: int) -> bool:
+        """取消运行中或排队中的任务，并等待协程完全退出后再允许删除记录。"""
+        task = self._tasks.get(run_id)
+        if task is None or task.done():
+            return False
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        finally:
+            self._tasks.pop(run_id, None)
+            self._progress.pop(run_id, None)
+            self._states.pop(run_id, None)
+            self._submitted_order.pop(run_id, None)
+        return True
 
     def queue_snapshot(self, run_id: int) -> dict | None:
         state = self._states.get(run_id)

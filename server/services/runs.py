@@ -258,10 +258,6 @@ def list_runs(
 
 def delete_run(session: Session, run_id: int) -> None:
     run = get_run_or_404(session, run_id)
-    if run.status in ("running", "pending"):
-        raise HTTPException(
-            status_code=400, detail="运行中或等待中的评测不可删除，请等待完成"
-        )
     # 旁路表 / 对比表无 ORM cascade，须先清以免 FK 约束导致 commit 失败（Postgres / FK=ON 的 SQLite）。
     for comp in session.execute(
         select(PairwiseComparison).where(

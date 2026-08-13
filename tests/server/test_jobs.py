@@ -162,3 +162,29 @@ def test_queue_snapshot_reports_waiting_job_position(initialized_db):
         await asyncio.gather(first, second)
 
     asyncio.run(scenario())
+
+
+def test_cancel_stops_running_job_and_clears_volatile_progress(initialized_db):
+    run_id = _new_pending_run()
+    runner = InProcessJobRunner(max_concurrent=1)
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    async def job(_progress):
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    async def scenario():
+        task = await runner.submit(run_id, job)
+        await started.wait()
+        assert await runner.cancel(run_id) is True
+        assert cancelled.is_set()
+        assert task.cancelled()
+        assert runner.progress_snapshot(run_id) is None
+        assert runner.queue_snapshot(run_id) is None
+
+    asyncio.run(scenario())
