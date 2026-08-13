@@ -113,9 +113,79 @@ function TrendChart({
   );
 }
 
+function TrendAnalysisSections({ points, loading }: { points: TrendPoint[]; loading: boolean }) {
+  const data = useMemo(() => chartRows(points), [points]);
+  const dimensionSeries = useMemo(
+    () =>
+      EVALUATION_DIMENSIONS.filter((key) => data.some((row) => row[DIM_LABEL[key]] != null)).map((key, index) => ({
+        key: DIM_LABEL[key],
+        label: DIM_LABEL[key],
+        color: SERIES_COLORS[index % SERIES_COLORS.length],
+      })),
+    [data]
+  );
+  const caseTypeSeries = useMemo(() => {
+    const names = Array.from(
+      new Set(data.flatMap((row) => Object.keys(row).filter((key) => key.startsWith("类别："))))
+    ).sort((a, b) => a.localeCompare(b, "zh-CN"));
+    return names.map((name, index) => ({ key: name, label: name.replace("类别：", ""), color: SERIES_COLORS[index % SERIES_COLORS.length] }));
+  }, [data]);
+
+  return (
+    <div className="trends-sections">
+      <RunsChartCard title="每次评测结果：通过率" empty={loading || data.length === 0}>
+        <TrendChart data={data} series={[{ key: "通过率", label: "通过率", color: palette.dashboard.purple }]} unit="%" domain={[0, 100]} />
+      </RunsChartCard>
+      <RunsChartCard title="八维平均分趋势" empty={loading || dimensionSeries.length === 0}>
+        <TrendChart data={data} series={dimensionSeries} domain={[0, 5]} />
+      </RunsChartCard>
+      <div className="runs-duo-charts trends-duo-charts">
+        <RunsChartCard title="性能趋势（平均 / P90 / 首 Token 耗时）" empty={loading || data.length === 0}>
+          <TrendChart
+            data={data}
+            series={[
+              { key: "平均耗时（ms）", label: "平均耗时", color: palette.dashboard.purple },
+              { key: "P90 耗时（ms）", label: "P90 耗时", color: "#e38b17" },
+              { key: "平均 TTFT（ms）", label: "平均首 Token 耗时", color: palette.dashboard.teal },
+            ]}
+            unit="ms"
+          />
+        </RunsChartCard>
+        <RunsChartCard title="Token 消耗趋势" empty={loading || data.length === 0}>
+          <TrendChart
+            data={data}
+            series={[
+              { key: "总 Token", label: "总 Token", color: palette.dashboard.purple },
+              { key: "平均 Token", label: "平均每次", color: palette.dashboard.teal },
+            ]}
+          />
+        </RunsChartCard>
+      </div>
+      <div className="runs-duo-charts trends-duo-charts">
+        <RunsChartCard title="可靠性趋势（pass@k / pass^k）" empty={loading || data.length === 0}>
+          <TrendChart
+            data={data}
+            series={[
+              { key: "pass@k", label: "pass@k", color: palette.dashboard.purple },
+              { key: "pass^k", label: "pass^k（全成功）", color: palette.dashboard.teal },
+            ]}
+            unit="%"
+            domain={[0, 100]}
+          />
+        </RunsChartCard>
+        <RunsChartCard title="可靠性趋势：波动用例数" empty={loading || data.length === 0}>
+          <TrendChart data={data} series={[{ key: "波动用例", label: "波动用例", color: "#e38b17" }]} />
+        </RunsChartCard>
+      </div>
+      <RunsChartCard title="类别通过率趋势" empty={loading || caseTypeSeries.length === 0}>
+        <TrendChart data={data} series={caseTypeSeries} unit="%" domain={[0, 100]} />
+      </RunsChartCard>
+    </div>
+  );
+}
+
 function BenchmarkTrendPanel() {
-  const { benchmarks, benchmarkId, setBenchmarkId, chartData, loadError, reload } = useTrendsPage();
-  const points = chartData.map((row) => ({ ...row, "综合分（/45）": row.综合分 }));
+  const { benchmarks, benchmarkId, setBenchmarkId, points, loading, loadError, reload } = useTrendsPage();
   return (
     <>
       <div className="trends-toolbar">
@@ -127,14 +197,7 @@ function BenchmarkTrendPanel() {
           options={benchmarks.map((benchmark) => ({ value: benchmark.id, label: benchmark.name }))}
         />
       </div>
-      <RunsChartCard title="通过率趋势" empty={Boolean(loadError) || points.length === 0}>
-        {loadError ? <AsyncLoadError message={loadError} onRetry={reload} /> : <TrendChart data={points} series={[{ key: "通过率", label: "通过率", color: palette.dashboard.purple }]} unit="%" domain={[0, 100]} />}
-      </RunsChartCard>
-      {!loadError && (
-        <RunsChartCard title="八维综合分趋势（平均总分 /45）" empty={points.length === 0}>
-          <TrendChart data={points} series={[{ key: "综合分（/45）", label: "综合分", color: palette.dashboard.teal }]} domain={[0, 45]} />
-        </RunsChartCard>
-      )}
+      {loadError ? <AsyncLoadError message={loadError} onRetry={reload} /> : <TrendAnalysisSections points={points} loading={loading} />}
     </>
   );
 }
@@ -163,30 +226,13 @@ function RegressionTrendPanel() {
   );
 
   const points = regression?.points || [];
-  const data = useMemo(() => chartRows(points), [points]);
-  const dimensionSeries = useMemo(
-    () =>
-      EVALUATION_DIMENSIONS.filter((key) => data.some((row) => row[DIM_LABEL[key]] != null)).map((key, index) => ({
-        key: DIM_LABEL[key],
-        label: DIM_LABEL[key],
-        color: SERIES_COLORS[index % SERIES_COLORS.length],
-      })),
-    [data]
-  );
-  const caseTypeSeries = useMemo(() => {
-    const names = Array.from(
-      new Set(data.flatMap((row) => Object.keys(row).filter((key) => key.startsWith("类别："))))
-    ).sort((a, b) => a.localeCompare(b, "zh-CN"));
-    return names.map((name, index) => ({ key: name, label: name.replace("类别：", ""), color: SERIES_COLORS[index % SERIES_COLORS.length] }));
-  }, [data]);
-
   const error = schedulesError || regressionError;
   const reload = () => {
     reloadSchedules();
     if (scheduleId != null) reloadRegression();
   };
   const noSchedules = !schedulesLoading && (schedules?.length || 0) === 0;
-  const noRuns = !regressionLoading && Boolean(scheduleId) && data.length === 0;
+  const noRuns = !regressionLoading && Boolean(scheduleId) && points.length === 0;
 
   return (
     <>
@@ -208,55 +254,7 @@ function RegressionTrendPanel() {
       ) : noRuns ? (
         <div className="trends-empty"><Empty description="该定时任务尚无成功的评测记录" /></div>
       ) : (
-        <div className="trends-sections">
-          <RunsChartCard title="每次回归结果：通过率" empty={regressionLoading || data.length === 0}>
-            <TrendChart data={data} series={[{ key: "通过率", label: "通过率", color: palette.dashboard.purple }]} unit="%" domain={[0, 100]} />
-          </RunsChartCard>
-          <RunsChartCard title="八维平均分趋势" empty={regressionLoading || dimensionSeries.length === 0}>
-            <TrendChart data={data} series={dimensionSeries} domain={[0, 5]} />
-          </RunsChartCard>
-          <div className="runs-duo-charts trends-duo-charts">
-            <RunsChartCard title="性能趋势（平均 / P90 / 首 Token 耗时）" empty={regressionLoading || data.length === 0}>
-              <TrendChart
-                data={data}
-                series={[
-                  { key: "平均耗时（ms）", label: "平均耗时", color: palette.dashboard.purple },
-                  { key: "P90 耗时（ms）", label: "P90 耗时", color: "#e38b17" },
-                  { key: "平均 TTFT（ms）", label: "平均首 Token 耗时", color: palette.dashboard.teal },
-                ]}
-                unit="ms"
-              />
-            </RunsChartCard>
-            <RunsChartCard title="Token 消耗趋势" empty={regressionLoading || data.length === 0}>
-              <TrendChart
-                data={data}
-                series={[
-                  { key: "总 Token", label: "总 Token", color: palette.dashboard.purple },
-                  { key: "平均 Token", label: "平均每次", color: palette.dashboard.teal },
-                ]}
-              />
-            </RunsChartCard>
-          </div>
-          <div className="runs-duo-charts trends-duo-charts">
-            <RunsChartCard title="可靠性趋势（pass@k / pass^k）" empty={regressionLoading || data.length === 0}>
-              <TrendChart
-                data={data}
-                series={[
-                  { key: "pass@k", label: "pass@k", color: palette.dashboard.purple },
-                  { key: "pass^k", label: "pass^k（全成功）", color: palette.dashboard.teal },
-                ]}
-                unit="%"
-                domain={[0, 100]}
-              />
-            </RunsChartCard>
-            <RunsChartCard title="可靠性趋势：波动用例数" empty={regressionLoading || data.length === 0}>
-              <TrendChart data={data} series={[{ key: "波动用例", label: "波动用例", color: "#e38b17" }]} />
-            </RunsChartCard>
-          </div>
-          <RunsChartCard title="类别通过率趋势" empty={regressionLoading || caseTypeSeries.length === 0}>
-            <TrendChart data={data} series={caseTypeSeries} unit="%" domain={[0, 100]} />
-          </RunsChartCard>
-        </div>
+        <TrendAnalysisSections points={points} loading={regressionLoading} />
       )}
     </>
   );
