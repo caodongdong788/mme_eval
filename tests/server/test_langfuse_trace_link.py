@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
+from dataclasses import replace
+
 from factories import make_case_result, make_report
 
 from medeval.models import ChatMessage, ConversationTrace
 from server.db import session_scope
 from server.ingest import ingest_report
 from server.models_db import Benchmark, CaseResultRow
+from server.services.langfuse_trace import backfill_run_agent_chains
 from server.settings import Settings
 
 
@@ -181,3 +185,46 @@ def test_case_agent_chain_sync_persists_fail_soft_snapshot(
     assert response.json()["trace"]["agent_chain"]["status"] == "unconfigured"
     reloaded = client.get(f"/api/runs/{rid}/cases/bc_with").json()
     assert reloaded["trace"]["agent_chain"]["trace_ids"] == ["cx-trace-1"]
+
+
+def test_post_run_backfill_updates_delayed_langfuse_chain(
+    settings, initialized_db, monkeypatch
+):
+    """评测完成时读空的链路，应在后台补同步后更新 RAG 列表状态。"""
+    rid = _seed(settings)
+    with session_scope() as session:
+        row = session.query(CaseResultRow).filter_by(run_id=rid, sample_id="bc_with").one()
+        detail = dict(row.detail_json)
+        detail["trace"] = {
+            **detail["trace"],
+            "langfuse_trace_ids": ["trace-delayed"],
+            "agent_chain": {"status": "pending", "nodes": []},
+        }
+        row.detail_json = detail
+        row.rag_status = "unknown"
+
+    async def delayed_sync(trace, _settings, *, reader=None):
+        trace.agent_chain = {
+            "status": "synced",
+            "trace_ids": trace.langfuse_trace_ids,
+            "nodes": [{"type": "TOOL", "name": "tool.medical_literature_search"}],
+            "summary": {"sources": [{"key": "literature_rag", "calls": 1, "status": "hit"}]},
+        }
+        return trace.agent_chain
+
+    monkeypatch.setattr("server.services.langfuse_trace.sync_conversation_trace", delayed_sync)
+    configured = replace(
+        settings,
+        langfuse_host="https://langfuse.example",
+        langfuse_public_key="pk-test",
+        langfuse_secret_key="sk-test",
+    )
+    result = asyncio.run(
+        backfill_run_agent_chains(rid, configured, delay_seconds=0, attempts=1)
+    )
+
+    assert result == {"eligible": 1, "updated": 1, "rounds": 1}
+    with session_scope() as session:
+        row = session.query(CaseResultRow).filter_by(run_id=rid, sample_id="bc_with").one()
+        assert row.rag_status == "hit"
+        assert row.detail_json["trace"]["agent_chain"]["status"] == "synced"

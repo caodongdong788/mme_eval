@@ -4,18 +4,27 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
 import httpx
+from sqlalchemy import select
 
 from medeval.models import ConversationTrace, RunReport
 
+from ..db import session_scope
+from ..models_db import CaseResultRow
 from ..settings import Settings
 from .agent_chain_summary import apply_literature_audit_snapshot, summarize_agent_chain
+from .case_query import case_rag_status_from_detail
 
 
 _FIELDS = "core,basic,time,io,metadata,model,usage,prompt,metrics,trace_context"
+logger = logging.getLogger(__name__)
+
+# 后台任务需保留强引用，避免在还未执行时被垃圾回收。服务关闭时事件循环会统一取消。
+_post_run_backfill_tasks: set[asyncio.Task[dict[str, int]]] = set()
 
 
 def _record(value: Any) -> dict[str, Any]:
@@ -276,3 +285,135 @@ async def enrich_report_agent_chains(report: RunReport, settings: Settings) -> N
         await asyncio.gather(*(sync_one(result.trace) for result in report.results))
     finally:
         await reader.close()
+
+
+def _needs_agent_chain_backfill(detail: dict[str, Any]) -> bool:
+    trace = _record(detail.get("trace"))
+    trace_ids = trace.get("langfuse_trace_ids")
+    if not isinstance(trace_ids, list) or not any(isinstance(item, str) and item for item in trace_ids):
+        return False
+    chain = _record(trace.get("agent_chain"))
+    # 已确认同步完成或明确未配置时无需再请求。partial/failed/pending 均可能是
+    # Langfuse 入库窗口造成的临时状态，允许后台重试。
+    return str(chain.get("status") or "") not in {"synced", "unconfigured"}
+
+
+def _load_backfill_candidates(run_id: int) -> list[tuple[int, dict[str, Any]]]:
+    with session_scope() as session:
+        rows = session.execute(
+            select(CaseResultRow.id, CaseResultRow.detail_json).where(
+                CaseResultRow.run_id == run_id
+            )
+        ).all()
+    candidates: list[tuple[int, dict[str, Any]]] = []
+    for row_id, raw_detail in rows:
+        detail = dict(raw_detail or {})
+        if _needs_agent_chain_backfill(detail):
+            candidates.append((int(row_id), detail))
+    return candidates
+
+
+def _persist_backfill_snapshots(
+    snapshots: list[tuple[int, dict[str, Any]]],
+) -> int:
+    updated = 0
+    with session_scope() as session:
+        for row_id, detail in snapshots:
+            row = session.get(CaseResultRow, row_id)
+            # 用户在此期间手动同步成功时，不能用旧快照覆盖新数据。
+            if row is None or not _needs_agent_chain_backfill(dict(row.detail_json or {})):
+                continue
+            row.detail_json = detail
+            row.rag_status = case_rag_status_from_detail(detail)
+            updated += 1
+    return updated
+
+
+async def backfill_run_agent_chains(
+    run_id: int,
+    settings: Settings,
+    *,
+    delay_seconds: float | None = None,
+    attempts: int | None = None,
+) -> dict[str, int]:
+    """在评测成功后补拉尚未写入 Langfuse 的 Case 调用链并回填列表状态。
+
+    这条链路不参与判分，也不阻塞评测任务完成；它只修正 observability 快照和
+    ``rag_status``。每轮仅查询尚未同步的 Case，成功后自然停止。
+    """
+    delay = max(
+        0.0,
+        settings.langfuse_post_run_sync_delay_seconds
+        if delay_seconds is None
+        else delay_seconds,
+    )
+    rounds = max(
+        1,
+        settings.langfuse_post_run_sync_attempts if attempts is None else attempts,
+    )
+    summary = {"eligible": 0, "updated": 0, "rounds": 0}
+    reader = LangfuseTraceReader(settings)
+    if not reader.configured:
+        await reader.close()
+        return summary
+
+    try:
+        for index in range(rounds):
+            if delay:
+                await asyncio.sleep(delay)
+            candidates = _load_backfill_candidates(run_id)
+            if not candidates:
+                break
+            summary["eligible"] += len(candidates)
+            summary["rounds"] += 1
+            semaphore = asyncio.Semaphore(4)
+
+            async def sync_one(row_id: int, detail: dict[str, Any]) -> tuple[int, dict[str, Any]] | None:
+                try:
+                    trace = ConversationTrace.model_validate(
+                        _record(detail.get("trace")) or {"messages": []}
+                    )
+                    async with semaphore:
+                        await sync_conversation_trace(trace, settings, reader=reader)
+                    next_detail = dict(detail)
+                    next_detail["trace"] = trace.model_dump(mode="json")
+                    return row_id, next_detail
+                except Exception:  # noqa: BLE001 - 后台观测补偿绝不影响评测结果
+                    logger.warning("run %s case %s Langfuse 补同步失败", run_id, row_id, exc_info=True)
+                    return None
+
+            results = await asyncio.gather(
+                *(sync_one(row_id, detail) for row_id, detail in candidates)
+            )
+            snapshots = [item for item in results if item is not None]
+            summary["updated"] += _persist_backfill_snapshots(snapshots)
+    finally:
+        await reader.close()
+    return summary
+
+
+def schedule_run_agent_chain_backfill(run_id: int, settings: Settings) -> asyncio.Task[dict[str, int]] | None:
+    """提交非阻塞的 Langfuse 延迟补同步任务；未配置时不创建空任务。"""
+    if not (
+        settings.langfuse_host
+        and settings.langfuse_public_key
+        and settings.langfuse_secret_key
+    ):
+        return None
+    task = asyncio.create_task(
+        backfill_run_agent_chains(run_id, settings),
+        name=f"mme-langfuse-backfill-{run_id}",
+    )
+    _post_run_backfill_tasks.add(task)
+
+    def done(completed: asyncio.Task[dict[str, int]]) -> None:
+        _post_run_backfill_tasks.discard(completed)
+        if completed.cancelled():
+            return
+        try:
+            completed.result()
+        except Exception:  # noqa: BLE001 - 后台观测任务绝不影响已成功评测
+            logger.warning("run %s Langfuse 后台补同步失败", run_id, exc_info=True)
+
+    task.add_done_callback(done)
+    return task

@@ -144,6 +144,19 @@ class Settings:
             os.environ.get("LANGFUSE_SYNC_INITIAL_BACKOFF_SECONDS", "1")
         )
     )
+    # 评测刚结束时，cx-agent 的 Langfuse trace 仍可能处于异步入库阶段。首次同步
+    # 保持在主任务内完成；仅对未同步的用例，在任务成功后再后台补拉一次，避免列表
+    # 长期显示“链路未同步”。
+    langfuse_post_run_sync_delay_seconds: float = field(
+        default_factory=lambda: float(
+            os.environ.get("LANGFUSE_POST_RUN_SYNC_DELAY_SECONDS", "20")
+        )
+    )
+    langfuse_post_run_sync_attempts: int = field(
+        default_factory=lambda: int(
+            os.environ.get("LANGFUSE_POST_RUN_SYNC_ATTEMPTS", "2")
+        )
+    )
     # DeepTrace 当前上线版本：仅定时评测在创建 run 名称时读取。Token 只允许通过
     # 运行环境注入，绝不落库、回传前端或进入评测配置快照。
     deeptrace_base_url: str = field(

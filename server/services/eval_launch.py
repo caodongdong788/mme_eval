@@ -24,7 +24,7 @@ from .eval_artifacts import (
     write_run_plan,
 )
 from .eval_stack import build_eval_adapter, build_judge_stack, prepare_run_config
-from .langfuse_trace import enrich_report_agent_chains
+from .langfuse_trace import enrich_report_agent_chains, schedule_run_agent_chain_backfill
 
 
 def build_eval_job(
@@ -123,6 +123,9 @@ def build_eval_job(
 
         prev = resolve_diff_target("auto", settings.outputs_dir, out_dir)
         ej._persist_outcome(run_id, report, out_dir, prev_json=prev)
+        # Langfuse 可能在评测请求结束后才异步落盘；首轮同步读空的 Case 由后台
+        # 延迟补拉并回填 RAG 列，不阻塞任务成功状态或占用评测账号。
+        schedule_run_agent_chain_backfill(run_id, settings)
         apply_retention(config, settings)
 
     return job
