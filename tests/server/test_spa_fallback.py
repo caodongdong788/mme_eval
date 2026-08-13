@@ -51,6 +51,7 @@ def test_spa_serves_assets(spa_client):
     resp = spa_client.get("/assets/main.js")
     assert resp.status_code == 200
     assert "console.log" in resp.text
+    assert resp.headers["cache-control"] == "no-cache"
 
 
 def test_api_health_unaffected(spa_client):
