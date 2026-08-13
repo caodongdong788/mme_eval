@@ -78,6 +78,112 @@ def test_upload_and_read_v2_benchmark(client, settings) -> None:
     assert parsed["evaluation"]["guidelines"][0]["max_score"] == 3
 
 
+def test_append_yaml_cases_to_existing_benchmark(client, settings) -> None:
+    created = upload(client, V2_YAML, name="append-yaml-target")
+    benchmark_id = created.json()["id"]
+    appended_yaml = V2_YAML.replace("api_v2_001", "api_v2_002").replace(
+        "scenario: 症状识别", "scenario: 复诊管理"
+    )
+
+    response = client.post(
+        f"/api/benchmarks/{benchmark_id}/append",
+        data={"source": "offline"},
+        files={"file": ("more.yaml", appended_yaml.encode(), "application/x-yaml")},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["case_count"] == 2
+    assert response.json()["name"] == "append-yaml-target"
+    cases = client.get(f"/api/benchmarks/{benchmark_id}/cases").json()
+    assert [case["sample_id"] for case in cases] == ["api_v2_001", "api_v2_002"]
+    exported = client.get(f"/api/benchmarks/{benchmark_id}/download")
+    assert {item["sample_id"] for item in yaml.safe_load(exported.text)} == {
+        "api_v2_001",
+        "api_v2_002",
+    }
+    assert (settings.uploads_dir / str(benchmark_id) / "cases.yaml").is_file()
+
+
+def test_append_rejects_duplicate_sample_id_without_changing_target(client) -> None:
+    created = upload(client, V2_YAML, name="append-duplicate-target")
+    benchmark_id = created.json()["id"]
+
+    response = client.post(
+        f"/api/benchmarks/{benchmark_id}/append",
+        data={"source": "offline"},
+        files={"file": ("duplicate.yaml", V2_YAML.encode(), "application/x-yaml")},
+    )
+
+    assert response.status_code == 422
+    assert "sample_id 与现有用例重复" in response.json()["detail"]
+    cases = client.get(f"/api/benchmarks/{benchmark_id}/cases").json()
+    assert [case["sample_id"] for case in cases] == ["api_v2_001"]
+
+
+def test_append_zip_cases_and_images_to_existing_benchmark(client, settings) -> None:
+    created = upload(client, V2_YAML, name="append-zip-target")
+    benchmark_id = created.json()["id"]
+    appended_yaml = V2_YAML.replace("api_v2_001", "api_v2_image_002").replace(
+        "      content: 乳房摸到硬块怎么办？",
+        "      content: 请结合追加的报告图片判断\n      images:\n        - images/appended.jpg",
+    )
+    package = io.BytesIO()
+    with zipfile.ZipFile(package, "w") as archive:
+        archive.writestr("cases.yaml", appended_yaml)
+        archive.writestr("images/appended.jpg", b"appended-image")
+
+    response = client.post(
+        f"/api/benchmarks/{benchmark_id}/append",
+        data={"source": "offline"},
+        files={"file": ("more.zip", package.getvalue(), "application/zip")},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["case_count"] == 2
+    assert (
+        settings.uploads_dir / str(benchmark_id) / "images" / "appended.jpg"
+    ).read_bytes() == b"appended-image"
+    with session_scope() as session:
+        benchmark = session.get(Benchmark, benchmark_id)
+        cases = load_benchmark_cases(benchmark, settings=settings)
+    assert cases[1].turns[0].image_data_urls
+
+
+def test_append_zip_rejects_existing_image_path(client, settings) -> None:
+    original_yaml = V2_YAML.replace(
+        "      content: 乳房摸到硬块怎么办？",
+        "      content: 原报告\n      images:\n        - images/shared.jpg",
+    )
+    original = io.BytesIO()
+    with zipfile.ZipFile(original, "w") as archive:
+        archive.writestr("cases.yaml", original_yaml)
+        archive.writestr("images/shared.jpg", b"original-image")
+    created = client.post(
+        "/api/benchmarks",
+        data={"name": "append-image-conflict", "source": "offline"},
+        files={"file": ("original.zip", original.getvalue(), "application/zip")},
+    )
+    benchmark_id = created.json()["id"]
+
+    appended_yaml = original_yaml.replace("api_v2_001", "api_v2_002")
+    appended = io.BytesIO()
+    with zipfile.ZipFile(appended, "w") as archive:
+        archive.writestr("cases.yaml", appended_yaml)
+        archive.writestr("images/shared.jpg", b"replacement-image")
+    response = client.post(
+        f"/api/benchmarks/{benchmark_id}/append",
+        data={"source": "offline"},
+        files={"file": ("more.zip", appended.getvalue(), "application/zip")},
+    )
+
+    assert response.status_code == 422
+    assert "图片路径与现有文件重复" in response.json()["detail"]
+    assert (
+        settings.uploads_dir / str(benchmark_id) / "images" / "shared.jpg"
+    ).read_bytes() == b"original-image"
+    assert client.get(f"/api/benchmarks/{benchmark_id}").json()["case_count"] == 1
+
+
 def test_read_and_save_structured_case_content(client) -> None:
     """结构化编辑器无需前端解析 YAML，也能完整读取并写回单条 Case。"""
     created = upload(client, V2_YAML, name="structured-case")

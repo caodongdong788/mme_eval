@@ -848,6 +848,144 @@ def replace_uploaded_benchmark_from_feishu_base(
     )
 
 
+def _copy_appended_images(source_root: Path, destination_root: Path) -> None:
+    """把追加包的 images/ 合入暂存目录；同路径文件一律拒绝，避免静默串图。"""
+    source_images = source_root / "images"
+    if not source_images.is_dir():
+        return
+    destination_images = destination_root / "images"
+    for source in sorted(path for path in source_images.rglob("*") if path.is_file()):
+        relative = source.relative_to(source_images)
+        destination = destination_images / relative
+        if destination.exists():
+            raise BenchmarkValidationError(
+                f"追加包图片路径与现有文件重复：images/{relative.as_posix()}"
+            )
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+
+
+def _replace_storage_atomically(staged_dir: Path, destination: Path) -> None:
+    backup = destination.with_name(f".{destination.name}.backup-{uuid4().hex}")
+    if destination.exists():
+        destination.replace(backup)
+    try:
+        staged_dir.replace(destination)
+    except Exception:
+        if backup.exists():
+            backup.replace(destination)
+        raise
+    else:
+        shutil.rmtree(backup, ignore_errors=True)
+
+
+def _append_validated_cases(
+    benchmark: Benchmark,
+    incoming_cases: list[TestCase],
+    *,
+    incoming_root: Path | None,
+    settings: Settings,
+) -> Benchmark:
+    if benchmark.source == "builtin":
+        raise BenchmarkValidationError("内置 benchmark 不可追加")
+
+    existing_cases = load_benchmark_cases(benchmark, settings=settings)
+    existing_ids = {case.sample_id for case in existing_cases}
+    duplicate_ids = sorted(
+        existing_ids.intersection(case.sample_id for case in incoming_cases)
+    )
+    if duplicate_ids:
+        preview = "、".join(duplicate_ids[:5])
+        suffix = f" 等 {len(duplicate_ids)} 条" if len(duplicate_ids) > 5 else ""
+        raise BenchmarkValidationError(f"sample_id 与现有用例重复：{preview}{suffix}")
+
+    staged_dir = settings.uploads_dir / "_staging" / uuid4().hex
+    staged_dir.mkdir(parents=True, exist_ok=False)
+    try:
+        existing_root = _storage_root(benchmark, settings)
+        existing_images = existing_root / "images"
+        if existing_images.is_dir():
+            shutil.copytree(existing_images, staged_dir / "images")
+        if incoming_root is not None:
+            _copy_appended_images(incoming_root, staged_dir)
+
+        combined = [*existing_cases, *incoming_cases]
+        serialized = [
+            _literalize_turn_content(
+                case.model_dump(mode="json", by_alias=True, exclude={"case_file"})
+            )
+            for case in combined
+        ]
+        (staged_dir / "cases.yaml").write_text(
+            yaml.safe_dump(serialized, allow_unicode=True, sort_keys=False),
+            encoding="utf-8",
+        )
+        validated = _validate_yaml_path(staged_dir / "cases.yaml", settings)
+
+        destination = settings.uploads_dir / str(benchmark.id)
+        _replace_storage_atomically(staged_dir, destination)
+        benchmark.case_count = len(validated)
+        benchmark.levels = _collect_levels(validated)
+        benchmark.storage_path = str(destination)
+        _invalidate_cases_cache(benchmark.storage_path)
+        return benchmark
+    except Exception:
+        shutil.rmtree(staged_dir, ignore_errors=True)
+        raise
+
+
+def append_uploaded_benchmark(
+    session: Session,
+    benchmark: Benchmark,
+    *,
+    content: bytes,
+    filename: str = "cases.yaml",
+    settings: Settings | None = None,
+) -> Benchmark:
+    """校验后把 YAML/ZIP 中的新 Case 原子追加到现有上传 benchmark。"""
+    settings = settings or get_settings()
+    staged_source: Path | None = None
+    try:
+        if Path(filename).suffix.lower() == ".zip":
+            staged_source, incoming_cases = _validate_and_extract_zip(content, settings)
+            incoming_root = staged_source
+        else:
+            staged_source, incoming_cases = _validate_yaml_bytes(content, settings)
+            incoming_root = None
+        result = _append_validated_cases(
+            benchmark,
+            incoming_cases,
+            incoming_root=incoming_root,
+            settings=settings,
+        )
+        session.flush()
+        return result
+    finally:
+        if staged_source is not None:
+            if staged_source.is_dir():
+                shutil.rmtree(staged_source, ignore_errors=True)
+            else:
+                staged_source.unlink(missing_ok=True)
+
+
+def append_uploaded_benchmark_from_feishu_url(
+    session: Session,
+    benchmark: Benchmark,
+    *,
+    source_url: str,
+    access_token: str,
+    settings: Settings | None = None,
+) -> Benchmark:
+    yaml_content = feishu_url_to_yaml_bytes(access_token, source_url)
+    return append_uploaded_benchmark(
+        session,
+        benchmark,
+        content=yaml_content,
+        filename="cases.yaml",
+        settings=settings,
+    )
+
+
 def create_uploaded_benchmark(
     session: Session,
     *,

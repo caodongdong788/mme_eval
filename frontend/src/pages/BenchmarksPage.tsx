@@ -1,4 +1,5 @@
 import {
+  Alert,
   Button,
   Drawer,
   Form,
@@ -69,12 +70,13 @@ export default function BenchmarksPage() {
     },
     {
       title: "操作",
-      width: 280,
+      width: 330,
       render: (_: unknown, b: (typeof bm.uploaded)[0]) => (
         <DashTableActions>
           <DashTableLink onClick={() => bm.viewCases(b)}>查看用例</DashTableLink>
           <DashTableLink onClick={() => bm.viewCoverage(b)}>覆盖度</DashTableLink>
           <DashTableLink onClick={() => bm.openEdit(b)}>编辑</DashTableLink>
+          <DashTableLink onClick={() => bm.openAppend(b)}>追加</DashTableLink>
           <DashTableLink href={api.downloadBenchmarkUrl(b.id)} download>
             <DownloadOutlined /> 下载
           </DashTableLink>
@@ -121,15 +123,30 @@ export default function BenchmarksPage() {
       </div>
 
       <Modal
-        title={bm.replaceId != null ? `覆盖 benchmark #${bm.replaceId}` : "上传 benchmark"}
+        title={
+          bm.appendId != null
+            ? `追加用例到 benchmark #${bm.appendId}`
+            : bm.replaceId != null
+              ? `覆盖 benchmark #${bm.replaceId}`
+              : "上传 benchmark"
+        }
         open={bm.modalOpen}
         onOk={bm.submit}
         onCancel={() => bm.setModalOpen(false)}
-        okText={bm.replaceId != null ? "覆盖" : "上传"}
+        okText={bm.appendId != null ? "追加" : bm.replaceId != null ? "覆盖" : "上传"}
         cancelText="取消"
       >
         <Form form={bm.form} layout="vertical">
-          {bm.replaceId == null && (
+          {bm.appendId != null && (
+            <Alert
+              type="info"
+              showIcon
+              message="只新增用例，不修改当前评测集配置"
+              description="如果 sample_id 或 ZIP 图片路径与现有内容重复，本次追加将全部取消，不会覆盖已有数据。"
+              style={{ marginBottom: 16 }}
+            />
+          )}
+          {bm.replaceId == null && bm.appendId == null && (
             <>
               <Form.Item name="name" label="名称" rules={[{ required: true, message: "请输入名称" }]}>
                 <Input placeholder="如：乳腺癌补充集" />
@@ -139,32 +156,36 @@ export default function BenchmarksPage() {
               </Form.Item>
             </>
           )}
-          <Form.Item
-            name="default_evaluation_mode"
-            label="默认对话模式"
-            initialValue="single_turn"
-            extra="作为发起评测时的默认值，仍可在发起页手动切换。动态多轮 Case 最多 3 轮；固定脚本式多轮最多 20 轮。"
-          >
-            <Segmented
-              options={[
-                { label: "单轮对话", value: "single_turn" },
-                { label: "多轮对话", value: "multi_turn" },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item
-            name="suite_type"
-            label="评测集用途"
-            initialValue="capability"
-            extra="能力集用于发现能力边界；回归集会在运行详情中提供与基线对比的发布门禁。"
-          >
-            <Segmented
-              options={[
-                { label: "能力评测", value: "capability" },
-                { label: "回归门禁", value: "regression" },
-              ]}
-            />
-          </Form.Item>
+          {bm.appendId == null && (
+            <>
+              <Form.Item
+                name="default_evaluation_mode"
+                label="默认对话模式"
+                initialValue="single_turn"
+                extra="作为发起评测时的默认值，仍可在发起页手动切换。动态多轮 Case 最多 3 轮；固定脚本式多轮最多 20 轮。"
+              >
+                <Segmented
+                  options={[
+                    { label: "单轮对话", value: "single_turn" },
+                    { label: "多轮对话", value: "multi_turn" },
+                  ]}
+                />
+              </Form.Item>
+              <Form.Item
+                name="suite_type"
+                label="评测集用途"
+                initialValue="capability"
+                extra="能力集用于发现能力边界；回归集会在运行详情中提供与基线对比的发布门禁。"
+              >
+                <Segmented
+                  options={[
+                    { label: "能力评测", value: "capability" },
+                    { label: "回归门禁", value: "regression" },
+                  ]}
+                />
+              </Form.Item>
+            </>
+          )}
           <Form.Item name="source" label="来源" initialValue="offline">
             <Segmented
               onChange={() => {

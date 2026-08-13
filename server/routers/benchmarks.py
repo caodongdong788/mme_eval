@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user_optional
 from ..benchmarks import (
     BenchmarkValidationError,
+    append_uploaded_benchmark,
+    append_uploaded_benchmark_from_feishu_url,
     create_uploaded_benchmark,
     create_uploaded_benchmark_from_feishu_url,
     derive_benchmark_from_yaml,
@@ -220,6 +222,45 @@ def replace_benchmark(
         bm.suite_type = suite_type
     except ValueError as exc:
         raise HTTPException(status_code=422, detail="评测集类型必须是 capability 或 regression") from exc
+    return bm
+
+
+@router.post("/{benchmark_id}/append", response_model=BenchmarkOut)
+def append_benchmark(
+    benchmark_id: int,
+    file: UploadFile | None = File(None),
+    source: str = Form("offline"),
+    source_url: str = Form(""),
+    session: Session = Depends(get_session),
+    current_user: Optional[FeishuUser] = Depends(get_current_user_optional),
+) -> Benchmark:
+    bm = bm_svc.get_benchmark_or_404(session, benchmark_id)
+    if bm.source == "builtin":
+        raise HTTPException(status_code=400, detail="内置 benchmark 不可追加")
+    try:
+        if source == "online" and source_url.strip():
+            if current_user is None or not current_user.access_token:
+                raise HTTPException(status_code=401, detail="请先登录飞书后导入飞书 URL")
+            append_uploaded_benchmark_from_feishu_url(
+                session,
+                bm,
+                source_url=source_url,
+                access_token=current_user.access_token,
+            )
+        else:
+            if source == "online":
+                raise HTTPException(status_code=422, detail="线上 benchmark 请通过飞书 URL 追加")
+            if file is None:
+                raise HTTPException(status_code=422, detail="请选择用例文件或填写飞书 URL")
+            content = bm_svc.read_upload_capped(file)
+            append_uploaded_benchmark(
+                session,
+                bm,
+                content=content,
+                filename=file.filename or "cases.yaml",
+            )
+    except BenchmarkValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return bm
 
 

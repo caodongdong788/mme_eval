@@ -20,6 +20,7 @@ export function useBenchmarksPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [replaceId, setReplaceId] = useState<number | null>(null);
+  const [appendId, setAppendId] = useState<number | null>(null);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [form] = Form.useForm();
   const sourceMode = Form.useWatch("source", form) ?? "offline";
@@ -63,6 +64,7 @@ export function useBenchmarksPage() {
 
   const openCreate = () => {
     setReplaceId(null);
+    setAppendId(null);
     setFileList([]);
     form.resetFields();
     form.setFieldsValue({ source: "offline", default_evaluation_mode: "single_turn", suite_type: "capability" });
@@ -71,6 +73,7 @@ export function useBenchmarksPage() {
 
   const openReplace = (b: Benchmark) => {
     setReplaceId(b.id);
+    setAppendId(null);
     setFileList([]);
     form.resetFields();
     form.setFieldsValue({
@@ -78,6 +81,15 @@ export function useBenchmarksPage() {
       default_evaluation_mode: b.default_evaluation_mode || "single_turn",
       suite_type: b.suite_type || "capability",
     });
+    setModalOpen(true);
+  };
+
+  const openAppend = (b: Benchmark) => {
+    setReplaceId(null);
+    setAppendId(b.id);
+    setFileList([]);
+    form.resetFields();
+    form.setFieldsValue({ source: "offline" });
     setModalOpen(true);
   };
 
@@ -100,10 +112,15 @@ export function useBenchmarksPage() {
       // 线上只走飞书 URL，不再上传文件；线下才带 YAML 文件。
       if (source !== "online" && file) fd.append("file", file);
       fd.append("source", source);
-      fd.append("default_evaluation_mode", values.default_evaluation_mode || "single_turn");
-      fd.append("suite_type", values.suite_type || "capability");
+      if (appendId == null) {
+        fd.append("default_evaluation_mode", values.default_evaluation_mode || "single_turn");
+        fd.append("suite_type", values.suite_type || "capability");
+      }
       if (sourceUrl) fd.append("source_url", sourceUrl);
-      if (replaceId != null) {
+      if (appendId != null) {
+        await api.appendBenchmark(appendId, fd);
+        message.success("追加成功");
+      } else if (replaceId != null) {
         await api.replaceBenchmark(replaceId, fd);
         message.success("覆盖成功");
       } else {
@@ -269,6 +286,7 @@ export function useBenchmarksPage() {
     modalOpen,
     setModalOpen,
     replaceId,
+    appendId,
     sourceMode,
     fileList,
     setFileList,
@@ -305,6 +323,7 @@ export function useBenchmarksPage() {
     setEditOpen: editModal.setOpen,
     openCreate,
     openReplace,
+    openAppend,
     submit,
     viewCases,
     viewCoverage,
