@@ -529,6 +529,7 @@ class RunSummaryOut(BaseModel):
     status: str
     trigger_type: Literal["manual", "scheduled", "open_api"] = "manual"
     benchmark_id: Optional[int] = None
+    scheduled_evaluation_id: Optional[int] = None
     adapter_type: str
     total: int
     passed: int

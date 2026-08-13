@@ -129,6 +129,7 @@ export interface RunSummary {
   status: string;
   trigger_type: "manual" | "scheduled" | "open_api";
   benchmark_id?: number | null;
+  scheduled_evaluation_id?: number | null;
   adapter_type: string;
   total: number;
   passed: number;
@@ -436,6 +437,11 @@ export interface TrendPoint {
   failure_tag_counter: Record<string, number>;
   stability_distribution: Record<string, number>;
   pass_rate_ci: Record<string, any>;
+  latency_summary?: Record<string, number>;
+  ttft_summary?: Record<string, number>;
+  token_summary?: Record<string, number | string>;
+  reliability?: Record<string, number>;
+  by_case_type?: Record<string, { total: number; passed: number }>;
 }
 
 export interface PairwiseComparability {

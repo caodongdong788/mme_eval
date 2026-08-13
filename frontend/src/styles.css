@@ -2497,6 +2497,50 @@ a.ant-typography-secondary:hover {
 .runs-chart-empty--compact {
   height: 120px;
 }
+
+/* 趋势页：Benchmark 总览与定时回归任务分析共用的页内导航和选择器。 */
+.trends-tabs > .ant-tabs-nav {
+  margin-bottom: 18px;
+}
+.trends-tabs .ant-tabs-tab {
+  padding: 8px 4px 12px;
+  font-weight: 600;
+}
+.trends-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: -2px 0 14px;
+  color: var(--runs-text-secondary);
+  font-size: 13px;
+}
+.trends-toolbar .ant-select {
+  min-width: 240px;
+}
+.trends-empty {
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  background: var(--runs-card);
+  border-radius: 12px;
+  box-shadow: var(--runs-shadow);
+}
+.trends-sections {
+  min-width: 0;
+}
+.trends-duo-charts {
+  margin-bottom: 14px;
+}
+@media (max-width: 640px) {
+  .trends-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .trends-toolbar .ant-select {
+    width: 100% !important;
+  }
+}
 .run-overview-page .ant-statistic-title {
   color: var(--runs-text-muted) !important;
   font-size: 12px !important;

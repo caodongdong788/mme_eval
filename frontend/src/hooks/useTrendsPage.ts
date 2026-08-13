@@ -43,7 +43,7 @@ export function useTrendsPage() {
           name: p.name || p.run_slug,
           通过率: Number(rate.toFixed(1)),
           通过率CI: ciErr,
-          综合分: p.avg_composite != null ? Number((p.avg_composite * 100).toFixed(1)) : null,
+          综合分: p.avg_composite != null ? Number(p.avg_composite.toFixed(2)) : null,
         };
       }),
     [points]

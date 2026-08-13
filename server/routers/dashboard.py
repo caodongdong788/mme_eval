@@ -19,3 +19,12 @@ def trends(
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     return dash_svc.benchmark_trends(session, benchmark_id)
+
+
+@router.get("/regression-trends")
+def regression_trends(
+    scheduled_evaluation_id: int = Query(..., description="定时评测任务 ID"),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """仅按指定定时任务串联历次成功 run，供回归趋势看板使用。"""
+    return dash_svc.scheduled_regression_trends(session, scheduled_evaluation_id)

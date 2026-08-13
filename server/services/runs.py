@@ -136,6 +136,7 @@ def prepare_create_run(
     *,
     created_by: Optional[str] = None,
     trigger_type: str = "manual",
+    scheduled_evaluation_id: int | None = None,
 ) -> CreateRunPlan:
     bm = session.get(Benchmark, payload.benchmark_id)
     if bm is None:
@@ -211,6 +212,7 @@ def prepare_create_run(
         status="pending",
         trigger_type=trigger_type if trigger_type in {"manual", "scheduled", "open_api"} else "manual",
         benchmark_id=bm.id,
+        scheduled_evaluation_id=scheduled_evaluation_id if trigger_type == "scheduled" else None,
         judge_overrides=judge_public,
         adapter_overrides=adapter_public,
         n_runs=payload.repeat or 1,

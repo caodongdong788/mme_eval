@@ -50,6 +50,7 @@ def init_db(settings: Settings | None = None) -> None:
     _migrate_legacy_open_api_key(engine)
     _migrate_case_list_display_columns(engine)
     _migrate_eval_run_trigger_type(engine)
+    _migrate_eval_run_scheduled_evaluation_id(engine)
 
 
 def _migrate_eval_run_trigger_type(engine) -> None:
@@ -67,6 +68,44 @@ def _migrate_eval_run_trigger_type(engine) -> None:
         connection.execute(
             text("UPDATE eval_run SET trigger_type = 'manual' WHERE trigger_type IS NULL")
         )
+
+
+def _migrate_eval_run_scheduled_evaluation_id(engine) -> None:
+    """给定时评测 run 补上来源任务，并按旧任务名称安全回填历史关联。"""
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+    if not {"eval_run", "scheduled_evaluation"}.issubset(tables):
+        return
+    columns = {column["name"] for column in inspector.get_columns("eval_run")}
+    if "scheduled_evaluation_id" not in columns:
+        with engine.begin() as connection:
+            connection.exec_driver_sql(
+                "ALTER TABLE eval_run ADD COLUMN scheduled_evaluation_id INTEGER"
+            )
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "CREATE INDEX IF NOT EXISTS ix_eval_run_scheduled_evaluation_id "
+            "ON eval_run (scheduled_evaluation_id)"
+        )
+
+    # 早期定时 run 没有外键，但名称固定为“任务名 · [版本] · 定时 时间”。只回填
+    # 满足该精确前缀的记录，避免把人工同名评测误归入某个定时任务。
+    from .models_db import EvalRun, ScheduledEvaluation
+
+    maker = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
+    with maker.begin() as session:
+        tasks = list(session.scalars(select(ScheduledEvaluation)))
+        for task in tasks:
+            escaped_name = task.name.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            session.execute(
+                update(EvalRun)
+                .where(
+                    EvalRun.trigger_type == "scheduled",
+                    EvalRun.scheduled_evaluation_id.is_(None),
+                    EvalRun.name.like(f"{escaped_name} · %", escape="\\"),
+                )
+                .values(scheduled_evaluation_id=task.id)
+            )
 
 
 def _migrate_legacy_open_api_key(engine) -> None:

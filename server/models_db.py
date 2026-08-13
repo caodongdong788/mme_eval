@@ -113,6 +113,10 @@ class EvalRun(Base):
         ForeignKey("benchmark.id"), nullable=True, index=True
     )
     benchmark: Mapped[Optional["Benchmark"]] = relationship(back_populates="runs")
+    # 定时任务触发的 run 记录其来源任务，供回归趋势按任务连续分析。
+    scheduled_evaluation_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("scheduled_evaluation.id"), nullable=True, index=True
+    )
 
     adapter_type: Mapped[str] = mapped_column(String(50), default="")
     # 评测打分模型覆盖（provider/model/base_url/...，不含明文 api_key）

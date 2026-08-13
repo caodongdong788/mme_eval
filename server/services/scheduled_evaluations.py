@@ -223,6 +223,7 @@ async def run_due_scheduled_evaluations_once() -> int:
                     run_payload,
                     created_by=task.created_by or "定时任务",
                     trigger_type="scheduled",
+                    scheduled_evaluation_id=task.id,
                 )
                 task.last_run_at = now
                 task.last_error = ""

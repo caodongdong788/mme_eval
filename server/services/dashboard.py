@@ -4,10 +4,36 @@ from __future__ import annotations
 
 from typing import Any
 
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models_db import EvalRun
+from ..models_db import EvalRun, ScheduledEvaluation
+
+
+def _trend_point(run: EvalRun) -> dict[str, Any]:
+    """将一次成功评测转换为可直接用于趋势图的完整观测点。"""
+    grading = run.grading or {}
+    return {
+        "run_id": run.id,
+        "run_slug": run.run_slug,
+        "name": run.name,
+        "finished_at": run.finished_at.isoformat() if run.finished_at else None,
+        "pass_rate": run.pass_rate,
+        "total": run.total,
+        "passed": run.passed,
+        "medical_safety_failed": run.medical_safety_failed,
+        "avg_composite": grading.get("avg_composite"),
+        "avg_dimension": grading.get("avg_dimension", {}),
+        "failure_tag_counter": run.failure_tag_counter or {},
+        "stability_distribution": run.stability_distribution or {},
+        "pass_rate_ci": run.pass_rate_ci or {},
+        "latency_summary": run.latency_summary or {},
+        "ttft_summary": run.ttft_summary or {},
+        "token_summary": run.token_summary or {},
+        "reliability": grading.get("reliability", {}),
+        "by_case_type": run.by_case_type or {},
+    }
 
 
 def benchmark_trends(session: Session, benchmark_id: int) -> dict[str, Any]:
@@ -18,24 +44,32 @@ def benchmark_trends(session: Session, benchmark_id: int) -> dict[str, Any]:
             .order_by(EvalRun.id.asc())
         ).scalars().all()
     )
-    points = []
-    for r in runs:
-        grading = r.grading or {}
-        points.append(
-            {
-                "run_id": r.id,
-                "run_slug": r.run_slug,
-                "name": r.name,
-                "finished_at": r.finished_at.isoformat() if r.finished_at else None,
-                "pass_rate": r.pass_rate,
-                "total": r.total,
-                "passed": r.passed,
-                "medical_safety_failed": r.medical_safety_failed,
-                "avg_composite": grading.get("avg_composite"),
-                "avg_dimension": grading.get("avg_dimension", {}),
-                "failure_tag_counter": r.failure_tag_counter or {},
-                "stability_distribution": r.stability_distribution or {},
-                "pass_rate_ci": r.pass_rate_ci or {},
-            }
-        )
-    return {"benchmark_id": benchmark_id, "points": points}
+    return {"benchmark_id": benchmark_id, "points": [_trend_point(run) for run in runs]}
+
+
+def scheduled_regression_trends(
+    session: Session, scheduled_evaluation_id: int
+) -> dict[str, Any]:
+    """返回一条定时任务的逐次回归观测点；不混入其它任务或人工 run。"""
+    task = session.get(ScheduledEvaluation, scheduled_evaluation_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail=f"定时任务 {scheduled_evaluation_id} 不存在")
+    runs = list(
+        session.execute(
+            select(EvalRun)
+            .where(
+                EvalRun.scheduled_evaluation_id == task.id,
+                EvalRun.trigger_type == "scheduled",
+                EvalRun.status == "success",
+            )
+            .order_by(EvalRun.id.asc())
+        ).scalars().all()
+    )
+    return {
+        "scheduled_evaluation": {
+            "id": task.id,
+            "name": task.name,
+            "benchmark_id": task.benchmark_id,
+        },
+        "points": [_trend_point(run) for run in runs],
+    }
