@@ -84,7 +84,7 @@ export function RunDashboardHeader({
           icon={<RedoOutlined />}
           loading={acting}
           disabled={run.status === "running" || run.status === "pending"}
-          title="复用成功留痕，仅对失败/缺失用例重跑"
+          title="在当前评测记录中复用已完成留痕，仅重跑失败或缺失用例"
           onClick={onResume}
         >
           续跑

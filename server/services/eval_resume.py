@@ -23,7 +23,7 @@ from .eval_artifacts import (
 )
 from .eval_stack import build_eval_adapter, build_judge_stack, prepare_run_config
 from .eval_source import load_source_run, resume_cases_and_traces
-from .runs import create_derived_run, get_run_or_404, source_out_dir
+from .runs import get_run_or_404, source_out_dir
 
 if TYPE_CHECKING:
     from ..jobs import JobRunner
@@ -55,19 +55,27 @@ async def launch_resume_run(
     session: Session,
     source_run_id: int,
     *,
-    created_by: str | None = None,
     job_runner: "JobRunner",
     build_resume_job,
 ) -> EvalRun:
-    """校验源 run → 派生 pending run → 提交续跑 job。"""
+    """在原评测记录上恢复中断任务，不新建一条续跑记录。"""
     source = get_run_or_404(session, source_run_id)
     validate_resume_preconditions(source)
-    derived = create_derived_run(
-        session, source, suffix="续跑", created_by=created_by
+    # 仅重置任务态；已增量落库的 Case 明细、原始创建人和运行名称均应保留。
+    source.status = "pending"
+    source.error_msg = ""
+    source.finished_at = None
+    source.progress = {}
+    # submit 后的异步 job 可能立刻读取该记录，先提交状态，避免读到旧 failed 状态。
+    session.commit()
+    job = build_resume_job(
+        source.id,
+        source_run_id=source.id,
+        run_name=source.name,
+        in_place=True,
     )
-    job = build_resume_job(derived.id, source_run_id=source.id, run_name=derived.name)
-    await job_runner.submit(derived.id, job)
-    return derived
+    await job_runner.submit(source.id, job)
+    return source
 
 
 def build_resume_job(
@@ -75,6 +83,7 @@ def build_resume_job(
     *,
     source_run_id: int,
     run_name: str | None = None,
+    in_place: bool = False,
     settings: Settings | None = None,
 ) -> Callable[[InMemoryProgress], Awaitable[None]]:
     settings = settings or get_settings()
@@ -99,10 +108,11 @@ def build_resume_job(
         adapter = build_eval_adapter(config)
         judges = build_judge_stack(config)
 
-        new_slug = make_run_slug(config.run.name)
-        out_dir = settings.outputs_dir / new_slug
+        new_slug = src_slug if in_place else make_run_slug(config.run.name)
+        out_dir = src_dir if in_place else settings.outputs_dir / new_slug
         write_run_plan(out_dir, cases, n_runs)
-        copy_case_image_snapshot(src_dir, out_dir)
+        if out_dir != src_dir:
+            copy_case_image_snapshot(src_dir, out_dir)
         progress.set_case_complete_callback(
             IncrementalRunPersister(
                 run_id,
@@ -129,7 +139,11 @@ def build_resume_job(
 
         prev = resolve_diff_target("auto", settings.outputs_dir, out_dir)
         ej._persist_outcome(
-            run_id, report, out_dir, prev_json=prev, parent_run_id=source_run_id
+            run_id,
+            report,
+            out_dir,
+            prev_json=prev,
+            parent_run_id=None if in_place else source_run_id,
         )
         apply_retention(config, settings)
 

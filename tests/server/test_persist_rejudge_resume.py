@@ -338,7 +338,7 @@ def test_retry_case_endpoint_submits_current_run(client, settings, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# 5. 端点：rejudge/resume 建新 run、pin 落哨兵、缺留痕 400
+# 5. 端点：rejudge 建新 run、resume 原地恢复、pin 落哨兵、缺留痕 400
 
 
 def test_rejudge_endpoint_creates_pending_run(client, settings, monkeypatch):
@@ -365,19 +365,27 @@ def test_rejudge_endpoint_rejects_when_traces_pruned(client, settings):
     assert resp.status_code == 400
 
 
-def test_resume_endpoint_creates_pending_run(client, settings, monkeypatch):
+def test_resume_endpoint_restores_the_same_run(client, settings, monkeypatch):
     src_id = _seed_source_run(settings, with_traces=True, n_runs=1)
 
-    def noop_builder(new_id, **kw):
+    def noop_builder(run_id, **kw):
+        assert run_id == src_id
+        assert kw["source_run_id"] == src_id
+        assert kw["in_place"] is True
+
         async def job(progress):
             return None
+
         return job
 
     monkeypatch.setattr("server.routers.runs.build_resume_job", noop_builder)
 
     resp = client.post(f"/api/runs/{src_id}/resume")
     assert resp.status_code == 201, resp.text
-    assert resp.json()["parent_run_id"] == src_id
+    body = resp.json()
+    assert body["id"] == src_id
+    assert body["parent_run_id"] is None
+    assert body["status"] in {"pending", "running"}
 
 
 def test_pin_endpoint_toggles_sentinel(client, settings):

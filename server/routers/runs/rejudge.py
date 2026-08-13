@@ -7,8 +7,8 @@ from typing import Optional
 from fastapi import Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from ...auth import get_current_user_optional
 from ...benchmarks import BenchmarkValidationError
+from ...auth import get_current_user_optional
 from ...db import get_session
 from ...jobs import get_job_runner
 from ...models_db import EvalRun, FeishuUser
@@ -58,14 +58,12 @@ async def rejudge_run(
 async def resume_run(
     run_id: int,
     session: Session = Depends(get_session),
-    current_user: Optional[FeishuUser] = Depends(get_current_user_optional),
 ) -> EvalRun:
     from . import build_resume_job
 
     return await launch_resume_run(
         session,
         run_id,
-        created_by=current_user.name if current_user else None,
         job_runner=get_job_runner(),
         build_resume_job=build_resume_job,
     )

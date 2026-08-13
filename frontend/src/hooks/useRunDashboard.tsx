@@ -130,9 +130,9 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
   const doResume = async () => {
     setActing(true);
     try {
-      const created = await api.resumeRun(runId);
-      message.success(`续跑已发起（新评测 #${created.id}），跳转中…`);
-      navigate(`/runs/${created.id}`);
+      await api.resumeRun(runId);
+      setRun(await api.getRun(runId));
+      message.success("已在当前评测记录中继续运行");
     } catch (e: unknown) {
       message.error(formatApiError(e, "操作失败"));
     } finally {

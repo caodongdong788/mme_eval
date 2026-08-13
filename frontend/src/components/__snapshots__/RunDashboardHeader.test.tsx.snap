@@ -81,7 +81,7 @@ exports[`RunDashboardHeader > matches snapshot 1`] = `
     >
       <button
         class="ant-btn css-dev-only-do-not-override-mncuj7 ant-btn-default ant-btn-color-default ant-btn-variant-outlined"
-        title="复用成功留痕，仅对失败/缺失用例重跑"
+        title="在当前评测记录中复用已完成留痕，仅重跑失败或缺失用例"
         type="button"
       >
         <span
