@@ -181,7 +181,21 @@ curl -H "X-MME-API-Key: <key>" \
 
 ### 生产部署
 
-生产机使用 `scripts/deploy_release.sh` 部署：它会拉取当前分支、复用 Docker 依赖层缓存、仅重建 `app` 容器并等待健康检查，数据库与数据卷不会被重建。
+向 GitLab 的默认分支推送后会自动触发生产部署。Pipeline 通过 SSH 在生产机执行 `scripts/deploy_release.sh`：它会拉取当前分支、复用 Docker 依赖层缓存、仅重建 `app` 容器并等待健康检查，数据库与数据卷不会被重建。
+
+首次启用前，在 GitLab 项目的 **Settings → CI/CD → Variables** 中配置以下受保护变量（生产分支也应设为 Protected）：
+
+| 变量 | 说明 |
+| --- | --- |
+| `DEPLOY_HOST` | MME 生产机的主机名或 IP |
+| `DEPLOY_USER` | 登录用户，例如 `root` |
+| `DEPLOY_PATH` | 项目目录，例如 `/opt/mme_eval` |
+| `SSH_PRIVATE_KEY` | 有权登录生产机的私钥，设为 Masked + Protected |
+| `SSH_KNOWN_HOSTS` | 生产机的 SSH host key（可用 `ssh-keyscan -H <host>` 获取） |
+
+部署任务使用 `mme-production` 资源锁，多个推送会按顺序发布。只有在上述变量配置完成后，Pipeline 才会执行部署。
+
+如需在生产机手动发布，仍可执行：
 
 ```bash
 cd /opt/mme_eval
