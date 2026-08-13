@@ -190,8 +190,8 @@ curl -H "X-MME-API-Key: <key>" \
 | `DEPLOY_HOST` | MME 生产机的主机名或 IP |
 | `DEPLOY_USER` | 登录用户，例如 `root` |
 | `DEPLOY_PATH` | 项目目录，例如 `/opt/mme_eval` |
-| `SSH_PRIVATE_KEY` | 有权登录生产机的私钥，设为 Masked + Protected |
-| `SSH_KNOWN_HOSTS` | 生产机的 SSH host key（可用 `ssh-keyscan -H <host>` 获取） |
+| `SSH_PRIVATE_KEY_FILE` | 有权登录生产机的私钥，创建为 **File** 类型并设为 Protected |
+| `SSH_KNOWN_HOSTS_FILE` | 生产机的 SSH host key（可用 `ssh-keyscan -H <host>` 获取），创建为 **File** 类型 |
 
 部署任务使用 `mme-production` 资源锁，多个推送会按顺序发布。只有在上述变量配置完成后，Pipeline 才会执行部署。
 
