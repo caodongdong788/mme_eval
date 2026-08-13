@@ -38,11 +38,18 @@ describe("attributionDisplay", () => {
       .toBe("指南扣分项 02（医学安全性）/指南扣分项 03（专业准确性与边界）判据与专业准确性与边界冲突，判分模型需复核");
     expect(humanizeAttributionText("initial_state.user_profile由system message提供，generator需要复核guideline.g05", analyses))
       .toBe("用户预置档案由系统上下文消息提供，回答生成环节需要复核指南扣分项 05");
+    expect(humanizeAttributionText("rag:1:source:2:chunk:1与message:2是证据", analyses))
+      .toBe("第 1 次 RAG 检索 · 文献 2 · 片段 1与对话消息 2是证据");
   });
 
   it("turns RAG diagnostic enums into user-facing language", () => {
     expect(queryQualityDisplayName("good")).toBe("查询准确");
     expect(informationStageDisplayName("selected")).toBe("最终选中文献");
     expect(answerUsageDisplayName("used")).toBe("已正确使用");
+  });
+
+  it("uses the business-facing prompt optimization label", () => {
+    expect(humanizeAttributionText("AI 助手提示词与agent_prompt均需调整"))
+      .toBe("提示词优化与提示词优化均需调整");
   });
 });

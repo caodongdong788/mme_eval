@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { screen } from "@testing-library/react";
 import { RunDetail } from "../api/index";
 import { RunDashboardHeader } from "./RunDashboardHeader";
 import { renderWithProviders } from "../test/renderWithProviders";
@@ -38,5 +39,28 @@ describe("RunDashboardHeader", () => {
       />
     );
     expect(container.firstChild).toMatchSnapshot();
+  });
+
+  it("hides run actions outside the overview tab", () => {
+    renderWithProviders(
+      <RunDashboardHeader
+        run={baseRun}
+        showActions={false}
+        editingName={false}
+        nameDraft=""
+        savingName={false}
+        acting={false}
+        onNameDraftChange={vi.fn()}
+        onStartEditName={vi.fn()}
+        onCommitName={vi.fn()}
+        onRejudge={vi.fn()}
+        onResume={vi.fn()}
+        onTogglePin={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "重判" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "续跑" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "置顶" })).not.toBeInTheDocument();
   });
 });

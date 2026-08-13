@@ -11,6 +11,7 @@ import { RunStatusTag } from "./RunStatusTag";
 
 export interface RunDashboardHeaderProps {
   run: RunDetail;
+  showActions?: boolean;
   editingName: boolean;
   nameDraft: string;
   savingName: boolean;
@@ -25,6 +26,7 @@ export interface RunDashboardHeaderProps {
 
 export function RunDashboardHeader({
   run,
+  showActions = true,
   editingName,
   nameDraft,
   savingName,
@@ -68,7 +70,7 @@ export function RunDashboardHeader({
           </span>
         </div>
       </div>
-      <Space>
+      {showActions ? <Space>
         <Button
           icon={<ReloadOutlined />}
           loading={acting}
@@ -96,7 +98,7 @@ export function RunDashboardHeader({
         >
           {run.pinned ? "已置顶" : "置顶"}
         </Button>
-      </Space>
+      </Space> : null}
     </div>
   );
 }

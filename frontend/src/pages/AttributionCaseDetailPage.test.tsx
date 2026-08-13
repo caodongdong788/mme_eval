@@ -10,7 +10,6 @@ vi.mock("../api", () => ({
   api: {
     getAttributionTask: vi.fn(),
     getAttributionTaskResult: vi.fn(),
-    getCaseDetail: vi.fn(),
     getJudgeVerdictLabels: vi.fn(),
   },
 }));
@@ -68,7 +67,15 @@ const result: CaseAttribution = {
       summary: "召回正常，生成未引用。",
     },
     deduction_analyses: [],
-    global_recommendations: [],
+    global_recommendations: [
+      { priority: "P0", target: "AI 助手提示词", action: "增加医学风险检查指令。", verification: "用风险用例回归。" },
+      { priority: "P1", target: "agent_prompt", action: "增加回答前事实核对指令。", verification: "用事实性问题回归。" },
+      { priority: "P1", target: "RAG 召回", action: "优化检索问题生成。", verification: "检查相关文献召回率。" },
+      { priority: "P0", target: "判分模型提示词", action: "明确遗漏类扣分的适用规则。", verification: "用遗漏类用例回归。" },
+      { priority: "P0", target: "判分模型", action: "将用户预置画像注入判分模型输入。", verification: "用含画像的用例回归。" },
+      { priority: "P0", target: "判分模型", action: "扣分前全文检索关键词并引用原文证据。", verification: "抽样核对原文命中率。" },
+      { priority: "P1", target: "判分模型", action: "扣分理由与评测判据逐条对齐，避免自相矛盾。", verification: "抽样检查判分一致性。" },
+    ],
     limitations: [],
   },
 };
@@ -84,19 +91,6 @@ describe("AttributionCaseDetailPage", () => {
     mockedApi.getJudgeVerdictLabels.mockResolvedValue({});
     mockedApi.getAttributionTask.mockResolvedValue(task);
     mockedApi.getAttributionTaskResult.mockResolvedValue(result);
-    mockedApi.getCaseDetail.mockResolvedValue({
-      medical_safety_passed: false,
-      verdicts: [{
-        name: "dimension.medical_safety",
-        score: 5,
-        max_score: 5,
-        reason: "无危险建议，正确建议线下复诊。",
-      }],
-      guideline_scores: [
-        { id: "g02_medical_safety", dimension: "medical_safety", score: 0, max_score: 5, deduction: 5 },
-        { id: "g04_medical_safety", dimension: "medical_safety", score: 0, max_score: 5, deduction: 5 },
-      ],
-    });
   });
 
   it("opens as a separate result page and returns to the selected attribution task", async () => {
@@ -110,10 +104,20 @@ describe("AttributionCaseDetailPage", () => {
     );
 
     expect(await screen.findByText("case_23 · 归因结果")).toBeInTheDocument();
-    expect(screen.getByText("RAG 已命中相关风险信息，但最终回答没有采用。")).toBeInTheDocument();
-    expect(screen.getByText("医学安全性专项分析")).toBeInTheDocument();
-    expect(screen.getByText("安全门禁失败")).toBeInTheDocument();
-    expect(screen.getByText(/2 条医学安全指南触发了安全门禁/)).toBeInTheDocument();
+    expect(screen.queryByText("医学知识检索（RAG）")).not.toBeInTheDocument();
+    expect(screen.queryByText("医学安全性专项分析")).not.toBeInTheDocument();
+    expect(screen.getByText("cx-agent问题归因")).toBeInTheDocument();
+    expect(screen.getByText("优化建议")).toBeInTheDocument();
+    expect(screen.getByText("提示词优化")).toBeInTheDocument();
+    expect(screen.getByText("RAG 优化")).toBeInTheDocument();
+    expect(screen.getByText("判分提示词优化")).toBeInTheDocument();
+    expect(screen.getByText("判分上下文优化")).toBeInTheDocument();
+    expect(screen.getByText("判分证据核验")).toBeInTheDocument();
+    expect(screen.getByText("判分一致性优化")).toBeInTheDocument();
+    expect(screen.queryByText("AI 助手优化建议")).not.toBeInTheDocument();
+    expect(screen.queryByText("AI 助手提示词")).not.toBeInTheDocument();
+    expect(screen.getByText("需要复核的判分")).toBeInTheDocument();
+    expect(screen.getByText("证据不足，暂不归责")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("link", { name: "← 返回归因任务" }));
     expect(await screen.findByTestId("return-state")).toHaveTextContent('"tab":"attribution"');
     expect(screen.getByTestId("return-state")).toHaveTextContent('"attributionTaskId":28');

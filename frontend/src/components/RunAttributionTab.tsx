@@ -1,7 +1,6 @@
 import {
   Alert,
   Button,
-  Card,
   Collapse,
   Descriptions,
   Empty,
@@ -24,7 +23,6 @@ import {
   EyeOutlined,
   LinkOutlined,
   RedoOutlined,
-  SafetyCertificateOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -52,16 +50,9 @@ import { formatApiDateTime } from "../utils/datetime";
 import { DashPanel } from "./DashPanel";
 
 const OWNER_LABELS: Record<string, string> = {
-  benchmark: "评测判据", judge: "判分模型", agent_prompt: "AI 助手提示词", orchestration: "对话流程编排",
+  benchmark: "评测判据", judge: "判分模型", agent_prompt: "提示词优化", orchestration: "对话流程编排",
   context_tool: "用户上下文工具", rag_corpus: "RAG 知识库", retriever: "RAG 召回",
   threshold: "RAG 阈值", reranker: "RAG 重排", generator: "回答生成", safety_policy: "安全策略", unknown: "待确认",
-};
-const RAG_LABELS: Record<string, string> = {
-  not_needed: "无需 RAG", not_called: "应调用但未调用", failed: "调用失败", query_error: "查询词有误",
-  corpus_gap: "知识库缺失", recall_error: "召回不足", threshold_error: "阈值过滤错误",
-  candidate_or_rerank_error: "候选或重排错误", rerank_error: "重排选择错误",
-  selected_not_used: "选中但未使用", selected_misinterpreted: "选中但理解错误",
-  citation_mismatch: "引用与来源不一致", healthy: "RAG 链路正常", unknown: "证据不足",
 };
 const STAGE_LABELS: Record<string, string> = {
   judge_validation: "扣分校验", context_fetch: "上下文读取", rag_decision: "RAG 调用决策",
@@ -96,129 +87,218 @@ function confidencePercent(value?: number) {
   return Math.round(Math.max(0, Math.min(1, Number(value || 0))) * 100);
 }
 
-function RecommendationList({ items }: { items: AttributionRecommendation[] }) {
-  if (!items?.length) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无优化建议" />;
-  return <List className="attribution-recommendations" dataSource={items} renderItem={(item) => (
-    <List.Item><div><Space size={8} wrap><Tag color={item.priority === "P0" ? "red" : item.priority === "P1" ? "orange" : "blue"}>{priorityDisplayName(item.priority)}</Tag><strong>{humanizeAttributionText(item.target)}</strong></Space>
-      <div className="attribution-recommendations__action">{humanizeAttributionText(item.action)}</div>
-      {item.expected_effect ? <div className="attribution-muted">预期效果：{humanizeAttributionText(item.expected_effect)}</div> : null}
-      <div className="attribution-muted">如何验证：{humanizeAttributionText(item.verification)}</div>
-    </div></List.Item>
-  )} />;
+const RECOMMENDATION_DIRECTIONS = [
+  { key: "prompt", label: "提示词优化", pattern: /提示词|prompt|agent_prompt/i },
+  { key: "rag", label: "RAG 优化", pattern: /\brag\b|知识库|文献|检索|召回|重排|阈值/i },
+  { key: "flow", label: "对话流程优化", pattern: /对话流程|流程编排|追问|orchestration/i },
+  { key: "response", label: "回答策略优化", pattern: /回答策略|回答生成|生成模型|表达|\bagent\b|AI\s*助手/i },
+  { key: "context", label: "上下文使用优化", pattern: /用户档案|用户上下文|上下文工具|context/i },
+  { key: "safety", label: "安全策略优化", pattern: /安全策略|安全门禁|safety/i },
+  { key: "benchmark", label: "评测判据优化", pattern: /benchmark|评测判据|评分标准|判据/i },
+  { key: "judge_prompt", label: "判分提示词优化", pattern: /判分提示词|评测提示词|judge[ _-]?prompt/i },
+  { key: "judge_context", label: "判分上下文优化", pattern: /判分上下文|评测上下文/i },
+  { key: "judge_evidence", label: "判分证据核验", pattern: /判分证据|证据核验/i },
+  { key: "judge_consistency", label: "判分一致性优化", pattern: /判分一致性|评分一致性/i },
+  { key: "judge", label: "判分模型优化", pattern: /judge|判分模型|判分逻辑|评测模型/i },
+  { key: "evidence", label: "证据采集优化", pattern: /证据采集|调用链|链路|审计|可观测|trace|observability/i },
+] as const;
+
+function recommendationDirection(item: AttributionRecommendation) {
+  const target = item.target || "";
+  const action = item.action || "";
+  const judgeTarget = /judge|判分模型|判分逻辑|评测模型|判分提示词|评测提示词/i.test(target);
+  if (judgeTarget) {
+    if (/判分提示词|评测提示词|judge[ _-]?prompt/i.test(target)) return RECOMMENDATION_DIRECTIONS.find((item) => item.key === "judge_prompt");
+    if (/注入|可见上下文|上下文输入/i.test(action)) return RECOMMENDATION_DIRECTIONS.find((item) => item.key === "judge_context");
+    if (/全文检索|关键词|证据|核对|引用|命中|原文/i.test(action)) return RECOMMENDATION_DIRECTIONS.find((item) => item.key === "judge_evidence");
+    if (/逐条对齐|一致性|自相矛盾|判据鼓励|评分标准/i.test(action)) return RECOMMENDATION_DIRECTIONS.find((item) => item.key === "judge_consistency");
+    if (/提示词|指令|规则|必须|强制|不得/i.test(action)) return RECOMMENDATION_DIRECTIONS.find((item) => item.key === "judge_prompt");
+    return RECOMMENDATION_DIRECTIONS.find((item) => item.key === "judge");
+  }
+  return RECOMMENDATION_DIRECTIONS.find((candidate) => candidate.pattern.test(target))
+    || RECOMMENDATION_DIRECTIONS.find((candidate) => candidate.pattern.test(action));
 }
 
-function DeductionPanel({ item, analyses }: { item: AttributionDeductionAnalysis; analyses: AttributionDeductionAnalysis[] }) {
+function groupedRecommendations(items: AttributionRecommendation[]) {
+  const groups = new Map<string, { key: string; label: string; items: AttributionRecommendation[] }>();
+  items.forEach((item) => {
+    const direction = recommendationDirection(item);
+    const key = direction?.key || "other";
+    const group = groups.get(key) || { key, label: direction?.label || "其他优化", items: [] };
+    group.items.push(item);
+    groups.set(key, group);
+  });
+  return [...groups.values()].sort((left, right) => {
+    const leftIndex = RECOMMENDATION_DIRECTIONS.findIndex((item) => item.key === left.key);
+    const rightIndex = RECOMMENDATION_DIRECTIONS.findIndex((item) => item.key === right.key);
+    return (leftIndex < 0 ? Number.MAX_SAFE_INTEGER : leftIndex) - (rightIndex < 0 ? Number.MAX_SAFE_INTEGER : rightIndex);
+  });
+}
+
+function RecommendationList({ items }: { items: AttributionRecommendation[] }) {
+  if (!items?.length) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无优化建议" />;
+  return <div className="attribution-recommendation-groups">
+    {groupedRecommendations(items).map((group) => <section className="attribution-recommendation-group" key={group.key}>
+      <div className="attribution-recommendation-group__title"><strong>{group.label}</strong><Tag>{group.items.length} 项</Tag></div>
+      <List className="attribution-recommendations" dataSource={group.items} renderItem={(item) => (
+        <List.Item><div><Tag color={item.priority === "P0" ? "red" : item.priority === "P1" ? "orange" : "blue"}>{priorityDisplayName(item.priority)}</Tag>
+          <div className="attribution-recommendations__action">{humanizeAttributionText(item.action)}</div>
+          {item.expected_effect ? <div className="attribution-muted">预期效果：{humanizeAttributionText(item.expected_effect)}</div> : null}
+          <div className="attribution-muted">如何验证：{humanizeAttributionText(item.verification)}</div>
+        </div></List.Item>
+      )} />
+    </section>)}
+  </div>;
+}
+
+type AttributionModuleKind = "supported" | "questionable" | "insufficient";
+
+const REQUIRED_INFORMATION_LABELS: Record<string, string> = {
+  patient_context: "用户档案与历史事实",
+  literature: "医学文献与指南",
+  reasoning: "回答判断依据",
+  clarification: "追问过程",
+  safety_policy: "安全策略执行记录",
+};
+
+function DeductionPanel({ item, analyses, kind }: { item: AttributionDeductionAnalysis; analyses: AttributionDeductionAnalysis[]; kind: AttributionModuleKind }) {
   const validation = VALIDATION_LABELS[item.deduction_validation] || VALIDATION_LABELS.insufficient_evidence;
   const cause = item.primary_cause || { label: "待确认", owner: "unknown", confidence: 0 };
+  const findingTitle = kind === "supported" ? "确认的问题" : kind === "questionable" ? "为什么需要复核" : "目前能得出的结论";
+  const chainTitle = kind === "supported" ? "问题是怎么产生的" : kind === "questionable" ? "判分复核依据" : "现有证据检查";
   return <div className="attribution-deduction">
-    <div className="attribution-deduction__summary"><Space size={8} wrap><Tag color={validation.color}>{validation.label}</Tag><Tag color="purple">{humanizeAttributionText(cause.label || "原因待确认", analyses)}</Tag><Tag>责任环节：{OWNER_LABELS[cause.owner] || "待确认"}</Tag></Space>
+    <div className="attribution-deduction__summary">
+      <div className="attribution-section-title">{findingTitle}</div>
+      <Space size={8} wrap><Tag color={validation.color}>{validation.label}</Tag><Tag color="purple">{humanizeAttributionText(cause.label || "原因待确认", analyses)}</Tag><Tag>{kind === "insufficient" ? "暂不归责" : `责任环节：${OWNER_LABELS[cause.owner] || "待确认"}`}</Tag></Space>
       <div className="attribution-deduction__finding">{humanizeAttributionText(item.finding || cause.reason || "暂无结论", analyses)}</div>
       <div className="attribution-confidence"><span>归因置信度</span><Progress percent={confidencePercent(cause.confidence)} size="small" strokeColor="#7357ff" /></div>
     </div>
-    <div className="attribution-section-title">因果链</div>
+    <div className="attribution-section-title">{chainTitle}</div>
     {item.causal_chain?.length ? <Timeline items={item.causal_chain.map((step) => ({
       color: step.status === "fail" ? "red" : step.status === "pass" ? "green" : "gray",
       children: <div><strong>{STAGE_LABELS[step.stage] || "其他分析环节"}</strong><div>{humanizeAttributionText(step.finding, analyses)}</div>{step.evidence_refs?.length ? <div className="attribution-evidence">证据位置：{step.evidence_refs.map((ref) => humanizeEvidenceRef(ref, analyses)).join("、")}</div> : null}</div>,
     }))} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无完整因果链" />}
-    <div className="attribution-section-title">RAG 诊断</div>
+    <div className="attribution-section-title">医学知识检索对本项的影响</div>
     <Descriptions size="small" column={{ xs: 1, md: 2, lg: 4 }}>
       <Descriptions.Item label="是否需要">{item.rag_diagnosis?.needed ? "需要" : "不需要"}</Descriptions.Item><Descriptions.Item label="实际调用">{item.rag_diagnosis?.called ? "已调用" : "未调用"}</Descriptions.Item>
       <Descriptions.Item label="查询质量">{queryQualityDisplayName(item.rag_diagnosis?.query_quality)}</Descriptions.Item><Descriptions.Item label="相关信息到达阶段">{informationStageDisplayName(item.rag_diagnosis?.relevant_information_stage)}</Descriptions.Item>
       <Descriptions.Item label="回答利用情况" span={2}>{answerUsageDisplayName(item.rag_diagnosis?.answer_usage)}</Descriptions.Item><Descriptions.Item label="结论" span={2}>{humanizeAttributionText(item.rag_diagnosis?.finding, analyses)}</Descriptions.Item>
     </Descriptions>
-    <div className="attribution-section-title"><BulbOutlined /> 优化建议</div><RecommendationList items={item.recommendations || []} />
   </div>;
 }
 
-function AttributionSummarySection({
-  title,
-  color,
-  items,
-  empty,
-  analyses,
-}: {
-  title: string;
-  color: string;
-  items: AttributionDeductionAnalysis[];
-  empty: string;
-  analyses: AttributionDeductionAnalysis[];
-}) {
-  return <div className="attribution-summary-section">
-    <div className="attribution-summary-section__title"><Tag color={color}>{title} {items.length}</Tag></div>
-    {items.length ? items.slice(0, 3).map((item) => <div className="attribution-summary-section__item" key={item.deduction_id}>
-      <strong>{attributionDeductionLabel(item)}</strong>
-      <span>{humanizeAttributionText(item.finding || item.primary_cause?.reason, analyses)}</span>
-    </div>) : <div className="attribution-muted">{empty}</div>}
-  </div>;
+function isEvaluationRecommendation(item: AttributionRecommendation) {
+  return /benchmark|judge|评测|判分|判据|评分/i.test(`${item.target} ${item.action}`);
 }
 
-export interface AttributionSafetyContext {
-  gatePassed?: boolean;
-  dimensionScore?: number | null;
-  dimensionMax?: number | null;
-  dimensionReason?: string;
-  guidelineDeductionCount?: number;
+function isEvidenceRecommendation(item: AttributionRecommendation) {
+  return !isEvaluationRecommendation(item)
+    && /证据采集|链路|审计|可观测|trace|observability|candidate_membership|上下文采集/i.test(item.target);
 }
 
-function AttributionSafetyOverview({
-  context,
-  analyses,
-}: {
-  context?: AttributionSafetyContext;
-  analyses: AttributionDeductionAnalysis[];
-}) {
-  const safetyItems = analyses.filter((item) => item.dimension === "medical_safety");
-  const supported = safetyItems.filter((item) => item.deduction_validation === "supported").length;
-  const questionable = safetyItems.filter((item) => item.deduction_validation === "questionable").length;
-  const insufficient = safetyItems.filter((item) => item.deduction_validation === "insufficient_evidence").length;
-  const scoreKnown = typeof context?.dimensionScore === "number" && typeof context?.dimensionMax === "number";
-  const dimensionPassed = scoreKnown && context.dimensionScore === context.dimensionMax;
-  const guidelineCount = context?.guidelineDeductionCount ?? safetyItems.filter((item) => item.deduction_id.startsWith("guideline.")).length;
+function uniqueRecommendations(items: AttributionRecommendation[]) {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = `${item.target}::${item.action}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
-  let explanation = "本次没有医学安全相关扣分，未触发专项归因。";
-  if (context?.gatePassed === false && dimensionPassed && guidelineCount > 0) {
-    explanation = `八维评分中的“医学安全性”为满分，因此没有单独的维度扣分归因；但 ${guidelineCount} 条医学安全指南触发了安全门禁，导致最终医学安全性失败。归因分析已覆盖这些指南扣分。`;
-  } else if (context?.gatePassed === false && safetyItems.length) {
-    explanation = `本次医学安全门禁失败，归因分析已覆盖 ${safetyItems.length} 个医学安全相关扣分项。`;
-  } else if (context?.gatePassed === true) {
-    explanation = "本次医学安全门禁通过；若存在医学安全指南扣分，仍会在下方逐项展示复核结论。";
-  } else if (safetyItems.length) {
-    explanation = `归因分析已覆盖 ${safetyItems.length} 个医学安全相关扣分项。`;
+function fallbackRecommendation(kind: AttributionModuleKind, item: AttributionDeductionAnalysis): AttributionRecommendation {
+  const label = attributionDeductionLabel(item);
+  if (kind === "supported") {
+    return {
+      priority: "P1",
+      target: "AI 助手回答策略",
+      action: `在提示词或对话流程中增加“${label}”输出前检查，避免再次出现：${humanizeAttributionText(item.finding)}`,
+      expected_effect: "减少同类真实问题再次发生",
+      verification: `使用当前用例及同类边界用例回归，确认“${label}”不再被扣分。`,
+    };
   }
-
-  const reviewLabel = [
-    supported ? `${supported} 项成立` : "",
-    questionable ? `${questionable} 项存疑` : "",
-    insufficient ? `${insufficient} 项证据不足` : "",
-  ].filter(Boolean).join("，") || "无医学安全扣分项";
-
-  return <Card
-    bordered={false}
-    className={`attribution-safety-card ${context?.gatePassed === false ? "attribution-safety-card--failed" : ""}`}
-    title={<Space><SafetyCertificateOutlined /><span>医学安全性专项分析</span></Space>}
-    extra={context?.gatePassed === false ? <Tag color="red">安全门禁失败</Tag> : context?.gatePassed === true ? <Tag color="green">安全门禁通过</Tag> : null}
-  >
-    <Descriptions size="small" column={{ xs: 1, md: 2, lg: 4 }}>
-      <Descriptions.Item label="最终安全门禁">{context?.gatePassed === false ? "失败" : context?.gatePassed === true ? "通过" : "暂无数据"}</Descriptions.Item>
-      <Descriptions.Item label="八维医学安全性">{scoreKnown ? `${context.dimensionScore}/${context.dimensionMax}${dimensionPassed ? "（满分）" : ""}` : "暂无数据"}</Descriptions.Item>
-      <Descriptions.Item label="安全指南扣分">{guidelineCount ? `${guidelineCount} 项` : "无"}</Descriptions.Item>
-      <Descriptions.Item label="归因复核结论">{reviewLabel}</Descriptions.Item>
-    </Descriptions>
-    <Alert
-      className="attribution-safety-card__explanation"
-      type={context?.gatePassed === false ? "warning" : "info"}
-      showIcon
-      message={explanation}
-      description={context?.dimensionReason ? `八维判分理由：${humanizeAttributionText(context.dimensionReason, analyses)}` : undefined}
-    />
-  </Card>;
+  if (kind === "questionable") {
+    return {
+      priority: "P0",
+      target: "评测判据与判分模型",
+      action: `对照对话原文、用户档案和医学证据，重新核对“${label}”的适用条件、扣分档位和证据引用；判据与权威证据冲突时修订判据，判分模型漏读时修订判分提示词。`,
+      expected_effect: "避免正确回答被误扣，或因证据读取不全产生错误判分",
+      verification: `使用当前用例和同类边界用例重新判分，确认“${label}”结论与引用证据一致。`,
+    };
+  }
+  const required = (item.required_information || []).map((key) => REQUIRED_INFORMATION_LABELS[key] || key).join("、") || "完整调用链和判分依据";
+  return {
+    priority: "P1",
+    target: "归因证据采集",
+    action: `补齐“${label}”需要的${required}，证据齐全前不要将问题归责给 AI 助手或评测系统。`,
+    expected_effect: "让后续归因可以形成可验证结论",
+    verification: "补齐证据后重新归因，确认该项能进入“问题成立”或“判分需复核”。",
+  };
 }
 
-export function AttributionDetail({ result, safetyContext }: { result: CaseAttribution; safetyContext?: AttributionSafetyContext }) {
+function moduleRecommendations(
+  kind: AttributionModuleKind,
+  items: AttributionDeductionAnalysis[],
+  globalItems: AttributionRecommendation[],
+) {
+  const own = items.flatMap((item) => item.recommendations || []);
+  const combined = [...own, ...globalItems];
+  const matched = combined.filter((item) => {
+    if (kind === "supported") return !isEvaluationRecommendation(item) && !isEvidenceRecommendation(item);
+    if (kind === "questionable") return isEvaluationRecommendation(item);
+    return isEvidenceRecommendation(item);
+  });
+  return uniqueRecommendations(matched.length ? matched : items.map((item) => fallbackRecommendation(kind, item)));
+}
+
+function AttributionAnalysisModule({
+  kind,
+  title,
+  description,
+  items,
+  allItems,
+  globalRecommendations,
+  limitations = [],
+}: {
+  kind: AttributionModuleKind;
+  title: string;
+  description: string;
+  items: AttributionDeductionAnalysis[];
+  allItems: AttributionDeductionAnalysis[];
+  globalRecommendations: AttributionRecommendation[];
+  limitations?: string[];
+}) {
+  const color = kind === "supported" ? "red" : kind === "questionable" ? "orange" : "default";
+  const adviceTitle = kind === "supported" ? "优化建议" : kind === "questionable" ? "评测系统优化逻辑" : "需要补充的证据";
+  const adviceDescription = kind === "supported"
+    ? "以下建议只针对已确认的 AI 助手、RAG 或对话流程问题。"
+    : kind === "questionable"
+      ? "以下建议只针对 Benchmark 判据、判分模型和评测证据读取问题。"
+      : "补齐证据后再判断责任归属，避免在证据不足时误改 AI 助手或评测规则。";
+  const recommendations = moduleRecommendations(kind, items, globalRecommendations);
+  return <section className={`attribution-module attribution-module--${kind}`}>
+    <div className="attribution-module__header">
+      <div><Space size={8}><h3>{title}</h3><Tag color={color}>{items.length} 项</Tag></Space><p>{description}</p></div>
+    </div>
+    {items.length ? <Collapse
+      className="attribution-collapse attribution-module__items"
+      items={items.map((item, index) => ({
+        key: item.deduction_id,
+        label: <div className="attribution-module__item-label"><strong>{index + 1}. {attributionDeductionLabel(item)}</strong><span>{humanizeAttributionText(item.finding || item.primary_cause?.label, allItems)}</span></div>,
+        children: <DeductionPanel item={item} analyses={allItems} kind={kind} />,
+      }))}
+    /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={`暂无${title}`} />}
+    {(recommendations.length || limitations.length) ? <div className="attribution-module__advice">
+      <div className="attribution-module__advice-title"><BulbOutlined /><div><strong>{adviceTitle}</strong><span>{adviceDescription}</span></div></div>
+      {recommendations.length ? <RecommendationList items={recommendations} /> : null}
+      {limitations.length ? <Alert type="warning" showIcon message="当前缺失信息" description={limitations.map((item) => humanizeAttributionText(item, allItems)).join("；")} /> : null}
+    </div> : null}
+  </section>;
+}
+
+export function AttributionDetail({ result }: { result: CaseAttribution }) {
   const analysis = result.analysis;
   if (!analysis) return null;
-  const overall = analysis.overall;
-  const rag = analysis.rag_overview;
   const deductions = [...(analysis.deduction_analyses || [])].sort((left, right) => {
     const leftSafety = left.dimension === "medical_safety" ? 0 : 1;
     const rightSafety = right.dimension === "medical_safety" ? 0 : 1;
@@ -230,27 +310,31 @@ export function AttributionDetail({ result, safetyContext }: { result: CaseAttri
   const insufficient = deductions.filter((item) => item.deduction_validation === "insufficient_evidence");
   return <div className="attribution-layout">
     {result.stale ? <Alert type="warning" showIcon message="用例证据已变化，当前结果可能过期" description="请从用例明细重新发起归因任务。" /> : null}
-    <div className="attribution-overview">
-      <Card bordered={false} className="attribution-overview__main"><Space size={8} wrap><Tag color="purple">{overall?.primary_cause_label || "主要原因待确认"}</Tag><Tag>责任环节：{OWNER_LABELS[overall?.owner || "unknown"] || "待确认"}</Tag><Tag color={analysis.analysis_status === "complete" ? "green" : "orange"}>{analysis.analysis_status === "complete" ? "分析完整" : analysis.analysis_status === "partial" ? "部分分析" : "证据不足"}</Tag></Space>
-        <div className="attribution-overview__headline-label">主要结论</div>
-        <div className="attribution-overview__headline">
-          <strong>共分析 {deductions.length} 个扣分项：{supported.length} 个扣分成立，{questionable.length} 个需要复核，{insufficient.length} 个证据不足。</strong>
-          <span>{humanizeAttributionText(overall?.summary || "暂无综合结论", deductions)}</span>
-        </div>
-        <div className="attribution-confidence attribution-confidence--overview"><span>结论可信度</span><Progress percent={confidencePercent(overall?.confidence)} strokeColor="#7357ff" /></div>
-      </Card>
-      <Card bordered={false} title="医学知识检索（RAG）" className="attribution-overview__rag"><Space size={8} wrap><Tag color={rag?.enabled ? "blue" : "default"}>{rag?.enabled ? "已配置 RAG" : "未配置 RAG"}</Tag><Tag color={rag?.actually_called ? "green" : "default"}>{rag?.actually_called ? `实际调用 ${rag.call_count || 0} 次` : "本次未调用"}</Tag><Tag color={rag?.diagnosis === "healthy" ? "green" : rag?.diagnosis === "unknown" ? "default" : "orange"}>{RAG_LABELS[rag?.diagnosis || "unknown"] || "无法判断"}</Tag></Space><p>{humanizeAttributionText(rag?.summary || rag?.needed_reason || "暂无 RAG 结论", deductions)}</p></Card>
-    </div>
-    <AttributionSafetyOverview context={safetyContext} analyses={deductions} />
-    <div className="attribution-summary-grid">
-      <AttributionSummarySection title="确认存在的问题" color="red" items={supported} empty="没有确认成立的扣分项" analyses={deductions} />
-      <AttributionSummarySection title="需要复核的判分" color="orange" items={questionable} empty="没有需要复核的判分" analyses={deductions} />
-      <AttributionSummarySection title="证据不足" color="default" items={insufficient} empty="没有证据不足的项目" analyses={deductions} />
-    </div>
-    <div className="attribution-section-heading"><h3>逐项归因明细</h3><span>展开后查看原因、证据链、RAG 诊断和优化建议</span></div>
-    <Collapse className="attribution-collapse" defaultActiveKey={deductions[0]?.deduction_id ? [deductions[0].deduction_id] : []} items={deductions.map((item) => ({ key: item.deduction_id, label: <Space wrap><strong>{attributionDeductionLabel(item)}</strong><Tag color={VALIDATION_LABELS[item.deduction_validation]?.color || "default"}>{VALIDATION_LABELS[item.deduction_validation]?.label || "证据不足"}</Tag><span>{humanizeAttributionText(item.primary_cause?.label || item.finding, deductions)}</span></Space>, children: <DeductionPanel item={item} analyses={deductions} /> }))} />
-    {analysis.global_recommendations?.length ? <Card title="整体优化建议" bordered={false}><RecommendationList items={analysis.global_recommendations} /></Card> : null}
-    {analysis.limitations?.length ? <Alert type="warning" showIcon message="本次分析仍缺少的证据" description={analysis.limitations.map((item) => humanizeAttributionText(item, deductions)).join("；")} /> : null}
+    <AttributionAnalysisModule
+      kind="supported"
+      title="cx-agent问题归因"
+      description="这些问题有对话原文或调用链证据支持，应优先修复 AI 助手的回答、追问、RAG 使用或流程编排。"
+      items={supported}
+      allItems={deductions}
+      globalRecommendations={analysis.global_recommendations || []}
+    />
+    <AttributionAnalysisModule
+      kind="questionable"
+      title="需要复核的判分"
+      description="这些扣分与对话原文、用户档案或医学证据存在矛盾，先优化评测判据或判分逻辑，不应直接修改 AI 助手。"
+      items={questionable}
+      allItems={deductions}
+      globalRecommendations={analysis.global_recommendations || []}
+    />
+    <AttributionAnalysisModule
+      kind="insufficient"
+      title="证据不足，暂不归责"
+      description="当前证据无法判断是 AI 助手问题还是评测问题，需要先补齐调用链、RAG 审计或用户上下文。"
+      items={insufficient}
+      allItems={deductions}
+      globalRecommendations={analysis.global_recommendations || []}
+      limitations={analysis.limitations || []}
+    />
     <div className="attribution-meta">分析模型：{result.metadata.model || "—"} · 分析时间：{formatApiDateTime(result.metadata.generated_at)}</div>
   </div>;
 }

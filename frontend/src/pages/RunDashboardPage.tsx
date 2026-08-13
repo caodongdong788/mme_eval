@@ -48,6 +48,7 @@ export default function RunDashboardPage() {
     <div className="dash-page">
       <RunDashboardHeader
         run={dash.run}
+        showActions={dash.activeTab === "overview"}
         editingName={dash.editingName}
         nameDraft={dash.nameDraft}
         savingName={dash.savingName}

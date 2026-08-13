@@ -11,7 +11,8 @@ const TECHNICAL_TERMS: Array<[RegExp, string]> = [
   [/system[ _]message/gi, "系统上下文消息"],
   [/rag_audits/gi, "RAG 审计记录"],
   [/rag[ _]source/gi, "RAG 文献来源"],
-  [/agent_prompt/gi, "AI 助手提示词"],
+  [/AI\s*助手提示词/g, "提示词优化"],
+  [/agent_prompt/gi, "提示词优化"],
   [/\bJudge\b/gi, "判分模型"],
   [/\bAgent\b/gi, "AI 助手"],
   [/\bbenchmark\b/gi, "评测判据"],
@@ -98,6 +99,11 @@ export function humanizeAttributionText(
   let output = String(value || "").trim();
   if (!output) return "—";
 
+  output = output
+    .replace(/rag:(\d+):source:(\d+):chunk:(\d+)/gi, "第 $1 次 RAG 检索 · 文献 $2 · 片段 $3")
+    .replace(/rag:(\d+):source:(\d+)/gi, "第 $1 次 RAG 检索 · 文献 $2")
+    .replace(/message:(\d+)/gi, "对话消息 $1");
+
   analyses.forEach((item) => {
     output = output.replace(
       new RegExp(escapeRegExp(item.deduction_id), "gi"),
@@ -124,7 +130,12 @@ export function humanizeAttributionText(
   TECHNICAL_TERMS.forEach(([pattern, label]) => {
     output = output.replace(pattern, label);
   });
-  return output;
+  return output
+    .replace(/评测判据判据/g, "评测判据")
+    .replace(/system消息/gi, "系统上下文消息")
+    .replace(/agent_chain/gi, "AI 助手调用链")
+    .replace(/dimension_criteria/gi, "八维评测要求")
+    .replace(/citation映射/gi, "引用编号映射");
 }
 
 export function humanizeEvidenceRef(value: string, analyses: AttributionDeductionAnalysis[]) {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button, Descriptions, Empty, Result, Spin, Tag } from "antd";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, type AttributionTask, type CaseAttribution } from "../api";
-import { AttributionDetail, type AttributionSafetyContext } from "../components/RunAttributionTab";
+import { AttributionDetail } from "../components/RunAttributionTab";
 import { DashPanel } from "../components/DashPanel";
 import { formatApiError } from "../utils/apiError";
 import { formatApiDateTime } from "../utils/datetime";
@@ -15,7 +15,6 @@ export default function AttributionCaseDetailPage() {
   const decodedSampleId = useMemo(() => decodeURIComponent(sampleId || ""), [sampleId]);
   const [task, setTask] = useState<AttributionTask | null>(null);
   const [result, setResult] = useState<CaseAttribution | null>(null);
-  const [safetyContext, setSafetyContext] = useState<AttributionSafetyContext>();
   const [error, setError] = useState<string>();
 
   useEffect(() => {
@@ -24,26 +23,10 @@ export default function AttributionCaseDetailPage() {
     Promise.all([
       api.getAttributionTask(runNumber, taskNumber),
       api.getAttributionTaskResult(runNumber, taskNumber, decodedSampleId),
-      api.getCaseDetail(runNumber, decodedSampleId).catch(() => null),
-    ]).then(([nextTask, nextResult, caseDetail]) => {
+    ]).then(([nextTask, nextResult]) => {
       if (!alive) return;
       setTask(nextTask);
       setResult(nextResult);
-      const safetyVerdict = caseDetail?.verdicts?.find((verdict: { name?: string }) => verdict.name === "dimension.medical_safety");
-      const safetyGuidelines = (caseDetail?.guideline_scores || []).filter((guideline: { dimension?: string; deduction?: number; score?: number; max_score?: number; applicable?: boolean }) => {
-        if (guideline.dimension !== "medical_safety" || guideline.applicable === false) return false;
-        const deduction = typeof guideline.deduction === "number"
-          ? guideline.deduction
-          : Math.max(0, Number(guideline.max_score || 0) - Number(guideline.score || 0));
-        return deduction > 0;
-      });
-      setSafetyContext({
-        gatePassed: typeof caseDetail?.medical_safety_passed === "boolean" ? caseDetail.medical_safety_passed : undefined,
-        dimensionScore: typeof safetyVerdict?.score === "number" ? safetyVerdict.score : null,
-        dimensionMax: typeof safetyVerdict?.max_score === "number" ? safetyVerdict.max_score : null,
-        dimensionReason: safetyVerdict?.reason || undefined,
-        guidelineDeductionCount: safetyGuidelines.length,
-      });
     }).catch((reason) => {
       if (alive) setError(formatApiError(reason, "加载归因结果失败"));
     });
@@ -78,7 +61,7 @@ export default function AttributionCaseDetailPage() {
 
       {result.available ? (
         <DashPanel title="归因结论与优化建议">
-          <AttributionDetail result={result} safetyContext={safetyContext} />
+          <AttributionDetail result={result} />
         </DashPanel>
       ) : (
         <DashPanel title="归因结论与优化建议"><Empty description="该用例暂无可查看的归因结果" /></DashPanel>

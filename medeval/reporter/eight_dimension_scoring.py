@@ -70,9 +70,14 @@ def score_eight_dimension_case(result: CaseResult) -> dict[str, Any]:
             "score": score,
             "max_score": float(guideline.max_score),
             "deduction": missing,
+            "model_deduction": details.get("model_deduction"),
             "missed_points": list(details.get("missed_points", [])),
             "reason": verdict.reason if verdict is not None else "缺少指南判分结果",
             "evidence": list(verdict.evidence) if verdict is not None else [],
+            "checkpoint_audits": list(details.get("checkpoint_audits", [])),
+            "rejected_checkpoint_audits": list(details.get("rejected_checkpoint_audits", [])),
+            "evidence_audit_passed": bool(details.get("evidence_audit_passed", False)),
+            "deduction_rejected": bool(details.get("deduction_rejected", False)),
         }
         guideline_scores.append(row)
         if missing > 0:
