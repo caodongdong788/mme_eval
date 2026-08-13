@@ -76,6 +76,19 @@ def _as_open_evaluation(run: EvalRun, payload: OpenEvaluationCreate | None = Non
         waiting_for_accounts=bool(account_queue.get("waiting_for_accounts", False)),
         account_queue=account_queue,
         error_msg=run.error_msg or "",
+        avg_composite=(run.grading or {}).get("avg_composite"),
+        avg_dimension=(run.grading or {}).get("avg_dimension", {}),
+        stability_distribution=run.stability_distribution or {},
+        latency_summary=run.latency_summary or {},
+        ttft_summary=run.ttft_summary or {},
+        token_summary=run.token_summary or {},
+        reliability=(run.grading or {}).get("reliability", {}),
+        pass_rate_ci=run.pass_rate_ci or {},
+        guideline_match=run.guideline_match or {},
+        failure_tag_counter=run.failure_tag_counter or {},
+        by_level=run.by_level or {},
+        by_scenario=run.by_scenario or {},
+        by_case_type=run.by_case_type or {},
     )
 
 
@@ -258,12 +271,14 @@ def list_open_evaluations(
 
 
 @router.get(
-    "/evaluations/{run_id}",
+    "/evaluation-summaries/{run_id}",
     response_model=OpenEvaluationOut,
-    summary="查询评测任务状态",
+    summary="查询单个评测任务总览",
     dependencies=[Depends(require_open_api_permission("evaluations:read"))],
 )
-def get_open_evaluation(run_id: int, session: Session = Depends(get_session)) -> OpenEvaluationOut:
+def get_open_evaluation_summary(
+    run_id: int, session: Session = Depends(get_session)
+) -> OpenEvaluationOut:
     run = session.get(EvalRun, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail=f"评测任务 {run_id} 不存在")

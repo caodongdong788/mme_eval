@@ -2,8 +2,8 @@ import { Button, Typography, Alert } from "antd";
 import { HeartFilled } from "@ant-design/icons";
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { FEISHU_LOGIN_URL } from "../api/index";
 import { useAuth } from "../auth/AuthContext";
+import { feishuLoginPath, sanitizeReturnTo } from "../auth/redirect";
 
 const { Title, Paragraph } = Typography;
 
@@ -13,10 +13,11 @@ export default function LoginPage() {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const error = params.get("error");
+  const returnTo = sanitizeReturnTo(params.get("redirect_to"));
 
   useEffect(() => {
-    if (!loading && user) navigate("/runs", { replace: true });
-  }, [loading, user, navigate]);
+    if (!loading && user) navigate(returnTo, { replace: true });
+  }, [loading, user, navigate, returnTo]);
 
   return (
     <div className="login-wrap">
@@ -51,7 +52,7 @@ export default function LoginPage() {
           size="large"
           block
           onClick={() => {
-            window.location.href = FEISHU_LOGIN_URL;
+            window.location.href = feishuLoginPath(returnTo);
           }}
         >
           用飞书登录

@@ -97,9 +97,12 @@ def test_prompt_includes_case_initial_state_without_counting_it_as_coverage() ->
     judge._call = fake_call  # type: ignore[method-assign]
     asyncio.run(judge.judge(TestCase.model_validate(raw), trace()))
 
-    assert "Case 初始化真值" in captured
+    assert "Case 已知事实" in captured
     assert "睡前习惯" in captured
     assert "不得直接算作 bot 已覆盖指南" in captured
+    assert "与用户在对话中亲口说出的信息具有同等事实效力" in captured
+    assert "不得因当前用户消息未重复它们而判定 bot 编造" in captured
+    assert "必须扫描全部 assistant 回复" in captured
 
 
 def test_prompt_includes_guideline_reference_answers() -> None:

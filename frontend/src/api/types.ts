@@ -238,6 +238,119 @@ export interface GuidelineScore {
   evidence: string[];
 }
 
+export interface AttributionRecommendation {
+  priority: "P0" | "P1" | "P2" | string;
+  target: string;
+  action: string;
+  expected_effect?: string;
+  verification: string;
+}
+
+export interface AttributionCause {
+  code: string;
+  label: string;
+  owner: string;
+  confidence: number;
+  reason?: string;
+  evidence_refs?: string[];
+}
+
+export interface AttributionDeductionAnalysis {
+  deduction_id: string;
+  dimension: string;
+  deduction_validation: "supported" | "questionable" | "insufficient_evidence" | string;
+  issue_type: string;
+  required_information: string[];
+  finding: string;
+  causal_chain: Array<{
+    stage: string;
+    status: "pass" | "fail" | "unknown" | "not_applicable" | string;
+    finding: string;
+    evidence_refs?: string[];
+  }>;
+  primary_cause: AttributionCause;
+  contributing_causes: AttributionCause[];
+  rag_diagnosis: {
+    needed: boolean;
+    called: boolean;
+    query_quality: string;
+    relevant_information_stage: string;
+    answer_usage: string;
+    finding: string;
+  };
+  recommendations: AttributionRecommendation[];
+}
+
+export interface CaseAttributionAnalysis {
+  analysis_status: "complete" | "partial" | "insufficient_evidence" | string;
+  overall: {
+    primary_cause_code: string;
+    primary_cause_label: string;
+    owner: string;
+    confidence: number;
+    summary: string;
+    affected_deduction_ids: string[];
+  };
+  rag_overview: {
+    needed: boolean;
+    needed_reason?: string;
+    enabled: boolean;
+    actually_called: boolean;
+    call_count: number;
+    diagnosis: string;
+    summary: string;
+  };
+  deduction_analyses: AttributionDeductionAnalysis[];
+  global_recommendations: AttributionRecommendation[];
+  limitations: string[];
+}
+
+export interface CaseAttribution {
+  available: boolean;
+  stale: boolean;
+  analysis?: CaseAttributionAnalysis | null;
+  metadata: {
+    prompt_version?: string;
+    model?: string;
+    provider?: string;
+    generated_at?: string;
+    input_hash?: string;
+  };
+}
+
+export interface AttributionTaskItem {
+  sample_id: string;
+  scenario: string;
+  case_type: string;
+  status: "pending" | "running" | "success" | "failed" | string;
+  error_msg: string;
+  attribution_available: boolean;
+  attribution_stale: boolean;
+  started_at?: string | null;
+  finished_at?: string | null;
+}
+
+export interface AttributionTask {
+  id: number;
+  run_id: number;
+  judge_model_id: number;
+  judge_model_name: string;
+  status: "queued" | "running" | "success" | "partial" | "failed" | string;
+  requested_count: number;
+  total_count: number;
+  skipped_count: number;
+  completed_count: number;
+  success_count: number;
+  failed_count: number;
+  running_count: number;
+  pending_count: number;
+  error_msg: string;
+  created_at?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  items: AttributionTaskItem[];
+}
+
 export interface ReviewSummary {
   verdict: "agree" | "override";
   reviewer?: string | null;

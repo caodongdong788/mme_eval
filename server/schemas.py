@@ -387,6 +387,20 @@ class OpenEvaluationOut(BaseModel):
     waiting_for_accounts: bool = False
     account_queue: dict[str, Any] = Field(default_factory=dict)
     error_msg: str = ""
+    # 与评测总览页一致的聚合指标；不包含任何 Case、对话或调用链明细。
+    avg_composite: Optional[float] = None
+    avg_dimension: dict[str, Any] = Field(default_factory=dict)
+    stability_distribution: dict[str, Any] = Field(default_factory=dict)
+    latency_summary: dict[str, Any] = Field(default_factory=dict)
+    ttft_summary: dict[str, Any] = Field(default_factory=dict)
+    token_summary: dict[str, Any] = Field(default_factory=dict)
+    reliability: dict[str, Any] = Field(default_factory=dict)
+    pass_rate_ci: dict[str, Any] = Field(default_factory=dict)
+    guideline_match: dict[str, Any] = Field(default_factory=dict)
+    failure_tag_counter: dict[str, Any] = Field(default_factory=dict)
+    by_level: dict[str, Any] = Field(default_factory=dict)
+    by_scenario: dict[str, Any] = Field(default_factory=dict)
+    by_case_type: dict[str, Any] = Field(default_factory=dict)
 
 
 class OpenEvaluationBatchItem(BaseModel):
@@ -406,6 +420,53 @@ class OpenEvaluationBatchItem(BaseModel):
 class OpenEvaluationBatchOut(BaseModel):
     total: int
     items: list[OpenEvaluationBatchItem]
+
+
+class CaseAttributionOut(BaseModel):
+    """单个用例的持久化 AI 归因；未生成时 analysis 为 null。"""
+
+    available: bool = False
+    stale: bool = False
+    analysis: Optional[dict[str, Any]] = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class AttributionTaskCreate(BaseModel):
+    sample_ids: list[str] = Field(min_length=1, max_length=100)
+    judge_model_id: int = Field(gt=0)
+
+
+class AttributionTaskItemOut(BaseModel):
+    sample_id: str
+    scenario: str = ""
+    case_type: str = ""
+    status: str
+    error_msg: str = ""
+    attribution_available: bool = False
+    attribution_stale: bool = False
+    started_at: Optional[ApiDateTime] = None
+    finished_at: Optional[ApiDateTime] = None
+
+
+class AttributionTaskOut(BaseModel):
+    id: int
+    run_id: int
+    judge_model_id: int
+    judge_model_name: str = ""
+    status: str
+    requested_count: int
+    total_count: int
+    skipped_count: int
+    completed_count: int
+    success_count: int
+    failed_count: int
+    running_count: int = 0
+    pending_count: int = 0
+    error_msg: str = ""
+    created_at: Optional[ApiDateTime] = None
+    started_at: Optional[ApiDateTime] = None
+    finished_at: Optional[ApiDateTime] = None
+    items: list[AttributionTaskItemOut] = Field(default_factory=list)
 
 
 OpenApiPermission = Literal[

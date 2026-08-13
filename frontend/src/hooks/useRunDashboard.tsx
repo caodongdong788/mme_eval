@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   api,
   Benchmark,
+  CaseRow,
   JudgeModel,
   RejudgePayload,
   RunDetail,
@@ -17,11 +18,12 @@ import { formatApiError } from "../utils/apiError";
 export function useRunDashboard(runId: number, failureTagLabel: (tag: string) => string) {
   const navigate = useNavigate();
   const location = useLocation();
+  const routeState = location.state as { tab?: string; attributionTaskId?: number } | null;
 
   const [run, setRun] = useState<RunDetail | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>(
-    () => ((location.state as { tab?: string } | null)?.tab) || "overview"
+    () => routeState?.tab || "overview"
   );
   const [exporting, setExporting] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -48,11 +50,17 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
   const [savingName, setSavingName] = useState(false);
+  const [attributionLaunchOpen, setAttributionLaunchOpen] = useState(false);
+  const [attributionCases, setAttributionCases] = useState<CaseRow[]>([]);
+  const [attributionLaunching, setAttributionLaunching] = useState(false);
+  const [attributionTaskId, setAttributionTaskId] = useState<number | undefined>(
+    () => routeState?.attributionTaskId,
+  );
 
   const caseFilters = useRunCaseFilters(
     runId,
     failureTagLabel,
-    activeTab === "detail",
+    activeTab === "detail" || activeTab === "attribution",
     run?.status,
   );
   const runDiff = useRunDiff(runId, () => setActiveTab("diff"), activeTab === "diff");
@@ -236,6 +244,47 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
     }
   };
 
+  const openAttributionLaunch = (rows: CaseRow[]) => {
+    setAttributionCases(rows);
+    if (judgeModels.length === 0) api.listJudgeModels().then(setJudgeModels).catch(() => undefined);
+    setAttributionLaunchOpen(true);
+  };
+
+  const startAttributionTask = async (judgeModelId: number) => {
+    const sampleIds = attributionCases.map((item) => item.sample_id);
+    if (!sampleIds.length) return;
+    setAttributionLaunching(true);
+    try {
+      const task = await api.createAttributionTask(runId, {
+        sample_ids: sampleIds,
+        judge_model_id: judgeModelId,
+      });
+      setAttributionLaunchOpen(false);
+      setAttributionTaskId(task.id);
+      setActiveTab("attribution");
+      message.success(`归因任务已创建，将并发分析 ${task.total_count} 条不合格用例`);
+    } catch (e: unknown) {
+      // 请求超时、旧版本启动异常或重复点击时，任务可能已经成功落库。
+      // 优先带用户进入已有任务，避免出现“提示正在进行却看不到任务”的死角。
+      try {
+        const tasks = await api.listAttributionTasks(runId);
+        const activeTask = tasks.find((item) => item.status === "queued" || item.status === "running");
+        if (activeTask) {
+          setAttributionLaunchOpen(false);
+          setAttributionTaskId(activeTask.id);
+          setActiveTab("attribution");
+          message.warning(`已打开进行中的归因任务 #${activeTask.id}`);
+          return;
+        }
+      } catch {
+        // 保留原始创建错误，便于用户判断真正的失败原因。
+      }
+      message.error(formatApiError(e, "创建归因任务失败"));
+    } finally {
+      setAttributionLaunching(false);
+    }
+  };
+
   return {
     run,
     runError,
@@ -276,6 +325,14 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
     saveYamlAsBenchmark,
     saveYamlOverwrite,
     doExport,
+    attributionLaunchOpen,
+    setAttributionLaunchOpen,
+    attributionCases,
+    attributionLaunching,
+    attributionTaskId,
+    setAttributionTaskId,
+    openAttributionLaunch,
+    startAttributionTask,
     navigate,
   };
 }

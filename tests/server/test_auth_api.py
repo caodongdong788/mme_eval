@@ -85,6 +85,55 @@ def test_callback_creates_session(auth_client, monkeypatch):
     assert body["user"]["name"] == "曹冬东"
 
 
+def test_callback_returns_to_original_frontend_page(auth_client, monkeypatch):
+    login = auth_client.get(
+        "/api/auth/feishu/login",
+        params={"redirect_to": "/runs/26?view=detail#case_11"},
+        follow_redirects=False,
+    )
+    state = parse_qs(urlparse(login.headers["location"]).query)["state"][0]
+    monkeypatch.setattr(
+        fo,
+        "exchange_code",
+        lambda **k: fo.TokenBundle("u-acc", 7200, "u-ref", 604800),
+    )
+    monkeypatch.setattr(fo, "get_user_info", lambda t: fo.UserInfo("ou_me", "x"))
+
+    resp = auth_client.get(
+        f"/api/auth/feishu/callback?code=abc&state={state}",
+        follow_redirects=False,
+    )
+
+    assert resp.status_code == 302
+    assert resp.headers["location"] == "http://localhost:5173/runs/26?view=detail#case_11"
+
+
+@pytest.mark.parametrize(
+    "redirect_to",
+    ["https://evil.example/runs/26", "//evil.example/runs/26", "%2F%2Fevil.example"],
+)
+def test_login_rejects_external_return_target(auth_client, monkeypatch, redirect_to):
+    login = auth_client.get(
+        "/api/auth/feishu/login",
+        params={"redirect_to": redirect_to},
+        follow_redirects=False,
+    )
+    state = parse_qs(urlparse(login.headers["location"]).query)["state"][0]
+    monkeypatch.setattr(
+        fo,
+        "exchange_code",
+        lambda **k: fo.TokenBundle("u-acc", 7200, "u-ref", 604800),
+    )
+    monkeypatch.setattr(fo, "get_user_info", lambda t: fo.UserInfo("ou_me", "x"))
+
+    resp = auth_client.get(
+        f"/api/auth/feishu/callback?code=abc&state={state}",
+        follow_redirects=False,
+    )
+
+    assert resp.headers["location"] == "http://localhost:5173/"
+
+
 def test_callback_bad_state_redirects_login(auth_client, monkeypatch):
     auth_client.get("/api/auth/feishu/login", follow_redirects=False)
     called = {"exchanged": False}

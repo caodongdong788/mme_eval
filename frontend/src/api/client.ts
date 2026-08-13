@@ -1,4 +1,5 @@
 import axios from "axios";
+import { loginPath } from "../auth/redirect";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 export const FEISHU_LOGIN_URL = "/api/auth/feishu/login";
@@ -22,7 +23,7 @@ http.interceptors.response.use(
       error?.response?.status === 401 &&
       window.location.pathname !== "/login"
     ) {
-      window.location.href = "/login";
+      window.location.href = loginPath();
     }
     return Promise.reject(error);
   }

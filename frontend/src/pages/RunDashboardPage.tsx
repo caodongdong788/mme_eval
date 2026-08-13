@@ -9,6 +9,8 @@ import { buildCaseColumns } from "../components/caseColumns";
 import { RunDashboardHeader } from "../components/RunDashboardHeader";
 import { RunCaseResultsCard } from "../components/RunCaseResultsCard";
 import { RunDiffTab } from "../components/RunDiffTab";
+import { RunAttributionTab } from "../components/RunAttributionTab";
+import { AttributionTaskLaunchModal } from "../components/AttributionTaskLaunchModal";
 import { useRunDashboard } from "../hooks/useRunDashboard";
 
 export default function RunDashboardPage() {
@@ -88,6 +90,21 @@ export default function RunDashboardPage() {
                 live={dash.run.status === "running" || dash.run.status === "pending"}
                 onOpenYamlEditor={dash.openYamlEditor}
                 onOpenExport={() => dash.setExportOpen(true)}
+                onStartAttribution={dash.openAttributionLaunch}
+              />
+            ),
+          },
+          {
+            key: "attribution",
+            label: "归因分析",
+            children: (
+              <RunAttributionTab
+                runId={id}
+                runStatus={dash.run.status}
+                cases={dash.cases}
+                loading={dash.loading}
+                selectedTaskId={dash.attributionTaskId}
+                onSelectedTaskIdChange={dash.setAttributionTaskId}
               />
             ),
           },
@@ -114,6 +131,16 @@ export default function RunDashboardPage() {
         loading={dash.exporting}
         onOk={dash.doExport}
         onCancel={() => dash.setExportOpen(false)}
+      />
+
+      <AttributionTaskLaunchModal
+        open={dash.attributionLaunchOpen}
+        loading={dash.attributionLaunching}
+        requestedCount={dash.attributionCases.length}
+        failedCount={dash.attributionCases.filter((item) => !item.release_passed).length}
+        judgeModels={dash.judgeModels}
+        onCancel={() => dash.setAttributionLaunchOpen(false)}
+        onSubmit={(judgeModelId) => void dash.startAttributionTask(judgeModelId)}
       />
 
       <RejudgeModal

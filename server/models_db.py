@@ -19,6 +19,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -260,6 +261,54 @@ class CaseResultRow(Base):
 
     # 完整 CaseResult：对话、八维原始/最终分、指南得分和扣分原因。
     detail_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class AttributionTask(Base):
+    """一批不合格用例的 AI 归因任务。
+
+    任务和逐 Case 结果分表保存，页面可以轮询到已完成项，不需要等待整批 LLM 调用结束。
+    """
+
+    __tablename__ = "attribution_task"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("eval_run.id"), index=True, nullable=False)
+    judge_model_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    judge_model_name: Mapped[str] = mapped_column(String(200), default="")
+    # queued | running | success | partial | failed
+    status: Mapped[str] = mapped_column(String(20), default="queued", index=True)
+    requested_count: Mapped[int] = mapped_column(Integer, default=0)
+    total_count: Mapped[int] = mapped_column(Integer, default=0)
+    skipped_count: Mapped[int] = mapped_column(Integer, default=0)
+    completed_count: Mapped[int] = mapped_column(Integer, default=0)
+    success_count: Mapped[int] = mapped_column(Integer, default=0)
+    failed_count: Mapped[int] = mapped_column(Integer, default=0)
+    error_msg: Mapped[str] = mapped_column(Text, default="")
+    created_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class AttributionTaskItem(Base):
+    """批量归因任务中的单条 Case 执行状态。"""
+
+    __tablename__ = "attribution_task_item"
+    __table_args__ = (
+        UniqueConstraint("task_id", "sample_id", name="uq_attribution_task_item_sample"),
+        Index("ix_attribution_task_item_task_status", "task_id", "status"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("attribution_task.id"), index=True, nullable=False)
+    sample_id: Mapped[str] = mapped_column(String(200), index=True)
+    # pending | running | success | failed
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    error_msg: Mapped[str] = mapped_column(Text, default="")
+    # 每次任务独立保存本次模型返回，避免后续重新归因覆盖旧任务的查看结果。
+    analysis_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
 class PairwiseComparison(Base):

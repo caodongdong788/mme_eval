@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import { Button, Space, Table } from "antd";
-import { DownloadOutlined, EditOutlined } from "@ant-design/icons";
+import { BulbOutlined, DownloadOutlined, EditOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { CaseRow, ReviewStats } from "../api/index";
 import type { CaseFilterCondition, CaseFilterValueOptions } from "../utils/caseFilters";
@@ -20,6 +20,7 @@ export interface RunCaseResultsCardProps {
   live?: boolean;
   onOpenYamlEditor: () => void;
   onOpenExport: () => void;
+  onStartAttribution: (cases: CaseRow[]) => void;
 }
 
 export function RunCaseResultsCard({
@@ -36,7 +37,9 @@ export function RunCaseResultsCard({
   live = false,
   onOpenYamlEditor,
   onOpenExport,
+  onStartAttribution,
 }: RunCaseResultsCardProps) {
+  const failedShownCases = shownCases.filter((item) => !item.release_passed);
   return (
     <div className="run-detail-page">
       <div className="dash-table-card">
@@ -63,6 +66,18 @@ export function RunCaseResultsCard({
                 待审 {reviewStats.pending}/{reviewStats.queue_total}
               </span>
             )}
+            <Button
+              icon={<BulbOutlined />}
+              onClick={() => onStartAttribution(shownCases)}
+              disabled={live || failedShownCases.length === 0}
+              title={
+                failedShownCases.length
+                  ? `对当前筛选命中的 ${failedShownCases.length} 条不合格用例发起归因分析`
+                  : "当前筛选结果没有不合格用例"
+              }
+            >
+              开始归因分析{failedShownCases.length ? ` (${failedShownCases.length})` : ""}
+            </Button>
             <Button
               icon={<EditOutlined />}
               onClick={onOpenYamlEditor}

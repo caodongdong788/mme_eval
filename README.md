@@ -158,8 +158,10 @@ cd frontend && npm run build
 
 在平台的「参数配置 → Open API」中创建 API Key，并为每把 Key 勾选所需权限。平台支持
 多把 Key 独立管理、随时复制、轮换和删除；对外请求以 `X-MME-API-Key` 传入完整 Key。
-接口提供可用评测集、可用判分模型、创建评测和按 ID 查询任务状态；不接受明文模型密钥。
-详细请求/响应结构可在运行服务的 `/docs` 中查看。
+接口提供可用评测集、可用判分模型、创建评测和按 ID 查询任务状态；任务查询会一并返回
+总览页所需的综合分、通过率、稳定性、延迟、TTFT、Token、失败标签及类别/层级统计，
+不包含任何 Case、对话或调用链明细，也不接受明文模型密钥。详细请求/响应结构可在运行
+服务的 `/docs` 中查看。
 
 ```bash
 # 先查询可用资源
@@ -171,6 +173,10 @@ curl -X POST http://localhost:8000/api/open/v1/evaluations \
   -H "Content-Type: application/json" \
   -H "X-MME-API-Key: <key>" \
   -d '{"benchmark_id": 1, "name": "自动化回归-001", "evaluation_mode": "single_turn", "enable_rag": false, "repeat": 1, "levels": ["L2"], "enable_judge": true, "judge_model_id": null}'
+
+# 查询任务总览汇总数据（不含 Case 明细）
+curl -H "X-MME-API-Key: <key>" \
+  http://localhost:8000/api/open/v1/evaluation-summaries/28
 ```
 
 ### 生产部署

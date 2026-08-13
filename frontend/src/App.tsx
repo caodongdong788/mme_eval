@@ -26,6 +26,7 @@ const LaunchPage = lazy(() => import("./pages/LaunchPage"));
 const RunsPage = lazy(() => import("./pages/RunsPage"));
 const RunDashboardPage = lazy(() => import("./pages/RunDashboardPage"));
 const CaseDetailPage = lazy(() => import("./pages/CaseDetailPage"));
+const AttributionCaseDetailPage = lazy(() => import("./pages/AttributionCaseDetailPage"));
 const PairwisePage = lazy(() => import("./pages/PairwisePage"));
 const PairwiseDetailPage = lazy(() => import("./pages/PairwiseDetailPage"));
 const TrendsPage = lazy(() => import("./pages/TrendsPage"));
@@ -87,7 +88,9 @@ function useBreadcrumb() {
   if (section === "runs" && parts[1]) {
     items.push({ title: parts.length >= 4 ? <Link to={`/runs/${parts[1]}`}>{`运行 #${parts[1]}`}</Link> : `运行 #${parts[1]}` });
   }
-  if (section === "runs" && parts[3]) {
+  if (section === "runs" && parts[2] === "attribution-tasks") {
+    items.push({ title: "归因结果" });
+  } else if (section === "runs" && parts[2] === "cases" && parts[3]) {
     items.push({ title: "用例明细" });
   }
   return items;
@@ -159,6 +162,7 @@ function MainLayout() {
               <Route path="/runs" element={<RunsPage />} />
               <Route path="/runs/:runId" element={<RunDashboardPage />} />
               <Route path="/runs/:runId/cases/:sampleId" element={<CaseDetailPage />} />
+              <Route path="/runs/:runId/attribution-tasks/:taskId/cases/:sampleId" element={<AttributionCaseDetailPage />} />
               <Route path="/pairwise" element={<PairwisePage />} />
               <Route path="/pairwise/:comparisonId" element={<PairwiseDetailPage />} />
               <Route path="/launch" element={<LaunchPage />} />

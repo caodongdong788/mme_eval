@@ -2,6 +2,8 @@ import { http } from "./client";
 import type {
   AnnotatePayload,
   Annotation,
+  CaseAttribution,
+  AttributionTask,
   CaseRow,
   CasesYaml,
   PreviewRejudgePayload,
@@ -36,6 +38,28 @@ export const runsApi = {
     http.get<{ calls: unknown[] }>(`/runs/${id}/cases/${sampleId}/agent-chain/rag-audit`).then((r) => r.data),
   syncCaseAgentChain: (id: number, sampleId: string) =>
     http.post<any>(`/runs/${id}/cases/${sampleId}/agent-chain/sync`).then((r) => r.data),
+  getCaseAttribution: (id: number, sampleId: string) =>
+    http.get<CaseAttribution>(`/runs/${id}/cases/${sampleId}/attribution`).then((r) => r.data),
+  generateCaseAttribution: (id: number, sampleId: string) =>
+    http.post<CaseAttribution>(`/runs/${id}/cases/${sampleId}/attribution`).then((r) => r.data),
+  listAttributionTasks: (id: number) =>
+    http.get<AttributionTask[]>(`/runs/${id}/attribution-tasks`).then((r) => r.data),
+  getAttributionTask: (id: number, taskId: number) =>
+    http.get<AttributionTask>(`/runs/${id}/attribution-tasks/${taskId}`).then((r) => r.data),
+  getAttributionTaskResult: (id: number, taskId: number, sampleId: string) =>
+    http
+      .get<CaseAttribution>(
+        `/runs/${id}/attribution-tasks/${taskId}/cases/${sampleId}/attribution`
+      )
+      .then((r) => r.data),
+  createAttributionTask: (id: number, payload: { sample_ids: string[]; judge_model_id: number }) =>
+    http.post<AttributionTask>(`/runs/${id}/attribution-tasks`, payload).then((r) => r.data),
+  rerunAttributionTask: (id: number, taskId: number) =>
+    http
+      .post<AttributionTask>(`/runs/${id}/attribution-tasks/${taskId}/rerun`)
+      .then((r) => r.data),
+  deleteAttributionTask: (id: number, taskId: number) =>
+    http.delete(`/runs/${id}/attribution-tasks/${taskId}`).then((r) => r.data),
   getRunCasesYaml: (id: number, params?: Record<string, any>) =>
     http.get<CasesYaml>(`/runs/${id}/cases-yaml`, { params }).then((r) => r.data),
   previewRejudgeCase: (id: number, sampleId: string, payload?: PreviewRejudgePayload) =>

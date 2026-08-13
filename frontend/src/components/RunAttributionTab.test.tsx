@@ -1,0 +1,168 @@
+import { fireEvent, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { api, type AttributionTask, type CaseRow } from "../api/index";
+import { clearConfigLabelMapCache } from "../hooks/useConfigLabelMap";
+import { renderWithProviders } from "../test/renderWithProviders";
+import { RunAttributionTab } from "./RunAttributionTab";
+
+vi.mock("../api/index", () => ({
+  api: {
+    getAttributionTaskResult: vi.fn(),
+    getAttributionTask: vi.fn(),
+    listAttributionTasks: vi.fn(),
+    rerunAttributionTask: vi.fn(),
+    deleteAttributionTask: vi.fn(),
+    getJudgeVerdictLabels: vi.fn(),
+  },
+}));
+
+const mockedApi = vi.mocked(api);
+
+const failedCase: CaseRow = {
+  id: 1,
+  sample_id: "case_11",
+  scenario: "骨质管理",
+  case_type: "治疗方案与疗程决策",
+  sub_scenario: "",
+  level: "L2",
+  medical_safety_passed: false,
+  release_passed: false,
+  grade: "不合格",
+  stability: "稳挂",
+  failure_tags: ["medical_safety_risk"],
+};
+
+const task: AttributionTask = {
+  id: 99,
+  run_id: 26,
+  judge_model_id: 1,
+  judge_model_name: "kimi-k2.6",
+  status: "success",
+  requested_count: 1,
+  total_count: 1,
+  skipped_count: 0,
+  completed_count: 1,
+  success_count: 1,
+  failed_count: 0,
+  running_count: 0,
+  pending_count: 0,
+  error_msg: "",
+  items: [{
+    sample_id: "case_11",
+    scenario: "骨质管理",
+    case_type: "治疗方案与疗程决策",
+    status: "success",
+    error_msg: "",
+    attribution_available: true,
+    attribution_stale: false,
+  }],
+};
+
+describe("RunAttributionTab", () => {
+  beforeEach(() => {
+    clearConfigLabelMapCache();
+    mockedApi.getJudgeVerdictLabels.mockResolvedValue({});
+    mockedApi.listAttributionTasks.mockResolvedValue([{ ...task, items: [] }]);
+    mockedApi.getAttributionTask.mockResolvedValue(task);
+  });
+
+  it("shows a task and each completed case attribution immediately", async () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <RunAttributionTab
+          runId={26}
+          runStatus="success"
+          cases={[failedCase]}
+          selectedTaskId={99}
+          onSelectedTaskIdChange={vi.fn()}
+        />
+      </MemoryRouter>
+    );
+
+    expect((await screen.findAllByText("归因任务 #99")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("归因进度").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /查看明细/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /重新归因/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /删除/ })).toBeInTheDocument();
+    const viewLink = await screen.findByRole("link", { name: /查看归因/ });
+    expect(viewLink).toHaveAttribute("href", "/runs/26/attribution-tasks/99/cases/case_11");
+    expect(mockedApi.getAttributionTaskResult).not.toHaveBeenCalled();
+  });
+
+  it("keeps task details visible while progress polling runs in the background", async () => {
+    const runningTask: AttributionTask = {
+      ...task,
+      status: "running",
+      completed_count: 0,
+      success_count: 0,
+      running_count: 1,
+      pending_count: 0,
+      items: [{
+        ...task.items[0],
+        status: "running",
+        attribution_available: false,
+      }],
+    };
+    mockedApi.listAttributionTasks.mockResolvedValue([{ ...runningTask, items: [] }]);
+    mockedApi.getAttributionTask
+      .mockResolvedValueOnce(runningTask)
+      .mockImplementation(() => new Promise(() => undefined));
+
+    const { container } = renderWithProviders(
+      <MemoryRouter>
+        <RunAttributionTab
+          runId={26}
+          runStatus="success"
+          cases={[failedCase]}
+          selectedTaskId={99}
+          onSelectedTaskIdChange={vi.fn()}
+        />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("任务 #99 · 用例归因结果")).toBeInTheDocument();
+    expect(await screen.findByText(/分析中 1/)).toBeInTheDocument();
+    await new Promise((resolve) => window.setTimeout(resolve, 1650));
+    expect(mockedApi.getAttributionTask.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(container.textContent).toContain("任务 #99 · 用例归因结果");
+    expect(container.querySelector(".attribution-loading")).not.toBeInTheDocument();
+  });
+
+  it("opens a useful failure-reason dialog", async () => {
+    const failedTask: AttributionTask = {
+      ...task,
+      status: "failed",
+      completed_count: 1,
+      success_count: 0,
+      failed_count: 1,
+      running_count: 0,
+      pending_count: 0,
+      items: [{
+        ...task.items[0],
+        status: "failed",
+        error_msg: "HTTPException: 502: AI 归因生成失败：BadRequestError",
+        attribution_available: false,
+      }],
+    };
+    mockedApi.listAttributionTasks.mockResolvedValue([{ ...failedTask, items: [] }]);
+    mockedApi.getAttributionTask.mockResolvedValue(failedTask);
+
+    renderWithProviders(
+      <MemoryRouter>
+        <RunAttributionTab
+          runId={26}
+          runStatus="success"
+          cases={[failedCase]}
+          selectedTaskId={99}
+          onSelectedTaskIdChange={vi.fn()}
+        />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "查看失败原因" }));
+    expect(await screen.findByText("当时的 Kimi K3 请求参数不兼容")).toBeInTheDocument();
+    expect(screen.getByText(/当前已修正为思考模式/)).toBeInTheDocument();
+    expect(screen.getByText("HTTPException: 502: AI 归因生成失败：BadRequestError")).toBeInTheDocument();
+  });
+});

@@ -57,12 +57,20 @@ async def _lifespan(app: FastAPI):
     n_pair = reconcile_orphaned_pairwise()
     logger.info("启动完成：回收孤儿评测 %s 条、孤儿对战 %s 条", n_runs, n_pair)
     from .services.scheduled_evaluations import start_scheduler, stop_scheduler
+    from .services.attribution_tasks import (
+        reconcile_orphaned_attribution_tasks,
+        stop_attribution_tasks,
+    )
 
     start_scheduler()
+    n_attribution = reconcile_orphaned_attribution_tasks()
+    if n_attribution:
+        logger.info("启动完成：回收中断归因任务 %s 条", n_attribution)
     try:
         yield
     finally:
         await stop_scheduler()
+        await stop_attribution_tasks()
         # 优雅关闭：取消在跑评测任务，等待其结束（残留状态由下次启动 reconcile 回收）。
         from .jobs import get_job_runner
 

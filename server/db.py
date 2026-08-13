@@ -27,8 +27,16 @@ def _make_engine(database_url: str):
     connect_args = {}
     if database_url.startswith("sqlite"):
         # FastAPI 多线程（threadpool 跑同步路由）下需要关闭 sqlite 的同线程校验。
-        connect_args = {"check_same_thread": False}
-    return create_engine(database_url, future=True, connect_args=connect_args)
+        connect_args = {"check_same_thread": False, "timeout": 30}
+    engine = create_engine(database_url, future=True, connect_args=connect_args)
+    if database_url.startswith("sqlite"):
+        # 批量归因会有 3 个并发 Case：WAL 允许读取证据与逐条写回并行，
+        # busy_timeout 则让极短的写竞争等待，而不是直接报 database is locked。
+        with engine.connect() as connection:
+            connection.exec_driver_sql("PRAGMA journal_mode=WAL")
+            connection.exec_driver_sql("PRAGMA synchronous=NORMAL")
+            connection.exec_driver_sql("PRAGMA busy_timeout=30000")
+    return engine
 
 
 def init_engine(settings: Settings | None = None):
@@ -51,6 +59,48 @@ def init_db(settings: Settings | None = None) -> None:
     _migrate_case_list_display_columns(engine)
     _migrate_eval_run_trigger_type(engine)
     _migrate_eval_run_scheduled_evaluation_id(engine)
+    _migrate_attribution_task_item_analysis(engine)
+
+
+def _migrate_attribution_task_item_analysis(engine) -> None:
+    """为已存在的归因任务明细补充独立结果快照列。"""
+    inspector = inspect(engine)
+    if "attribution_task_item" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("attribution_task_item")}
+    if "analysis_json" not in columns:
+        with engine.begin() as connection:
+            connection.exec_driver_sql(
+                "ALTER TABLE attribution_task_item ADD COLUMN analysis_json JSON"
+            )
+
+    # 旧版本只在 CaseResultRow 上保存“最新一次归因”。升级时为历史成功任务补一份
+    # 可查看快照；此后新任务会直接保存自己的结果，不再互相覆盖。
+    from .models_db import AttributionTask, AttributionTaskItem, CaseResultRow
+    from .services.case_attribution import get_stored_attribution
+
+    maker = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
+    with maker.begin() as session:
+        legacy_items = session.execute(
+            select(AttributionTaskItem, AttributionTask.run_id)
+            .join(AttributionTask, AttributionTask.id == AttributionTaskItem.task_id)
+            .where(
+                AttributionTaskItem.status == "success",
+                AttributionTaskItem.analysis_json.is_(None),
+            )
+        ).all()
+        for item, run_id in legacy_items:
+            row = session.scalar(
+                select(CaseResultRow).where(
+                    CaseResultRow.run_id == run_id,
+                    CaseResultRow.sample_id == item.sample_id,
+                )
+            )
+            if row is None:
+                continue
+            stored = get_stored_attribution(dict(row.detail_json or {}))
+            if stored.get("available"):
+                item.analysis_json = stored
 
 
 def _migrate_eval_run_trigger_type(engine) -> None:

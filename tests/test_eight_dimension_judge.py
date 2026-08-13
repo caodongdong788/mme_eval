@@ -81,9 +81,12 @@ def test_prompt_includes_case_initial_state_as_scoring_truth() -> None:
     judge._call = fake_call  # type: ignore[method-assign]
     asyncio.run(judge.judge(TestCase.model_validate(raw), trace()))
 
-    assert "Case 初始化真值" in captured
+    assert "Case 已知事实" in captured
     assert "他莫昔芬服药时间" in captured
     assert "晚上九点服用后恶心减轻" in captured
+    assert "与用户在对话中亲口说出的信息具有同等事实效力" in captured
+    assert "当前用户消息未重复该信息" in captured
+    assert "只要任一来源已提供该信息" in captured
 
 
 def test_prompt_includes_reference_answers_as_non_literal_quality_reference() -> None:

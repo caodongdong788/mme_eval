@@ -16,6 +16,7 @@ from ...eval_job import (
 from ...feishu_drive import import_xlsx_as_sheet
 from ._router import router
 
+from . import attribution as _attribution  # noqa: F401
 from . import cases as _cases  # noqa: F401
 from . import crud as _crud  # noqa: F401
 from . import rejudge as _rejudge  # noqa: F401

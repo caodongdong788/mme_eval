@@ -14,6 +14,7 @@ function run(partial: Partial<RunSummary> & { id: number; created_at: string }):
     run_slug: `run_${partial.id}`,
     name: `run_${partial.id}`,
     status: "success",
+    trigger_type: "manual",
     adapter_type: "openai_compat",
     total: 10,
     passed: 8,

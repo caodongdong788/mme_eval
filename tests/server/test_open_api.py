@@ -126,7 +126,9 @@ def test_open_api_lists_resources_and_creates_evaluation(
     assert captured["judge_full"]["model"] == "judge-test-model"
     assert captured["judge_full"]["api_key"] == "judge-secret"
 
-    status = client.get(f"/api/open/v1/evaluations/{body['id']}", headers=open_headers)
+    status = client.get(
+        f"/api/open/v1/evaluation-summaries/{body['id']}", headers=open_headers
+    )
     assert status.status_code == 200
     assert status.json()["judge_model_id"] == judge_model.id
     assert status.json()["dashboard_url"] == f"{settings.frontend_url}/runs/{body['id']}"
@@ -141,7 +143,7 @@ def test_open_api_lists_resources_and_creates_evaluation(
     session.commit()
 
     completed_status = client.get(
-        f"/api/open/v1/evaluations/{body['id']}", headers=open_headers
+        f"/api/open/v1/evaluation-summaries/{body['id']}", headers=open_headers
     )
     assert completed_status.status_code == 200
     assert completed_status.json()["result"] == {
@@ -248,3 +250,55 @@ def test_open_api_reports_config_backed_dashscope_model_as_available(client, mon
         item for item in response.json() if item["name"] == "百炼 DashScope · kimi-k2.6"
     )
     assert default["has_api_key"] is True
+
+
+def test_open_api_returns_run_overview_metrics_without_case_data(client, session):
+    headers = _open_headers(client, ["evaluations:read"])
+    run = EvalRun(
+        run_slug="open-run-overview",
+        name="OpenAPI 总览",
+        status="success",
+        total=63,
+        passed=13,
+        pass_rate=13 / 63,
+        medical_safety_failed=35,
+        grading={
+            "avg_composite": 11.706,
+            "avg_dimension": {"medical_safety": 2.2},
+            "reliability": {"k": 3, "pass_at_k": 0.396},
+        },
+        stability_distribution={"stable_pass": 8, "flaky": 17, "stable_fail": 38},
+        latency_summary={"count": 189, "avg_ms": 41454},
+        ttft_summary={"avg_ms": 9206},
+        token_summary={"total_tokens": 24889002, "avg_tokens_per_run": 131687},
+        pass_rate_ci={"lower": 0.11, "upper": 0.302},
+        failure_tag_counter={"medical_safety_risk": 35},
+        by_level={"L2": {"total": 63, "passed": 13}},
+        by_scenario={"报告解读": {"total": 11, "passed": 2}},
+        by_case_type={"医学诊疗": {"total": 63, "passed": 13}},
+    )
+    session.add(run)
+    session.commit()
+
+    response = client.get(
+        f"/api/open/v1/evaluation-summaries/{run.id}", headers=headers
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["id"] == run.id
+    assert body["result"] == {
+        "total_cases": 63,
+        "passed_cases": 13,
+        "failed_cases": 50,
+        "pass_rate": 13 / 63,
+    }
+    assert body["avg_composite"] == 11.706
+    assert body["avg_dimension"] == {"medical_safety": 2.2}
+    assert body["stability_distribution"] == {"stable_pass": 8, "flaky": 17, "stable_fail": 38}
+    assert body["latency_summary"] == {"count": 189, "avg_ms": 41454}
+    assert body["ttft_summary"] == {"avg_ms": 9206}
+    assert body["token_summary"]["total_tokens"] == 24889002
+    assert body["reliability"] == {"k": 3, "pass_at_k": 0.396}
+    assert body["by_scenario"]["报告解读"] == {"total": 11, "passed": 2}
+    assert "cases" not in body
