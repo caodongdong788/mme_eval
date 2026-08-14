@@ -25,6 +25,8 @@ from pydantic import BaseModel, Field
 GATEWAY_TOKEN = os.environ.get("CODEX_GATEWAY_TOKEN", "")
 CODEX_BIN = os.environ.get("CODEX_BIN", "codex")
 DEFAULT_MODEL = os.environ.get("CODEX_DEFAULT_MODEL", "")
+DEFAULT_REASONING_EFFORT = os.environ.get("CODEX_REASONING_EFFORT", "").strip()
+DEFAULT_SERVICE_TIER = os.environ.get("CODEX_SERVICE_TIER", "").strip()
 TIMEOUT_SECONDS = max(30, int(os.environ.get("CODEX_GATEWAY_TIMEOUT_SECONDS", "240")))
 MAX_CONCURRENCY = max(1, int(os.environ.get("CODEX_GATEWAY_CONCURRENCY", "1")))
 _semaphore = asyncio.Semaphore(MAX_CONCURRENCY)
@@ -99,6 +101,12 @@ async def _run_codex(prompt: str, model: str) -> dict[str, Any]:
         chosen_model = model.strip() or DEFAULT_MODEL
         if chosen_model:
             command.extend(["--model", chosen_model])
+        if DEFAULT_REASONING_EFFORT:
+            command.extend(["-c", f'model_reasoning_effort="{DEFAULT_REASONING_EFFORT}"'])
+        if DEFAULT_SERVICE_TIER:
+            command.extend(["-c", f'service_tier="{DEFAULT_SERVICE_TIER}"'])
+            if DEFAULT_SERVICE_TIER == "fast":
+                command.extend(["--enable", "fast_mode"])
         command.append(prompt)
         process = await asyncio.create_subprocess_exec(
             *command,
