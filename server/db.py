@@ -61,8 +61,8 @@ def init_db(settings: Settings | None = None) -> None:
     _migrate_case_judge_error(engine)
     _migrate_eval_run_trigger_type(engine)
     _migrate_eval_run_scheduled_evaluation_id(engine)
-    _migrate_attribution_task_item_analysis(engine)
     _migrate_attribution_task_item_attempt_count(engine)
+    _migrate_attribution_task_item_analysis(engine)
     _migrate_attribution_task_active_index(engine)
 
 
