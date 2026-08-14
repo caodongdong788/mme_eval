@@ -50,9 +50,16 @@ class Benchmark(Base):
     # 用例所在路径（相对 project_root）。builtin 指向 cases/xxx；uploaded 指向 uploads/...
     storage_path: Mapped[str] = mapped_column(String(500), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, server_default=func.now(), onupdate=func.now()
+    )
     created_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     runs: Mapped[list["EvalRun"]] = relationship(back_populates="benchmark")
+
+    def mark_updated(self) -> None:
+        """记录用例集内容或人工维护发生变化。"""
+        self.updated_at = datetime.utcnow()
 
     @property
     def default_evaluation_mode(self) -> str:

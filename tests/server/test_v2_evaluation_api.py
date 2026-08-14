@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import zipfile
+from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -39,6 +40,24 @@ def upload(client, text: str, name: str = "v2-api"):
         data={"name": name, "source": "offline"},
         files={"file": ("cases.yaml", text.encode(), "application/x-yaml")},
     )
+
+
+def _reset_benchmark_updated_at(benchmark_id: int) -> datetime:
+    baseline = datetime(2000, 1, 1)
+    with session_scope() as session:
+        benchmark = session.get(Benchmark, benchmark_id)
+        assert benchmark is not None
+        benchmark.updated_at = baseline
+    return baseline
+
+
+def _assert_benchmark_touched(client, benchmark_id: int, baseline: datetime) -> None:
+    body = client.get(f"/api/benchmarks/{benchmark_id}").json()
+    assert body["created_at"]
+    assert body["updated_at"]
+    assert datetime.fromisoformat(body["updated_at"].replace("Z", "+00:00")).replace(
+        tzinfo=None
+    ) > baseline
 
 
 def test_upload_and_read_v2_benchmark(client, settings) -> None:
@@ -102,6 +121,83 @@ def test_append_yaml_cases_to_existing_benchmark(client, settings) -> None:
         "api_v2_002",
     }
     assert (settings.uploads_dir / str(benchmark_id) / "cases.yaml").is_file()
+
+
+def test_all_benchmark_mutations_refresh_updated_at(client) -> None:
+    created = upload(client, V2_YAML, name="timestamp-target")
+    assert created.status_code == 201, created.text
+    benchmark_id = created.json()["id"]
+    assert created.json()["created_at"]
+    assert created.json()["updated_at"]
+
+    baseline = _reset_benchmark_updated_at(benchmark_id)
+    edited = client.patch(
+        f"/api/benchmarks/{benchmark_id}",
+        json={"description": "人工更新说明"},
+    )
+    assert edited.status_code == 200, edited.text
+    _assert_benchmark_touched(client, benchmark_id, baseline)
+
+    baseline = _reset_benchmark_updated_at(benchmark_id)
+    case_content = client.get(
+        f"/api/benchmarks/{benchmark_id}/cases/api_v2_001/content"
+    ).json()["case"]
+    case_content["notes"] = "人工修改 Case"
+    saved = client.put(
+        f"/api/benchmarks/{benchmark_id}/cases/api_v2_001/content",
+        json={"case": case_content},
+    )
+    assert saved.status_code == 200, saved.text
+    _assert_benchmark_touched(client, benchmark_id, baseline)
+
+    baseline = _reset_benchmark_updated_at(benchmark_id)
+    source_yaml = client.get(
+        f"/api/benchmarks/{benchmark_id}/cases/api_v2_001/yaml"
+    ).json()["yaml_text"]
+    saved_yaml = client.put(
+        f"/api/benchmarks/{benchmark_id}/cases/api_v2_001/yaml",
+        json={"yaml_text": source_yaml},
+    )
+    assert saved_yaml.status_code == 200, saved_yaml.text
+    _assert_benchmark_touched(client, benchmark_id, baseline)
+
+    baseline = _reset_benchmark_updated_at(benchmark_id)
+    appended_yaml = V2_YAML.replace("api_v2_001", "api_v2_002")
+    appended = client.post(
+        f"/api/benchmarks/{benchmark_id}/append",
+        data={"source": "offline"},
+        files={"file": ("more.yaml", appended_yaml.encode(), "application/x-yaml")},
+    )
+    assert appended.status_code == 200, appended.text
+    _assert_benchmark_touched(client, benchmark_id, baseline)
+
+    baseline = _reset_benchmark_updated_at(benchmark_id)
+    overwritten = client.post(
+        f"/api/benchmarks/{benchmark_id}/overwrite-yaml",
+        json={"yaml_text": appended_yaml},
+    )
+    assert overwritten.status_code == 200, overwritten.text
+    _assert_benchmark_touched(client, benchmark_id, baseline)
+
+    baseline = _reset_benchmark_updated_at(benchmark_id)
+    replaced = client.put(
+        f"/api/benchmarks/{benchmark_id}",
+        data={"source": "offline"},
+        files={"file": ("replacement.yaml", V2_YAML.encode(), "application/x-yaml")},
+    )
+    assert replaced.status_code == 200, replaced.text
+    _assert_benchmark_touched(client, benchmark_id, baseline)
+
+    # 重新追加一条后删除，验证人工删除 Case 同样刷新时间。
+    client.post(
+        f"/api/benchmarks/{benchmark_id}/append",
+        data={"source": "offline"},
+        files={"file": ("more.yaml", appended_yaml.encode(), "application/x-yaml")},
+    )
+    baseline = _reset_benchmark_updated_at(benchmark_id)
+    deleted = client.delete(f"/api/benchmarks/{benchmark_id}/cases/api_v2_002")
+    assert deleted.status_code == 204, deleted.text
+    _assert_benchmark_touched(client, benchmark_id, baseline)
 
 
 def test_append_rejects_duplicate_sample_id_without_changing_target(client) -> None:

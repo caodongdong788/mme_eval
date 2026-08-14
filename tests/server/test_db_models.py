@@ -16,6 +16,7 @@ def test_tables_created(initialized_db):
         assert {"benchmark", "eval_run", "case_result"} <= names
         case_cols = {c["name"] for c in inspect(s.get_bind()).get_columns("case_result")}
         run_cols = {c["name"] for c in inspect(s.get_bind()).get_columns("eval_run")}
+        benchmark_cols = {c["name"] for c in inspect(s.get_bind()).get_columns("benchmark")}
         assert "population" not in case_cols
         assert "difficulty" not in case_cols
         assert "by_population" not in run_cols
@@ -24,6 +25,7 @@ def test_tables_created(initialized_db):
         assert "case_type" in case_cols
         assert "ttft_summary" in run_cols
         assert "by_case_type" in run_cols
+        assert "updated_at" in benchmark_cols
     finally:
         s.close()
 
@@ -45,6 +47,7 @@ def test_benchmark_json_roundtrip(session):
     assert got.tags == ["medical", "v2"]
     assert got.case_count == 71
     assert got.created_at is not None
+    assert got.updated_at is not None
 
 
 def test_run_and_case_relationship_and_json(session):

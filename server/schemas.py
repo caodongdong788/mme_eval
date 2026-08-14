@@ -35,6 +35,7 @@ class BenchmarkOut(BaseModel):
     suite_type: Literal["capability", "regression"] = "capability"
     created_by: Optional[str] = None
     created_at: Optional[ApiDateTime] = None
+    updated_at: Optional[ApiDateTime] = None
 
 
 class BenchmarkUpdateRequest(BaseModel):

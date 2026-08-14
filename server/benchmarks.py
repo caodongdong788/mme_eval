@@ -779,6 +779,7 @@ def _replace_uploaded_benchmark_with_yaml_bytes(
     benchmark.levels = _collect_levels(cases)
     benchmark.storage_path = str(dest_dir)
     benchmark.source = source
+    benchmark.mark_updated()
     _invalidate_cases_cache(benchmark.storage_path)
     return benchmark
 
@@ -806,6 +807,7 @@ def _replace_uploaded_benchmark_with_zip_bytes(
     benchmark.levels = _collect_levels(cases)
     benchmark.storage_path = str(dest_dir)
     benchmark.source = source
+    benchmark.mark_updated()
     _invalidate_cases_cache(benchmark.storage_path)
     return benchmark
 
@@ -927,6 +929,7 @@ def _append_validated_cases(
         benchmark.case_count = len(validated)
         benchmark.levels = _collect_levels(validated)
         benchmark.storage_path = str(destination)
+        benchmark.mark_updated()
         _invalidate_cases_cache(benchmark.storage_path)
         return benchmark
     except Exception:

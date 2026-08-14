@@ -16,6 +16,7 @@ export interface Benchmark {
   suite_type: "capability" | "regression";
   created_by?: string | null;
   created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface BenchmarkCoverage {

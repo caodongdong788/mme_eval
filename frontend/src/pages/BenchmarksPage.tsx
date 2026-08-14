@@ -23,6 +23,7 @@ import { BenchmarkCaseEditorDrawer } from "../components/BenchmarkCaseEditorDraw
 import { CaseFilterBuilder } from "../components/CaseFilterBuilder";
 import { useBenchmarksPage } from "../hooks/useBenchmarksPage";
 import { BENCHMARK_CASE_FILTER_FIELDS } from "../utils/caseFilters";
+import { formatApiDateTime } from "../utils/datetime";
 export default function BenchmarksPage() {
   const bm = useBenchmarksPage();
 
@@ -50,6 +51,18 @@ export default function BenchmarksPage() {
             {l}
           </Tag>
         )),
+    },
+    {
+      title: "创建时间",
+      dataIndex: "created_at",
+      width: 180,
+      render: (value?: string | null) => formatApiDateTime(value),
+    },
+    {
+      title: "更新时间",
+      dataIndex: "updated_at",
+      width: 180,
+      render: (value?: string | null) => formatApiDateTime(value),
     },
     {
       title: "操作",
@@ -100,6 +113,7 @@ export default function BenchmarksPage() {
             loading={bm.loading}
             columns={columns}
             dataSource={bm.uploaded}
+            scroll={{ x: 1250 }}
             pagination={{ showTotal: (t) => `共 ${t} 条` }}
           />
         )}

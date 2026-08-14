@@ -63,6 +63,7 @@ def update_benchmark(
         bm.name = name
     if payload.description is not None:
         bm.description = payload.description
+    bm.mark_updated()
     return bm
 
 
@@ -116,6 +117,7 @@ def save_benchmark_case_yaml(
         bm_domain.save_case_yaml(bm, sample_id, payload.yaml_text)
     except bm_domain.BenchmarkValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    bm.mark_updated()
     case_file, text = bm_domain.export_case_yaml(bm, sample_id)
     return BenchmarkCaseYamlOut(
         benchmark_id=benchmark_id,
@@ -161,6 +163,7 @@ def save_benchmark_case_content(
         bm_domain.save_case_yaml(bm, sample_id, text)
     except bm_domain.BenchmarkValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    bm.mark_updated()
     return get_benchmark_case_content(session, benchmark_id, sample_id)
 
 
@@ -173,6 +176,7 @@ def delete_benchmark_case(session: Session, benchmark_id: int, sample_id: str) -
     bm.case_count = len(cases)
     bm.tags = []
     bm.levels = bm_domain._collect_levels(cases) if cases else []
+    bm.mark_updated()
 
 
 def export_download(benchmark_id: int, session: Session) -> tuple[str, str]:

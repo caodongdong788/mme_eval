@@ -55,12 +55,40 @@ def init_db(settings: Settings | None = None) -> None:
     from . import models_db  # noqa: F401  触发 ORM 表注册
 
     Base.metadata.create_all(engine)
+    _migrate_benchmark_updated_at(engine)
     _migrate_legacy_open_api_key(engine)
     _migrate_case_list_display_columns(engine)
     _migrate_case_judge_error(engine)
     _migrate_eval_run_trigger_type(engine)
     _migrate_eval_run_scheduled_evaluation_id(engine)
     _migrate_attribution_task_item_analysis(engine)
+
+
+def _migrate_benchmark_updated_at(engine) -> None:
+    """为历史 Benchmark 增加更新时间，并以创建时间作为初始值。"""
+    inspector = inspect(engine)
+    if "benchmark" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("benchmark")}
+    if "updated_at" not in columns:
+        # SQLite 不允许 ALTER TABLE 时增加 CURRENT_TIMESTAMP 这类非常量默认值，
+        # 因此先增加普通列，再统一回填；新库由 ORM 定义直接带默认值。
+        with engine.begin() as connection:
+            column_type = (
+                "TIMESTAMP WITHOUT TIME ZONE"
+                if engine.dialect.name == "postgresql"
+                else "DATETIME"
+            )
+            connection.exec_driver_sql(
+                f"ALTER TABLE benchmark ADD COLUMN updated_at {column_type}"
+            )
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "UPDATE benchmark SET updated_at = created_at "
+                "WHERE updated_at IS NULL"
+            )
+        )
 
 
 def _migrate_attribution_task_item_analysis(engine) -> None:
