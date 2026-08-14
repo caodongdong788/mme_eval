@@ -13,6 +13,7 @@ from medeval.run_slug import make_run_slug
 from medeval.service import resolve_diff_target
 
 from ..models_db import EvalRun
+from ..job_specs import attach_job_spec
 from ..progress import InMemoryProgress
 from ..settings import Settings, get_settings
 from .eval_artifacts import (
@@ -147,4 +148,12 @@ def build_resume_job(
         )
         apply_retention(config, settings)
 
-    return job
+    return attach_job_spec(
+        job,
+        "resume",
+        {
+            "source_run_id": source_run_id,
+            "run_name": run_name,
+            "in_place": in_place,
+        },
+    )

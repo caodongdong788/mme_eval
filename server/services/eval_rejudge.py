@@ -14,6 +14,7 @@ from medeval.run_slug import make_run_slug
 from ..benchmarks import _apply_case_overrides
 from ..db import session_scope
 from ..models_db import Benchmark
+from ..job_specs import attach_job_spec, without_api_keys
 from ..progress import InMemoryProgress
 from ..settings import Settings, get_settings
 from .eval_artifacts import (
@@ -35,6 +36,7 @@ def build_rejudge_job(
     judge_override: dict[str, Any] | None = None,
     cases_benchmark_id: int | None = None,
     only_release_failed: bool = False,
+    judge_model_id: int | None = None,
     settings: Settings | None = None,
 ) -> Callable[[InMemoryProgress], Awaitable[None]]:
     settings = settings or get_settings()
@@ -178,7 +180,20 @@ def build_rejudge_job(
         )
         apply_retention(config, settings)
 
-    return job
+    return attach_job_spec(
+        job,
+        "rejudge",
+        without_api_keys(
+            {
+                "source_run_id": source_run_id,
+                "run_name": run_name,
+                "judge_override": judge_override,
+                "judge_model_id": judge_model_id,
+                "cases_benchmark_id": cases_benchmark_id,
+                "only_release_failed": only_release_failed,
+            }
+        ),
+    )
 
 
 async def preview_rejudge_case(

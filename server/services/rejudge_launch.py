@@ -97,6 +97,8 @@ def prepare_rejudge_derived_run(
     validate_rejudge_request(session, source, payload)
     judge_ov = resolve_judge_override(session, payload)
     extra_judge = judge_ov.public_dict() if judge_ov else None
+    if extra_judge is not None and payload.judge_model_id is not None:
+        extra_judge["__model_id"] = payload.judge_model_id
     derived = create_derived_run(
         session,
         source,
@@ -128,6 +130,7 @@ async def launch_rejudge_run(
         judge_override=judge_ov.model_dump(exclude_none=True) if judge_ov else None,
         cases_benchmark_id=payload.cases_benchmark_id,
         only_release_failed=payload.only_release_failed,
+        judge_model_id=payload.judge_model_id,
     )
     await job_runner.submit(derived.id, job)
     return derived

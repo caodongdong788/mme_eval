@@ -49,11 +49,23 @@ async def _lifespan(app: FastAPI):
 
     with session_scope() as session:
         ensure_default_judge_model(session, get_settings())
-    # 回收孤儿任务：进程重启后内存任务态丢失，DB 中残留的 running/pending 置为 failed。
+    # 进程内兼容模式仍需回收孤儿任务；数据库队列模式由 Worker 租约自动接管，绝不能
+    # 因 Web 服务部署就把正在执行的评测标记为失败。
     from .jobs import reconcile_orphaned_runs
     from .pairwise_job import reconcile_orphaned_pairwise
 
-    n_runs = reconcile_orphaned_runs()
+    if get_settings().job_runner_mode == "database":
+        from .durable_queue import reconcile_unqueued_runs
+
+        n_recovered, n_unrecoverable = reconcile_unqueued_runs(get_settings())
+        n_runs = 0
+        logger.info(
+            "持久化队列校准：恢复 %s 条、缺少断点失败 %s 条",
+            n_recovered,
+            n_unrecoverable,
+        )
+    else:
+        n_runs = reconcile_orphaned_runs()
     n_pair = reconcile_orphaned_pairwise()
     logger.info("启动完成：回收孤儿评测 %s 条、孤儿对战 %s 条", n_runs, n_pair)
     from .services.scheduled_evaluations import start_scheduler, stop_scheduler
@@ -71,7 +83,7 @@ async def _lifespan(app: FastAPI):
     finally:
         await stop_scheduler()
         await stop_attribution_tasks()
-        # 优雅关闭：取消在跑评测任务，等待其结束（残留状态由下次启动 reconcile 回收）。
+        # 数据库模式这里只关闭无状态调度器；评测由独立 Worker 持续执行。
         from .jobs import get_job_runner
 
         try:

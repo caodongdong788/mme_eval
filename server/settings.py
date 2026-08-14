@@ -73,6 +73,19 @@ class Settings:
     max_concurrent_jobs: int = field(
         default_factory=lambda: int(os.environ.get("MEDEVAL_MAX_CONCURRENT_JOBS", "2"))
     )
+    # in_process：开发/测试兼容模式；database：API 只入队，由独立 Worker 执行。
+    job_runner_mode: str = field(
+        default_factory=lambda: os.environ.get("MEDEVAL_JOB_RUNNER", "in_process").strip().lower()
+    )
+    job_poll_seconds: float = field(
+        default_factory=lambda: float(os.environ.get("MEDEVAL_JOB_POLL_SECONDS", "2"))
+    )
+    job_lease_seconds: int = field(
+        default_factory=lambda: int(os.environ.get("MEDEVAL_JOB_LEASE_SECONDS", "90"))
+    )
+    job_heartbeat_seconds: int = field(
+        default_factory=lambda: int(os.environ.get("MEDEVAL_JOB_HEARTBEAT_SECONDS", "10"))
+    )
     # --- 飞书 OAuth2 / 会话（per-user SSO 登录） ---
     # 自建应用凭证；未配置 app_id 时整套登录门禁关闭（dev 兜底，避免本地自锁）。
     feishu_app_id: str = field(

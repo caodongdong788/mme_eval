@@ -176,6 +176,41 @@ class EvalRun(Base):
     case_results: Mapped[list["CaseResultRow"]] = relationship(
         back_populates="run", cascade="all, delete-orphan"
     )
+    evaluation_jobs: Mapped[list["EvaluationJob"]] = relationship(
+        back_populates="run", cascade="all, delete-orphan"
+    )
+
+
+class EvaluationJob(Base):
+    """可由独立 Worker 领取、续租和恢复的持久化评测任务。"""
+
+    __tablename__ = "evaluation_job"
+    __table_args__ = (
+        Index("ix_evaluation_job_claim", "status", "lease_expires_at", "id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[int] = mapped_column(
+        ForeignKey("eval_run.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    run: Mapped["EvalRun"] = relationship(back_populates="evaluation_jobs")
+    # evaluation | resume | rejudge | cases_retry
+    kind: Mapped[str] = mapped_column(String(40), index=True)
+    # 仅保存可公开/可重建的参数；API Key 通过环境变量或模型配置表在 Worker 内解析。
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    # queued | running | succeeded | failed | cancelled
+    status: Mapped[str] = mapped_column(String(20), default="queued", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    lease_owner: Mapped[Optional[str]] = mapped_column(String(160), nullable=True, index=True)
+    lease_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, index=True)
+    heartbeat_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    error_msg: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
 
 
 class ScheduledEvaluation(Base):

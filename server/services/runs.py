@@ -128,6 +128,8 @@ class CreateRunPlan:
     repeat: Optional[int]
     judge_full: Optional[dict[str, Any]]
     adapter_full: Optional[dict[str, Any]]
+    judge_model_id: Optional[int]
+    user_simulator_model_id: Optional[int]
 
 
 def prepare_create_run(
@@ -138,6 +140,28 @@ def prepare_create_run(
     trigger_type: str = "manual",
     scheduled_evaluation_id: int | None = None,
 ) -> CreateRunPlan:
+    # 独立 Worker 不能安全继承请求进程内的一次性明文密钥。持久化模式要求使用
+    # 已保存的模型配置或环境变量，避免把凭据写进数据库队列。
+    if get_settings().job_runner_mode == "database":
+        if payload.adapter is not None and payload.adapter.api_key:
+            raise HTTPException(
+                status_code=422,
+                detail="持久化评测不支持一次性 Adapter API Key，请改用服务端环境变量",
+            )
+        if payload.judge is not None and payload.judge.api_key and payload.judge_model_id is None:
+            raise HTTPException(
+                status_code=422,
+                detail="持久化评测不支持一次性 Judge API Key，请先保存判分模型后再选择",
+            )
+        if (
+            payload.user_simulator is not None
+            and payload.user_simulator.api_key
+            and payload.user_simulator_model_id is None
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="持久化评测不支持一次性追问模型 API Key，请先保存模型后再选择",
+            )
     bm = session.get(Benchmark, payload.benchmark_id)
     if bm is None:
         raise HTTPException(
@@ -177,6 +201,8 @@ def prepare_create_run(
         )
     has_judge = payload.judge is not None or payload.judge_model_id is not None
     judge_public = judge_ov.public_dict() if has_judge else {}
+    if payload.judge_model_id is not None:
+        judge_public["__model_id"] = payload.judge_model_id
 
     simulator_ov = payload.user_simulator or JudgeOverride()
     if payload.user_simulator_model_id is not None:
@@ -204,7 +230,10 @@ def prepare_create_run(
     adapter_public = payload.adapter.public_dict() if payload.adapter else {}
     adapter_public["evaluation_mode"] = payload.evaluation_mode
     if has_simulator:
-        adapter_public["user_simulator"] = simulator_ov.public_dict()
+        simulator_public = simulator_ov.public_dict()
+        if payload.user_simulator_model_id is not None:
+            simulator_public["__model_id"] = payload.user_simulator_model_id
+        adapter_public["user_simulator"] = simulator_public
 
     run = EvalRun(
         run_slug="(pending)",
@@ -236,6 +265,8 @@ def prepare_create_run(
         repeat=payload.repeat,
         judge_full=judge_full,
         adapter_full=adapter_full,
+        judge_model_id=payload.judge_model_id,
+        user_simulator_model_id=payload.user_simulator_model_id,
     )
 
 

@@ -17,6 +17,7 @@ from medeval.service import write_core_artifacts
 from ..db import session_scope
 from ..ingest import build_case_row, populate_run_summary, update_case_row
 from ..models_db import Benchmark, CaseResultRow, EvalRun
+from ..job_specs import attach_job_spec
 from ..progress import InMemoryProgress
 from ..settings import Settings, get_settings
 from .eval_launch import enrich_report_agent_chains
@@ -222,4 +223,8 @@ def build_retry_cases_job(
         except Exception:  # noqa: BLE001 - 磁盘产物失败不应吞掉新的数据库结果
             logger.warning("run %s 批量用例重试后写产物失败", run_id, exc_info=True)
 
-    return job
+    return attach_job_spec(
+        job,
+        "cases_retry",
+        {"sample_ids": ordered_ids},
+    )

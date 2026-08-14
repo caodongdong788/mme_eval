@@ -14,7 +14,8 @@ from medeval.assertions import refresh_result_assertions
 from medeval.reporter.aggregator import refresh_report
 
 from ..db import session_scope
-from ..models_db import Benchmark
+from ..job_specs import attach_job_spec, without_api_keys
+from ..models_db import Benchmark, EvalRun
 from ..progress import InMemoryProgress
 from ..settings import Settings, get_settings
 from .eval_artifacts import (
@@ -37,6 +38,8 @@ def build_eval_job(
     repeat: int | None = None,
     judge_full: dict[str, Any] | None = None,
     adapter_full: dict[str, Any] | None = None,
+    judge_model_id: int | None = None,
+    user_simulator_model_id: int | None = None,
     settings: Settings | None = None,
 ) -> Callable[[InMemoryProgress], Awaitable[None]]:
     settings = settings or get_settings()
@@ -83,7 +86,16 @@ def build_eval_job(
         adapter = build_eval_adapter(config)
         judges = build_judge_stack(config)
 
-        run_slug = make_run_slug(config.run.name)
+        # 首次启动就固定 slug 并落库。Worker 若在第一条 Case 完成前退出，下一实例仍能
+        # 定位同一个 partial trace 目录，而不会另建目录丢失断点。
+        with session_scope() as session:
+            run_row = session.get(EvalRun, run_id)
+            existing_slug = run_row.run_slug if run_row is not None else ""
+        run_slug = (
+            existing_slug
+            if existing_slug and existing_slug != "(pending)"
+            else make_run_slug(config.run.name)
+        )
         out_dir = settings.outputs_dir / run_slug
         write_run_plan(out_dir, cases, config.run.repeat or 1)
         if not benchmark_root.is_absolute():
@@ -92,6 +104,15 @@ def build_eval_job(
 
         partial_config = config.public_snapshot()
         partial_config["benchmark"] = benchmark_meta
+        with session_scope() as session:
+            run_row = session.get(EvalRun, run_id)
+            if run_row is None:
+                raise ValueError(f"run {run_id} 不存在")
+            run_row.run_slug = run_slug
+            run_row.adapter_type = config.adapter.type
+            run_row.config_snapshot = partial_config
+            run_row.description = config.run.description
+            run_row.n_runs = config.run.repeat or 1
         progress.set_case_complete_callback(
             IncrementalRunPersister(
                 run_id,
@@ -128,4 +149,20 @@ def build_eval_job(
         schedule_run_agent_chain_backfill(run_id, settings)
         apply_retention(config, settings)
 
-    return job
+    return attach_job_spec(
+        job,
+        "evaluation",
+        without_api_keys(
+            {
+                "benchmark_id": benchmark_id,
+                "run_name": run_name,
+                "levels": levels,
+                "limit": limit,
+                "repeat": repeat,
+                "judge": judge_full,
+                "adapter": adapter_full,
+                "judge_model_id": judge_model_id,
+                "user_simulator_model_id": user_simulator_model_id,
+            }
+        ),
+    )

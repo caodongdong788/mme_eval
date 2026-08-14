@@ -1,8 +1,7 @@
 """评测任务调度。
 
-``JobRunner`` 抽象出「异步执行一个评测任务 + 跟踪状态/进度」；MVP 用进程内 asyncio 实现
-（并发上限、状态机 pending→running→success/failed）。未来上服务器水平扩展时，可换成基于
-外部队列（Celery/RQ）的实现而不动 routers / eval 业务代码。
+``JobRunner`` 抽象出「提交评测任务 + 跟踪状态/进度」。开发/测试可用进程内 asyncio；
+生产使用数据库租约队列，由独立 Worker 执行并在部署或崩溃后断点恢复。
 """
 
 from __future__ import annotations
@@ -10,20 +9,16 @@ from __future__ import annotations
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Awaitable, Callable
 from datetime import datetime
 
 from .constants import EVAL_JOB_USER_ERROR
 from .db import session_scope
+from .job_specs import get_job_spec, JobFn, without_api_keys
 from .models_db import EvalRun
 from .progress import InMemoryProgress
 from .settings import get_settings
 
 log = logging.getLogger(__name__)
-
-# 一个评测任务：拿到进度观察者，自行完成评测与落库（不负责状态流转）。
-JobFn = Callable[[InMemoryProgress], Awaitable[None]]
-
 
 class JobRunner(ABC):
     @abstractmethod
@@ -196,13 +191,52 @@ class InProcessJobRunner(JobRunner):
                 pass
 
 
+class DatabaseJobRunner(JobRunner):
+    """API 进程只把任务写入数据库，由独立 Worker 领取执行。"""
+
+    async def submit(self, run_id: int, job: JobFn) -> None:
+        from .durable_queue import enqueue_job
+
+        spec = get_job_spec(job)
+        if spec is None:
+            raise ValueError("持久化调度要求 Job 提供可序列化任务描述")
+        enqueue_job(run_id, spec.kind, without_api_keys(spec.payload))
+        return None
+
+    def progress_snapshot(self, run_id: int) -> dict | None:
+        from .durable_queue import progress_snapshot
+
+        return progress_snapshot(run_id)
+
+    def queue_snapshot(self, run_id: int) -> dict | None:
+        from .durable_queue import queue_snapshot
+
+        return queue_snapshot(run_id)
+
+    async def cancel(self, run_id: int) -> bool:
+        from .durable_queue import cancel_job, job_is_executing
+
+        cancelled = cancel_job(run_id)
+        if not cancelled:
+            return False
+        # 删除接口必须等 Worker 停止写入后再删 Run/产物，避免跨进程取消的竞态。
+        deadline = asyncio.get_running_loop().time() + get_settings().job_heartbeat_seconds + 5
+        while job_is_executing(run_id) and asyncio.get_running_loop().time() < deadline:
+            await asyncio.sleep(0.2)
+        return True
+
+
 _runner: JobRunner | None = None
 
 
 def get_job_runner() -> JobRunner:
     global _runner
     if _runner is None:
-        _runner = InProcessJobRunner(get_settings().max_concurrent_jobs)
+        settings = get_settings()
+        if settings.job_runner_mode == "database":
+            _runner = DatabaseJobRunner()
+        else:
+            _runner = InProcessJobRunner(settings.max_concurrent_jobs)
     return _runner
 
 

@@ -5,7 +5,7 @@
 #   docker compose up -d --build
 #   open http://localhost:8000
 #
-# 注意：JobRunner 为进程内调度，请保持 app 单实例；水平扩展需外部队列（未实现）。
+# 评测任务通过 Postgres 租约队列交给独立 worker；部署 app 不会中断在跑评测。
 
 services:
   db:
@@ -25,6 +25,7 @@ services:
       start_period: 10s
 
   app:
+    image: mme-eval:${MME_IMAGE_TAG:-local}
     build:
       context: .
       dockerfile: Dockerfile
@@ -38,6 +39,7 @@ services:
       MEDEVAL_DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-medeval}:${POSTGRES_PASSWORD:-medeval}@db:5432/${POSTGRES_DB:-medeval}
       MEDEVAL_OUTPUTS_DIR: /data/outputs
       MEDEVAL_UPLOADS_DIR: /data/uploads/benchmarks
+      MEDEVAL_JOB_RUNNER: database
     volumes:
       - mme-data:/data
       # 生产可挂载自有 config（含真实 adapter / judge 配置），覆盖镜像内置默认
@@ -45,6 +47,27 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+  worker:
+    image: mme-eval:${MME_IMAGE_TAG:-local}
+    restart: unless-stopped
+    command: ["python", "-m", "server.worker"]
+    env_file:
+      - .env
+    environment:
+      MEDEVAL_DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-medeval}:${POSTGRES_PASSWORD:-medeval}@db:5432/${POSTGRES_DB:-medeval}
+      MEDEVAL_OUTPUTS_DIR: /data/outputs
+      MEDEVAL_UPLOADS_DIR: /data/uploads/benchmarks
+      MEDEVAL_JOB_RUNNER: database
+    volumes:
+      - mme-data:/data
+      - ${MEDEVAL_CONFIG_HOST_PATH:-./config.yaml}:/app/config.yaml:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    stop_grace_period: 45s
 
 volumes:
   pgdata:

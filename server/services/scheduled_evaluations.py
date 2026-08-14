@@ -262,6 +262,8 @@ async def launch_scheduled_evaluation(
         repeat=plan.repeat,
         judge_full=plan.judge_full,
         adapter_full=plan.adapter_full,
+        judge_model_id=getattr(plan, "judge_model_id", None),
+        user_simulator_model_id=getattr(plan, "user_simulator_model_id", None),
     )
     await get_job_runner().submit(plan.run.id, job)
     return plan

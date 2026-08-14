@@ -10,7 +10,7 @@ from medeval.models import RunReport
 
 from ..benchmarks import load_benchmark_cases
 from ..db import session_scope
-from ..models_db import Benchmark, EvalRun
+from ..models_db import Benchmark, EvalRun, JudgeModelConfig
 from ..settings import Settings
 from .eval_artifacts import read_run_plan
 
@@ -22,11 +22,48 @@ def load_source_run(
         src = session.get(EvalRun, source_run_id)
         if src is None:
             raise ValueError(f"源 run {source_run_id} 不存在")
+        judge = dict(src.judge_overrides or {})
+        judge_model_id = judge.pop("__model_id", None)
+        if judge_model_id is not None:
+            row = session.get(JudgeModelConfig, int(judge_model_id))
+            if row is None:
+                raise ValueError(f"源 run 的判分模型 {judge_model_id} 已不存在")
+            judge.update(
+                {
+                    "provider": row.provider or None,
+                    "model": row.model or None,
+                    "base_url": row.base_url or None,
+                    "api_version": row.api_version or None,
+                    "api_key": row.api_key or None,
+                    "temperature": row.temperature,
+                    "enable_thinking": row.enable_thinking,
+                }
+            )
+        adapter = dict(src.adapter_overrides or {})
+        simulator = adapter.get("user_simulator")
+        if isinstance(simulator, dict) and simulator.get("__model_id") is not None:
+            simulator = dict(simulator)
+            model_id = int(simulator.pop("__model_id"))
+            row = session.get(JudgeModelConfig, model_id)
+            if row is None:
+                raise ValueError(f"源 run 的追问模型 {model_id} 已不存在")
+            simulator.update(
+                {
+                    "provider": row.provider or None,
+                    "model": row.model or None,
+                    "base_url": row.base_url or None,
+                    "api_version": row.api_version or None,
+                    "api_key": row.api_key or None,
+                    "temperature": row.temperature,
+                    "enable_thinking": row.enable_thinking,
+                }
+            )
+            adapter["user_simulator"] = simulator
         return (
             src.run_slug,
             src.benchmark_id,
-            dict(src.judge_overrides or {}),
-            dict(src.adapter_overrides or {}),
+            judge,
+            adapter,
         )
 
 
