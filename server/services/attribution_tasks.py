@@ -470,6 +470,18 @@ async def delete_attribution_task(session: Session, run_id: int, task_id: int) -
     session.flush()
 
 
+async def delete_attribution_tasks_for_run(session: Session, run_id: int) -> int:
+    """终止并删除评测下的全部归因任务及逐 Case 明细。"""
+    task_ids = list(session.scalars(
+        select(AttributionTask.id)
+        .where(AttributionTask.run_id == run_id)
+        .order_by(AttributionTask.id)
+    ))
+    for task_id in task_ids:
+        await delete_attribution_task(session, run_id, task_id)
+    return len(task_ids)
+
+
 def mark_attribution_task_start_failed(task_id: int, exc: Exception) -> None:
     """任务已落库但后台协程启动失败时解除占用，允许用户重新发起。"""
     with session_scope() as session:

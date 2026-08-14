@@ -14,6 +14,7 @@ from ...jobs import get_job_runner
 from medeval.evaluation_account_limiter import account_queue_snapshot
 from ...models_db import EvalRun, FeishuUser
 from ...schemas import ProgressOut, RunCreate, RunDetailOut, RunRenameRequest, RunSummaryOut
+from ...services import attribution_tasks
 from ...services import runs as runs_svc
 from ._router import router
 
@@ -70,7 +71,13 @@ def get_run(run_id: int, session: Session = Depends(get_session)) -> EvalRun:
 async def delete_run(run_id: int, session: Session = Depends(get_session)) -> None:
     # 先终止进程内 Job，避免已取消的协程在记录删除后继续回写 Case 结果。
     await get_job_runner().cancel(run_id)
+    # 归因任务以独立外键关联评测；先终止模型调用并删除逐 Case 快照，
+    # 避免评测删除在事务提交阶段才触发 FK 错误。
+    await attribution_tasks.delete_attribution_tasks_for_run(session, run_id)
     runs_svc.delete_run(session, run_id)
+    # FastAPI 的依赖事务会在响应生成后提交。这里提前 flush，确保只有数据库
+    # 确认可删除时才向前端返回 204，杜绝“页面消失、刷新又出现”。
+    session.flush()
 
 
 @router.patch("/{run_id}", response_model=RunSummaryOut)

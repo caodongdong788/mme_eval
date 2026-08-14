@@ -450,6 +450,27 @@ def test_attribution_task_api_reruns_selected_items_in_place_and_deletes(client,
     assert missing.status_code == 404
 
 
+def test_deleting_run_cascades_attribution_task_and_items(client, monkeypatch):
+    run_id, sample_ids, model_id = _seed_failed_cases()
+    monkeypatch.setattr(attribution_tasks, "has_judge_model_api_key", lambda _model: True)
+    monkeypatch.setattr(attribution_tasks, "start_attribution_task", lambda _task_id: None)
+
+    created = client.post(
+        f"/api/runs/{run_id}/attribution-tasks",
+        json={"sample_ids": sample_ids, "judge_model_id": model_id},
+    )
+    assert created.status_code == 201, created.text
+    task_id = created.json()["id"]
+
+    deleted = client.delete(f"/api/runs/{run_id}")
+    assert deleted.status_code == 204, deleted.text
+
+    with session_scope() as session:
+        assert session.get(EvalRun, run_id) is None
+        assert session.get(AttributionTask, task_id) is None
+        assert session.query(AttributionTaskItem).filter_by(task_id=task_id).count() == 0
+
+
 def test_attribution_task_api_resumes_only_unfinished_items(client, monkeypatch):
     run_id, sample_ids, model_id = _seed_failed_cases()
     started: list[int] = []
