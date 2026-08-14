@@ -44,6 +44,33 @@ def test_job_success_sets_status_and_progress(initialized_db):
     assert snap["done"] == 2 and snap["total"] == 2 and snap["percent"] == 100.0
 
 
+def test_batch_case_retry_persists_case_progress_after_completion(initialized_db):
+    run_id = _new_pending_run()
+    with session_scope() as s:
+        s.get(EvalRun, run_id).progress = {
+            "context": {"kind": "cases_retry", "sample_ids": ["case_1", "case_2"]}
+        }
+
+    runner = InProcessJobRunner()
+
+    async def job(progress):
+        progress.set_case_total(2)
+        await progress.case_completed(None)  # type: ignore[arg-type]
+        await progress.case_completed(None)  # type: ignore[arg-type]
+
+    async def scenario():
+        task = await runner.submit(run_id, job)
+        await task
+
+    asyncio.run(scenario())
+    with session_scope() as s:
+        stored = s.get(EvalRun, run_id).progress
+    assert stored["case_done"] == 2
+    assert stored["case_total"] == 2
+    assert stored["completed"] is True
+    assert stored["context"]["sample_ids"] == ["case_1", "case_2"]
+
+
 def test_job_failure_records_error(initialized_db):
     run_id = _new_pending_run()
     runner = InProcessJobRunner(max_concurrent=2)

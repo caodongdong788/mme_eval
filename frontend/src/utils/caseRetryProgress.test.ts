@@ -35,4 +35,15 @@ describe("isActiveCaseRetry", () => {
       )
     ).toBe(false);
   });
+
+  it("recognizes every selected case during a batch retry", () => {
+    const progress = {
+      status: "running",
+      progress: { context: { kind: "cases_retry", sample_ids: ["case_12", "case_14"] } },
+    };
+
+    expect(isActiveCaseRetry(progress, "case_12")).toBe(true);
+    expect(isActiveCaseRetry(progress, "case_14")).toBe(true);
+    expect(isActiveCaseRetry(progress, "case_16")).toBe(false);
+  });
 });

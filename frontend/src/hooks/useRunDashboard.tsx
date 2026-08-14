@@ -6,6 +6,7 @@ import {
   Benchmark,
   CaseRow,
   JudgeModel,
+  ProgressInfo,
   RejudgePayload,
   RunDetail,
 } from "../api/index";
@@ -21,6 +22,7 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
   const routeState = location.state as { tab?: string; attributionTaskId?: number } | null;
 
   const [run, setRun] = useState<RunDetail | null>(null);
+  const [progress, setProgress] = useState<ProgressInfo | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>(
     () => routeState?.tab || "overview"
@@ -70,10 +72,14 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
 
   useEffect(() => {
     setRunError(null);
+    setProgress(null);
     api
       .getRun(runId)
       .then((r) => {
         setRun(r);
+        // 重新评测完成后，后端会保留本次操作的用例级进度。首次进入页面也要
+        // 拉取它，不能只在运行中轮询，否则刷新页面会丢掉完成态进度条。
+        void api.getProgress(runId).then(setProgress).catch(() => undefined);
         if (r.benchmark_id != null) {
           api
             .listBenchmarks()
@@ -89,11 +95,15 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
     let alive = true;
     const refresh = () => {
       if (document.visibilityState !== "visible") return;
-      api
-        .getRun(runId)
-        .then((next) => alive && setRun(next))
+      void Promise.all([api.getRun(runId), api.getProgress(runId)])
+        .then(([nextRun, nextProgress]) => {
+          if (!alive) return;
+          setRun(nextRun);
+          setProgress(nextProgress);
+        })
         .catch(() => undefined);
     };
+    refresh();
     const timer = window.setInterval(refresh, 2000);
     const onVisibility = () => refresh();
     document.addEventListener("visibilitychange", onVisibility);
@@ -310,6 +320,7 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
 
   return {
     run,
+    progress,
     runError,
     ...caseFilters,
     activeTab,

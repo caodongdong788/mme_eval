@@ -30,6 +30,39 @@ _RETIRED_CX_SIT_HOST = "10.30.7.71"
 _CURRENT_CX_SIT_ORIGIN = ("https", "sit-cx.senzco.com")
 
 
+def _restore_guideline_dimensions(detail: dict[str, Any]) -> dict[str, Any]:
+    """为历史详情中的旧指南评分行恢复绑定维度。
+
+    V2 Case 的 ``evaluation.guidelines`` 已把维度作为必填真值保存；早期落库的
+    ``guideline_scores`` 可能漏存该冗余字段，导致页面误显示“未关联维度”。这里只
+    按相同 guideline id 从冻结 Case 回填，找不到真值时保持为空，绝不猜测维度。
+    """
+    case = detail.get("case") if isinstance(detail.get("case"), dict) else {}
+    evaluation = case.get("evaluation") if isinstance(case.get("evaluation"), dict) else {}
+    guidelines = evaluation.get("guidelines") if isinstance(evaluation.get("guidelines"), list) else []
+    dimensions_by_id = {
+        str(item.get("id")): str(item.get("dimension"))
+        for item in guidelines
+        if isinstance(item, dict) and item.get("id") and item.get("dimension")
+    }
+    scores = detail.get("guideline_scores")
+    if not dimensions_by_id or not isinstance(scores, list):
+        return detail
+    restored = []
+    changed = False
+    for score in scores:
+        if not isinstance(score, dict) or score.get("dimension"):
+            restored.append(score)
+            continue
+        dimension = dimensions_by_id.get(str(score.get("id", "")))
+        if not dimension:
+            restored.append(score)
+            continue
+        restored.append({**score, "dimension": dimension})
+        changed = True
+    return {**detail, "guideline_scores": restored} if changed else detail
+
+
 def _current_cx_share_url(value: Any) -> Any:
     """把旧 SIT 分享页映射到当前域名；其它 URL 原样返回。"""
     if not isinstance(value, str) or not value:
@@ -143,7 +176,7 @@ def _compact_agent_chain_detail(detail: dict[str, Any]) -> dict[str, Any]:
 
 def get_case_detail_json(session: Session, run_id: int, sample_id: str) -> dict[str, Any]:
     row = case_row_or_404(session, run_id, sample_id)
-    detail = _compact_agent_chain_detail(row.detail_json or {})
+    detail = _restore_guideline_dimensions(_compact_agent_chain_detail(row.detail_json or {}))
     trace = detail.get("trace")
     if isinstance(trace, dict):
         trace["cx_evaluation_share_url"] = _current_cx_share_url(

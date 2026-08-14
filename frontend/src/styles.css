@@ -2585,6 +2585,40 @@ a.ant-typography-secondary:hover {
   display: inline;
   margin-top: 0;
 }
+.run-case-results__actions {
+  flex: 1 1 960px;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.case-retry-progress {
+  min-width: 286px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  display: grid;
+  grid-template-columns: auto minmax(72px, 110px) auto auto;
+  align-items: center;
+  column-gap: 8px;
+  background: #fff;
+  white-space: nowrap;
+}
+
+.case-retry-progress__title {
+  color: #303947;
+  font-weight: 600;
+}
+
+.case-retry-progress__value {
+  color: #667085;
+  font-size: 12px;
+}
+
+.case-retry-progress .ant-progress {
+  margin: 0;
+  min-width: 0;
+}
 .case-filter-trigger {
   color: var(--runs-text-secondary);
   border-color: var(--runs-border);

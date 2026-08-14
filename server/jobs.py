@@ -69,7 +69,13 @@ def reconcile_orphaned_runs() -> int:
     return count
 
 
-def _set_status(run_id: int, status: str, *, error: str = "") -> None:
+def _set_status(
+    run_id: int,
+    status: str,
+    *,
+    error: str = "",
+    progress: dict | None = None,
+) -> None:
     with session_scope() as session:
         row = session.get(EvalRun, run_id)
         if row is None:
@@ -80,7 +86,13 @@ def _set_status(run_id: int, status: str, *, error: str = "") -> None:
         if status in ("success", "failed") and row.finished_at is None:
             row.finished_at = datetime.utcnow()
         if status in ("success", "failed"):
-            row.progress = {}
+            # 批量/单条重新评测结束后，保留用例范围与最终进度，供刷新页面后
+            # 继续展示这一次操作的完成状态。普通任务仍维持原先清空进度的语义。
+            context = row.progress.get("context") if isinstance(row.progress, dict) else None
+            if isinstance(context, dict) and context.get("kind") in {"case_retry", "cases_retry"}:
+                row.progress = {**(progress or {}), "context": dict(context), "completed": status == "success"}
+            else:
+                row.progress = {}
         if error:
             row.error_msg = error[:4000]
 
@@ -121,9 +133,14 @@ class InProcessJobRunner(JobRunner):
                 await job(progress)
             except Exception as exc:  # noqa: BLE001 —— 失败兜底落 error_msg
                 log.exception("eval job run_id=%s failed", run_id)
-                _set_status(run_id, "failed", error=EVAL_JOB_USER_ERROR)
+                _set_status(
+                    run_id,
+                    "failed",
+                    error=EVAL_JOB_USER_ERROR,
+                    progress=progress.snapshot(),
+                )
             else:
-                _set_status(run_id, "success")
+                _set_status(run_id, "success", progress=progress.snapshot())
             finally:
                 self._states[run_id] = "done"
 

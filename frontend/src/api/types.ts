@@ -404,11 +404,17 @@ export interface ProgressInfo {
     current_label?: string;
     done?: number;
     total?: number;
+    /** 按用例聚合的进度，用于批量重新评测。 */
+    case_done?: number;
+    case_total?: number;
     percent?: number;
+    /** 后端已持久化本次重试的最终进度。 */
+    completed?: boolean;
     phases?: Record<string, { label: string; total: number; done: number }>;
     context?: {
       kind?: string;
       sample_id?: string;
+      sample_ids?: string[];
     };
   } | null;
 }

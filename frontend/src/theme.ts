@@ -121,6 +121,10 @@ export const themeConfig: ThemeConfig = {
       headerColor: palette.muted,
       borderColor: palette.border,
       rowHoverBg: "#FAFAFA",
+      // 全局主色为深墨色，不能直接沿用 Ant Design 默认的选中行色；否则勾选
+      // 用例会被渲染成深灰底，误以为页面进入遮罩/异常状态。
+      rowSelectedBg: palette.dashboard.purpleSoft,
+      rowSelectedHoverBg: "#ECE7FF",
       cellPaddingBlock: 20,
       cellPaddingInline: 16,
       headerSplitColor: "transparent",

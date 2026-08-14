@@ -31,6 +31,10 @@ class InMemoryProgress:
         self.phases: dict[str, dict[str, Any]] = {}
         self.current: str | None = None
         self._case_complete_callback: CaseCompleteCallback | None = None
+        # 用例级进度与底层调用/判分 phase 分开维护：一个 Case 的多轮对话和
+        # 多个 Judge 都完成后才计为 1，适合批量重新评测在界面上展示。
+        self._case_total = 0
+        self._case_done = 0
         # 开跑前声明的全部阶段总量之和；用于全局单调百分比（None=未声明，回退当前阶段口径）。
         self._plan_total: int | None = None
 
@@ -40,8 +44,17 @@ class InMemoryProgress:
         """注册单条用例完成回调；平台用它增量落库，CLI/SDK 可不注册。"""
         self._case_complete_callback = callback
 
+    def set_case_total(self, total: int) -> None:
+        """声明本次任务实际要完成的用例数。"""
+        self._case_total = max(0, int(total))
+        self._case_done = min(self._case_done, self._case_total)
+
     async def case_completed(self, result: "CaseResult") -> None:
         """在一条用例完成 N 次判分并折叠后通知平台。"""
+        if self._case_total:
+            self._case_done = min(self._case_done + 1, self._case_total)
+        else:
+            self._case_done += 1
         if self._case_complete_callback is None:
             return
         pending = self._case_complete_callback(result)
@@ -81,4 +94,6 @@ class InMemoryProgress:
             "total": cur["total"] if cur else 0,
             "percent": percent,
             "phases": {k: dict(v) for k, v in self.phases.items()},
+            "case_done": self._case_done,
+            "case_total": self._case_total,
         }

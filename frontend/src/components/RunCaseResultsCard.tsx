@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import { Button, Space, Table } from "antd";
+import { Button, Progress, Space, Table } from "antd";
 import { BulbOutlined, DownloadOutlined, EditOutlined, ReloadOutlined } from "@ant-design/icons";
 import { type Key, useEffect, useMemo, useState } from "react";
 import type { ColumnsType } from "antd/es/table";
@@ -19,6 +19,7 @@ export interface RunCaseResultsCardProps {
   exporting: boolean;
   loading?: boolean;
   live?: boolean;
+  retryProgress?: { done: number; total: number; status: string };
   onOpenYamlEditor: () => void;
   onOpenExport: () => void;
   onStartAttribution: (cases: CaseRow[]) => void;
@@ -37,6 +38,7 @@ export function RunCaseResultsCard({
   exporting,
   loading = false,
   live = false,
+  retryProgress,
   onOpenYamlEditor,
   onOpenExport,
   onStartAttribution,
@@ -52,6 +54,14 @@ export function RunCaseResultsCard({
     const visible = new Set(shownCases.map((item) => item.id));
     setSelectedKeys((keys) => keys.filter((key) => visible.has(Number(key))));
   }, [shownCases]);
+  const retryPercent = retryProgress?.total
+    ? Math.round(Math.min(retryProgress.done / retryProgress.total, 1) * 100)
+    : 0;
+  const retryStateLabel = retryProgress?.status === "success"
+    ? "已完成"
+    : retryProgress?.status === "failed"
+      ? "重新评测失败"
+      : "重新评测中";
   return (
     <div className="run-detail-page">
       <div className="dash-table-card">
@@ -62,8 +72,8 @@ export function RunCaseResultsCard({
               <span className="dash-table-card__sub">{benchmarkName}</span>
             )}
           </div>
-          <Space size={8} wrap>
-            {live && (
+          <Space size={8} wrap className="run-case-results__actions">
+            {live && !retryProgress && (
               <span className="status-dot status-dot--running">
                 实时更新 · 已完成 {cases.length} 条
               </span>
@@ -90,18 +100,44 @@ export function RunCaseResultsCard({
             >
               开始归因分析{failedShownCases.length ? ` (${failedShownCases.length})` : ""}
             </Button>
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={() => onRetryCases(selectedCases)}
-              disabled={live || selectedCases.length === 0}
-              title={
-                selectedCases.length
-                  ? `重新执行选中的 ${selectedCases.length} 条用例，并原位覆盖结果`
-                  : "请先勾选需要重新评测的用例"
-              }
-            >
-              重新评测{selectedCases.length ? ` (${selectedCases.length})` : ""}
-            </Button>
+            {retryProgress ? (
+              <div className="case-retry-progress" role="status" aria-label="重新评测进度">
+                <span className="case-retry-progress__title">重新评测</span>
+                <Progress
+                  percent={retryPercent}
+                  showInfo={false}
+                  size="small"
+                  status={retryProgress.status === "failed" ? "exception" : undefined}
+                />
+                <span className="case-retry-progress__value">
+                  {retryStateLabel} {retryProgress.done}/{retryProgress.total}
+                </span>
+                {retryProgress.status !== "pending" && retryProgress.status !== "running" && (
+                  <Button
+                    type="link"
+                    size="small"
+                    icon={<ReloadOutlined />}
+                    onClick={() => onRetryCases(selectedCases)}
+                    disabled={selectedCases.length === 0}
+                  >
+                    再次评测
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={() => onRetryCases(selectedCases)}
+                disabled={live || selectedCases.length === 0}
+                title={
+                  selectedCases.length
+                    ? `重新执行选中的 ${selectedCases.length} 条用例，并原位覆盖结果`
+                    : "请先勾选需要重新评测的用例"
+                }
+              >
+                重新评测{selectedCases.length ? ` (${selectedCases.length})` : ""}
+              </Button>
+            )}
             <Button
               icon={<EditOutlined />}
               onClick={onOpenYamlEditor}

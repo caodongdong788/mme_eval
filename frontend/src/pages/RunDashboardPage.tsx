@@ -43,6 +43,20 @@ export default function RunDashboardPage() {
   }
 
   const columns = buildCaseColumns(id, tagLabel);
+  const retryContext = dash.progress?.progress?.context;
+  const retryingCaseCount = retryContext?.kind === "cases_retry"
+    ? retryContext.sample_ids?.length || 0
+    : retryContext?.kind === "case_retry"
+      ? 1
+      : 0;
+  const retryStatus = dash.progress?.status || dash.run.status;
+  const retryProgress = retryingCaseCount
+    ? {
+        done: dash.progress?.progress?.case_done ?? (retryStatus === "success" ? retryingCaseCount : 0),
+        total: dash.progress?.progress?.case_total || retryingCaseCount,
+        status: retryStatus,
+      }
+    : undefined;
 
   return (
     <div className="dash-page">
@@ -89,6 +103,7 @@ export default function RunDashboardPage() {
                 exporting={dash.exporting}
                 loading={dash.loading}
                 live={dash.run.status === "running" || dash.run.status === "pending"}
+                retryProgress={retryProgress}
                 onOpenYamlEditor={dash.openYamlEditor}
                 onOpenExport={() => dash.setExportOpen(true)}
                 onStartAttribution={dash.openAttributionLaunch}

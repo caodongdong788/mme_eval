@@ -388,6 +388,10 @@ async def evaluate(
     progress.plan_phases(
         run_phase_plan(len(cases), n_runs) + judge_phase_plan(len(cases), n_runs, judges)
     )
+    # 平台可能另外展示按 Case 聚合的进度；这是可选扩展，保持 SDK/旧观察者兼容。
+    set_case_total = getattr(progress, "set_case_total", None)
+    if callable(set_case_total):
+        set_case_total(len(cases))
 
     try:
         # Judge 与 bot 调用并行流水：某条 Case 的全部对话完成后，立即判分、折叠并
