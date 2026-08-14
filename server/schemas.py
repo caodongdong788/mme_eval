@@ -664,6 +664,8 @@ class CaseRowOut(BaseModel):
     level: str
     medical_safety_passed: bool
     release_passed: bool
+    # 判分模型调用异常时为 True；前端据此展示“判分异常”，而非误判为 0 分不合格。
+    judge_error: bool = False
     composite_score: Optional[float] = None
     grade: str
     stability: str
