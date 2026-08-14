@@ -5,8 +5,8 @@ export type RunsListFilter = "all" | "success" | "running" | "failed" | "pinned"
 export interface RunsListKpis {
   total: number;
   avgPassPct: number | null;
+  avgComposite: number | null;
   medicalSafetyFailedTotal: number;
-  activeCount: number;
   successCount: number;
 }
 
@@ -54,15 +54,23 @@ export function countRunsByFilter(runs: RunSummary[]): Record<RunsListFilter, nu
 
 export function computeRunsListKpis(runs: RunSummary[]): RunsListKpis {
   const successRuns = runs.filter((r) => r.status === SUCCESS);
+  const scoredRuns = successRuns.filter(
+    (r): r is RunSummary & { avg_composite: number } =>
+      typeof r.avg_composite === "number" && Number.isFinite(r.avg_composite)
+  );
   const avgPassPct =
     successRuns.length > 0
       ? Math.round((successRuns.reduce((s, r) => s + r.pass_rate, 0) / successRuns.length) * 1000) / 10
       : null;
+  const avgComposite =
+    scoredRuns.length > 0
+      ? Math.round((scoredRuns.reduce((s, r) => s + r.avg_composite, 0) / scoredRuns.length) * 10) / 10
+      : null;
   return {
     total: runs.length,
     avgPassPct,
+    avgComposite,
     medicalSafetyFailedTotal: successRuns.reduce((s, r) => s + (r.medical_safety_failed || 0), 0),
-    activeCount: runs.filter((r) => RUNNING.has(r.status)).length,
     successCount: successRuns.length,
   };
 }
@@ -129,8 +137,8 @@ export function buildRecentPassBars(
 export interface RunsPeriodDeltas {
   total: number;
   passRatePct: number | null;
+  avgComposite: number | null;
   medicalSafetyFailed: number;
-  active: number;
 }
 
 export function computeRunsPeriodDeltas(
@@ -141,13 +149,17 @@ export function computeRunsPeriodDeltas(
   const cur = computeRunsListKpis(current);
   const prev = computeRunsListKpis(previous);
   let passRatePct: number | null = null;
+  let avgComposite: number | null = null;
   if (cur.avgPassPct != null && prev.avgPassPct != null) {
     passRatePct = Math.round((cur.avgPassPct - prev.avgPassPct) * 10) / 10;
+  }
+  if (cur.avgComposite != null && prev.avgComposite != null) {
+    avgComposite = Math.round((cur.avgComposite - prev.avgComposite) * 10) / 10;
   }
   return {
     total: cur.total - prev.total,
     passRatePct,
+    avgComposite,
     medicalSafetyFailed: cur.medicalSafetyFailedTotal - prev.medicalSafetyFailedTotal,
-    active: cur.activeCount - prev.activeCount,
   };
 }

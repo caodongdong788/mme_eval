@@ -605,6 +605,8 @@ class RunSummaryOut(BaseModel):
     pass_rate: float
     medical_safety_failed: int
     n_runs: int
+    # 已完成评测的用例总分均值（满分 45）；运行中 / 历史无评分数据时为 null。
+    avg_composite: Optional[float] = None
     started_at: Optional[ApiDateTime] = None
     finished_at: Optional[ApiDateTime] = None
     created_at: Optional[ApiDateTime] = None

@@ -139,6 +139,14 @@ class EvalRun(Base):
         mode = (self.adapter_overrides or {}).get("evaluation_mode")
         return mode if mode in {"single_turn", "multi_turn"} else "single_turn"
 
+    @property
+    def avg_composite(self) -> Optional[float]:
+        """评测已完成时落库的用例总分均值，供列表轻量展示与聚合。"""
+        value = (self.grading or {}).get("avg_composite")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return float(value)
+        return None
+
     # 是否已落盘会话留痕（outputs/<slug>/traces.jsonl.gz 存在）→ 可离线重判 / 断点续跑
     has_traces: Mapped[bool] = mapped_column(Boolean, default=False)
     # 置顶保护：免于存储治理清理（同步落 KEEP 哨兵文件）

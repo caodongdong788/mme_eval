@@ -58,14 +58,14 @@ describe("runsListOverview", () => {
 
   it("computeRunsListKpis aggregates success runs", () => {
     const kpis = computeRunsListKpis([
-      run({ id: 1, pass_rate: 0.8, medical_safety_failed: 1 }),
-      run({ id: 2, pass_rate: 0.9, medical_safety_failed: 2 }),
-      run({ id: 3, status: "running" }),
+      run({ id: 1, pass_rate: 0.8, medical_safety_failed: 1, avg_composite: 30 }),
+      run({ id: 2, pass_rate: 0.9, medical_safety_failed: 2, avg_composite: 36 }),
+      run({ id: 3, status: "running", avg_composite: 40 }),
     ]);
     expect(kpis.total).toBe(3);
     expect(kpis.avgPassPct).toBe(85);
+    expect(kpis.avgComposite).toBe(33);
     expect(kpis.medicalSafetyFailedTotal).toBe(3);
-    expect(kpis.activeCount).toBe(1);
   });
 
   it("buildPassRateTrend returns chronological points", () => {
@@ -80,15 +80,15 @@ describe("runsListOverview", () => {
 
   it("computeRunsPeriodDeltas compares two windows", () => {
     const current = [
-      run({ id: 1, pass_rate: 0.9, medical_safety_failed: 1 }),
-      run({ id: 2, pass_rate: 0.7, medical_safety_failed: 0 }),
+      run({ id: 1, pass_rate: 0.9, medical_safety_failed: 1, avg_composite: 36 }),
+      run({ id: 2, pass_rate: 0.7, medical_safety_failed: 0, avg_composite: 30 }),
     ];
-    const previous = [run({ id: 3, pass_rate: 0.6, medical_safety_failed: 2 })];
+    const previous = [run({ id: 3, pass_rate: 0.6, medical_safety_failed: 2, avg_composite: 27 })];
     expect(computeRunsPeriodDeltas(current, previous)).toEqual({
       total: 1,
       passRatePct: 20,
+      avgComposite: 6,
       medicalSafetyFailed: -1,
-      active: 0,
     });
   });
 });

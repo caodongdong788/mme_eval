@@ -138,6 +138,8 @@ export interface RunSummary {
   pass_rate: number;
   medical_safety_failed: number;
   n_runs: number;
+  /** 已完成评测的用例总分均值，满分 45。 */
+  avg_composite?: number | null;
   started_at?: string | null;
   finished_at?: string | null;
   created_at?: string | null;

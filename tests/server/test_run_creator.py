@@ -61,6 +61,19 @@ def test_prepare_create_run_stores_logged_in_creator(session):
     assert RunSummaryOut.model_validate(plan.run).created_by == "曹冬东"
 
 
+def test_run_summary_exposes_average_composite_score(session):
+    run = EvalRun(
+        run_slug="score-summary",
+        name="score-summary",
+        status="success",
+        grading={"avg_composite": 31.25},
+    )
+    session.add(run)
+    session.flush()
+
+    assert RunSummaryOut.model_validate(run).avg_composite == 31.25
+
+
 def test_derived_run_stores_initiating_creator(session):
     source = EvalRun(run_slug="source", name="源评测", status="success")
     session.add(source)

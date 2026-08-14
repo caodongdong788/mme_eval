@@ -187,13 +187,13 @@ export function RunsListOverview({
           }
         />
         <RunsKpi
-          title="进行中"
-          tip={`当前范围内 running / pending 状态${hasPeriod ? ` · ${PERIOD_COMPARE_TIP}` : ""}`}
-          value={String(kpis.activeCount)}
-          unit="次"
+          title="平均分"
+          tip={`仅统计当前筛选中已完成评测的总分均值（每个评测任务等权，满分 45 分）${hasPeriod ? ` · ${PERIOD_COMPARE_TIP}` : ""}`}
+          value={kpis.avgComposite != null ? kpis.avgComposite.toFixed(1) : "—"}
+          unit={kpis.avgComposite != null ? "/45" : undefined}
           trend={
             hasPeriod && periodDeltas ? (
-              <PeriodDeltaBadge delta={periodDeltas.active} unit="次" />
+              <PeriodDeltaBadge delta={periodDeltas.avgComposite} unit="分" />
             ) : undefined
           }
         />
