@@ -337,6 +337,41 @@ def test_retry_case_endpoint_submits_current_run(client, settings, monkeypatch):
     }
 
 
+def test_retry_cases_endpoint_submits_selected_cases(client, settings, monkeypatch):
+    source = make_report("retry_cases_endpoint")
+    out_dir = settings.outputs_dir / source.run_name
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "report.json").write_text(source.model_dump_json(), encoding="utf-8")
+    sample_ids = [result.case.sample_id for result in source.results]
+    with session_scope() as session:
+        benchmark = Benchmark(name="retry-cases-bm", source="uploaded", storage_path="/tmp/none")
+        session.add(benchmark)
+        session.flush()
+        run_id = ingest_report(session, source, benchmark_id=benchmark.id).id
+
+    received: list[str] = []
+
+    def noop_builder(_run_id, *, sample_ids):
+        received.extend(sample_ids)
+
+        async def job(_progress):
+            return None
+
+        return job
+
+    class HoldingRunner:
+        async def submit(self, _run_id, _job):
+            return None
+
+    monkeypatch.setattr("server.routers.runs.build_retry_cases_job", noop_builder)
+    monkeypatch.setattr("server.routers.runs.rejudge.get_job_runner", lambda: HoldingRunner())
+
+    response = client.post(f"/api/runs/{run_id}/cases/retry", json={"sample_ids": sample_ids})
+
+    assert response.status_code == 202, response.text
+    assert received == sample_ids
+
+
 # ---------------------------------------------------------------------------
 # 5. 端点：rejudge 建新 run、resume 原地恢复、pin 落哨兵、缺留痕 400
 

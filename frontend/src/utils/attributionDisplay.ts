@@ -68,7 +68,7 @@ function dimensionKey(value?: string) {
 
 export function dimensionDisplayName(value?: string) {
   const key = dimensionKey(value);
-  return DIM_LABEL[key] || "综合评分维度";
+  return DIM_LABEL[key] || "未关联维度";
 }
 
 function guidelineNumber(value: string) {

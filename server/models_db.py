@@ -241,6 +241,7 @@ class CaseResultRow(Base):
 
     medical_safety_passed: Mapped[bool] = mapped_column(Boolean, default=True)
     release_passed: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    judge_error: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
 
     composite_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     guideline_earned: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

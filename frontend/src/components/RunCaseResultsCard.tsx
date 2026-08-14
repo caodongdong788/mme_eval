@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { Button, Space, Table } from "antd";
-import { BulbOutlined, DownloadOutlined, EditOutlined } from "@ant-design/icons";
+import { BulbOutlined, DownloadOutlined, EditOutlined, ReloadOutlined } from "@ant-design/icons";
+import { type Key, useEffect, useMemo, useState } from "react";
 import type { ColumnsType } from "antd/es/table";
 import { CaseRow, ReviewStats } from "../api/index";
 import type { CaseFilterCondition, CaseFilterValueOptions } from "../utils/caseFilters";
@@ -21,6 +22,7 @@ export interface RunCaseResultsCardProps {
   onOpenYamlEditor: () => void;
   onOpenExport: () => void;
   onStartAttribution: (cases: CaseRow[]) => void;
+  onRetryCases: (cases: CaseRow[]) => void;
 }
 
 export function RunCaseResultsCard({
@@ -38,8 +40,18 @@ export function RunCaseResultsCard({
   onOpenYamlEditor,
   onOpenExport,
   onStartAttribution,
+  onRetryCases,
 }: RunCaseResultsCardProps) {
+  const [selectedKeys, setSelectedKeys] = useState<Key[]>([]);
   const failedShownCases = shownCases.filter((item) => !item.release_passed);
+  const selectedCases = useMemo(
+    () => shownCases.filter((item) => selectedKeys.includes(item.id)),
+    [selectedKeys, shownCases],
+  );
+  useEffect(() => {
+    const visible = new Set(shownCases.map((item) => item.id));
+    setSelectedKeys((keys) => keys.filter((key) => visible.has(Number(key))));
+  }, [shownCases]);
   return (
     <div className="run-detail-page">
       <div className="dash-table-card">
@@ -79,6 +91,18 @@ export function RunCaseResultsCard({
               开始归因分析{failedShownCases.length ? ` (${failedShownCases.length})` : ""}
             </Button>
             <Button
+              icon={<ReloadOutlined />}
+              onClick={() => onRetryCases(selectedCases)}
+              disabled={live || selectedCases.length === 0}
+              title={
+                selectedCases.length
+                  ? `重新执行选中的 ${selectedCases.length} 条用例，并原位覆盖结果`
+                  : "请先勾选需要重新评测的用例"
+              }
+            >
+              重新评测{selectedCases.length ? ` (${selectedCases.length})` : ""}
+            </Button>
+            <Button
               icon={<EditOutlined />}
               onClick={onOpenYamlEditor}
               disabled={cases.length === 0}
@@ -104,6 +128,11 @@ export function RunCaseResultsCard({
           tableLayout="auto"
           columns={columns}
           dataSource={shownCases}
+          rowSelection={{
+            selectedRowKeys: selectedKeys,
+            onChange: (keys) => setSelectedKeys(keys),
+            getCheckboxProps: () => ({ disabled: live }),
+          }}
           loading={loading}
           pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }}
         />

@@ -92,6 +92,7 @@ export default function RunDashboardPage() {
                 onOpenYamlEditor={dash.openYamlEditor}
                 onOpenExport={() => dash.setExportOpen(true)}
                 onStartAttribution={dash.openAttributionLaunch}
+                onRetryCases={dash.retrySelectedCases}
               />
             ),
           },

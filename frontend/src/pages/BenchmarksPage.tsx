@@ -186,13 +186,6 @@ export default function BenchmarksPage() {
               <p>点击或拖拽 YAML / ZIP benchmark 包到此处</p>
             </Upload.Dragger>
           </Form.Item>
-          <Form.Item
-            name="source_url"
-            label="用例链接（可选）"
-            extra="也可以粘贴飞书 Base、Sheet 或 Wiki 链接导入；文件和链接二选一。"
-          >
-            <Input placeholder="粘贴 https://*.feishu.cn/base、/sheets 或 /wiki 链接" />
-          </Form.Item>
         </Form>
       </Modal>
 

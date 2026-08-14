@@ -13,13 +13,14 @@ from ...db import get_session
 from ...jobs import get_job_runner
 from ...models_db import EvalRun, FeishuUser
 from ...schemas import (
+    CaseRetryRequest,
     PreviewRejudgeRequest,
     PreviewRejudgeResponse,
     RejudgeRequest,
     RunSummaryOut,
 )
 from ...services.case_query import case_row_or_404
-from ...services.case_retry import CaseRetryError, launch_case_retry
+from ...services.case_retry import CaseRetryError, launch_case_retry, launch_cases_retry
 from ...services.eval_resume import launch_resume_run
 from ...services.rejudge_launch import (
     RejudgeLaunchError,
@@ -85,6 +86,27 @@ async def retry_case(
             sample_id,
             job_runner=get_job_runner(),
             build_retry_case_job=build_retry_case_job,
+        )
+    except CaseRetryError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+
+@router.post("/{run_id}/cases/retry", response_model=RunSummaryOut, status_code=202)
+async def retry_cases(
+    run_id: int,
+    payload: CaseRetryRequest,
+    session: Session = Depends(get_session),
+) -> EvalRun:
+    """重新执行所选 Case 的 Agent 调用和完整判分，原位覆盖历史结果。"""
+    try:
+        from . import build_retry_cases_job
+
+        return await launch_cases_retry(
+            session,
+            run_id,
+            sample_ids=payload.sample_ids,
+            job_runner=get_job_runner(),
+            build_retry_cases_job=build_retry_cases_job,
         )
     except CaseRetryError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc

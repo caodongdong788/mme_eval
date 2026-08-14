@@ -62,7 +62,8 @@ export function buildCaseColumns(runId: number, tagLabel: (k: string) => string)
     {
       title: "总分",
       dataIndex: "composite_score",
-      render: (v?: number) => (v == null ? "-" : `${v.toFixed(1)}/45`),
+      render: (v: number | undefined, row: CaseRow) =>
+        row.judge_error ? <Dot kind="warn">判分异常</Dot> : (v == null ? "-" : `${v.toFixed(1)}/45`),
     },
     {
       title: "指南得分",
@@ -76,6 +77,7 @@ export function buildCaseColumns(runId: number, tagLabel: (k: string) => string)
       title: "综合评级",
       dataIndex: "grade",
       render: (grade: string, row: CaseRow) => {
+        if (row.judge_error) return <Dot kind="warn">判分异常</Dot>;
         const label = grade || (row.release_passed ? "合格" : "不合格");
         const kind = label.includes("不合格") ? "fail" : label === "合格" ? "warn" : "pass";
         return <Dot kind={kind}>{label}</Dot>;

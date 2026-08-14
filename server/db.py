@@ -57,6 +57,7 @@ def init_db(settings: Settings | None = None) -> None:
     Base.metadata.create_all(engine)
     _migrate_legacy_open_api_key(engine)
     _migrate_case_list_display_columns(engine)
+    _migrate_case_judge_error(engine)
     _migrate_eval_run_trigger_type(engine)
     _migrate_eval_run_scheduled_evaluation_id(engine)
     _migrate_attribution_task_item_analysis(engine)
@@ -312,6 +313,44 @@ def _migrate_case_list_display_columns(engine) -> None:
                 bucket["passed"] += int(bool(release_passed))
             for run in session.scalars(select(EvalRun)):
                 run.by_case_type = grouped.get(run.id, {})
+
+
+def _migrate_case_judge_error(engine) -> None:
+    """为历史八维调用异常补齐可筛选的判分异常标记。"""
+    inspector = inspect(engine)
+    if "case_result" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("case_result")}
+    if "judge_error" not in columns:
+        with engine.begin() as connection:
+            connection.exec_driver_sql(
+                "ALTER TABLE case_result ADD COLUMN judge_error BOOLEAN DEFAULT FALSE"
+            )
+
+    from .models_db import CaseResultRow
+
+    maker = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
+    with maker.begin() as session:
+        rows = session.execute(select(CaseResultRow)).scalars().all()
+        for row in rows:
+            verdicts = (row.detail_json or {}).get("verdicts") or []
+            row.judge_error = any(
+                isinstance(verdict, dict)
+                and str(verdict.get("name") or "").startswith("dimension.")
+                and (
+                    bool(
+                        (verdict.get("details") or {}).get("judge_error")
+                        if isinstance(verdict.get("details"), dict)
+                        else False
+                    )
+                    or "八维判分失败" in str(verdict.get("reason") or "")
+                )
+                for verdict in verdicts
+            )
+            if row.judge_error:
+                row.grade = "判分异常"
+                row.composite_score = None
+                row.medical_safety_passed = True
 
 
 def get_sessionmaker() -> sessionmaker[Session]:

@@ -94,20 +94,14 @@ export function useBenchmarksPage() {
     try {
       const values = await form.validateFields();
       const file = fileList[0]?.originFileObj;
-      const sourceUrl = String(values.source_url || "").trim();
-      if (!file && !sourceUrl) {
-        message.error("请选择一个 YAML / ZIP 用例文件，或填写用例链接");
-        return;
-      }
-      if (file && sourceUrl) {
-        message.error("用例文件和用例链接请二选一");
+      if (!file) {
+        message.error("请选择一个 YAML / ZIP 用例文件");
         return;
       }
       const fd = new FormData();
-      if (file) fd.append("file", file);
+      fd.append("file", file);
       // 后端仍保留来源字段以兼容历史数据；页面不再展示线上/线下的概念。
-      fd.append("source", sourceUrl ? "online" : "offline");
-      if (sourceUrl) fd.append("source_url", sourceUrl);
+      fd.append("source", "offline");
       if (appendId == null) {
         fd.append("default_evaluation_mode", values.default_evaluation_mode || "single_turn");
         fd.append("suite_type", values.suite_type || "capability");

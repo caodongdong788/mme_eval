@@ -2,6 +2,7 @@ import { Table, Tag, Typography } from "antd";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { GuidelineScore } from "../api";
+import { DIM_LABEL } from "../labels";
 import { DashPanel } from "./DashPanel";
 
 function EvidenceQuote({ value }: { value: string }) {
@@ -72,7 +73,12 @@ export function GuidelineScoresTable({ scores }: { scores: GuidelineScore[] }) {
               </div>
             ),
           },
-          { title: "绑定维度", dataIndex: "dimension", width: 180 },
+          {
+            title: "绑定维度",
+            dataIndex: "dimension",
+            width: 180,
+            render: (dimension: string) => DIM_LABEL[dimension] || dimension || "未关联维度",
+          },
           {
             title: "得分",
             width: 100,

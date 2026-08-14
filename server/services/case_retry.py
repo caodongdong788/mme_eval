@@ -48,7 +48,7 @@ def _replace_case_row(target: CaseResultRow, result: CaseResult, pricing: dict |
 
 
 def validate_case_retry(
-    session: Session, run_id: int, sample_id: str
+    session: Session, run_id: int, sample_ids: list[str]
 ) -> EvalRun:
     """校验当前 run 可以重试，且源 Case 和冻结用例仍在。"""
     source = get_run_or_404(session, run_id)
@@ -58,14 +58,15 @@ def validate_case_retry(
         raise CaseRetryError(400, "当前评测状态不支持单用例重试")
     if source_out_dir(source) is None or not (source_out_dir(source) / "report.json").is_file():
         raise CaseRetryError(400, "当前 run 缺 report.json（产物已清理），无法重试")
-    exists = session.execute(
-        select(CaseResultRow.id).where(
+    existing_ids = set(session.scalars(
+        select(CaseResultRow.sample_id).where(
             CaseResultRow.run_id == run_id,
-            CaseResultRow.sample_id == sample_id,
+            CaseResultRow.sample_id.in_(sample_ids),
         )
-    ).first()
-    if exists is None:
-        raise CaseRetryError(404, f"用例 {sample_id} 不在当前评测中")
+    ))
+    missing = next((sample_id for sample_id in sample_ids if sample_id not in existing_ids), None)
+    if missing is not None:
+        raise CaseRetryError(404, f"用例 {missing} 不在当前评测中")
     return source
 
 
@@ -78,18 +79,38 @@ async def launch_case_retry(
     build_retry_case_job,
 ) -> EvalRun:
     """把当前 run 置为 pending 并提交该 Case 的真实调用任务。"""
-    source = validate_case_retry(session, run_id, sample_id)
+    source = validate_case_retry(session, run_id, [sample_id])
+    source.status = "pending"
+    source.error_msg = ""
+    source.progress = {"context": {"kind": "case_retry", "sample_id": sample_id}}
+    session.commit()
+    job = build_retry_case_job(run_id, sample_id=sample_id)
+    await job_runner.submit(run_id, job)
+    return source
+
+
+async def launch_cases_retry(
+    session: Session,
+    run_id: int,
+    *,
+    sample_ids: list[str],
+    job_runner: "JobRunner",
+    build_retry_cases_job,
+) -> EvalRun:
+    """在原评测记录中批量重新执行选中的 Case，并逐条覆盖旧结果。"""
+    ordered_ids = list(dict.fromkeys(sample_id.strip() for sample_id in sample_ids if sample_id.strip()))
+    source = validate_case_retry(session, run_id, ordered_ids)
     source.status = "pending"
     source.error_msg = ""
     source.progress = {
         "context": {
-            "kind": "case_retry",
-            "sample_id": sample_id,
+            "kind": "cases_retry",
+            "sample_ids": ordered_ids,
         }
     }
     # 先提交事务，避免后台 job 的 running 状态被当前请求的 pending 覆盖。
     session.commit()
-    job = build_retry_case_job(run_id, sample_id=sample_id)
+    job = build_retry_cases_job(run_id, sample_ids=ordered_ids)
     await job_runner.submit(run_id, job)
     return source
 
@@ -101,7 +122,18 @@ def build_retry_case_job(
     settings: Settings | None = None,
 ) -> Callable[[InMemoryProgress], Awaitable[None]]:
     """构建单 Case 的完整评测任务：真实调用 adapter，再重跑全部判分。"""
+    return build_retry_cases_job(run_id, sample_ids=[sample_id], settings=settings)
+
+
+def build_retry_cases_job(
+    run_id: int,
+    *,
+    sample_ids: list[str],
+    settings: Settings | None = None,
+) -> Callable[[InMemoryProgress], Awaitable[None]]:
+    """构建批量完整评测任务：真实调用 Agent 后逐条覆盖所选结果。"""
     settings = settings or get_settings()
+    ordered_ids = list(dict.fromkeys(sample_id.strip() for sample_id in sample_ids if sample_id.strip()))
 
     async def job(progress: InMemoryProgress) -> None:
         from .. import eval_job as ej
@@ -109,9 +141,11 @@ def build_retry_case_job(
         src_slug, benchmark_id, judge_ov, adapter_ov = load_source_run(settings, run_id)
         src_dir = settings.outputs_dir / src_slug
         cases, _old_traces, n_runs = frozen_cases_and_traces(src_dir, require_traces=False)
-        case = next((item for item in cases if item.sample_id == sample_id), None)
-        if case is None:
-            raise ValueError(f"用例 {sample_id} 不在当前 run 的冻结报告中")
+        selected = [item for item in cases if item.sample_id in set(ordered_ids)]
+        found_ids = {item.sample_id for item in selected}
+        missing = next((sample_id for sample_id in ordered_ids if sample_id not in found_ids), None)
+        if missing is not None:
+            raise ValueError(f"用例 {missing} 不在当前 run 的冻结报告中")
         # report.json 只保留相对图片路径、不持久化图片 base64；单 Case 重试时从关联
         # benchmark 重新加载该题，以恢复 ZIP images/ 中的运行时图片内容。
         if benchmark_id is not None:
@@ -119,10 +153,8 @@ def build_retry_case_job(
                 benchmark = source_session.get(Benchmark, benchmark_id)
                 if benchmark is not None and Path(benchmark.storage_path).exists():
                     current_cases = ej.load_benchmark_cases(benchmark, settings=settings)
-                    case = next(
-                        (item for item in current_cases if item.sample_id == sample_id),
-                        case,
-                    )
+                    current_by_id = {item.sample_id: item for item in current_cases}
+                    selected = [current_by_id.get(item.sample_id, item) for item in selected]
 
         config = prepare_run_config(
             settings,
@@ -135,20 +167,17 @@ def build_retry_case_job(
         judges = build_judge_stack(config)
         retried = await ej.evaluate(
             config,
-            [case],
+            selected,
             adapter,
             judges,
             progress=progress,
             run_name=src_slug,
             account_owner=str(run_id),
         )
-        new_result = retried.results[0]
         await enrich_report_agent_chains(retried, settings)
         for result in retried.results:
             refresh_result_assertions(result)
         refresh_report(retried)
-        new_result = retried.results[0]
-
         with session_scope() as db_session:
             run = db_session.get(EvalRun, run_id)
             if run is None:
@@ -158,13 +187,11 @@ def build_retry_case_job(
                 .where(CaseResultRow.run_id == run_id)
                 .order_by(CaseResultRow.id)
             ).scalars().all()
-            target = next((row for row in rows if row.sample_id == sample_id), None)
-            if target is None:
-                raise ValueError(f"用例 {sample_id} 不在当前评测中")
+            retried_by_id = {result.case.sample_id: result for result in retried.results}
 
             merged_results = [
-                new_result
-                if row.sample_id == sample_id
+                retried_by_id[row.sample_id]
+                if row.sample_id in retried_by_id
                 else CaseResult.model_validate(row.detail_json)
                 for row in rows
             ]
@@ -177,11 +204,14 @@ def build_retry_case_job(
                 started_at=run.started_at,
                 n_runs=run.n_runs or n_runs,
             )
-            _replace_case_row(
-                target,
-                new_result,
-                (merged.config_snapshot or {}).get("cost"),
-            )
+            for target in rows:
+                replacement = retried_by_id.get(target.sample_id)
+                if replacement is not None:
+                    _replace_case_row(
+                        target,
+                        replacement,
+                        (merged.config_snapshot or {}).get("cost"),
+                    )
             populate_run_summary(run, merged)
             run.status = "success"
             run.error_msg = ""
@@ -190,6 +220,6 @@ def build_retry_case_job(
             # 同步更新 report.json/transcripts，避免之后重判或导出又读到重试前的结果。
             write_core_artifacts(merged, src_dir, prev_json=None)
         except Exception:  # noqa: BLE001 - 磁盘产物失败不应吞掉新的数据库结果
-            logger.warning("run %s 单用例重试后写产物失败", run_id, exc_info=True)
+            logger.warning("run %s 批量用例重试后写产物失败", run_id, exc_info=True)
 
     return job

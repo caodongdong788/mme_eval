@@ -99,6 +99,7 @@ class CaseScores(BaseModel):
 
     medical_safety_passed: bool
     release_passed: bool
+    judge_error: bool = False
     composite_score: Optional[float] = None
     grade: str = ""
     dimension_scores: dict[str, Optional[float]] = Field(default_factory=dict)
@@ -679,6 +680,20 @@ class CaseRowOut(BaseModel):
     review: Optional[ReviewSummary] = None
     # 该用例代表 trace 的 Langfuse 深链（追踪关闭/未配置/旧 run 时为 None）。仅用于前端跳转。
     langfuse_trace_url: Optional[str] = None
+
+
+class CaseRetryRequest(BaseModel):
+    """在原评测记录中重新执行所选用例。"""
+
+    sample_ids: list[str] = Field(min_length=1, max_length=100)
+
+    @field_validator("sample_ids")
+    @classmethod
+    def _unique_sample_ids(cls, values: list[str]) -> list[str]:
+        result = list(dict.fromkeys(str(value).strip() for value in values if str(value).strip()))
+        if not result:
+            raise ValueError("请至少选择一个用例")
+        return result
 
 
 # ---------------------------------------------------------------------------

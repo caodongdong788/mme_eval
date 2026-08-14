@@ -448,6 +448,9 @@ def _normalize_analysis(
             continue
         seen.add(deduction_id)
         normalized = dict(item)
+        # 归因模型只负责解释，不能改变指南在 YAML 中绑定的维度；否则会出现
+        # “综合评分维度”这类无法定位的展示。以冻结评分结果为唯一真值。
+        normalized["dimension"] = str(expected[deduction_id].get("dimension") or "")
         cause = _record(normalized.get("primary_cause"))
         cause["confidence"] = _clamp_confidence(cause.get("confidence"))
         cause["evidence_refs"] = _sanitize_refs(cause.get("evidence_refs"), valid_refs)

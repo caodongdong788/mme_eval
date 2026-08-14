@@ -659,6 +659,9 @@ class CaseResult(BaseModel):
     medical_safety_passed: bool
     # 八维扣指南分后达 27/45 且 adapter 无错时通过。
     release_passed: bool = True
+    # 八维判分服务调用失败时，分数不可用于质量结论。保留原始 verdict 便于排障，
+    # 但列表与看板应明确展示“判分异常”，而非把它伪装成 0 分不合格。
+    judge_error: bool = False
     failure_tags: list[str] = Field(default_factory=list)
     # 八维原始分、指南逐项分、指南扣分后的八维最终分、三端归一分。
     dimension_raw_scores: dict[str, float] = Field(default_factory=dict)

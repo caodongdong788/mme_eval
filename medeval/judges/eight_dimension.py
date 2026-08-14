@@ -301,6 +301,7 @@ class EightDimensionJudge(BaseJudge):
                 score=0,
                 max_score=5,
                 reason=reason,
+                details={"judge_error": True},
             )
             for dimension in EvaluationDimension
         ]

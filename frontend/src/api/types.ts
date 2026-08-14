@@ -74,6 +74,7 @@ export interface PreviewRejudgePayload {
 export interface CaseScores {
   medical_safety_passed: boolean;
   release_passed: boolean;
+  judge_error?: boolean;
   composite_score?: number | null;
   grade: string;
   dimension_raw_scores: Record<string, number | null>;

@@ -84,6 +84,7 @@ def build_case_row(
         tags=[],
         medical_safety_passed=cr.medical_safety_passed,
         release_passed=cr.release_passed,
+        judge_error=cr.judge_error,
         composite_score=cr.composite_score,
         guideline_earned=guideline_earned if guideline_max > 0 else None,
         guideline_max=guideline_max if guideline_max > 0 else None,

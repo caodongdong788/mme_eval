@@ -30,7 +30,7 @@ describe("BenchmarksPage", () => {
 
     expect(screen.queryByText("来源")).not.toBeInTheDocument();
     expect(screen.getByText(/用例文件 \(\.yaml \/ \.zip\)/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/用例链接/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/用例链接/)).not.toBeInTheDocument();
   });
 
   it("opens an append-only upload dialog from the benchmark row", async () => {
