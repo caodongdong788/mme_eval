@@ -88,7 +88,7 @@ class _FakeBackend:
     async def chat_json(self, model, prompt, temperature, max_retries=0, **kwargs):
         assert model == "fake-model"
         assert "rag_audits" in prompt
-        assert kwargs["request_timeout_s"] == 180.0
+        assert kwargs["request_timeout_s"] == 300.0
         assert kwargs["retry_transient_errors"] is True
         return {
             "analysis_status": "complete",

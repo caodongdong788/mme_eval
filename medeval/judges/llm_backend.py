@@ -207,6 +207,7 @@ class LLMBackend:
         *,
         request_timeout_s: float | None = None,
         retry_transient_errors: bool = False,
+        request_headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """单条 user prompt → 严格 JSON 响应，带限速指数退避。返回 ``json.loads(text)``。
 
@@ -232,6 +233,7 @@ class LLMBackend:
                 kwargs["extra_body"] = {"enable_thinking": self.enable_thinking}
             request = self._client.chat.completions.create(  # type: ignore[union-attr]
                 **kwargs,
+                extra_headers=request_headers or None,
             )
             if request_timeout_s is not None:
                 return await asyncio.wait_for(request, timeout=request_timeout_s)

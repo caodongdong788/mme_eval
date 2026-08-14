@@ -68,9 +68,20 @@ def test_batch_attribution_runs_three_cases_concurrently_and_persists_items(
     active = 0
     max_active = 0
 
-    async def fake_generate(session, run, row, *, settings=None, judge_model_id=None):
+    async def fake_generate(
+        session,
+        run,
+        row,
+        *,
+        settings=None,
+        judge_model_id=None,
+        attribution_task_id=None,
+        attribution_item_id=None,
+    ):
         nonlocal active, max_active
         assert judge_model_id == model_id
+        assert attribution_task_id is not None
+        assert attribution_item_id is not None
         active += 1
         max_active = max(max_active, active)
         await asyncio.sleep(0.02)

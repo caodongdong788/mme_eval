@@ -34,7 +34,7 @@ _MAX_STRING = 1800
 _MAX_RAG_CHUNK = 1400
 _MAX_RAG_TOTAL = 80_000
 # 归因是后台任务，不能让单个供应商请求无限占用 3 个并发槽位。
-_ATTRIBUTION_REQUEST_TIMEOUT_S = 180.0
+_ATTRIBUTION_REQUEST_TIMEOUT_S = 300.0
 _ATTRIBUTION_MAX_RETRIES = 3
 
 _PROMPT = """\
@@ -598,6 +598,8 @@ async def generate_case_attribution(
     *,
     settings: Settings | None = None,
     judge_model_id: int | None = None,
+    attribution_task_id: int | None = None,
+    attribution_item_id: int | None = None,
 ) -> dict[str, Any]:
     settings = settings or get_settings()
     if row.release_passed:
@@ -624,6 +626,11 @@ async def generate_case_attribution(
         json.dumps(evidence_pack, ensure_ascii=False, separators=(",", ":")),
     )
     try:
+        request_headers = {}
+        if attribution_task_id is not None:
+            request_headers["X-MME-Attribution-Task-ID"] = str(attribution_task_id)
+        if attribution_item_id is not None:
+            request_headers["X-MME-Attribution-Item-ID"] = str(attribution_item_id)
         raw = await backend.chat_json(
             judge.model,
             prompt,
@@ -631,6 +638,7 @@ async def generate_case_attribution(
             max_retries=_ATTRIBUTION_MAX_RETRIES,
             request_timeout_s=_ATTRIBUTION_REQUEST_TIMEOUT_S,
             retry_transient_errors=True,
+            request_headers=request_headers or None,
         )
     except Exception as exc:  # noqa: BLE001 - API 层返回稳定的用户错误，不泄露密钥
         reason = _safe_provider_error(exc)

@@ -8,11 +8,18 @@ import logging
 from typing import Any
 
 from fastapi import HTTPException
+import httpx
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from ..db import session_scope
-from ..models_db import AttributionTask, AttributionTaskItem, CaseResultRow, EvalRun
+from ..models_db import (
+    AttributionTask,
+    AttributionTaskItem,
+    CaseResultRow,
+    EvalRun,
+    JudgeModelConfig,
+)
 from .case_attribution import generate_case_attribution
 from .case_query import case_row_or_404
 from .judge_models import get_judge_model_or_404, has_judge_model_api_key
@@ -280,6 +287,8 @@ async def _run_item(task_id: int, item_id: int) -> None:
                     run,
                     row,
                     judge_model_id=task.judge_model_id,
+                    attribution_task_id=task.id,
+                    attribution_item_id=item.id,
                 )
                 item.analysis_json = result
                 item.status = "success"
@@ -334,9 +343,43 @@ async def cancel_attribution_task(task_id: int) -> None:
         _task_futures.pop(task_id, None)
 
 
+def _codex_cancel_url(base_url: str) -> str:
+    """将 OpenAI 兼容 base URL 转换为本机 Codex 网关的取消接口。"""
+    normalized = base_url.rstrip("/")
+    if normalized.endswith("/v1"):
+        normalized = normalized[:-3]
+    return f"{normalized}/attribution/cancel"
+
+
+async def _cancel_codex_gateway_task(session: Session, task: AttributionTask) -> None:
+    """请求本机 Codex 网关终止属于归因任务的 CLI 子进程。
+
+    非 Codex 模型没有可控的本地子进程，仍由取消本服务协程来中断 HTTP 请求。
+    网关把已取消任务记住，因此即使请求正处在建立阶段，也不会在删除后继续启动。
+    """
+    model = session.get(JudgeModelConfig, task.judge_model_id)
+    if model is None or (model.provider or "").strip().lower() != "codex":
+        return
+    if not (model.base_url or "").strip() or not (model.api_key or "").strip():
+        return
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(
+                _codex_cancel_url(model.base_url),
+                headers={"Authorization": f"Bearer {model.api_key}"},
+                json={"task_id": task.id},
+            )
+            response.raise_for_status()
+    except Exception as exc:  # noqa: BLE001 - 删除不可被网关故障卡住
+        log.warning("failed to cancel local Codex task=%s: %s", task.id, exc)
+
+
 async def delete_attribution_task(session: Session, run_id: int, task_id: int) -> None:
     task = get_attribution_task_or_404(session, run_id, task_id)
-    await cancel_attribution_task(task.id)
+    await asyncio.gather(
+        cancel_attribution_task(task.id),
+        _cancel_codex_gateway_task(session, task),
+    )
     session.execute(delete(AttributionTaskItem).where(AttributionTaskItem.task_id == task.id))
     session.delete(task)
     session.flush()
