@@ -246,7 +246,9 @@ export interface AttributionRecommendation {
   target: string;
   action: string;
   expected_effect?: string;
+  risk?: string;
   verification: string;
+  acceptance_criteria?: string;
 }
 
 export interface AttributionCause {
@@ -262,6 +264,20 @@ export interface AttributionDeductionAnalysis {
   deduction_id: string;
   dimension: string;
   deduction_validation: "supported" | "questionable" | "insufficient_evidence" | string;
+  severity?: "critical" | "high" | "medium" | "low" | string;
+  rubric_contract?: {
+    expected_behavior: string[];
+    prohibited_behavior: string[];
+    applicability: string;
+    scoring_rule: string;
+    reference_answers: string[];
+  };
+  observed_gap?: {
+    expected: string;
+    actual: string;
+    gap: string;
+    direct_evidence: string[];
+  };
   issue_type: string;
   required_information: string[];
   finding: string;
@@ -271,6 +287,12 @@ export interface AttributionDeductionAnalysis {
     finding: string;
     evidence_refs?: string[];
   }>;
+  root_cause_stage?: string;
+  root_cause_test?: {
+    if_fixed?: string;
+    would_prevent_issue?: boolean;
+    reason?: string;
+  };
   primary_cause: AttributionCause;
   contributing_causes: AttributionCause[];
   rag_diagnosis: {
@@ -286,7 +308,18 @@ export interface AttributionDeductionAnalysis {
 
 export interface CaseAttributionAnalysis {
   analysis_status: "complete" | "partial" | "insufficient_evidence" | string;
+  score_health?: {
+    status: "healthy" | "review_required" | "invalid" | string;
+    summary: string;
+    issues: Array<{
+      code: string;
+      severity?: string;
+      message: string;
+      affected_deduction_ids: string[];
+    }>;
+  };
   overall: {
+    conclusion_category?: "cx_agent_issue" | "evaluation_review" | "insufficient_evidence" | "mixed" | string;
     primary_cause_code: string;
     primary_cause_label: string;
     owner: string;
@@ -305,7 +338,45 @@ export interface CaseAttributionAnalysis {
   };
   deduction_analyses: AttributionDeductionAnalysis[];
   global_recommendations: AttributionRecommendation[];
+  verification_plan?: {
+    target_cases?: string[];
+    control_cases?: string[];
+    safety_checks?: string[];
+    acceptance_criteria?: string[];
+  };
   limitations: string[];
+}
+
+export interface AttributionDiagnosticCluster {
+  category: "cx_agent_issue" | "evaluation_review" | "insufficient_evidence" | string;
+  cause_code: string;
+  cause_label: string;
+  owner: string;
+  issue_type?: string;
+  issue_types?: string[];
+  sample_ids: string[];
+  deduction_ids: string[];
+  dimensions: string[];
+  case_count: number;
+  deduction_count: number;
+  priority: "P0" | "P1" | "P2" | string;
+  confidence: number;
+  summary: string;
+  examples: string[];
+  recommendations: AttributionRecommendation[];
+  verification_plan: {
+    target_cases: string[];
+    control_cases: string[];
+    safety_checks: string[];
+    acceptance_criteria: string[];
+  };
+}
+
+export interface AttributionDiagnosticSummary {
+  available_results: number;
+  score_health_counts: Record<string, number>;
+  validation_counts: Record<string, number>;
+  clusters: AttributionDiagnosticCluster[];
 }
 
 export interface CaseAttribution {
@@ -351,6 +422,7 @@ export interface AttributionTask {
   created_at?: string | null;
   started_at?: string | null;
   finished_at?: string | null;
+  diagnostic_summary?: AttributionDiagnosticSummary;
   items: AttributionTaskItem[];
 }
 

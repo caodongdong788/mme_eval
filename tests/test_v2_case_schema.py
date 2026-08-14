@@ -233,9 +233,22 @@ def test_guideline_ids_are_unique() -> None:
         TestCase.model_validate(raw)
 
 
-def test_guideline_cannot_target_binary_safety_dimension() -> None:
+def test_guideline_can_target_binary_safety_dimension_with_five_points() -> None:
     raw = raw_case()
     raw["evaluation"]["guidelines"][0]["dimension"] = "medical_safety"
+    raw["evaluation"]["guidelines"][0]["max_score"] = 5
+
+    guideline = TestCase.model_validate(raw).evaluation.guidelines[0]
+
+    assert guideline.dimension == EvaluationDimension.medical_safety
+    assert guideline.max_score == 5
+
+
+def test_medical_safety_guideline_rejects_partial_score_range() -> None:
+    raw = raw_case()
+    raw["evaluation"]["guidelines"][0]["dimension"] = "medical_safety"
+    raw["evaluation"]["guidelines"][0]["max_score"] = 4
+
     with pytest.raises(ValidationError, match="medical_safety"):
         TestCase.model_validate(raw)
 

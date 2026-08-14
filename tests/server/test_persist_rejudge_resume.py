@@ -11,6 +11,7 @@ from server.eval_job import build_eval_job, build_rejudge_job, build_resume_job,
 from server.ingest import finalize_run, ingest_report
 from server.models_db import Benchmark, CaseResultRow, EvalRun
 from server.progress import InMemoryProgress
+from server.services.case_retry import _hydrate_frozen_case_images
 from server.services.eval_artifacts import IncrementalRunPersister
 
 
@@ -225,6 +226,20 @@ def test_resume_job_passes_resume_dir(initialized_db, settings, monkeypatch):
 
 # ---------------------------------------------------------------------------
 # 4.5 单 Case 重试：真实调用+判分后原位替换，并同步 report.json
+
+
+def test_retry_image_hydration_keeps_frozen_case_truth():
+    frozen = make_report("frozen-case").results[0].case.model_copy(deep=True)
+    current = frozen.model_copy(deep=True)
+    frozen.turns[0].images = ["images/evidence.png"]
+    current.turns[0].images = ["images/evidence.png"]
+    current.turns[0].attach_image_data_urls(["data:image/png;base64,abc"])
+    current.scenario = "Benchmark 后来被改过的场景"
+
+    _hydrate_frozen_case_images(frozen, current)
+
+    assert frozen.scenario != current.scenario
+    assert frozen.turns[0].image_data_urls == ["data:image/png;base64,abc"]
 
 
 def test_retry_case_job_replaces_only_target_case(initialized_db, settings, monkeypatch):

@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { CaseBrief, CaseRow } from "../api";
 import {
   BENCHMARK_CASE_FILTER_FIELDS,
+  CASE_FILTER_FIELDS,
   buildBenchmarkCaseFilterValueOptions,
   buildCaseFilterValueOptions,
   type CaseFilterCondition,
   filterBenchmarkCaseRows,
   filterCaseRows,
+  operatorsForField,
 } from "./caseFilters";
 
 const rows: CaseRow[] = [
@@ -97,6 +99,44 @@ describe("filterCaseRows", () => {
       filterCaseRows(rows, [condition("rag_status", "equals", "not_triggered")], new Set())
     ).toEqual([rows[1]]);
   });
+
+  it("filters the table's comprehensive evaluation enum", () => {
+    expect(
+      filterCaseRows(rows, [condition("grade", "equals", "优秀")], new Set())
+    ).toEqual([rows[0]]);
+    expect(
+      filterCaseRows(rows, [condition("grade", "not_equals", "不合格")], new Set())
+    ).toEqual([rows[0]]);
+    expect(
+      filterCaseRows(
+        [{ ...rows[0], judge_error: true, grade: "不合格" }],
+        [condition("grade", "equals", "判分异常")],
+        new Set()
+      )
+    ).toHaveLength(1);
+  });
+
+  it("supports contains and not-contains for enum and multi-value fields", () => {
+    expect(
+      filterCaseRows(rows, [condition("rag_status", "contains", "hit")], new Set())
+    ).toEqual([rows[0]]);
+    expect(
+      filterCaseRows(
+        rows,
+        [condition("failure_tags", "contains", "追问不足")],
+        new Set(),
+        (tag) => (tag === "missing_followup" ? "追问不足" : tag)
+      )
+    ).toEqual([rows[1]]);
+    expect(
+      filterCaseRows(
+        rows,
+        [condition("failure_tags", "not_contains", "追问不足")],
+        new Set(),
+        (tag) => (tag === "missing_followup" ? "追问不足" : tag)
+      )
+    ).toEqual([rows[0]]);
+  });
 });
 
 describe("buildCaseFilterValueOptions", () => {
@@ -115,6 +155,37 @@ describe("buildCaseFilterValueOptions", () => {
     expect(options.guideline_score?.map((item) => item.value)).toEqual(["6/6", "5/6"]);
     expect(options.failure_tags?.map((item) => item.value)).toEqual(["追问不足"]);
     expect(options.rag_status?.map((item) => item.value)).toEqual(["hit", "not_triggered"]);
+  });
+
+  it("keeps filter fields and enum operators aligned with the visible table", () => {
+    expect(CASE_FILTER_FIELDS.map((item) => item.label)).toEqual([
+      "场景描述",
+      "类别",
+      "Level",
+      "轮数",
+      "总分",
+      "指南得分",
+      "医学文献 RAG",
+      "综合评价",
+      "稳定性",
+      "失败标签",
+      "人审结果",
+    ]);
+    expect(CASE_FILTER_FIELDS.some((item) => item.label === "最终结论")).toBe(false);
+    expect(operatorsForField("grade", CASE_FILTER_FIELDS).map((item) => item.value)).toEqual([
+      "contains",
+      "not_contains",
+      "equals",
+      "not_equals",
+      "is_empty",
+      "is_not_empty",
+    ]);
+    expect(operatorsForField("failure_tags", CASE_FILTER_FIELDS).map((item) => item.value)).toEqual([
+      "contains",
+      "not_contains",
+      "is_empty",
+      "is_not_empty",
+    ]);
   });
 });
 

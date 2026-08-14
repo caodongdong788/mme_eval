@@ -62,6 +62,7 @@ def init_db(settings: Settings | None = None) -> None:
     _migrate_eval_run_trigger_type(engine)
     _migrate_eval_run_scheduled_evaluation_id(engine)
     _migrate_attribution_task_item_analysis(engine)
+    _migrate_attribution_task_active_index(engine)
 
 
 def _migrate_benchmark_updated_at(engine) -> None:
@@ -130,6 +131,51 @@ def _migrate_attribution_task_item_analysis(engine) -> None:
             stored = get_stored_attribution(dict(row.detail_json or {}))
             if stored.get("available"):
                 item.analysis_json = stored
+
+
+def _migrate_attribution_task_active_index(engine) -> None:
+    """保证同一评测最多只有一个排队中或执行中的归因任务。"""
+    inspector = inspect(engine)
+    if "attribution_task" not in inspector.get_table_names():
+        return
+
+    from datetime import datetime
+
+    from .models_db import AttributionTask, AttributionTaskItem
+
+    maker = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
+    with maker.begin() as session:
+        active = list(session.scalars(
+            select(AttributionTask)
+            .where(AttributionTask.status.in_(("queued", "running")))
+            .order_by(AttributionTask.run_id, AttributionTask.id.desc())
+        ))
+        retained_runs: set[int] = set()
+        for task in active:
+            if task.run_id not in retained_runs:
+                retained_runs.add(task.run_id)
+                continue
+            task.status = "failed"
+            task.error_msg = "升级时发现同一评测存在重复进行中的归因任务，已自动终止较早任务"
+            task.finished_at = datetime.utcnow()
+            session.execute(
+                update(AttributionTaskItem)
+                .where(
+                    AttributionTaskItem.task_id == task.id,
+                    AttributionTaskItem.status.in_(("pending", "running")),
+                )
+                .values(
+                    status="failed",
+                    error_msg="所属重复归因任务已被自动终止",
+                    finished_at=datetime.utcnow(),
+                )
+            )
+
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_attribution_task_active_run "
+            "ON attribution_task (run_id) WHERE status IN ('queued', 'running')"
+        )
 
 
 def _migrate_eval_run_trigger_type(engine) -> None:

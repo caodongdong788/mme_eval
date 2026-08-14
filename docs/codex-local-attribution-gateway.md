@@ -32,6 +32,6 @@ uv run uvicorn scripts.codex_attribution_gateway:app --host 127.0.0.1 --port 878
 
 ## 运行保障
 
-- 单条归因：180 秒超时；模型 5xx、连接问题或超时会最多额外重试 3 次。
-- 本地网关：默认 240 秒超时、一次执行 1 条，避免本机 Codex 过载；可用 `CODEX_GATEWAY_CONCURRENCY` 调整。
+- 单条归因：从首次请求到全部重试共用 300 秒总超时；到时自动将该 Case 标记失败，可单独重新归因。
+- 本地网关：默认同样为 300 秒超时、一次执行 1 条，避免本机 Codex 过载；可用 `CODEX_GATEWAY_CONCURRENCY` 调整。
 - MME 仍保持归因任务最多同时处理 3 条；每条完成立即落库，失败 Case 可在原任务中继续归因。

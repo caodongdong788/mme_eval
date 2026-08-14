@@ -15,13 +15,14 @@ from sqlalchemy.orm import Session
 
 from ..db import session_scope
 from ..jobs import get_job_runner
-from ..models_db import Benchmark, ScheduledEvaluation
+from ..models_db import Benchmark, EvalRun, ScheduledEvaluation
 from ..schemas import AdapterOverride, JudgeOverride, RunCreate, ScheduledEvaluationCreate, ScheduledEvaluationUpdate
 from ..settings import Settings, get_settings
 from . import runs as runs_svc
 
 logger = logging.getLogger("mme.scheduled-evaluations")
 _SHANGHAI = ZoneInfo("Asia/Shanghai")
+_SCHEDULE_RETRY_DELAY = timedelta(minutes=5)
 _scheduler_task: asyncio.Task | None = None
 
 
@@ -202,6 +203,9 @@ async def run_due_scheduled_evaluations_once() -> int:
                 task = session.get(ScheduledEvaluation, task_id)
                 if task is not None:
                     task.last_error = str(exc)[:1000]
+                    # 本次触发失败不应直接跳到下一天/下周；5 分钟后补偿重试，
+                    # 同时避免外部服务持续异常时每 20 秒热循环。
+                    task.next_run_at = _utc_now() + _SCHEDULE_RETRY_DELAY
     return created
 
 
@@ -265,7 +269,17 @@ async def launch_scheduled_evaluation(
         judge_model_id=getattr(plan, "judge_model_id", None),
         user_simulator_model_id=getattr(plan, "user_simulator_model_id", None),
     )
-    await get_job_runner().submit(plan.run.id, job)
+    try:
+        await get_job_runner().submit(plan.run.id, job)
+    except Exception as exc:
+        # run 已经在独立事务中创建；提交队列失败时必须明确落为失败，避免页面
+        # 永久显示“排队中”，后续调度器会按补偿时间创建新的一次执行。
+        with session_scope() as session:
+            failed_run = session.get(EvalRun, plan.run.id)
+            if failed_run is not None:
+                failed_run.status = "failed"
+                failed_run.error_msg = f"定时任务提交执行队列失败：{exc}"[:2000]
+        raise
     return plan
 
 

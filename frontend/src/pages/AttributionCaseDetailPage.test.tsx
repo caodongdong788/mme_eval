@@ -66,7 +66,57 @@ const result: CaseAttribution = {
       diagnosis: "selected_not_used",
       summary: "召回正常，生成未引用。",
     },
-    deduction_analyses: [],
+    deduction_analyses: [{
+      deduction_id: "guideline.g02_professional_accuracy",
+      dimension: "professional_accuracy",
+      deduction_validation: "supported",
+      severity: "high",
+      rubric_contract: {
+        expected_behavior: ["说明结论边界并建议医生评估"],
+        prohibited_behavior: ["在证据不足时下确定结论"],
+        applicability: "当前回答给出了确定结论",
+        scoring_rule: "遗漏边界说明扣 2 分",
+        reference_answers: ["现有信息不足以确诊，建议进一步检查。"],
+      },
+      observed_gap: {
+        expected: "说明结论边界并建议医生评估",
+        actual: "回答直接给出了确定诊断",
+        gap: "缺少不确定性说明和就医建议",
+        direct_evidence: ["message:2"],
+      },
+      issue_type: "factual_error",
+      required_information: ["reasoning"],
+      finding: "回答在证据不足时给出了确定诊断",
+      causal_chain: [{
+        stage: "generation",
+        status: "fail",
+        finding: "最终回答没有表达不确定性",
+        evidence_refs: ["message:2"],
+      }],
+      primary_cause: {
+        code: "response_composition_error",
+        label: "回答生成缺少边界说明",
+        owner: "generator",
+        confidence: 0.9,
+        reason: "生成阶段把可能性写成了确定结论",
+        evidence_refs: ["message:2"],
+      },
+      root_cause_test: {
+        if_fixed: "在生成阶段强制输出证据边界",
+        would_prevent_issue: true,
+        reason: "修复后不会再把可能性表述为确定诊断",
+      },
+      contributing_causes: [],
+      rag_diagnosis: {
+        needed: false,
+        called: true,
+        query_quality: "good",
+        relevant_information_stage: "selected",
+        answer_usage: "used",
+        finding: "本项不是 RAG 问题",
+      },
+      recommendations: [],
+    }],
     global_recommendations: [
       { priority: "P0", target: "AI 助手提示词", action: "增加医学风险检查指令。", verification: "用风险用例回归。" },
       { priority: "P1", target: "agent_prompt", action: "增加回答前事实核对指令。", verification: "用事实性问题回归。" },
@@ -107,6 +157,10 @@ describe("AttributionCaseDetailPage", () => {
     expect(screen.queryByText("医学知识检索（RAG）")).not.toBeInTheDocument();
     expect(screen.queryByText("医学安全性专项分析")).not.toBeInTheDocument();
     expect(screen.getByText("cx-agent问题归因")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("回答在证据不足时给出了确定诊断"));
+    expect(screen.getByText("评测要求与实际差距")).toBeInTheDocument();
+    expect(screen.getByText("缺少不确定性说明和就医建议")).toBeInTheDocument();
+    expect(screen.getByText("根因反事实检查")).toBeInTheDocument();
     expect(screen.getByText("优化建议")).toBeInTheDocument();
     expect(screen.getByText("提示词优化")).toBeInTheDocument();
     expect(screen.getByText("RAG 优化")).toBeInTheDocument();

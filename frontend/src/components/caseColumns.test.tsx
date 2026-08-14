@@ -37,7 +37,7 @@ describe("buildCaseColumns", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("综合评级")).toBeInTheDocument();
+    expect(screen.getByText("综合评价")).toBeInTheDocument();
     expect(screen.getByText("优秀")).toBeInTheDocument();
     expect(screen.getByText("医学文献 RAG")).toBeInTheDocument();
     expect(screen.getByText("已触发并命中")).toBeInTheDocument();

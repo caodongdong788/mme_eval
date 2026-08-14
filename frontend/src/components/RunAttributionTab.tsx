@@ -40,6 +40,7 @@ import { formatApiError } from "../utils/apiError";
 import {
   answerUsageDisplayName,
   attributionDeductionLabel,
+  dimensionDisplayName,
   humanizeAttributionText,
   humanizeEvidenceRef,
   informationStageDisplayName,
@@ -144,7 +145,9 @@ function RecommendationList({ items }: { items: AttributionRecommendation[] }) {
         <List.Item><div><Tag color={item.priority === "P0" ? "red" : item.priority === "P1" ? "orange" : "blue"}>{priorityDisplayName(item.priority)}</Tag>
           <div className="attribution-recommendations__action">{humanizeAttributionText(item.action)}</div>
           {item.expected_effect ? <div className="attribution-muted">预期效果：{humanizeAttributionText(item.expected_effect)}</div> : null}
+          {item.risk ? <div className="attribution-muted">修改风险：{humanizeAttributionText(item.risk)}</div> : null}
           <div className="attribution-muted">如何验证：{humanizeAttributionText(item.verification)}</div>
+          {item.acceptance_criteria ? <div className="attribution-muted">验收标准：{humanizeAttributionText(item.acceptance_criteria)}</div> : null}
         </div></List.Item>
       )} />
     </section>)}
@@ -167,6 +170,15 @@ function DeductionPanel({ item, analyses, kind }: { item: AttributionDeductionAn
   const findingTitle = kind === "supported" ? "确认的问题" : kind === "questionable" ? "为什么需要复核" : "目前能得出的结论";
   const chainTitle = kind === "supported" ? "问题是怎么产生的" : kind === "questionable" ? "判分复核依据" : "现有证据检查";
   return <div className="attribution-deduction">
+    <div className="attribution-gap-card">
+      <div className="attribution-section-title">评测要求与实际差距</div>
+      <Descriptions size="small" column={1} bordered>
+        <Descriptions.Item label="期望行为">{humanizeAttributionText(item.observed_gap?.expected || item.rubric_contract?.expected_behavior?.join("；"), analyses)}</Descriptions.Item>
+        <Descriptions.Item label="实际表现">{humanizeAttributionText(item.observed_gap?.actual, analyses)}</Descriptions.Item>
+        <Descriptions.Item label="明确差距">{humanizeAttributionText(item.observed_gap?.gap || item.finding, analyses)}</Descriptions.Item>
+        <Descriptions.Item label="直接证据">{item.observed_gap?.direct_evidence?.length ? item.observed_gap.direct_evidence.map((value) => humanizeAttributionText(value, analyses)).join("；") : "暂无可引用的直接证据"}</Descriptions.Item>
+      </Descriptions>
+    </div>
     <div className="attribution-deduction__summary">
       <div className="attribution-section-title">{findingTitle}</div>
       <Space size={8} wrap><Tag color={validation.color}>{validation.label}</Tag><Tag color="purple">{humanizeAttributionText(cause.label || "原因待确认", analyses)}</Tag><Tag>{kind === "insufficient" ? "暂不归责" : `责任环节：${OWNER_LABELS[cause.owner] || "待确认"}`}</Tag></Space>
@@ -178,6 +190,12 @@ function DeductionPanel({ item, analyses, kind }: { item: AttributionDeductionAn
       color: step.status === "fail" ? "red" : step.status === "pass" ? "green" : "gray",
       children: <div><strong>{STAGE_LABELS[step.stage] || "其他分析环节"}</strong><div>{humanizeAttributionText(step.finding, analyses)}</div>{step.evidence_refs?.length ? <div className="attribution-evidence">证据位置：{step.evidence_refs.map((ref) => humanizeEvidenceRef(ref, analyses)).join("、")}</div> : null}</div>,
     }))} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无完整因果链" />}
+    {kind === "supported" && item.root_cause_test?.if_fixed ? <Alert
+      type={item.root_cause_test.would_prevent_issue ? "success" : "warning"}
+      showIcon
+      message="根因反事实检查"
+      description={<div><strong>如果修复：</strong>{humanizeAttributionText(item.root_cause_test.if_fixed, analyses)}<br /><strong>判断：</strong>{humanizeAttributionText(item.root_cause_test.reason, analyses)}</div>}
+    /> : null}
     <div className="attribution-section-title">医学知识检索对本项的影响</div>
     <Descriptions size="small" column={{ xs: 1, md: 2, lg: 4 }}>
       <Descriptions.Item label="是否需要">{item.rag_diagnosis?.needed ? "需要" : "不需要"}</Descriptions.Item><Descriptions.Item label="实际调用">{item.rag_diagnosis?.called ? "已调用" : "未调用"}</Descriptions.Item>
@@ -310,6 +328,12 @@ export function AttributionDetail({ result }: { result: CaseAttribution }) {
   const insufficient = deductions.filter((item) => item.deduction_validation === "insufficient_evidence");
   return <div className="attribution-layout">
     {result.stale ? <Alert type="warning" showIcon message="用例证据已变化，当前结果可能过期" description="请从用例明细重新发起归因任务。" /> : null}
+    {analysis.score_health && analysis.score_health.status !== "healthy" ? <Alert
+      type={analysis.score_health.status === "invalid" ? "error" : "warning"}
+      showIcon
+      message={analysis.score_health.status === "invalid" ? "判分异常，暂不归责 cx-agent" : "判分需要复核"}
+      description={<div><div>{analysis.score_health.summary}</div>{analysis.score_health.issues?.map((issue) => <div key={`${issue.code}-${issue.message}`}>· {humanizeAttributionText(issue.message, deductions)}</div>)}</div>}
+    /> : null}
     <AttributionAnalysisModule
       kind="supported"
       title="cx-agent问题归因"
@@ -337,6 +361,50 @@ export function AttributionDetail({ result }: { result: CaseAttribution }) {
     />
     <div className="attribution-meta">分析模型：{result.metadata.model || "—"} · 分析时间：{formatApiDateTime(result.metadata.generated_at)}</div>
   </div>;
+}
+
+function TaskDiagnosticOverview({ task }: { task: AttributionTask }) {
+  const summary = task.diagnostic_summary;
+  if (!summary?.available_results) return null;
+  const validation = summary.validation_counts || {};
+  const clusters = summary.clusters || [];
+  return <DashPanel title={<div><h3>任务级问题诊断</h3><span className="dash-table-card__sub">将相同根因跨 Case 合并，先处理影响面最大的系统问题</span></div>}>
+    <Space size={8} wrap className="attribution-diagnostic-stats">
+      <Tag color="blue">已分析 {summary.available_results} 条</Tag>
+      <Tag color="red">cx-agent 问题 {validation.supported || 0} 项</Tag>
+      <Tag color="orange">判分需复核 {validation.questionable || 0} 项</Tag>
+      <Tag>证据不足 {validation.insufficient_evidence || 0} 项</Tag>
+    </Space>
+    {clusters.length ? <Collapse className="attribution-cluster-list" items={clusters.map((cluster, index) => ({
+      key: `${cluster.category}-${cluster.cause_code}-${cluster.owner}-${index}`,
+      label: <div className="attribution-cluster-label">
+        <Space size={8} wrap>
+          <Tag color={cluster.priority === "P0" ? "red" : cluster.priority === "P1" ? "orange" : "blue"}>{cluster.priority}</Tag>
+          <strong>{humanizeAttributionText(cluster.cause_label)}</strong>
+          <Tag>{cluster.case_count} 个 Case</Tag>
+          <Tag>{cluster.deduction_count} 个问题</Tag>
+          <span>{OWNER_LABELS[cluster.owner] || "待确认"}</span>
+        </Space>
+        <div className="attribution-muted">{humanizeAttributionText(cluster.summary)}</div>
+      </div>,
+      children: <div className="attribution-cluster-detail">
+        <Descriptions size="small" column={{ xs: 1, md: 2 }}>
+          <Descriptions.Item label="影响用例">{cluster.sample_ids.join("、")}</Descriptions.Item>
+          <Descriptions.Item label="影响维度">{cluster.dimensions.map(dimensionDisplayName).join("、") || "未关联维度"}</Descriptions.Item>
+          <Descriptions.Item label="平均置信度">{confidencePercent(cluster.confidence)}%</Descriptions.Item>
+          <Descriptions.Item label="责任环节">{OWNER_LABELS[cluster.owner] || "待确认"}</Descriptions.Item>
+        </Descriptions>
+        <div className="attribution-section-title">优化方案</div>
+        <RecommendationList items={cluster.recommendations || []} />
+        {cluster.verification_plan?.acceptance_criteria?.length ? <Alert
+          type="info"
+          showIcon
+          message="回归验收标准"
+          description={cluster.verification_plan.acceptance_criteria.join("；")}
+        /> : null}
+      </div>,
+    }))} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="已完成结果中暂无可聚类问题" />}
+  </DashPanel>;
 }
 
 export interface RunAttributionTabProps {
@@ -608,7 +676,9 @@ export function RunAttributionTab({ runId, loading, selectedTaskId, onSelectedTa
         pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 次归因` }}
       />}
     </DashPanel>
-    {taskLoading ? <div className="attribution-loading"><Spin /></div> : task ? <DashPanel title={<div><h3>任务 #{task.id} · 用例归因结果</h3><span className="dash-table-card__sub">{TASK_STATUS[task.status]?.label || task.status} · {task.judge_model_name}</span></div>} extra={<Space size={8}>
+    {taskLoading ? <div className="attribution-loading"><Spin /></div> : task ? <>
+    <TaskDiagnosticOverview task={task} />
+    <DashPanel title={<div><h3>任务 #{task.id} · 用例归因结果</h3><span className="dash-table-card__sub">{TASK_STATUS[task.status]?.label || task.status} · {task.judge_model_name}</span></div>} extra={<Space size={8}>
       <Button size="small" disabled={!task.items.length || hasActiveTask} onClick={() => setSelectedSampleIds(task.items.map((item) => item.sample_id))}>全选全部</Button>
       <Button size="small" disabled={!selectedSampleIds.length} onClick={() => setSelectedSampleIds([])}>取消选择</Button>
       <Tooltip title={hasActiveTask ? "当前有归因任务正在执行，完成后可重新归因" : undefined}>
@@ -635,7 +705,7 @@ export function RunAttributionTab({ runId, loading, selectedTaskId, onSelectedTa
         pagination={{ pageSize: 20, showTotal: (total) => `共 ${total} 条` }}
       />
       {task.error_msg ? <Alert type="error" showIcon message="任务异常" description={task.error_msg} style={{ marginTop: 16 }} /> : null}
-    </DashPanel> : null}
+    </DashPanel></> : null}
     <Modal
       open={Boolean(failureItem)}
       title={failureItem ? `${failureItem.sample_id} · 归因失败原因` : "归因失败原因"}
@@ -656,7 +726,7 @@ export function RunAttributionTab({ runId, loading, selectedTaskId, onSelectedTa
               type="warning"
               showIcon
               message="当时的 Kimi K3 请求参数不兼容"
-              description="当前已修正为思考模式并使用 0.6 温度，模型连通性验证已通过；可在下方用例列表勾选 Case 后重新归因。"
+              description="当前已按 Kimi K3 默认要求启用思考模式并使用温度 1；可在下方用例列表勾选 Case 后重新归因。"
             />
           ) : (
             <Alert

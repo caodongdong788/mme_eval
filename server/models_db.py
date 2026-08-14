@@ -21,6 +21,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -313,6 +314,15 @@ class AttributionTask(Base):
     """
 
     __tablename__ = "attribution_task"
+    __table_args__ = (
+        Index(
+            "uq_attribution_task_active_run",
+            "run_id",
+            unique=True,
+            sqlite_where=text("status IN ('queued', 'running')"),
+            postgresql_where=text("status IN ('queued', 'running')"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     run_id: Mapped[int] = mapped_column(ForeignKey("eval_run.id"), index=True, nullable=False)

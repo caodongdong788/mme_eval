@@ -74,7 +74,7 @@ export function buildCaseColumns(runId: number, tagLabel: (k: string) => string)
       },
     },
     {
-      title: "综合评级",
+      title: "综合评价",
       dataIndex: "grade",
       render: (grade: string, row: CaseRow) => {
         if (row.judge_error) return <Dot kind="warn">判分异常</Dot>;

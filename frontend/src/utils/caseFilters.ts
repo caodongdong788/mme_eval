@@ -12,7 +12,7 @@ export type CaseFilterField =
   | "composite_score"
   | "guideline_score"
   | "rag_status"
-  | "release_passed"
+  | "grade"
   | "stability"
   | "failure_tags"
   | "review";
@@ -38,7 +38,7 @@ export interface FilterCondition<Field extends string = string> {
 
 export type CaseFilterCondition = FilterCondition<CaseFilterField>;
 
-export type CaseFilterFieldKind = "text" | "number" | "select";
+export type CaseFilterFieldKind = "text" | "number" | "select" | "multi_select";
 
 export interface FilterFieldDefinition<Field extends string = string> {
   value: Field;
@@ -75,18 +75,21 @@ export const CASE_FILTER_FIELDS: CaseFilterFieldDefinition[] = [
       { value: "hit", label: "已触发并命中" },
       { value: "miss", label: "已触发未命中" },
       { value: "failed", label: "调用失败" },
-      { value: "triggered", label: "已触发（结果待解析）" },
+      { value: "triggered", label: "已触发" },
       { value: "not_triggered", label: "未触发" },
       { value: "unknown", label: "链路未同步" },
     ],
   },
   {
-    value: "release_passed",
-    label: "最终结论",
+    value: "grade",
+    label: "综合评价",
     kind: "select",
     options: [
-      { value: "true", label: "合格" },
-      { value: "false", label: "不合格" },
+      { value: "优秀", label: "优秀" },
+      { value: "良好", label: "良好" },
+      { value: "合格", label: "合格" },
+      { value: "不合格", label: "不合格" },
+      { value: "判分异常", label: "判分异常" },
     ],
   },
   {
@@ -99,7 +102,7 @@ export const CASE_FILTER_FIELDS: CaseFilterFieldDefinition[] = [
       { value: "stable_fail", label: "稳挂" },
     ],
   },
-  { value: "failure_tags", label: "失败标签", kind: "text" },
+  { value: "failure_tags", label: "失败标签", kind: "multi_select" },
   {
     value: "review",
     label: "人审结果",
@@ -153,8 +156,17 @@ const NUMBER_OPERATORS: Array<{ value: CaseFilterOperator; label: string }> = [
 ];
 
 const SELECT_OPERATORS: Array<{ value: CaseFilterOperator; label: string }> = [
+  { value: "contains", label: "包含" },
+  { value: "not_contains", label: "不包含" },
   { value: "equals", label: "等于" },
   { value: "not_equals", label: "不等于" },
+  { value: "is_empty", label: "为空" },
+  { value: "is_not_empty", label: "不为空" },
+];
+
+const MULTI_SELECT_OPERATORS: Array<{ value: CaseFilterOperator; label: string }> = [
+  { value: "contains", label: "包含" },
+  { value: "not_contains", label: "不包含" },
   { value: "is_empty", label: "为空" },
   { value: "is_not_empty", label: "不为空" },
 ];
@@ -176,6 +188,7 @@ export function operatorsForField<Field extends string>(
 ) {
   const kind = fieldDefinition(field, fields).kind;
   if (kind === "number") return NUMBER_OPERATORS;
+  if (kind === "multi_select") return MULTI_SELECT_OPERATORS;
   if (kind === "select") return SELECT_OPERATORS;
   return TEXT_OPERATORS;
 }
@@ -189,7 +202,7 @@ export function defaultOperator<Field extends string>(
   fields: FilterFieldDefinition<Field>[]
 ): CaseFilterOperator {
   const kind = fieldDefinition(field, fields).kind;
-  return kind === "text" ? "contains" : "equals";
+  return kind === "text" || kind === "multi_select" ? "contains" : "equals";
 }
 
 export function isActiveCaseFilter(condition: CaseFilterCondition): boolean {
@@ -230,8 +243,10 @@ function displayValue(
         : "";
     case "rag_status":
       return row.rag_status || "unknown";
-    case "release_passed":
-      return String(row.release_passed);
+    case "grade":
+      return row.judge_error
+        ? "判分异常"
+        : row.grade || (row.release_passed ? "合格" : "不合格");
     case "stability":
       return row.stability;
     case "failure_tags":
@@ -254,6 +269,19 @@ function matchesCondition(
   queueIds: Set<string>,
   failureTagLabel: (tag: string) => string
 ): boolean {
+  if (condition.field === "failure_tags") {
+    const values = (row.failure_tags || []).flatMap((tag) => [
+      tag.toLocaleLowerCase(),
+      failureTagLabel(tag).toLocaleLowerCase(),
+    ]);
+    if (condition.operator === "is_empty") return values.length === 0;
+    if (condition.operator === "is_not_empty") return values.length > 0;
+    const expected = String(condition.value ?? "").trim().toLocaleLowerCase();
+    const contains = values.some((value) => value === expected);
+    if (condition.operator === "contains" || condition.operator === "equals") return contains;
+    if (condition.operator === "not_contains" || condition.operator === "not_equals") return !contains;
+    return false;
+  }
   const actual = displayValue(row, condition.field, queueIds, failureTagLabel);
   return matchesValue(actual, condition, CASE_FILTER_FIELDS);
 }

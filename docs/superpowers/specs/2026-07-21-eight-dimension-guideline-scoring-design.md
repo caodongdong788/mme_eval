@@ -106,7 +106,7 @@ notes: 仅用于框架测试，正式使用前需临床专家审核。
 - `guidelines` 可为空。
 - 每条指南必须包含在本 Case 内唯一的 `id`、受控 `dimension`、非空 `criterion` 和 `max_score`。
 - `max_score` 必须是 1～5 的整数。
-- 指南不能绑定 `medical_safety`，避免把二值 Gate 扣成 1～4 分。安全要求写入 `medical_safety` 的 Case 标准，由八维 Judge 直接判 0/5。
+- 指南可以绑定 `medical_safety`，但必须使用 `max_score: 5`。指南适用且任一要求未满足时，安全 Gate 直接判 0 分；全部满足或未触发时保持 5 分，不允许出现 1～4 分。
 - 未知字段在加载时拒绝，避免拼写错误静默生效。
 
 ## 5. 判分数据流

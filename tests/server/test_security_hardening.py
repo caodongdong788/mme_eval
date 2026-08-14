@@ -61,9 +61,24 @@ def test_production_default_secret_rejected(monkeypatch):
 def test_production_with_strong_secret_ok(monkeypatch):
     monkeypatch.setenv("MEDEVAL_ENV", "production")
     monkeypatch.setenv("SESSION_SECRET", "a-strong-random-secret")
+    monkeypatch.setenv("FEISHU_APP_ID", "cli_test")
+    monkeypatch.setenv("FEISHU_APP_SECRET", "secret")
     get_settings.cache_clear()
     try:
         get_settings().check_production_security()  # MUST NOT raise
+    finally:
+        get_settings.cache_clear()
+
+
+def test_production_without_feishu_auth_rejected(monkeypatch):
+    monkeypatch.setenv("MEDEVAL_ENV", "production")
+    monkeypatch.setenv("SESSION_SECRET", "a-strong-random-secret")
+    monkeypatch.delenv("FEISHU_APP_ID", raising=False)
+    monkeypatch.delenv("FEISHU_APP_SECRET", raising=False)
+    get_settings.cache_clear()
+    try:
+        with pytest.raises(RuntimeError, match="FEISHU_APP_ID"):
+            get_settings().check_production_security()
     finally:
         get_settings.cache_clear()
 

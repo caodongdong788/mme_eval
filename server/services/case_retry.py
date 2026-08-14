@@ -43,6 +43,38 @@ class CaseRetryError(Exception):
         super().__init__(detail)
 
 
+def _case_image_turns(case):
+    """按 Case 中的稳定顺序返回所有可能携带图片的用户轮次。"""
+    dynamic_turns = []
+    if case.conversation is not None:
+        dynamic_turns = [
+            case.conversation.opening,
+            *[rule.reply for rule in case.conversation.reply_rules],
+            *case.conversation.follow_ups,
+        ]
+    return [*case.turns, *dynamic_turns]
+
+
+def _hydrate_frozen_case_images(frozen_case, current_case) -> None:
+    """只给冻结 Case 补运行时图片，不用可变 Benchmark 覆盖冻结真值。
+
+    report.json 不保存图片 base64，因此仍需从 Benchmark 读取字节。只有轮次正文与图片
+    路径都和冻结版本一致时才注入，Benchmark 已改动时宁可明确失败，也不能悄悄用新
+    Case 的画像、Rubric 或对话替换历史评测依据。
+    """
+    frozen_turns = _case_image_turns(frozen_case)
+    current_turns = _case_image_turns(current_case)
+    if len(frozen_turns) != len(current_turns):
+        return
+    for frozen_turn, current_turn in zip(frozen_turns, current_turns, strict=True):
+        if (
+            frozen_turn.content == current_turn.content
+            and list(frozen_turn.images) == list(current_turn.images)
+            and current_turn.image_data_urls
+        ):
+            frozen_turn.attach_image_data_urls(current_turn.image_data_urls)
+
+
 def _ensure_retry_queue_is_idle(job_runner: "JobRunner", run_id: int) -> None:
     """阻止重试覆盖同一 Run 尚未结束的持久化任务。
 
@@ -226,15 +258,18 @@ def build_retry_cases_job(
         if missing is not None:
             raise ValueError(f"用例 {missing} 不在当前 run 的冻结报告中")
         progress.set_case_ids(ordered_ids)
-        # report.json 只保留相对图片路径、不持久化图片 base64；单 Case 重试时从关联
-        # benchmark 重新加载该题，以恢复 ZIP images/ 中的运行时图片内容。
+        # report.json 只保留相对图片路径、不持久化图片 base64；从关联 Benchmark
+        # 仅恢复运行时图片内容，绝不以当前可变 Case 覆盖本次 run 的冻结真值。
         if benchmark_id is not None:
             with session_scope() as source_session:
                 benchmark = source_session.get(Benchmark, benchmark_id)
                 if benchmark is not None and Path(benchmark.storage_path).exists():
                     current_cases = ej.load_benchmark_cases(benchmark, settings=settings)
                     current_by_id = {item.sample_id: item for item in current_cases}
-                    selected = [current_by_id.get(item.sample_id, item) for item in selected]
+                    for frozen_case in selected:
+                        current_case = current_by_id.get(frozen_case.sample_id)
+                        if current_case is not None:
+                            _hydrate_frozen_case_images(frozen_case, current_case)
 
         config = prepare_run_config(
             settings,

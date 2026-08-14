@@ -199,12 +199,18 @@ class Settings:
         return self.env.strip().lower() in ("production", "prod")
 
     def check_production_security(self) -> None:
-        """生产环境安全前置校验：默认会话密钥禁止上线。
+        """生产环境安全前置校验：必须启用登录并使用非默认会话密钥。
 
-        仅在生产环境且 ``session_secret`` 仍为内置默认值时抛出，阻止以不安全密钥启动；
-        开发/测试环境（默认）始终通过，保持现有本地启动行为不变。
+        开发/测试环境仍可不配置飞书登录，保持本地直接访问行为不变；生产环境
+        缺少任意飞书应用凭证时必须拒绝启动，避免认证中间件静默降级为全站放行。
         """
-        if self.is_production and self.session_secret == DEFAULT_SESSION_SECRET:
+        if not self.is_production:
+            return
+        if not self.feishu_app_id or not self.feishu_app_secret:
+            raise RuntimeError(
+                "生产环境必须同时配置 FEISHU_APP_ID 和 FEISHU_APP_SECRET，禁止关闭登录校验。"
+            )
+        if self.session_secret == DEFAULT_SESSION_SECRET:
             raise RuntimeError(
                 "生产环境禁止使用默认 SESSION_SECRET，请配置一个高强度随机密钥后再启动。"
             )

@@ -28,7 +28,7 @@ CODEX_BIN = os.environ.get("CODEX_BIN", "codex")
 DEFAULT_MODEL = os.environ.get("CODEX_DEFAULT_MODEL", "")
 DEFAULT_REASONING_EFFORT = os.environ.get("CODEX_REASONING_EFFORT", "").strip()
 DEFAULT_SERVICE_TIER = os.environ.get("CODEX_SERVICE_TIER", "").strip()
-TIMEOUT_SECONDS = max(30, int(os.environ.get("CODEX_GATEWAY_TIMEOUT_SECONDS", "240")))
+TIMEOUT_SECONDS = max(30, int(os.environ.get("CODEX_GATEWAY_TIMEOUT_SECONDS", "300")))
 MAX_CONCURRENCY = max(1, int(os.environ.get("CODEX_GATEWAY_CONCURRENCY", "1")))
 _semaphore = asyncio.Semaphore(MAX_CONCURRENCY)
 # 以 MME 归因任务 ID 追踪 CLI 进程。删除任务时网关会杀掉整个进程组，避免 Codex

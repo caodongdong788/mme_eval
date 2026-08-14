@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, CASE_LIST_LIMIT, CaseRow, ReviewStats } from "../api/index";
 import {
+  CASE_FILTER_FIELDS,
   type CaseFilterCondition,
   buildCaseFilterValueOptions,
   filterCaseRows,
@@ -14,7 +15,14 @@ function readSavedFilters(filtersKey: string): {
     const raw = sessionStorage.getItem(filtersKey);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed.conditions)) return { conditions: parsed.conditions };
+      if (Array.isArray(parsed.conditions)) {
+        const validFields = new Set(CASE_FILTER_FIELDS.map((field) => field.value));
+        return {
+          conditions: parsed.conditions.filter(
+            (condition: CaseFilterCondition) => validFields.has(condition.field)
+          ),
+        };
+      }
     }
   } catch {
     /* ignore */

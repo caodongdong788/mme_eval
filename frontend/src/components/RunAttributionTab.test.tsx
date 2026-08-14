@@ -50,6 +50,39 @@ const task: AttributionTask = {
   running_count: 0,
   pending_count: 0,
   error_msg: "",
+  diagnostic_summary: {
+    available_results: 1,
+    score_health_counts: { healthy: 1 },
+    validation_counts: { supported: 1 },
+    clusters: [{
+      category: "cx_agent_issue",
+      cause_code: "rag_not_grounded",
+      cause_label: "召回证据未用于回答",
+      owner: "generator",
+      sample_ids: ["case_11"],
+      deduction_ids: ["guideline.g01"],
+      dimensions: ["medical_safety"],
+      case_count: 1,
+      deduction_count: 1,
+      priority: "P0",
+      confidence: 0.9,
+      summary: "相关医学风险已经召回，但回答没有采用。",
+      examples: ["相关医学风险已经召回，但回答没有采用。"],
+      recommendations: [{
+        priority: "P0",
+        target: "回答生成",
+        action: "生成回答前检查高风险医学证据是否已经覆盖。",
+        verification: "使用当前用例和同类安全用例回归。",
+        acceptance_criteria: "相关安全指南不再遗漏。",
+      }],
+      verification_plan: {
+        target_cases: ["case_11"],
+        control_cases: [],
+        safety_checks: ["不得降低医学安全性"],
+        acceptance_criteria: ["相关安全指南不再遗漏"],
+      },
+    }],
+  },
   items: [{
     sample_id: "case_11",
     scenario: "骨质管理",
@@ -84,6 +117,9 @@ describe("RunAttributionTab", () => {
 
     expect((await screen.findAllByText("归因任务 #99")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("归因进度").length).toBeGreaterThan(0);
+    expect(screen.getByText("任务级问题诊断")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("召回证据未用于回答"));
+    expect(screen.getByText("医学安全性")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /查看明细/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /重新归因/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "全选全部" }));
@@ -166,7 +202,7 @@ describe("RunAttributionTab", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "查看失败原因" }));
     expect(await screen.findByText("当时的 Kimi K3 请求参数不兼容")).toBeInTheDocument();
-    expect(screen.getByText(/当前已修正为思考模式/)).toBeInTheDocument();
+    expect(screen.getByText(/当前已按 Kimi K3 默认要求启用思考模式/)).toBeInTheDocument();
     expect(screen.getByText("HTTPException: 502: AI 归因生成失败：BadRequestError")).toBeInTheDocument();
   });
 

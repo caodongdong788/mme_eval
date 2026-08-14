@@ -3,12 +3,22 @@ from __future__ import annotations
 import asyncio
 from copy import deepcopy
 
+import pytest
+from sqlalchemy.exc import IntegrityError
+
 from factories import make_report
 
 from server.db import session_scope
 from server.ingest import ingest_report
-from server.models_db import AttributionTaskItem, CaseResultRow, EvalRun, JudgeModelConfig
+from server.models_db import (
+    AttributionTask,
+    AttributionTaskItem,
+    CaseResultRow,
+    EvalRun,
+    JudgeModelConfig,
+)
 from server.services import attribution_tasks
+from server.services.attribution_summary import build_task_diagnostic_summary
 from server.services.case_attribution import attribution_input_hash
 
 
@@ -59,6 +69,107 @@ def _seed_failed_cases() -> tuple[int, list[str], int]:
             session.add(model)
             session.flush()
         return run.id, [source.sample_id, *extra_ids], model.id
+
+
+def test_task_diagnostic_summary_clusters_same_root_cause_across_cases():
+    def stored(sample: str, dimension: str, severity: str):
+        return {
+            "available": True,
+            "analysis": {
+                "score_health": {"status": "healthy", "issues": []},
+                "deduction_analyses": [
+                    {
+                        "deduction_id": f"guideline.{sample}",
+                        "dimension": dimension,
+                        "severity": severity,
+                        "deduction_validation": "supported",
+                        "finding": "已召回正确证据但回答没有使用",
+                        "primary_cause": {
+                            "code": "rag_not_grounded",
+                            "label": "召回证据未用于回答",
+                            "owner": "generator",
+                            "confidence": 0.9,
+                        },
+                        "recommendations": [
+                            {
+                                "priority": "P1",
+                                "target": "提示词优化",
+                                "action": "回答前逐条核对选中文献",
+                                "verification": "重跑目标用例",
+                            }
+                        ],
+                    }
+                ],
+                "global_recommendations": [
+                    {
+                        "priority": "P0",
+                        "target": "判分模型",
+                        "action": "调整判分提示词",
+                        "verification": "重新判分",
+                    },
+                    {
+                        "priority": "P1",
+                        "target": "回答生成",
+                        "action": "生成前检查证据覆盖",
+                        "verification": "重跑目标用例",
+                    },
+                ],
+                "verification_plan": {
+                    "control_cases": ["同 Rubric 通过用例"],
+                    "safety_checks": ["医学安全不得回退"],
+                    "acceptance_criteria": ["目标扣分不再出现"],
+                },
+            },
+        }
+
+    summary = build_task_diagnostic_summary(
+        [
+            ("case_1", stored("g01", "professional_accuracy", "high")),
+            ("case_2", stored("g02", "clinical_inquiry", "medium")),
+        ]
+    )
+
+    assert summary["available_results"] == 2
+    assert summary["validation_counts"] == {"supported": 2}
+    assert len(summary["clusters"]) == 1
+    cluster = summary["clusters"][0]
+    assert cluster["case_count"] == 2
+    assert cluster["deduction_count"] == 2
+    assert cluster["dimensions"] == ["professional_accuracy", "clinical_inquiry"]
+    assert cluster["verification_plan"]["acceptance_criteria"] == ["目标扣分不再出现"]
+    assert all(item["target"] != "判分模型" for item in cluster["recommendations"])
+
+
+def test_task_diagnostic_summary_does_not_merge_different_business_causes():
+    def stored(label: str):
+        return {
+            "analysis": {
+                "score_health": {"status": "healthy"},
+                "deduction_analyses": [
+                    {
+                        "deduction_id": f"guideline.{label}",
+                        "dimension": "professional_accuracy",
+                        "severity": "high",
+                        "deduction_validation": "supported",
+                        "issue_type": "factual_error",
+                        "root_cause_stage": "generation",
+                        "finding": label,
+                        "primary_cause": {
+                            "code": "reasoning_error",
+                            "label": label,
+                            "owner": "generator",
+                            "confidence": 0.9,
+                        },
+                    }
+                ],
+            }
+        }
+
+    summary = build_task_diagnostic_summary(
+        [("case_1", stored("药物剂量推理错误")), ("case_2", stored("检查时机推理错误"))]
+    )
+
+    assert len(summary["clusters"]) == 2
 
 
 def test_batch_attribution_runs_three_cases_concurrently_and_persists_items(
@@ -134,6 +245,29 @@ def test_batch_attribution_skips_passed_cases(initialized_db, monkeypatch):
         assert task.requested_count == 4
         assert task.total_count == 3
         assert task.skipped_count == 1
+
+
+def test_database_rejects_two_active_attribution_tasks_for_same_run(
+    initialized_db, monkeypatch
+):
+    run_id, sample_ids, model_id = _seed_failed_cases()
+    monkeypatch.setattr(attribution_tasks, "has_judge_model_api_key", lambda _model: True)
+    with session_scope() as session:
+        run = session.get(EvalRun, run_id)
+        attribution_tasks.create_attribution_task(
+            session, run, sample_ids=sample_ids, judge_model_id=model_id, created_by="test"
+        )
+        session.add(
+            AttributionTask(
+                run_id=run_id,
+                judge_model_id=model_id,
+                judge_model_name="duplicate",
+                status="queued",
+            )
+        )
+        with pytest.raises(IntegrityError):
+            session.flush()
+        session.rollback()
 
 
 def test_batch_attribution_api_creates_task_and_returns_pending_items(client, monkeypatch):

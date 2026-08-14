@@ -10,7 +10,6 @@ from ...db import get_session
 from ...models_db import AttributionTaskItem, FeishuUser
 from ...schemas import AttributionTaskCreate, AttributionTaskOut, CaseAttributionOut
 from ...services.case_attribution import (
-    generate_case_attribution,
     get_stored_attribution,
 )
 from ...services import attribution_tasks
@@ -31,20 +30,6 @@ def get_case_attribution(
     get_run_or_404(session, run_id)
     row = case_row_or_404(session, run_id, sample_id)
     return get_stored_attribution(dict(row.detail_json or {}))
-
-
-@router.post(
-    "/{run_id}/cases/{sample_id}/attribution",
-    response_model=CaseAttributionOut,
-)
-async def create_case_attribution(
-    run_id: int,
-    sample_id: str,
-    session: Session = Depends(get_session),
-) -> dict:
-    run = get_run_or_404(session, run_id)
-    row = case_row_or_404(session, run_id, sample_id)
-    return await generate_case_attribution(session, run, row)
 
 
 @router.get("/{run_id}/attribution-tasks", response_model=list[AttributionTaskOut])

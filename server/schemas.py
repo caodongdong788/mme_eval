@@ -468,6 +468,7 @@ class AttributionTaskOut(BaseModel):
     created_at: Optional[ApiDateTime] = None
     started_at: Optional[ApiDateTime] = None
     finished_at: Optional[ApiDateTime] = None
+    diagnostic_summary: dict[str, Any] = Field(default_factory=dict)
     items: list[AttributionTaskItemOut] = Field(default_factory=list)
 
 

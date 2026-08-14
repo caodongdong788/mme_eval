@@ -93,12 +93,12 @@ export function CaseFilterBuilder<Field extends string = CaseFilterField>({
                 }
               />
               {needsValue ? (
-                definition.kind === "select" ? (
+                definition.kind === "select" || definition.kind === "multi_select" ? (
                   <Select
                     aria-label="筛选值"
                     value={condition.value}
                     placeholder="请选择"
-                    options={definition.options}
+                    options={definition.options ?? valueOptions[condition.field]}
                     onChange={(value) => patchCondition(condition.id, { value })}
                   />
                 ) : definition.kind === "number" ? (

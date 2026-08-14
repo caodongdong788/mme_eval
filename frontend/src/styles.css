@@ -4088,6 +4088,43 @@ a.ant-typography-secondary:hover {
   background: #fbfbfd;
 }
 
+.attribution-gap-card {
+  margin-bottom: 18px;
+}
+
+.attribution-deduction > .ant-alert {
+  margin: 12px 0 18px;
+}
+
+.attribution-gap-card .ant-descriptions-item-label {
+  width: 112px;
+  color: #697386;
+  font-weight: 600;
+}
+
+.attribution-diagnostic-stats {
+  margin-bottom: 16px;
+}
+
+.attribution-cluster-list {
+  background: transparent;
+}
+
+.attribution-cluster-label {
+  min-width: 0;
+}
+
+.attribution-cluster-label > .attribution-muted {
+  margin-top: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attribution-cluster-detail .ant-alert {
+  margin-top: 16px;
+}
+
 .attribution-deduction__summary {
   display: grid;
   gap: 12px;

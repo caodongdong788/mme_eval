@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import HTTPException
 import httpx
 from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..db import session_scope
@@ -22,6 +23,7 @@ from ..models_db import (
 )
 from .case_attribution import generate_case_attribution
 from .case_query import case_row_or_404
+from .attribution_summary import build_task_diagnostic_summary
 from .judge_models import get_judge_model_or_404, has_judge_model_api_key
 
 
@@ -66,6 +68,7 @@ def _task_out(session: Session, task: AttributionTask, *, include_items: bool) -
         "created_at": task.created_at,
         "started_at": task.started_at,
         "finished_at": task.finished_at,
+        "diagnostic_summary": {},
         "items": [],
     }
     if not include_items:
@@ -75,6 +78,9 @@ def _task_out(session: Session, task: AttributionTask, *, include_items: bool) -
         .where(AttributionTaskItem.task_id == task.id)
         .order_by(AttributionTaskItem.id)
     ))
+    output["diagnostic_summary"] = build_task_diagnostic_summary(
+        (item.sample_id, item.analysis_json) for item in rows
+    )
     case_rows = {
         row.sample_id: row
         for row in session.scalars(
@@ -188,7 +194,14 @@ def create_attribution_task(
         created_by=created_by,
     )
     session.add(task)
-    session.flush()
+    try:
+        session.flush()
+    except IntegrityError as exc:
+        session.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="该评测已有进行中的归因任务，请等待完成后再发起",
+        ) from exc
     session.add_all(AttributionTaskItem(task_id=task.id, sample_id=sample_id) for sample_id in failed_ids)
     session.flush()
     return task
@@ -205,6 +218,15 @@ def resume_attribution_task(
     task = get_attribution_task_or_404(session, run_id, task_id)
     if task.status in {"queued", "running"}:
         raise HTTPException(status_code=409, detail="该归因任务正在执行，无需继续归因")
+    other_active = session.scalar(
+        select(AttributionTask.id).where(
+            AttributionTask.run_id == run_id,
+            AttributionTask.id != task.id,
+            AttributionTask.status.in_(("queued", "running")),
+        )
+    )
+    if other_active is not None:
+        raise HTTPException(status_code=409, detail="该评测已有其他进行中的归因任务")
 
     items = list(session.scalars(
         select(AttributionTaskItem)
@@ -229,7 +251,13 @@ def resume_attribution_task(
     task.status = "queued"
     task.error_msg = ""
     task.finished_at = None
-    _refresh_task_counts(session, task)
+    try:
+        session.flush()
+        _refresh_task_counts(session, task)
+        session.flush()
+    except IntegrityError as exc:
+        session.rollback()
+        raise HTTPException(status_code=409, detail="该评测已有其他进行中的归因任务") from exc
     return task
 
 

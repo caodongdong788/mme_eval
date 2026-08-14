@@ -1,8 +1,10 @@
-from datetime import datetime, timezone
+import asyncio
+from datetime import datetime, timedelta, timezone
 
 from server.models_db import Benchmark, EvalRun, ScheduledEvaluation
 from server.services.scheduled_evaluations import compute_next_run_at
 from server.services.scheduled_evaluations import fetch_latest_active_deeptrace_version_name
+from server.services.scheduled_evaluations import run_due_scheduled_evaluations_once
 
 
 def test_scheduled_evaluation_crud_and_next_run(client, session):
@@ -82,6 +84,38 @@ def test_schedule_can_run_immediately_as_a_regression_task(client, session, monk
     assert run.n_runs == 2
     assert run.adapter_overrides["enable_rag"] is True
     assert captured["run_id"] == run.id
+
+
+def test_failed_due_schedule_is_retried_after_backoff(session, monkeypatch):
+    from server.services import scheduled_evaluations as service
+
+    benchmark = Benchmark(name="失败补偿测试集", source="offline")
+    session.add(benchmark)
+    session.flush()
+    task = ScheduledEvaluation(
+        name="失败补偿任务",
+        benchmark_id=benchmark.id,
+        enabled=True,
+        schedule_kind="daily",
+        schedule_time="09:00",
+        next_run_at=datetime.utcnow() - timedelta(minutes=1),
+    )
+    session.add(task)
+    session.commit()
+    task_id = task.id
+
+    async def fail_launch(*_args, **_kwargs):
+        raise RuntimeError("queue unavailable")
+
+    monkeypatch.setattr(service, "launch_scheduled_evaluation", fail_launch)
+    before = datetime.utcnow()
+    assert asyncio.run(run_due_scheduled_evaluations_once()) == 0
+
+    session.expire_all()
+    refreshed = session.get(ScheduledEvaluation, task_id)
+    assert "queue unavailable" in refreshed.last_error
+    assert before + timedelta(minutes=4, seconds=50) <= refreshed.next_run_at
+    assert refreshed.next_run_at <= datetime.utcnow() + timedelta(minutes=5, seconds=10)
 
 
 def test_fetches_latest_active_deeptrace_version_name(settings):
