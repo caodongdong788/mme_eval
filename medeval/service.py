@@ -184,6 +184,7 @@ async def run_traces(
     adapter_config: dict | None = None,
     run_name: str = "",
     account_owner: str = "",
+    on_case_start=None,
     on_case_complete=None,
 ) -> list[list[ConversationTrace]]:
     """run 阶段：唯一 adapter 副作用，产出 ``list[list[ConversationTrace]]``。
@@ -255,6 +256,7 @@ async def run_traces(
                 retry=config.run.retry,
                 repeat=n_runs,
                 on_progress=on_run,
+                on_case_start=on_case_start,
                 retry_backoff_base_s=config.run.retry_backoff_base_s,
                 retry_backoff_max_s=config.run.retry_backoff_max_s,
                 executor=config.run.executor,
@@ -393,6 +395,14 @@ async def evaluate(
     if callable(set_case_total):
         set_case_total(len(cases))
 
+    async def case_started(case: TestCase) -> None:
+        callback = getattr(progress, "case_started", None)
+        if callback is None:
+            return
+        pending = callback(case.sample_id)
+        if inspect.isawaitable(pending):
+            await pending
+
     try:
         # Judge 与 bot 调用并行流水：某条 Case 的全部对话完成后，立即判分、折叠并
         # 通知平台落库，不等待整个 benchmark 的所有对话执行完毕。
@@ -433,6 +443,7 @@ async def evaluate(
             account_owner=account_owner,
             out_dir=Path(out_dir) if out_dir is not None else None,
             resume_dir=Path(resume_dir) if resume_dir is not None else None,
+            on_case_start=case_started,
             on_case_complete=judge_completed_case,
         )
         if any(result is None for result in folded_results):

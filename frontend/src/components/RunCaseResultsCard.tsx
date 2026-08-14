@@ -19,11 +19,19 @@ export interface RunCaseResultsCardProps {
   exporting: boolean;
   loading?: boolean;
   live?: boolean;
-  retryProgress?: { done: number; total: number; status: string };
+  retryProgress?: {
+    done: number;
+    total: number;
+    status: string;
+    cancelled?: boolean;
+    sampleIds: string[];
+    caseStates: Record<string, { status: "queued" | "running" | "completed" | "cancelled"; percent?: number }>;
+  };
   onOpenYamlEditor: () => void;
   onOpenExport: () => void;
   onStartAttribution: (cases: CaseRow[]) => void;
   onRetryCases: (cases: CaseRow[]) => void;
+  onCancelRetry: () => void;
 }
 
 export function RunCaseResultsCard({
@@ -43,6 +51,7 @@ export function RunCaseResultsCard({
   onOpenExport,
   onStartAttribution,
   onRetryCases,
+  onCancelRetry,
 }: RunCaseResultsCardProps) {
   const [selectedKeys, setSelectedKeys] = useState<Key[]>([]);
   const failedShownCases = shownCases.filter((item) => !item.release_passed);
@@ -54,14 +63,39 @@ export function RunCaseResultsCard({
     const visible = new Set(shownCases.map((item) => item.id));
     setSelectedKeys((keys) => keys.filter((key) => visible.has(Number(key))));
   }, [shownCases]);
-  const retryPercent = retryProgress?.total
-    ? Math.round(Math.min(retryProgress.done / retryProgress.total, 1) * 100)
-    : 0;
-  const retryStateLabel = retryProgress?.status === "success"
-    ? "已完成"
-    : retryProgress?.status === "failed"
-      ? "重新评测失败"
-      : "重新评测中";
+  const retryActive = Boolean(
+    retryProgress && !retryProgress.cancelled && ["pending", "running"].includes(retryProgress.status),
+  );
+  const displayColumns = useMemo<ColumnsType<CaseRow>>(() => {
+    if (!retryProgress) return columns;
+    const retryColumn: ColumnsType<CaseRow>[number] = {
+      key: "retry_progress",
+      title: "重新评测进度",
+      width: 190,
+      render: (_value, row) => {
+        const state = retryProgress.caseStates[row.sample_id]
+          || (retryProgress.sampleIds.includes(row.sample_id)
+            ? { status: "queued" as const, percent: 0 }
+            : undefined);
+        if (!state) return <span className="muted">—</span>;
+        const label = state.status === "completed"
+          ? "已完成"
+          : state.status === "cancelled"
+            ? "已取消"
+            : state.status === "running"
+              ? "评测中"
+              : "排队中";
+        const percent = state.status === "completed" ? 100 : Math.max(0, state.percent || 0);
+        return (
+          <div className={`case-retry-cell case-retry-cell--${state.status}`}>
+            <Progress percent={percent} showInfo={false} size="small" status={state.status === "cancelled" ? "exception" : undefined} />
+            <span>{label}</span>
+          </div>
+        );
+      },
+    };
+    return [...columns, retryColumn];
+  }, [columns, retryProgress]);
   return (
     <div className="run-detail-page">
       <div className="dash-table-card">
@@ -100,30 +134,10 @@ export function RunCaseResultsCard({
             >
               开始归因分析{failedShownCases.length ? ` (${failedShownCases.length})` : ""}
             </Button>
-            {retryProgress ? (
-              <div className="case-retry-progress" role="status" aria-label="重新评测进度">
-                <span className="case-retry-progress__title">重新评测</span>
-                <Progress
-                  percent={retryPercent}
-                  showInfo={false}
-                  size="small"
-                  status={retryProgress.status === "failed" ? "exception" : undefined}
-                />
-                <span className="case-retry-progress__value">
-                  {retryStateLabel} {retryProgress.done}/{retryProgress.total}
-                </span>
-                {retryProgress.status !== "pending" && retryProgress.status !== "running" && (
-                  <Button
-                    type="link"
-                    size="small"
-                    icon={<ReloadOutlined />}
-                    onClick={() => onRetryCases(selectedCases)}
-                    disabled={selectedCases.length === 0}
-                  >
-                    再次评测
-                  </Button>
-                )}
-              </div>
+            {retryActive ? (
+              <Button danger onClick={onCancelRetry} loading={loading}>
+                终止评测
+              </Button>
             ) : (
               <Button
                 icon={<ReloadOutlined />}
@@ -162,7 +176,7 @@ export function RunCaseResultsCard({
           rowKey="id"
           size="small"
           tableLayout="auto"
-          columns={columns}
+          columns={displayColumns}
           dataSource={shownCases}
           rowSelection={{
             selectedRowKeys: selectedKeys,

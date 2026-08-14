@@ -351,6 +351,7 @@ async def run_cases(
     retry: int = 2,
     repeat: int = 1,
     on_progress=None,
+    on_case_start=None,
     on_case_complete=None,
     retry_backoff_base_s: float = 0.0,
     retry_backoff_max_s: float = 40.0,
@@ -412,6 +413,10 @@ async def run_cases(
 
     async def _wrap(i: int, case: TestCase):
         async with sem:
+            if on_case_start:
+                pending = on_case_start(case)
+                if inspect.isawaitable(pending):
+                    await pending
             for run_idx in range(repeat):
                 # 断点续跑：命中已落盘的成功留痕则直接复用，不调 adapter。
                 if resume_index is not None:

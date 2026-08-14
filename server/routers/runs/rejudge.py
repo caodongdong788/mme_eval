@@ -20,7 +20,12 @@ from ...schemas import (
     RunSummaryOut,
 )
 from ...services.case_query import case_row_or_404
-from ...services.case_retry import CaseRetryError, launch_case_retry, launch_cases_retry
+from ...services.case_retry import (
+    CaseRetryError,
+    cancel_cases_retry,
+    launch_case_retry,
+    launch_cases_retry,
+)
 from ...services.eval_resume import launch_resume_run
 from ...services.rejudge_launch import (
     RejudgeLaunchError,
@@ -107,6 +112,22 @@ async def retry_cases(
             sample_ids=payload.sample_ids,
             job_runner=get_job_runner(),
             build_retry_cases_job=build_retry_cases_job,
+        )
+    except CaseRetryError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+
+@router.post("/{run_id}/cases/retry/cancel", response_model=RunSummaryOut)
+async def cancel_retry_cases(
+    run_id: int,
+    session: Session = Depends(get_session),
+) -> EvalRun:
+    """终止正在执行的所选用例重评，保留原评测记录。"""
+    try:
+        return await cancel_cases_retry(
+            session,
+            run_id,
+            job_runner=get_job_runner(),
         )
     except CaseRetryError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc

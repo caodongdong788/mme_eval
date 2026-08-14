@@ -57,6 +57,30 @@ def _ensure_retry_queue_is_idle(job_runner: "JobRunner", run_id: int) -> None:
         raise CaseRetryError(409, f"该评测已有{state}任务，请等待完成或先终止后再重新评测")
 
 
+def _retry_context(run: EvalRun) -> dict:
+    progress = run.progress if isinstance(run.progress, dict) else {}
+    context = progress.get("context")
+    return dict(context) if isinstance(context, dict) else {}
+
+
+def _cancelled_case_states(run: EvalRun) -> dict[str, dict]:
+    """保留已完成 Case，其余被选 Case 标为已取消。"""
+    progress = run.progress if isinstance(run.progress, dict) else {}
+    context = _retry_context(run)
+    selected_ids = list(context.get("sample_ids") or [])
+    if context.get("kind") == "case_retry" and context.get("sample_id"):
+        selected_ids = [context["sample_id"]]
+    existing = progress.get("case_states") if isinstance(progress.get("case_states"), dict) else {}
+    states: dict[str, dict] = {}
+    for sample_id in selected_ids:
+        previous = existing.get(sample_id) if isinstance(existing.get(sample_id), dict) else {}
+        if previous.get("status") == "completed":
+            states[sample_id] = {**previous, "status": "completed", "percent": 100}
+        else:
+            states[sample_id] = {**previous, "status": "cancelled"}
+    return states
+
+
 def _replace_case_row(target: CaseResultRow, result: CaseResult, pricing: dict | None) -> None:
     replacement = build_case_row(target.run_id, result, pricing)
     update_case_row(target, replacement)
@@ -132,6 +156,44 @@ async def launch_cases_retry(
     return source
 
 
+async def cancel_cases_retry(
+    session: Session,
+    run_id: int,
+    *,
+    job_runner: "JobRunner",
+) -> EvalRun:
+    """只终止当前批量重评，不删除原评测及其历史结果。"""
+    source = get_run_or_404(session, run_id)
+    context = _retry_context(source)
+    if context.get("kind") not in {"case_retry", "cases_retry"}:
+        raise CaseRetryError(409, "当前没有可终止的重新评测任务")
+    if source.status not in {"pending", "running"}:
+        raise CaseRetryError(409, "当前重新评测已经结束")
+    if not await job_runner.cancel(run_id):
+        raise CaseRetryError(409, "重新评测任务已结束，请刷新页面后查看结果")
+
+    # DatabaseJobRunner.cancel 会等待 Worker 停止写入；此时将运行记录恢复为成功，
+    # 因为未重评的 Case 仍保留原有有效结果。进度中明确标记被取消的 Case。
+    session.expire_all()
+    source = get_run_or_404(session, run_id)
+    context = _retry_context(source)
+    states = _cancelled_case_states(source)
+    completed = sum(1 for value in states.values() if value.get("status") == "completed")
+    source.status = "success"
+    source.error_msg = ""
+    source.progress = {
+        **(source.progress if isinstance(source.progress, dict) else {}),
+        "context": context,
+        "case_states": states,
+        "case_total": len(states),
+        "case_done": completed,
+        "cancelled": True,
+        "completed": False,
+    }
+    session.commit()
+    return source
+
+
 def build_retry_case_job(
     run_id: int,
     *,
@@ -163,6 +225,7 @@ def build_retry_cases_job(
         missing = next((sample_id for sample_id in ordered_ids if sample_id not in found_ids), None)
         if missing is not None:
             raise ValueError(f"用例 {missing} 不在当前 run 的冻结报告中")
+        progress.set_case_ids(ordered_ids)
         # report.json 只保留相对图片路径、不持久化图片 base64；单 Case 重试时从关联
         # benchmark 重新加载该题，以恢复 ZIP images/ 中的运行时图片内容。
         if benchmark_id is not None:

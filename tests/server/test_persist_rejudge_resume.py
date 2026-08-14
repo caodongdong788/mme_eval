@@ -402,6 +402,43 @@ def test_retry_cases_rejects_when_source_run_has_an_active_durable_job(client, s
         assert row.progress == {}
 
 
+def test_cancel_retry_cases_marks_only_unfinished_cases_cancelled(client, settings, monkeypatch):
+    source = make_report("cancel_retry_cases")
+    out_dir = settings.outputs_dir / source.run_name
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "report.json").write_text(source.model_dump_json(), encoding="utf-8")
+    sample_ids = [result.case.sample_id for result in source.results]
+    with session_scope() as session:
+        benchmark = Benchmark(name="cancel-retry-cases-bm", source="uploaded", storage_path="/tmp/none")
+        session.add(benchmark)
+        session.flush()
+        row = ingest_report(session, source, benchmark_id=benchmark.id)
+        row.status = "running"
+        row.progress = {
+            "context": {"kind": "cases_retry", "sample_ids": sample_ids},
+            "case_states": {
+                sample_ids[0]: {"status": "completed", "percent": 100},
+                sample_ids[1]: {"status": "running", "percent": 1},
+            },
+        }
+        run_id = row.id
+
+    class CancellableRunner:
+        async def cancel(self, _run_id):
+            return True
+
+    monkeypatch.setattr("server.routers.runs.rejudge.get_job_runner", lambda: CancellableRunner())
+    response = client.post(f"/api/runs/{run_id}/cases/retry/cancel")
+
+    assert response.status_code == 200, response.text
+    with session_scope() as session:
+        row = session.get(EvalRun, run_id)
+        assert row.status == "success"
+        assert row.progress["cancelled"] is True
+        assert row.progress["case_states"][sample_ids[0]]["status"] == "completed"
+        assert row.progress["case_states"][sample_ids[1]]["status"] == "cancelled"
+
+
 # ---------------------------------------------------------------------------
 # 5. 端点：rejudge 建新 run、resume 原地恢复、pin 落哨兵、缺留痕 400
 

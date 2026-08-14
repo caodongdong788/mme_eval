@@ -35,6 +35,9 @@ class InMemoryProgress:
         # 多个 Judge 都完成后才计为 1，适合批量重新评测在界面上展示。
         self._case_total = 0
         self._case_done = 0
+        # 重新评测时按 sample_id 记录每个 Case 的可展示状态。普通评测无需
+        # 声明这些状态，保持原来的轻量进度语义。
+        self._case_states: dict[str, dict[str, Any]] = {}
         # 开跑前声明的全部阶段总量之和；用于全局单调百分比（None=未声明，回退当前阶段口径）。
         self._plan_total: int | None = None
 
@@ -49,12 +52,32 @@ class InMemoryProgress:
         self._case_total = max(0, int(total))
         self._case_done = min(self._case_done, self._case_total)
 
+    def set_case_ids(self, sample_ids: Iterable[str]) -> None:
+        """声明本次重评的 Case 范围，并初始化逐条进度。"""
+        ids = list(dict.fromkeys(str(sample_id) for sample_id in sample_ids))
+        self._case_total = len(ids)
+        self._case_done = 0
+        self._case_states = {
+            sample_id: {"status": "queued", "percent": 0}
+            for sample_id in ids
+        }
+
+    def case_started(self, sample_id: str) -> None:
+        """Case 已拿到执行槽位，开始调用 Agent / Judge。"""
+        state = self._case_states.get(sample_id)
+        if state is not None and state.get("status") != "completed":
+            state.update({"status": "running", "percent": max(1, int(state.get("percent", 0)))})
+
     async def case_completed(self, result: "CaseResult") -> None:
         """在一条用例完成 N 次判分并折叠后通知平台。"""
         if self._case_total:
             self._case_done = min(self._case_done + 1, self._case_total)
         else:
             self._case_done += 1
+        sample_id = getattr(getattr(result, "case", None), "sample_id", None)
+        state = self._case_states.get(sample_id) if sample_id else None
+        if state is not None:
+            state.update({"status": "completed", "percent": 100})
         if self._case_complete_callback is None:
             return
         pending = self._case_complete_callback(result)
@@ -96,4 +119,5 @@ class InMemoryProgress:
             "phases": {k: dict(v) for k, v in self.phases.items()},
             "case_done": self._case_done,
             "case_total": self._case_total,
+            "case_states": {sample_id: dict(state) for sample_id, state in self._case_states.items()},
         }

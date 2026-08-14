@@ -55,6 +55,11 @@ export default function RunDashboardPage() {
         done: dash.progress?.progress?.case_done ?? (retryStatus === "success" ? retryingCaseCount : 0),
         total: dash.progress?.progress?.case_total || retryingCaseCount,
         status: retryStatus,
+        cancelled: dash.progress?.progress?.cancelled === true,
+        sampleIds: retryContext?.kind === "cases_retry"
+          ? retryContext.sample_ids || []
+          : retryContext?.sample_id ? [retryContext.sample_id] : [],
+        caseStates: dash.progress?.progress?.case_states || {},
       }
     : undefined;
 
@@ -108,6 +113,7 @@ export default function RunDashboardPage() {
                 onOpenExport={() => dash.setExportOpen(true)}
                 onStartAttribution={dash.openAttributionLaunch}
                 onRetryCases={dash.retrySelectedCases}
+                onCancelRetry={dash.cancelRetrySelectedCases}
               />
             ),
           },

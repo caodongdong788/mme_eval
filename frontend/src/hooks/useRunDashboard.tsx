@@ -307,7 +307,12 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
         setActing(true);
         try {
           await api.retryCases(runId, rows.map((row) => row.sample_id));
-          setRun(await api.getRun(runId));
+          const [nextRun, nextProgress] = await Promise.all([
+            api.getRun(runId),
+            api.getProgress(runId),
+          ]);
+          setRun(nextRun);
+          setProgress(nextProgress);
           message.success(`已开始重新评测 ${count} 条用例`);
         } catch (e: unknown) {
           message.error(formatApiError(e, "重新评测失败"));
@@ -316,6 +321,24 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
         }
       },
     });
+  };
+
+  const cancelRetrySelectedCases = async () => {
+    setActing(true);
+    try {
+      await api.cancelRetryCases(runId);
+      const [nextRun, nextProgress] = await Promise.all([
+        api.getRun(runId),
+        api.getProgress(runId),
+      ]);
+      setRun(nextRun);
+      setProgress(nextProgress);
+      message.success("已终止重新评测，未完成的用例已标记为已取消");
+    } catch (e: unknown) {
+      message.error(formatApiError(e, "终止重新评测失败"));
+    } finally {
+      setActing(false);
+    }
   };
 
   return {
@@ -368,6 +391,7 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
     openAttributionLaunch,
     startAttributionTask,
     retrySelectedCases,
+    cancelRetrySelectedCases,
     navigate,
   };
 }

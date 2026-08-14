@@ -205,6 +205,7 @@ export interface CaseRow {
   level: string;
   medical_safety_passed: boolean;
   release_passed: boolean;
+  judge_error?: boolean;
   composite_score?: number | null;
   grade: string;
   stability: string;
@@ -407,6 +408,10 @@ export interface ProgressInfo {
     /** 按用例聚合的进度，用于批量重新评测。 */
     case_done?: number;
     case_total?: number;
+    /** 当前批量重评中每条 Case 的独立状态。 */
+    case_states?: Record<string, { status: "queued" | "running" | "completed" | "cancelled"; percent?: number }>;
+    /** 用户主动终止了本次重新评测。 */
+    cancelled?: boolean;
     percent?: number;
     /** 后端已持久化本次重试的最终进度。 */
     completed?: boolean;
