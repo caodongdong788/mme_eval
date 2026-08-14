@@ -15,7 +15,7 @@ from .evidence import (
     sanitize_assistant_evidence,
     term_hits,
 )
-from .llm_backend import LLMBackend
+from .llm_backend import JUDGE_REQUEST_TIMEOUT_S, LLMBackend
 
 log = logging.getLogger(__name__)
 
@@ -308,7 +308,12 @@ class GuidelineJudge(BaseJudge):
 
     async def _call(self, prompt: str) -> dict[str, dict]:
         assert self._backend is not None
-        data = await self._backend.chat_json(self.model, prompt, self.temperature)
+        data = await self._backend.chat_json(
+            self.model,
+            prompt,
+            self.temperature,
+            request_timeout_s=JUDGE_REQUEST_TIMEOUT_S,
+        )
         return {
             str(item.get("id")): item
             for item in (data.get("results", []) or [])

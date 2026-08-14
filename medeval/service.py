@@ -237,6 +237,10 @@ async def run_traces(
 
     def on_run(case=None, trace=None, run_idx=0):
         progress.advance("run")
+        if case is not None:
+            callback = getattr(progress, "case_run_completed", None)
+            if callable(callback):
+                callback(case.sample_id, int(run_idx) + 1, n_runs)
         if writer is not None and case is not None and trace is not None:
             writer.record(case.sample_id, index_by_id.get(case.sample_id, -1), run_idx, trace)
 
@@ -420,6 +424,9 @@ async def evaluate(
         ) -> None:
             # single_turn 模式会临时展平动态对话；判分仍必须使用原始 Case 真值。
             case = cases[index]
+            case_judging = getattr(progress, "case_judging", None)
+            if callable(case_judging):
+                case_judging(case.sample_id)
             run_results: list[CaseResult] = []
             for trace in traces:
                 async with judge_sem:

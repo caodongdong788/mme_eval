@@ -29,6 +29,8 @@ log = logging.getLogger(__name__)
 # 默认最多 6 次额外重试；QPM 命中时单次退避至少 60s。
 _DEFAULT_MAX_RETRIES = 6
 _QPM_MIN_BACKOFF_S = 60.0
+# 判分属于后台任务，允许模型完成一次复杂推理；但不能无限等待单个请求。
+JUDGE_REQUEST_TIMEOUT_S = 300.0
 
 _gate: asyncio.Semaphore | None = None
 _min_interval_s: float = 0.0
@@ -218,8 +220,8 @@ class LLMBackend:
 
         async def _create():
             # Kimi K3 是仅思考模型：DashScope 要求 temperature 固定为 1，
-            # 并使用 reasoning_effort 而不是通用的 enable_thinking 开关。
-            # 这里兜底强制处理，避免历史配置或 Open API 直传错误参数导致实际调用失败。
+            # 并使用 reasoning_effort 而不是通用的 enable_thinking 开关。评测
+            # 使用 high，避免 max 导致单条判分长时间占用 Worker。
             is_kimi_k3 = is_kimi_k3_model(model)
             kwargs: dict[str, Any] = {
                 "model": model,
@@ -228,7 +230,7 @@ class LLMBackend:
                 "response_format": {"type": "json_object"},
             }
             if is_kimi_k3:
-                kwargs["extra_body"] = {"reasoning_effort": "max"}
+                kwargs["extra_body"] = {"reasoning_effort": "high"}
             elif self.enable_thinking is not None:
                 kwargs["extra_body"] = {"enable_thinking": self.enable_thinking}
             request = self._client.chat.completions.create(  # type: ignore[union-attr]

@@ -68,6 +68,20 @@ class InMemoryProgress:
         if state is not None and state.get("status") != "completed":
             state.update({"status": "running", "percent": max(1, int(state.get("percent", 0)))})
 
+    def case_run_completed(self, sample_id: str, completed_runs: int, total_runs: int) -> None:
+        """Agent 对话完成的增量进度；余下的 50% 留给八维和指南判分。"""
+        state = self._case_states.get(sample_id)
+        if state is None or state.get("status") == "completed":
+            return
+        ratio = min(max(int(completed_runs), 0) / max(int(total_runs), 1), 1.0)
+        state.update({"status": "running", "percent": max(1, round(ratio * 50))})
+
+    def case_judging(self, sample_id: str) -> None:
+        """全部对话已完成，进入八维与指南判分阶段。"""
+        state = self._case_states.get(sample_id)
+        if state is not None and state.get("status") != "completed":
+            state.update({"status": "running", "percent": max(50, int(state.get("percent", 0)))})
+
     async def case_completed(self, result: "CaseResult") -> None:
         """在一条用例完成 N 次判分并折叠后通知平台。"""
         if self._case_total:

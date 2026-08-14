@@ -22,7 +22,7 @@ from .evidence import (
     term_hits,
     text_occurs,
 )
-from .llm_backend import LLMBackend
+from .llm_backend import JUDGE_REQUEST_TIMEOUT_S, LLMBackend
 
 log = logging.getLogger(__name__)
 
@@ -310,7 +310,12 @@ class EightDimensionJudge(BaseJudge):
         self, prompt: str
     ) -> tuple[dict[str, int], dict[str, str], dict[str, dict]]:
         assert self._backend is not None
-        data = await self._backend.chat_json(self.model, prompt, self.temperature)
+        data = await self._backend.chat_json(
+            self.model,
+            prompt,
+            self.temperature,
+            request_timeout_s=JUDGE_REQUEST_TIMEOUT_S,
+        )
         return (
             data.get("scores", {}) or {},
             data.get("reasons", {}) or {},
