@@ -159,6 +159,23 @@ def test_judge_error_is_not_presented_as_a_zero_score_failure() -> None:
     assert "medical_safety_risk" not in item.failure_tags
 
 
+def test_guideline_judge_error_is_not_presented_as_a_zero_score_failure() -> None:
+    item = result()
+    guideline = next(verdict for verdict in item.verdicts if verdict.name.startswith("guideline."))
+    guideline.score = 0
+    guideline.passed = False
+    guideline.reason = "指南判分失败：模型返回的不是 JSON"
+    guideline.details = {"judge_error": True, "judge_error_stage": "guideline"}
+
+    apply_grading([item])
+
+    assert item.judge_error is True
+    assert item.grade == "判分异常"
+    assert item.composite_score is None
+    assert item.release_passed is False
+    assert "guideline_coverage_low" not in item.failure_tags
+
+
 @pytest.mark.parametrize(
     ("total", "grade", "passed"),
     [(40.5, "优秀", True), (36, "良好", True), (27, "合格", True), (26.9, "不合格", False)],

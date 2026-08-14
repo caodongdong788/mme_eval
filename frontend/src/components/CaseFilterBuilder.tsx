@@ -38,6 +38,16 @@ function newCondition<Field extends string>(
   };
 }
 
+function supportsMultipleValues<Field extends string>(
+  definition: FilterFieldDefinition<Field>,
+  operator: FilterCondition<Field>["operator"]
+): boolean {
+  return (
+    (definition.kind === "select" || definition.kind === "multi_select") &&
+    (operator === "contains" || operator === "not_contains")
+  );
+}
+
 export function CaseFilterBuilder<Field extends string = CaseFilterField>({
   conditions,
   onChange,
@@ -73,6 +83,7 @@ export function CaseFilterBuilder<Field extends string = CaseFilterField>({
         {conditions.map((condition) => {
           const definition = fieldDefinition(condition.field, fields);
           const needsValue = operatorNeedsValue(condition.operator);
+          const multipleValues = supportsMultipleValues(definition, condition.operator);
           return (
             <div className="case-filter-condition" key={condition.id}>
               <Select
@@ -85,19 +96,33 @@ export function CaseFilterBuilder<Field extends string = CaseFilterField>({
                 aria-label="筛选运算符"
                 value={condition.operator}
                 options={operatorsForField(condition.field, fields)}
-                onChange={(operator) =>
+                onChange={(operator) => {
+                  const canKeepMultiple = supportsMultipleValues(definition, operator);
                   patchCondition(condition.id, {
                     operator,
-                    value: operatorNeedsValue(operator) ? condition.value : undefined,
-                  })
-                }
+                    value: !operatorNeedsValue(operator)
+                      ? undefined
+                      : canKeepMultiple
+                        ? Array.isArray(condition.value)
+                          ? condition.value
+                          : condition.value
+                            ? [condition.value]
+                            : []
+                        : Array.isArray(condition.value)
+                          ? condition.value[0]
+                          : condition.value,
+                  });
+                }}
               />
               {needsValue ? (
                 definition.kind === "select" || definition.kind === "multi_select" ? (
                   <Select
                     aria-label="筛选值"
-                    value={condition.value}
-                    placeholder="请选择"
+                    mode={multipleValues ? "multiple" : undefined}
+                    value={multipleValues
+                      ? (Array.isArray(condition.value) ? condition.value : condition.value ? [condition.value] : [])
+                      : (Array.isArray(condition.value) ? condition.value[0] : condition.value)}
+                    placeholder={multipleValues ? "可多选" : "请选择"}
                     options={definition.options ?? valueOptions[condition.field]}
                     onChange={(value) => patchCondition(condition.id, { value })}
                   />

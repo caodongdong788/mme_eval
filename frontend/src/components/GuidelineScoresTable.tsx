@@ -17,6 +17,18 @@ function EvidenceQuote({ value }: { value: string }) {
 }
 
 function GuidelineDecision({ row }: { row: GuidelineScore }) {
+  if (row.judge_error) {
+    return (
+      <div className="guideline-decision-error" data-testid={`guideline-decision-${row.id}`}>
+        <Typography.Text type="danger" strong>判分异常</Typography.Text>
+        <div>
+          <Typography.Text type="secondary">
+            指南判分服务未能产出有效结果：{row.judge_error_message || row.reason || "请重新评测该用例"}
+          </Typography.Text>
+        </div>
+      </div>
+    );
+  }
   const deduction = row.deduction ?? Math.max(0, row.max_score - row.score);
   const deducted = row.applicable !== false && deduction > 0;
   if (!deducted) {
@@ -83,7 +95,7 @@ export function GuidelineScoresTable({ scores }: { scores: GuidelineScore[] }) {
             title: "得分",
             width: 100,
             render: (_, row) => (
-              row.applicable === false ? <Tag>未触发</Tag> : (
+              row.judge_error ? <Tag color="red">判分异常</Tag> : row.applicable === false ? <Tag>未触发</Tag> : (
                 <Tag color={row.score === row.max_score ? "green" : "orange"}>
                   {row.score}/{row.max_score}{row.deduction ? `（扣 ${row.deduction}）` : ""}
                 </Tag>

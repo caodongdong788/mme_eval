@@ -390,7 +390,7 @@ def _migrate_case_list_display_columns(engine) -> None:
 
 
 def _migrate_case_judge_error(engine) -> None:
-    """为历史八维调用异常补齐可筛选的判分异常标记。"""
+    """为历史八维/指南调用异常补齐可筛选的判分异常标记。"""
     inspector = inspect(engine)
     if "case_result" not in inspector.get_table_names():
         return
@@ -410,19 +410,30 @@ def _migrate_case_judge_error(engine) -> None:
         for row in rows:
             detail = dict(row.detail_json or {})
             verdicts = detail.get("verdicts") or []
-            judge_error = any(
-                isinstance(verdict, dict)
-                and str(verdict.get("name") or "").startswith("dimension.")
-                and (
-                    bool(
-                        (verdict.get("details") or {}).get("judge_error")
-                        if isinstance(verdict.get("details"), dict)
-                        else False
-                    )
-                    or "八维判分失败" in str(verdict.get("reason") or "")
+            def is_judge_error(verdict: object) -> bool:
+                if not isinstance(verdict, dict):
+                    return False
+                details = verdict.get("details")
+                return (
+                    bool(details.get("judge_error")) if isinstance(details, dict) else False
+                ) or (
+                    "八维判分失败" in str(verdict.get("reason") or "")
+                    or "指南判分失败" in str(verdict.get("reason") or "")
                 )
+
+            judge_error = any(
+                str(verdict.get("name") or "").startswith(("dimension.", "guideline."))
+                and is_judge_error(verdict)
                 for verdict in verdicts
+                if isinstance(verdict, dict)
             )
+            guideline_errors = {
+                str(verdict.get("name") or "").removeprefix("guideline."): str(verdict.get("reason") or "")
+                for verdict in verdicts
+                if isinstance(verdict, dict)
+                and str(verdict.get("name") or "").startswith("guideline.")
+                and is_judge_error(verdict)
+            }
             row.judge_error = judge_error
             if judge_error:
                 # 历史记录曾将上游判分故障按 0 分落库。同步修正明细快照与列表标量，
@@ -433,6 +444,13 @@ def _migrate_case_judge_error(engine) -> None:
                 detail["medical_safety_passed"] = True
                 detail["release_passed"] = False
                 detail["failure_tags"] = []
+                for score in detail.get("guideline_scores") or []:
+                    if not isinstance(score, dict):
+                        continue
+                    error_reason = guideline_errors.get(str(score.get("id") or ""))
+                    if error_reason:
+                        score["judge_error"] = True
+                        score["judge_error_message"] = error_reason
                 row.detail_json = detail
                 row.grade = "判分异常"
                 row.composite_score = None

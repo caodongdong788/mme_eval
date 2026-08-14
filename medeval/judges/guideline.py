@@ -139,8 +139,14 @@ class GuidelineJudge(BaseJudge):
             log.exception("GuidelineJudge failed: %s", exc)
             results = {}
             failure_reason = f"指南判分失败：{exc}"
+            judge_error_details = {
+                "judge_error": True,
+                "judge_error_stage": "guideline",
+                "judge_error_message": str(exc),
+            }
         else:
             failure_reason = ""
+            judge_error_details = {}
 
         verdicts: list[JudgeVerdict] = []
         for item in guidelines:
@@ -225,6 +231,7 @@ class GuidelineJudge(BaseJudge):
                     reason=reason,
                     evidence=evidence,
                     details={
+                        **judge_error_details,
                         "applicable": applicable,
                         "trigger": item.trigger,
                         "checkpoints": item.checkpoints,

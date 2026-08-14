@@ -73,7 +73,9 @@ export function useRunCaseFilters(
   const needsPendingQueue = filterConditions.some(
     (condition) =>
       condition.field === "review" &&
-      String(condition.value ?? "") === "pending" &&
+      (Array.isArray(condition.value)
+        ? condition.value.includes("pending")
+        : condition.value === "pending") &&
       isActiveCaseFilter(condition)
   );
 

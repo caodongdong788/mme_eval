@@ -54,7 +54,7 @@ const rows: CaseRow[] = [
 function condition(
   field: CaseFilterCondition["field"],
   operator: CaseFilterCondition["operator"],
-  value?: string
+  value?: string | string[]
 ): CaseFilterCondition {
   return { id: `${field}-${operator}`, field, operator, value };
 }
@@ -136,6 +136,23 @@ describe("filterCaseRows", () => {
         (tag) => (tag === "missing_followup" ? "追问不足" : tag)
       )
     ).toEqual([rows[0]]);
+  });
+
+  it("allows selecting multiple enum values for contains and not-contains", () => {
+    expect(
+      filterCaseRows(rows, [condition("grade", "contains", ["优秀", "不合格"])], new Set())
+    ).toEqual(rows);
+    expect(
+      filterCaseRows(rows, [condition("grade", "not_contains", ["优秀", "良好"])], new Set())
+    ).toEqual([rows[1]]);
+    expect(
+      filterCaseRows(
+        rows,
+        [condition("failure_tags", "contains", ["不存在", "追问不足"])],
+        new Set(),
+        (tag) => (tag === "missing_followup" ? "追问不足" : tag)
+      )
+    ).toEqual([rows[1]]);
   });
 });
 

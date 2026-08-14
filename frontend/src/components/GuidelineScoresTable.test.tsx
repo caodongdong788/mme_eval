@@ -41,4 +41,21 @@ describe("GuidelineScoresTable", () => {
     expect(within(decision).getByText("负重运动").tagName).toBe("STRONG");
     expect(within(decision).queryByText(/遗漏：/)).not.toBeInTheDocument();
   });
+
+  it("shows a judge error instead of a fabricated deduction", () => {
+    renderWithProviders(
+      <GuidelineScoresTable
+        scores={[{
+          id: "failed", dimension: "medical_safety", criterion: ["不得自行调药"],
+          score: 0, max_score: 5, deduction: 5, reason: "指南判分失败：Expecting value",
+          evidence: [], judge_error: true, judge_error_message: "Expecting value: line 1 column 1",
+        }]}
+      />
+    );
+
+    const decision = screen.getByTestId("guideline-decision-failed");
+    expect(within(decision).getByText("判分异常")).toBeInTheDocument();
+    expect(within(decision).queryByText("扣分理由：")).not.toBeInTheDocument();
+    expect(screen.getAllByText("判分异常")).toHaveLength(2);
+  });
 });

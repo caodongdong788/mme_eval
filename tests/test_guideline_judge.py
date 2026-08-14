@@ -105,6 +105,8 @@ def test_failure_scores_every_guideline_zero() -> None:
     verdict = asyncio.run(judge.judge(case(), trace()))[0]
     assert verdict.score == 0
     assert "失败" in verdict.reason
+    assert verdict.details["judge_error"] is True
+    assert verdict.details["judge_error_stage"] == "guideline"
 
 
 def test_prompt_includes_case_initial_state_without_counting_it_as_coverage() -> None:

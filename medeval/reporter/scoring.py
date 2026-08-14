@@ -58,8 +58,12 @@ def apply_grading(results: list[CaseResult]) -> None:
     """将最终评分就地写入 CaseResult。"""
     for result in results:
         breakdown = score_case(result)
+        # 八维评分与指南覆盖评分都属于判分环节。任一环节服务调用或 JSON
+        # 解析失败时，结果不应被伪装为「0 分 / 不合格」；必须整体标记为
+        # 判分异常，避免把系统故障误归因到 Agent。
         judge_error = result.judge_error or any(
-            verdict.name.startswith("dimension.") and bool(verdict.details.get("judge_error"))
+            (verdict.name.startswith("dimension.") or verdict.name.startswith("guideline."))
+            and bool(verdict.details.get("judge_error"))
             for verdict in result.verdicts
         )
         result.judge_error = judge_error

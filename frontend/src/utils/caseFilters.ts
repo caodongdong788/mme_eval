@@ -33,7 +33,11 @@ export interface FilterCondition<Field extends string = string> {
   id: string;
   field: Field;
   operator: CaseFilterOperator;
-  value?: string;
+  /**
+   * `contains` / `not_contains` on an enum accept several values.  Values in
+   * the same condition use OR semantics: e.g. 综合评价「包含 优秀、良好」.
+   */
+  value?: string | string[];
 }
 
 export type CaseFilterCondition = FilterCondition<CaseFilterField>;
@@ -206,11 +210,18 @@ export function defaultOperator<Field extends string>(
 }
 
 export function isActiveCaseFilter(condition: CaseFilterCondition): boolean {
-  return !operatorNeedsValue(condition.operator) || String(condition.value ?? "").trim() !== "";
+  return isActiveFilter(condition);
 }
 
 export function isActiveFilter<Field extends string>(condition: FilterCondition<Field>): boolean {
-  return !operatorNeedsValue(condition.operator) || String(condition.value ?? "").trim() !== "";
+  if (!operatorNeedsValue(condition.operator)) return true;
+  if (Array.isArray(condition.value)) return condition.value.some((value) => value.trim() !== "");
+  return String(condition.value ?? "").trim() !== "";
+}
+
+function expectedValues(value: FilterCondition["value"]): string[] {
+  const values = Array.isArray(value) ? value : [value];
+  return values.map((item) => String(item ?? "").trim()).filter(Boolean);
 }
 
 function displayValue(
@@ -276,8 +287,8 @@ function matchesCondition(
     ]);
     if (condition.operator === "is_empty") return values.length === 0;
     if (condition.operator === "is_not_empty") return values.length > 0;
-    const expected = String(condition.value ?? "").trim().toLocaleLowerCase();
-    const contains = values.some((value) => value === expected);
+    const expected = expectedValues(condition.value).map((value) => value.toLocaleLowerCase());
+    const contains = expected.some((item) => values.some((value) => value === item));
     if (condition.operator === "contains" || condition.operator === "equals") return contains;
     if (condition.operator === "not_contains" || condition.operator === "not_equals") return !contains;
     return false;
@@ -294,11 +305,11 @@ function matchesValue(
   if (condition.operator === "is_empty") return isEmpty(actual);
   if (condition.operator === "is_not_empty") return !isEmpty(actual);
 
-  const expected = String(condition.value ?? "").trim();
+  const expected = expectedValues(condition.value);
   const kind = fieldDefinition(condition.field, fields).kind;
   if (kind === "number") {
     const left = Number(actual);
-    const right = Number(expected);
+    const right = Number(expected[0]);
     if (!Number.isFinite(left) || !Number.isFinite(right)) return false;
     if (condition.operator === "equals") return left === right;
     if (condition.operator === "not_equals") return left !== right;
@@ -310,11 +321,11 @@ function matchesValue(
   }
 
   const left = String(actual ?? "").toLocaleLowerCase();
-  const right = expected.toLocaleLowerCase();
-  if (condition.operator === "contains") return left.includes(right);
-  if (condition.operator === "not_contains") return !left.includes(right);
-  if (condition.operator === "equals") return left === right;
-  if (condition.operator === "not_equals") return left !== right;
+  const expectedLower = expected.map((value) => value.toLocaleLowerCase());
+  if (condition.operator === "contains") return expectedLower.some((value) => left.includes(value));
+  if (condition.operator === "not_contains") return expectedLower.every((value) => !left.includes(value));
+  if (condition.operator === "equals") return expectedLower.some((value) => left === value);
+  if (condition.operator === "not_equals") return expectedLower.every((value) => left !== value);
   return false;
 }
 

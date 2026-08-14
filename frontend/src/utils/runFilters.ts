@@ -59,24 +59,30 @@ function matches(row: RunSummary, condition: RunFilterCondition): boolean {
   const empty = value == null || String(value).trim() === "";
   if (condition.operator === "is_empty") return empty;
   if (condition.operator === "is_not_empty") return !empty;
-  const expected = String(condition.value ?? "").trim();
+  const expected = (Array.isArray(condition.value) ? condition.value : [condition.value])
+    .map((item) => String(item ?? "").trim())
+    .filter(Boolean);
   const kind = fieldDefinition(condition.field, RUN_FILTER_FIELDS).kind;
   if (kind === "number") {
-    const left = Number(value), right = Number(expected);
+    const left = Number(value), right = Number(expected[0]);
     if (!Number.isFinite(left) || !Number.isFinite(right)) return false;
     return ({ equals: left === right, not_equals: left !== right, gt: left > right, gte: left >= right, lt: left < right, lte: left <= right } as Record<string, boolean>)[condition.operator] ?? false;
   }
   const left = String(value ?? "").toLocaleLowerCase();
-  const right = expected.toLocaleLowerCase();
-  if (condition.operator === "contains") return left.includes(right);
-  if (condition.operator === "not_contains") return !left.includes(right);
-  if (condition.operator === "equals") return left === right;
-  if (condition.operator === "not_equals") return left !== right;
+  const lower = expected.map((item) => item.toLocaleLowerCase());
+  if (condition.operator === "contains") return lower.some((item) => left.includes(item));
+  if (condition.operator === "not_contains") return lower.every((item) => !left.includes(item));
+  if (condition.operator === "equals") return lower.some((item) => left === item);
+  if (condition.operator === "not_equals") return lower.every((item) => left !== item);
   return false;
 }
 
 export function filterRunRows(rows: RunSummary[], conditions: RunFilterCondition[]) {
-  const active = conditions.filter((item) => operatorNeedsValue(item.operator) ? String(item.value ?? "").trim() : true);
+  const active = conditions.filter((item) => {
+    if (!operatorNeedsValue(item.operator)) return true;
+    const values = Array.isArray(item.value) ? item.value : [item.value];
+    return values.some((value) => String(value ?? "").trim());
+  });
   return active.length ? rows.filter((row) => active.every((condition) => matches(row, condition))) : rows;
 }
 

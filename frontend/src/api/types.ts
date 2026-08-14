@@ -239,6 +239,8 @@ export interface GuidelineScore {
   missed_points?: string[];
   reason: string;
   evidence: string[];
+  judge_error?: boolean;
+  judge_error_message?: string;
 }
 
 export interface AttributionRecommendation {

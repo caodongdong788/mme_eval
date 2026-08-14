@@ -78,6 +78,8 @@ def score_eight_dimension_case(result: CaseResult) -> dict[str, Any]:
             "rejected_checkpoint_audits": list(details.get("rejected_checkpoint_audits", [])),
             "evidence_audit_passed": bool(details.get("evidence_audit_passed", False)),
             "deduction_rejected": bool(details.get("deduction_rejected", False)),
+            "judge_error": bool(details.get("judge_error", False)),
+            "judge_error_message": str(details.get("judge_error_message", "")),
         }
         guideline_scores.append(row)
         if missing > 0:
