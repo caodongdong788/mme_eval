@@ -9,7 +9,7 @@ MME 可以把归因请求交给你本机的 Codex CLI 执行。网关使用 `cod
 ```bash
 export CODEX_GATEWAY_TOKEN='请使用随机长字符串'
 export CODEX_DEFAULT_MODEL='gpt-5.6-sol'
-export CODEX_REASONING_EFFORT='xhigh'
+export CODEX_REASONING_EFFORT='high'
 export CODEX_SERVICE_TIER='fast'
 uv run uvicorn scripts.codex_attribution_gateway:app --host 127.0.0.1 --port 8787
 ```
@@ -25,7 +25,7 @@ uv run uvicorn scripts.codex_attribution_gateway:app --host 127.0.0.1 --port 878
 - Base URL：本机联调填写 `http://127.0.0.1:8787/v1`；生产填写受控隧道地址并以 `/v1` 结尾
 - API Key：与 `CODEX_GATEWAY_TOKEN` 相同
 
-需要“GPT-5.6 Sol / 极高 / 快速”时，分别使用 `gpt-5.6-sol`、`xhigh` 和
+需要“GPT-5.6 Sol / 高 / 快速”时，分别使用 `gpt-5.6-sol`、`high` 和
 `fast`。快速模式会提高模型速度，也会增加额度消耗。
 
 该模型可在“开始归因分析”中选择。患者数据仅会发送给该本机 Codex 网关以及其实际使用的 Codex/OpenAI 服务，因此上线前应完成数据合规确认。
