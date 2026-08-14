@@ -11,7 +11,9 @@ vi.mock("../api/index", () => ({
     getAttributionTaskResult: vi.fn(),
     getAttributionTask: vi.fn(),
     listAttributionTasks: vi.fn(),
+    createAttributionTask: vi.fn(),
     rerunAttributionTask: vi.fn(),
+    resumeAttributionTask: vi.fn(),
     deleteAttributionTask: vi.fn(),
     getJudgeVerdictLabels: vi.fn(),
   },
@@ -84,6 +86,8 @@ describe("RunAttributionTab", () => {
     expect(screen.getAllByText("归因进度").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: /查看明细/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /重新归因/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "全选全部" }));
+    expect(screen.getByRole("button", { name: /重新归因（1）/ })).toBeEnabled();
     expect(screen.getByRole("button", { name: /删除/ })).toBeInTheDocument();
     const viewLink = await screen.findByRole("link", { name: /查看归因/ });
     expect(viewLink).toHaveAttribute("href", "/runs/26/attribution-tasks/99/cases/case_11");
@@ -164,5 +168,36 @@ describe("RunAttributionTab", () => {
     expect(await screen.findByText("当时的 Kimi K3 请求参数不兼容")).toBeInTheDocument();
     expect(screen.getByText(/当前已修正为思考模式/)).toBeInTheDocument();
     expect(screen.getByText("HTTPException: 502: AI 归因生成失败：BadRequestError")).toBeInTheDocument();
+  });
+
+  it("offers to continue an interrupted task without creating a new task", async () => {
+    const interruptedTask: AttributionTask = {
+      ...task,
+      status: "partial",
+      requested_count: 2,
+      total_count: 2,
+      completed_count: 1,
+      success_count: 1,
+      failed_count: 0,
+      running_count: 0,
+      pending_count: 0,
+    };
+    mockedApi.listAttributionTasks.mockResolvedValue([{ ...interruptedTask, items: [] }]);
+    mockedApi.getAttributionTask.mockResolvedValue(interruptedTask);
+
+    renderWithProviders(
+      <MemoryRouter>
+        <RunAttributionTab
+          runId={26}
+          runStatus="success"
+          cases={[failedCase]}
+          selectedTaskId={99}
+          onSelectedTaskIdChange={vi.fn()}
+        />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("部分完成");
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toContain("继续归因");
   });
 });

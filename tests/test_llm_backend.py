@@ -16,7 +16,11 @@ import pytest
 from openai import AsyncAzureOpenAI, AsyncOpenAI, RateLimitError
 
 from medeval import retry as retry_mod
-from medeval.judges.llm_backend import LLMBackend, reset_llm_rate_limit
+from medeval.judges.llm_backend import (
+    LLMBackend,
+    _is_transient_provider_error,
+    reset_llm_rate_limit,
+)
 
 
 def _rate_limit_error() -> RateLimitError:
@@ -70,6 +74,20 @@ class _FakeClient:
 def test_openai_provider_builds_async_openai():
     backend = LLMBackend(provider="openai", api_key="k")
     assert isinstance(backend._client, AsyncOpenAI)
+
+
+def test_codex_gateway_provider_uses_openai_compatible_client():
+    backend = LLMBackend(provider="codex", api_key="gateway-token", base_url="http://127.0.0.1:8787/v1")
+    assert isinstance(backend._client, AsyncOpenAI)
+
+
+def test_transient_provider_error_recognizes_5xx_and_timeout():
+    assert _is_transient_provider_error(asyncio.TimeoutError())
+    assert _is_transient_provider_error(RuntimeError("internal_server_error"))
+
+    error = RuntimeError("upstream failed")
+    error.status_code = 502  # type: ignore[attr-defined]
+    assert _is_transient_provider_error(error)
 
 
 def test_azure_provider_builds_async_azure_openai():

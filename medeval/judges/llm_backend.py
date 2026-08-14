@@ -88,6 +88,21 @@ def _is_rate_limit_error(exc: BaseException) -> bool:
     return "429" in msg or "rate limit" in msg or "qpm" in msg
 
 
+def _is_transient_provider_error(exc: BaseException) -> bool:
+    """归因等后台任务可安全重试的临时上游错误。"""
+    if _is_rate_limit_error(exc) or isinstance(exc, (asyncio.TimeoutError, TimeoutError)):
+        return True
+    status_code = getattr(exc, "status_code", None)
+    if isinstance(status_code, int) and status_code >= 500:
+        return True
+    message = str(exc).lower()
+    return any(marker in message for marker in (
+        "internalservererror", "internal server error", "internal_server_error",
+        "bad gateway", "service unavailable", "gateway timeout", "connection error",
+        "connection reset", "timed out", "timeout",
+    ))
+
+
 def _delay_for_rate_limit(attempt: int, exc: BaseException) -> float | None:
     if not _is_rate_limit_error(exc):
         return None
@@ -162,7 +177,9 @@ class LLMBackend:
                 kwargs["default_headers"] = self.default_headers
             return AsyncAzureOpenAI(**kwargs)
 
-        if self.provider == "openai":
+        # codex 是本地 Codex 网关的标识；网关提供 OpenAI 兼容的
+        # /v1/chat/completions，因此复用同一客户端实现。
+        if self.provider in {"openai", "codex"}:
             try:
                 from openai import AsyncOpenAI  # type: ignore
             except ImportError as e:
@@ -187,6 +204,9 @@ class LLMBackend:
         prompt: str,
         temperature: float = 0.0,
         max_retries: int = _DEFAULT_MAX_RETRIES,
+        *,
+        request_timeout_s: float | None = None,
+        retry_transient_errors: bool = False,
     ) -> dict[str, Any]:
         """单条 user prompt → 严格 JSON 响应，带限速指数退避。返回 ``json.loads(text)``。
 
@@ -210,9 +230,12 @@ class LLMBackend:
                 kwargs["extra_body"] = {"reasoning_effort": "max"}
             elif self.enable_thinking is not None:
                 kwargs["extra_body"] = {"enable_thinking": self.enable_thinking}
-            return await self._client.chat.completions.create(  # type: ignore[union-attr]
+            request = self._client.chat.completions.create(  # type: ignore[union-attr]
                 **kwargs,
             )
+            if request_timeout_s is not None:
+                return await asyncio.wait_for(request, timeout=request_timeout_s)
+            return await request
 
         def _on_retry(attempt: int, exc: BaseException, wait: float) -> None:
             log.warning(
@@ -229,10 +252,10 @@ class LLMBackend:
             resp = await retry_async(
                 _create,
                 max_retries=max_retries,
-                retryable=_is_rate_limit_error,
-                base=5.0,
+                retryable=_is_transient_provider_error if retry_transient_errors else _is_rate_limit_error,
+                base=2.0 if retry_transient_errors else 5.0,
                 factor=2.0,
-                max_delay=40.0,
+                max_delay=20.0 if retry_transient_errors else 40.0,
                 jitter=2.0,
                 on_retry=_on_retry,
                 delay_for=_delay_for_rate_limit,

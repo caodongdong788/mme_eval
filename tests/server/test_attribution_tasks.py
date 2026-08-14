@@ -295,3 +295,71 @@ def test_attribution_task_api_supports_rerun_and_delete(client, monkeypatch):
     assert deleted.status_code == 204, deleted.text
     missing = client.get(f"/api/runs/{run_id}/attribution-tasks/{rerun_id}")
     assert missing.status_code == 404
+
+
+def test_attribution_task_api_resumes_only_unfinished_items(client, monkeypatch):
+    run_id, sample_ids, model_id = _seed_failed_cases()
+    started: list[int] = []
+    monkeypatch.setattr(attribution_tasks, "has_judge_model_api_key", lambda _model: True)
+    monkeypatch.setattr(attribution_tasks, "start_attribution_task", lambda task_id: started.append(task_id))
+
+    created = client.post(
+        f"/api/runs/{run_id}/attribution-tasks",
+        json={"sample_ids": sample_ids, "judge_model_id": model_id},
+    )
+    assert created.status_code == 201, created.text
+    task_id = created.json()["id"]
+
+    # 模拟服务中断：第一条已成功且有快照，其他用例未完成/失败。
+    with session_scope() as session:
+        task = attribution_tasks.get_attribution_task_or_404(session, run_id, task_id)
+        items = list(session.query(AttributionTaskItem).filter_by(task_id=task_id).order_by(AttributionTaskItem.id))
+        items[0].status = "success"
+        items[0].analysis_json = {"available": True, "analysis": {"overall": {"summary": "保留"}}}
+        for item in items[1:]:
+            item.status = "failed"
+            item.error_msg = "服务重启导致归因中断"
+        attribution_tasks._refresh_task_counts(session, task)
+
+    resumed = client.post(f"/api/runs/{run_id}/attribution-tasks/{task_id}/resume")
+    assert resumed.status_code == 200, resumed.text
+    payload = resumed.json()
+    assert payload["id"] == task_id
+    assert payload["status"] == "queued"
+    assert payload["success_count"] == 1
+    assert payload["completed_count"] == 1
+    assert payload["pending_count"] == len(sample_ids) - 1
+    assert payload["items"][0]["status"] == "success"
+    assert payload["items"][0]["attribution_available"] is True
+    assert {item["status"] for item in payload["items"][1:]} == {"pending"}
+    assert started == [task_id, task_id]
+
+
+def test_resumed_task_executes_only_pending_items(initialized_db, monkeypatch):
+    run_id, sample_ids, model_id = _seed_failed_cases()
+    monkeypatch.setattr(attribution_tasks, "has_judge_model_api_key", lambda _model: True)
+    called: list[str] = []
+
+    async def fake_generate(_session, _run, row, **_kwargs):
+        called.append(row.sample_id)
+        return {"available": True, "stale": False, "analysis": {}, "metadata": {}}
+
+    monkeypatch.setattr(attribution_tasks, "generate_case_attribution", fake_generate)
+    monkeypatch.setattr(attribution_tasks, "_global_semaphore", None)
+    with session_scope() as session:
+        run = session.get(EvalRun, run_id)
+        task = attribution_tasks.create_attribution_task(
+            session, run, sample_ids=sample_ids, judge_model_id=model_id, created_by="test"
+        )
+        items = list(session.query(AttributionTaskItem).filter_by(task_id=task.id).order_by(AttributionTaskItem.id))
+        items[0].status = "success"
+        items[0].analysis_json = {"available": True, "analysis": {}}
+        for item in items[1:]:
+            item.status = "failed"
+        attribution_tasks._refresh_task_counts(session, task)
+        task_id = task.id
+        attribution_tasks.resume_attribution_task(session, run_id, task_id)
+
+    asyncio.run(attribution_tasks.run_attribution_task(task_id))
+    assert set(called) == set(sample_ids[1:])
+    assert sample_ids[0] not in called

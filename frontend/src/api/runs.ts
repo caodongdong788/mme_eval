@@ -58,6 +58,10 @@ export const runsApi = {
     http
       .post<AttributionTask>(`/runs/${id}/attribution-tasks/${taskId}/rerun`)
       .then((r) => r.data),
+  resumeAttributionTask: (id: number, taskId: number) =>
+    http
+      .post<AttributionTask>(`/runs/${id}/attribution-tasks/${taskId}/resume`)
+      .then((r) => r.data),
   deleteAttributionTask: (id: number, taskId: number) =>
     http.delete(`/runs/${id}/attribution-tasks/${taskId}`).then((r) => r.data),
   getRunCasesYaml: (id: number, params?: Record<string, any>) =>

@@ -311,7 +311,8 @@ export function RunsListOverview({
                     nameKey="name"
                     innerRadius={42}
                     outerRadius={62}
-                    paddingAngle={2}
+                    // 单一状态占满整张环图时不留扇区间隔，避免出现误导性的“未完成”缺口。
+                    paddingAngle={statusPie.length > 1 ? 2 : 0}
                   >
                     {statusPie.map((_, i) => (
                       <Cell key={i} fill={dashboardPieColors[i % dashboardPieColors.length]} />

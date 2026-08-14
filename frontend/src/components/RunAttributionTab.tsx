@@ -354,6 +354,7 @@ export function RunAttributionTab({ runId, loading, selectedTaskId, onSelectedTa
   const [taskLoading, setTaskLoading] = useState(false);
   const [actionTaskId, setActionTaskId] = useState<number>();
   const [failureItem, setFailureItem] = useState<AttributionTaskItem | null>(null);
+  const [selectedSampleIds, setSelectedSampleIds] = useState<string[]>([]);
 
   const loadTasks = useCallback(async (silent = false) => {
     try {
@@ -386,6 +387,7 @@ export function RunAttributionTab({ runId, loading, selectedTaskId, onSelectedTa
 
   useEffect(() => { void loadTasks(false); }, [loadTasks]);
   useEffect(() => { void loadTask(false); }, [loadTask]);
+  useEffect(() => { setSelectedSampleIds([]); }, [task?.id]);
   useEffect(() => {
     const active = tasks.some((item) => item.status === "queued" || item.status === "running");
     if (!active) return;
@@ -396,19 +398,39 @@ export function RunAttributionTab({ runId, loading, selectedTaskId, onSelectedTa
     }, 1500);
     return () => window.clearInterval(timer);
   }, [loadTask, loadTasks, task?.status, tasks]);
-  const rerunTask = useCallback(async (source: AttributionTask) => {
-    setActionTaskId(source.id);
+  const rerunSelectedCases = useCallback(async () => {
+    if (!task || selectedSampleIds.length === 0) return;
+    setActionTaskId(task.id);
     try {
-      const next = normalizeTaskCounts(await api.rerunAttributionTask(runId, source.id));
+      const next = normalizeTaskCounts(await api.createAttributionTask(runId, {
+        sample_ids: selectedSampleIds,
+        judge_model_id: task.judge_model_id,
+      }));
       setTasks((current) => [
         { ...next, items: [] },
         ...current.filter((item) => item.id !== next.id),
       ]);
       setTask(next);
       onSelectedTaskIdChange(next.id);
-      message.success(`已创建归因任务 #${next.id}`);
+      setSelectedSampleIds([]);
+      message.success(`已创建归因任务 #${next.id}，将重新分析 ${next.total_count} 条用例`);
     } catch (error) {
       message.error(formatApiError(error, "重新归因失败"));
+    } finally {
+      setActionTaskId(undefined);
+    }
+  }, [onSelectedTaskIdChange, runId, selectedSampleIds, task]);
+
+  const resumeTask = useCallback(async (source: AttributionTask) => {
+    setActionTaskId(source.id);
+    try {
+      const next = normalizeTaskCounts(await api.resumeAttributionTask(runId, source.id));
+      setTasks((current) => current.map((item) => item.id === next.id ? { ...next, items: [] } : item));
+      setTask(next);
+      onSelectedTaskIdChange(next.id);
+      message.success(`归因任务 #${next.id} 已继续：保留已完成结果，仅分析剩余用例`);
+    } catch (error) {
+      message.error(formatApiError(error, "继续归因失败"));
     } finally {
       setActionTaskId(undefined);
     }
@@ -522,9 +544,13 @@ export function RunAttributionTab({ runId, loading, selectedTaskId, onSelectedTa
       title: "操作",
       key: "action",
       fixed: "right",
-      width: 270,
+      width: 340,
       render: (_, item) => {
-        const rerunButton = (
+        // 任务未处于执行中且并非已全部完成时，允许在原任务内继续。
+        // 服务端会再按条目状态校验，仅将未成功的 Case 重新入队。
+        const canResume = !hasActiveTask
+          && !["queued", "running", "success"].includes(item.status);
+        const resumeButton = (
           <Button
             type="link"
             size="small"
@@ -532,7 +558,7 @@ export function RunAttributionTab({ runId, loading, selectedTaskId, onSelectedTa
             disabled={hasActiveTask}
             loading={actionTaskId === item.id}
           >
-            重新归因
+            继续归因
           </Button>
         );
         return (
@@ -545,20 +571,16 @@ export function RunAttributionTab({ runId, loading, selectedTaskId, onSelectedTa
             >
               查看明细
             </Button>
-            {hasActiveTask ? (
-              <Tooltip title="当前有归因任务正在执行，完成后可重新归因">
-                <span>{rerunButton}</span>
-              </Tooltip>
-            ) : (
+            {canResume ? (
               <Popconfirm
-                title="重新归因会创建一个新任务，原任务和结果会保留。"
-                okText="开始归因"
+                title={`保留已完成的 ${item.success_count} 条归因结果，仅继续其余 ${item.total_count - item.success_count} 条用例。`}
+                okText="继续归因"
                 cancelText="取消"
-                onConfirm={() => void rerunTask(item)}
+                onConfirm={() => void resumeTask(item)}
               >
-                {rerunButton}
+                {resumeButton}
               </Popconfirm>
-            )}
+            ) : null}
             <Popconfirm
               title={item.status === "queued" || item.status === "running" ? "该任务仍在分析，删除会立即终止。确认删除？" : "确认删除该归因任务及其全部结果？"}
               okText="删除"
@@ -572,7 +594,7 @@ export function RunAttributionTab({ runId, loading, selectedTaskId, onSelectedTa
         );
       },
     },
-  ], [actionTaskId, hasActiveTask, onSelectedTaskIdChange, removeTask, rerunTask, selectedTaskId]);
+  ], [actionTaskId, hasActiveTask, onSelectedTaskIdChange, removeTask, resumeTask, selectedTaskId]);
   return <div className="run-detail-page">
     <DashPanel title={<div><h3>归因分析</h3><span className="dash-table-card__sub">从筛选后的不合格用例发起任务；每完成一条会立即显示结果</span></div>}>
       {loading ? <div className="attribution-loading"><Spin size="large" /></div> : !tasks.length ? <Empty description="暂无归因任务"><Typography.Text type="secondary">请在“用例明细”按筛选条件点击“开始归因分析”。</Typography.Text></Empty> : <Table
@@ -586,8 +608,32 @@ export function RunAttributionTab({ runId, loading, selectedTaskId, onSelectedTa
         pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 次归因` }}
       />}
     </DashPanel>
-    {taskLoading ? <div className="attribution-loading"><Spin /></div> : task ? <DashPanel title={<div><h3>任务 #{task.id} · 用例归因结果</h3><span className="dash-table-card__sub">{TASK_STATUS[task.status]?.label || task.status} · {task.judge_model_name}</span></div>}>
-      <Table className="dash-table" rowKey="sample_id" size="small" columns={columns} dataSource={task.items} pagination={{ pageSize: 20, showTotal: (total) => `共 ${total} 条` }} />
+    {taskLoading ? <div className="attribution-loading"><Spin /></div> : task ? <DashPanel title={<div><h3>任务 #{task.id} · 用例归因结果</h3><span className="dash-table-card__sub">{TASK_STATUS[task.status]?.label || task.status} · {task.judge_model_name}</span></div>} extra={<Space size={8}>
+      <Button size="small" disabled={!task.items.length || hasActiveTask} onClick={() => setSelectedSampleIds(task.items.map((item) => item.sample_id))}>全选全部</Button>
+      <Button size="small" disabled={!selectedSampleIds.length} onClick={() => setSelectedSampleIds([])}>取消选择</Button>
+      <Tooltip title={hasActiveTask ? "当前有归因任务正在执行，完成后可重新归因" : undefined}>
+        <span><Popconfirm
+          title={`将按当前模型创建新的归因任务，重新分析已选 ${selectedSampleIds.length} 条用例；原任务结果会保留。`}
+          okText="开始归因"
+          cancelText="取消"
+          disabled={hasActiveTask || !selectedSampleIds.length}
+          onConfirm={() => void rerunSelectedCases()}
+        ><Button type="primary" icon={<RedoOutlined />} disabled={hasActiveTask || !selectedSampleIds.length} loading={actionTaskId === task.id}>重新归因{selectedSampleIds.length ? `（${selectedSampleIds.length}）` : ""}</Button></Popconfirm></span>
+      </Tooltip>
+    </Space>}>
+      <Table
+        className="dash-table"
+        rowKey="sample_id"
+        size="small"
+        columns={columns}
+        dataSource={task.items}
+        rowSelection={{
+          selectedRowKeys: selectedSampleIds,
+          onChange: (keys) => setSelectedSampleIds(keys.map(String)),
+          preserveSelectedRowKeys: true,
+        }}
+        pagination={{ pageSize: 20, showTotal: (total) => `共 ${total} 条` }}
+      />
       {task.error_msg ? <Alert type="error" showIcon message="任务异常" description={task.error_msg} style={{ marginTop: 16 }} /> : null}
     </DashPanel> : null}
     <Modal
@@ -610,7 +656,7 @@ export function RunAttributionTab({ runId, loading, selectedTaskId, onSelectedTa
               type="warning"
               showIcon
               message="当时的 Kimi K3 请求参数不兼容"
-              description="当前已修正为思考模式并使用 0.6 温度，模型连通性验证已通过；可在任务列表点击“重新归因”。"
+              description="当前已修正为思考模式并使用 0.6 温度，模型连通性验证已通过；可在下方用例列表勾选 Case 后重新归因。"
             />
           ) : (
             <Alert

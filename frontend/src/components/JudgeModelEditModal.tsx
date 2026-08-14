@@ -75,6 +75,7 @@ export function JudgeModelEditModal({
                 options={[
                   { value: "openai", label: "openai" },
                   { value: "azure", label: "azure" },
+                  { value: "codex", label: "Codex 本地网关" },
                 ]}
               />
             </Form.Item>
@@ -92,7 +93,7 @@ export function JudgeModelEditModal({
         <Row gutter={16}>
           <Col xs={24} sm={16}>
             <Form.Item name="base_url" label="Base URL（可选）">
-              <Input placeholder="https://api.openai.com/v1" />
+              <Input placeholder="https://api.openai.com/v1；Codex 网关示例：http://127.0.0.1:8787/v1" />
             </Form.Item>
           </Col>
           <Col xs={24} sm={8}>

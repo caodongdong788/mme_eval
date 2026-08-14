@@ -142,6 +142,27 @@ async def rerun_case_attribution_task(
     return output
 
 
+@router.post(
+    "/{run_id}/attribution-tasks/{task_id}/resume",
+    response_model=AttributionTaskOut,
+)
+async def resume_case_attribution_task(
+    run_id: int,
+    task_id: int,
+    session: Session = Depends(get_session),
+) -> dict:
+    """在原归因任务中继续未完成的 Case，已完成结果保持不变。"""
+    task = attribution_tasks.resume_attribution_task(session, run_id, task_id)
+    output = attribution_tasks.get_attribution_task(session, run_id, task.id)
+    session.commit()
+    try:
+        attribution_tasks.start_attribution_task(task.id)
+    except Exception as exc:
+        attribution_tasks.mark_attribution_task_start_failed(task.id, exc)
+        raise
+    return output
+
+
 @router.delete("/{run_id}/attribution-tasks/{task_id}", status_code=204)
 async def delete_case_attribution_task(
     run_id: int,

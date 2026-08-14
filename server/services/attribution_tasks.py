@@ -187,6 +187,45 @@ def create_attribution_task(
     return task
 
 
+def resume_attribution_task(
+    session: Session, run_id: int, task_id: int
+) -> AttributionTask:
+    """在原任务中继续归因，只重新排队未成功完成的 Case。
+
+    服务重启或模型调用异常后，已成功写入 ``analysis_json`` 的条目不可被覆盖；
+    仅把 pending/running/failed 条目恢复为 pending，由后续 worker 按原模型继续处理。
+    """
+    task = get_attribution_task_or_404(session, run_id, task_id)
+    if task.status in {"queued", "running"}:
+        raise HTTPException(status_code=409, detail="该归因任务正在执行，无需继续归因")
+
+    items = list(session.scalars(
+        select(AttributionTaskItem)
+        .where(
+            AttributionTaskItem.task_id == task.id,
+            AttributionTaskItem.status != "success",
+        )
+        .order_by(AttributionTaskItem.id)
+    ))
+    if not items:
+        raise HTTPException(status_code=422, detail="该归因任务已全部完成，无需继续归因")
+
+    for item in items:
+        item.status = "pending"
+        item.error_msg = ""
+        item.started_at = None
+        item.finished_at = None
+        # 失败项通常没有结果；若存在不完整结果也不能作为本轮可查看归因。
+        if not isinstance(item.analysis_json, dict) or not item.analysis_json.get("available"):
+            item.analysis_json = None
+
+    task.status = "queued"
+    task.error_msg = ""
+    task.finished_at = None
+    _refresh_task_counts(session, task)
+    return task
+
+
 def _refresh_task_counts(session: Session, task: AttributionTask) -> None:
     counts = dict(session.execute(
         select(AttributionTaskItem.status, func.count(AttributionTaskItem.id))
@@ -264,7 +303,10 @@ async def run_attribution_task(task_id: int) -> None:
     with session_scope() as session:
         item_ids = list(session.scalars(
             select(AttributionTaskItem.id)
-            .where(AttributionTaskItem.task_id == task_id)
+            .where(
+                AttributionTaskItem.task_id == task_id,
+                AttributionTaskItem.status == "pending",
+            )
             .order_by(AttributionTaskItem.id)
         ))
     try:

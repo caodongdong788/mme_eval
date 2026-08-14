@@ -33,6 +33,9 @@ _STORAGE_KEY = "attribution_analysis"
 _MAX_STRING = 1800
 _MAX_RAG_CHUNK = 1400
 _MAX_RAG_TOTAL = 80_000
+# 归因是后台任务，不能让单个供应商请求无限占用 3 个并发槽位。
+_ATTRIBUTION_REQUEST_TIMEOUT_S = 180.0
+_ATTRIBUTION_MAX_RETRIES = 3
 
 _PROMPT = """\
 你是一名医疗 AI 系统归因分析专家。你的任务不是重新给回答打分，而是结合已经产生的扣分项、完整对话、Case 真值、Agent 调用链和 RAG 审计数据，定位每个扣分项产生的直接原因，并给出可验证的系统优化建议。
@@ -621,7 +624,14 @@ async def generate_case_attribution(
         json.dumps(evidence_pack, ensure_ascii=False, separators=(",", ":")),
     )
     try:
-        raw = await backend.chat_json(judge.model, prompt, temperature, max_retries=2)
+        raw = await backend.chat_json(
+            judge.model,
+            prompt,
+            temperature,
+            max_retries=_ATTRIBUTION_MAX_RETRIES,
+            request_timeout_s=_ATTRIBUTION_REQUEST_TIMEOUT_S,
+            retry_transient_errors=True,
+        )
     except Exception as exc:  # noqa: BLE001 - API 层返回稳定的用户错误，不泄露密钥
         reason = _safe_provider_error(exc)
         raise HTTPException(
