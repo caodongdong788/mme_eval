@@ -333,8 +333,9 @@ def _migrate_case_judge_error(engine) -> None:
     with maker.begin() as session:
         rows = session.execute(select(CaseResultRow)).scalars().all()
         for row in rows:
-            verdicts = (row.detail_json or {}).get("verdicts") or []
-            row.judge_error = any(
+            detail = dict(row.detail_json or {})
+            verdicts = detail.get("verdicts") or []
+            judge_error = any(
                 isinstance(verdict, dict)
                 and str(verdict.get("name") or "").startswith("dimension.")
                 and (
@@ -347,10 +348,22 @@ def _migrate_case_judge_error(engine) -> None:
                 )
                 for verdict in verdicts
             )
-            if row.judge_error:
+            row.judge_error = judge_error
+            if judge_error:
+                # 历史记录曾将上游判分故障按 0 分落库。同步修正明细快照与列表标量，
+                # 使列表、详情及导出的判定保持一致，也不能再携带伪造的安全风险标签。
+                detail["judge_error"] = True
+                detail["grade"] = "判分异常"
+                detail["composite_score"] = None
+                detail["medical_safety_passed"] = True
+                detail["release_passed"] = False
+                detail["failure_tags"] = []
+                row.detail_json = detail
                 row.grade = "判分异常"
                 row.composite_score = None
                 row.medical_safety_passed = True
+                row.release_passed = False
+                row.failure_tags = []
 
 
 def get_sessionmaker() -> sessionmaker[Session]:
