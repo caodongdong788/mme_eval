@@ -43,6 +43,20 @@ class CaseRetryError(Exception):
         super().__init__(detail)
 
 
+def _ensure_retry_queue_is_idle(job_runner: "JobRunner", run_id: int) -> None:
+    """阻止重试覆盖同一 Run 尚未结束的持久化任务。
+
+    数据库队列会在服务重启后续跑旧任务。若此时直接把 Run 改为“单条重评”，
+    ``enqueue_job`` 为保持幂等会复用旧 job，最终形成“界面选 1 条、后台跑全量”
+    的范围错配。必须先拒绝请求，等旧任务结束或取消后才能发起新的重评。
+    """
+    queue_snapshot = getattr(job_runner, "queue_snapshot", None)
+    active = queue_snapshot(run_id) if callable(queue_snapshot) else None
+    if active:
+        state = "运行中" if active.get("state") == "running" else "排队中"
+        raise CaseRetryError(409, f"该评测已有{state}任务，请等待完成或先终止后再重新评测")
+
+
 def _replace_case_row(target: CaseResultRow, result: CaseResult, pricing: dict | None) -> None:
     replacement = build_case_row(target.run_id, result, pricing)
     update_case_row(target, replacement)
@@ -80,6 +94,7 @@ async def launch_case_retry(
     build_retry_case_job,
 ) -> EvalRun:
     """把当前 run 置为 pending 并提交该 Case 的真实调用任务。"""
+    _ensure_retry_queue_is_idle(job_runner, run_id)
     source = validate_case_retry(session, run_id, [sample_id])
     source.status = "pending"
     source.error_msg = ""
@@ -100,6 +115,7 @@ async def launch_cases_retry(
 ) -> EvalRun:
     """在原评测记录中批量重新执行选中的 Case，并逐条覆盖旧结果。"""
     ordered_ids = list(dict.fromkeys(sample_id.strip() for sample_id in sample_ids if sample_id.strip()))
+    _ensure_retry_queue_is_idle(job_runner, run_id)
     source = validate_case_retry(session, run_id, ordered_ids)
     source.status = "pending"
     source.error_msg = ""

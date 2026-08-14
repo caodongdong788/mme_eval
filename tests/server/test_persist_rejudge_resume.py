@@ -372,6 +372,36 @@ def test_retry_cases_endpoint_submits_selected_cases(client, settings, monkeypat
     assert received == sample_ids
 
 
+def test_retry_cases_rejects_when_source_run_has_an_active_durable_job(client, settings, monkeypatch):
+    source = make_report("retry_cases_active_job")
+    out_dir = settings.outputs_dir / source.run_name
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "report.json").write_text(source.model_dump_json(), encoding="utf-8")
+    target_id = source.results[0].case.sample_id
+    with session_scope() as session:
+        benchmark = Benchmark(name="retry-cases-active-job-bm", source="uploaded", storage_path="/tmp/none")
+        session.add(benchmark)
+        session.flush()
+        run_id = ingest_report(session, source, benchmark_id=benchmark.id).id
+
+    class ActiveRunner:
+        def queue_snapshot(self, _run_id):
+            return {"state": "running", "position": 0}
+
+        async def submit(self, _run_id, _job):
+            raise AssertionError("有旧任务时不应提交新的重评任务")
+
+    monkeypatch.setattr("server.routers.runs.rejudge.get_job_runner", lambda: ActiveRunner())
+    response = client.post(f"/api/runs/{run_id}/cases/retry", json={"sample_ids": [target_id]})
+
+    assert response.status_code == 409
+    assert "已有运行中任务" in response.json()["detail"]
+    with session_scope() as session:
+        row = session.get(EvalRun, run_id)
+        assert row.status == "success"
+        assert row.progress == {}
+
+
 # ---------------------------------------------------------------------------
 # 5. 端点：rejudge 建新 run、resume 原地恢复、pin 落哨兵、缺留痕 400
 
