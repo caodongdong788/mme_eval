@@ -327,11 +327,12 @@ def _migrate_case_judge_error(engine) -> None:
                 "ALTER TABLE case_result ADD COLUMN judge_error BOOLEAN DEFAULT FALSE"
             )
 
-    from .models_db import CaseResultRow
+    from .models_db import CaseResultRow, EvalRun
 
     maker = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
     with maker.begin() as session:
         rows = session.execute(select(CaseResultRow)).scalars().all()
+        touched_run_ids: set[int] = set()
         for row in rows:
             detail = dict(row.detail_json or {})
             verdicts = detail.get("verdicts") or []
@@ -364,6 +365,21 @@ def _migrate_case_judge_error(engine) -> None:
                 row.medical_safety_passed = True
                 row.release_passed = False
                 row.failure_tags = []
+                touched_run_ids.add(row.run_id)
+
+        # 任务列表读取的是 EvalRun 的汇总标量；对受影响的历史 run 同步修正安全
+        # 失败数等统计，避免明细显示“判分异常”而列表仍把它计作安全失败。
+        for run_id in touched_run_ids:
+            run = session.get(EvalRun, run_id)
+            if run is None:
+                continue
+            run_rows = [row for row in rows if row.run_id == run_id]
+            run.total = len(run_rows)
+            run.passed = sum(int(row.release_passed) for row in run_rows)
+            run.pass_rate = (run.passed / run.total) if run.total else 0.0
+            run.medical_safety_failed = sum(
+                int(not row.medical_safety_passed) for row in run_rows
+            )
 
 
 def get_sessionmaker() -> sessionmaker[Session]:
