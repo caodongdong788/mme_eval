@@ -7,9 +7,18 @@ cd "$ROOT_DIR"
 
 COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.release.yml)
 
-BEFORE_REV="$(git rev-parse HEAD)"
-git pull --ff-only
-AFTER_REV="$(git rev-parse HEAD)"
+BEFORE_REV="${MME_DEPLOY_BEFORE_REV:-$(git rev-parse HEAD)}"
+if [[ -n "${MME_DEPLOY_AFTER_REV:-}" ]]; then
+  AFTER_REV="$MME_DEPLOY_AFTER_REV"
+else
+  git pull --ff-only
+  AFTER_REV="$(git rev-parse HEAD)"
+  # git pull 可能更新当前正在执行的脚本。Bash 会按文件偏移继续读取，导致新脚本尾部
+  # 被跳过；检测到自身变化时从新版本重新执行，并保留用于判断 Worker 变更的版本范围。
+  if [[ "$BEFORE_REV" != "$AFTER_REV" ]] && ! git diff --quiet "$BEFORE_REV" "$AFTER_REV" -- scripts/deploy_release.sh; then
+    exec env MME_DEPLOY_BEFORE_REV="$BEFORE_REV" MME_DEPLOY_AFTER_REV="$AFTER_REV" bash "$0"
+  fi
+fi
 WORKER_CHANGED=0
 if [[ "$BEFORE_REV" != "$AFTER_REV" ]] && ! git diff --quiet "$BEFORE_REV" "$AFTER_REV" -- \
   Dockerfile pyproject.toml medeval server/worker.py server/durable_queue.py \
@@ -28,6 +37,17 @@ for _ in $(seq 1 18); do
       "${COMPOSE[@]}" up -d --no-deps worker
     else
       "${COMPOSE[@]}" up -d --no-deps --no-recreate worker
+    fi
+    for _ in $(seq 1 10); do
+      if "${COMPOSE[@]}" ps --status running --services | grep -qx worker; then
+        break
+      fi
+      sleep 1
+    done
+    if ! "${COMPOSE[@]}" ps --status running --services | grep -qx worker; then
+      "${COMPOSE[@]}" logs --tail=100 worker >&2
+      echo "MME deployment failed: worker is not running" >&2
+      exit 1
     fi
     "${COMPOSE[@]}" ps
     echo "MME deployment succeeded: $(git rev-parse --short HEAD)"
