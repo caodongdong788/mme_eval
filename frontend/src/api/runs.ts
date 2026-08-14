@@ -52,9 +52,11 @@ export const runsApi = {
       .then((r) => r.data),
   createAttributionTask: (id: number, payload: { sample_ids: string[]; judge_model_id: number }) =>
     http.post<AttributionTask>(`/runs/${id}/attribution-tasks`, payload).then((r) => r.data),
-  rerunAttributionTask: (id: number, taskId: number) =>
+  rerunAttributionTask: (id: number, taskId: number, sampleIds: string[]) =>
     http
-      .post<AttributionTask>(`/runs/${id}/attribution-tasks/${taskId}/rerun`)
+      .post<AttributionTask>(`/runs/${id}/attribution-tasks/${taskId}/rerun`, {
+        sample_ids: sampleIds,
+      })
       .then((r) => r.data),
   resumeAttributionTask: (id: number, taskId: number) =>
     http

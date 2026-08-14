@@ -438,11 +438,16 @@ class AttributionTaskCreate(BaseModel):
     judge_model_id: int = Field(gt=0)
 
 
+class AttributionTaskRerun(BaseModel):
+    sample_ids: list[str] = Field(min_length=1, max_length=100)
+
+
 class AttributionTaskItemOut(BaseModel):
     sample_id: str
     scenario: str = ""
     case_type: str = ""
     status: str
+    attempt_count: int = 0
     error_msg: str = ""
     attribution_available: bool = False
     attribution_stale: bool = False

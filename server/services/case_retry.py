@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -41,6 +42,61 @@ class CaseRetryError(Exception):
         self.status_code = status_code
         self.detail = detail
         super().__init__(detail)
+
+
+class IncrementalRetryPersister:
+    """批量重新评测时，完成一个 Case 就原位替换并刷新聚合指标。
+
+    ``evaluate`` 会在每条 Case 完成所有对话、八维评分和指南评分后触发回调。这里
+    串行写库，避免多个并发 Case 同时重建 run 汇总时互相覆盖。最终任务仍会写完整
+    report.json；若中断，已完成 Case 的数据库结果已可见且不会丢失。
+    """
+
+    def __init__(self, run_id: int) -> None:
+        self.run_id = run_id
+        self._lock = asyncio.Lock()
+
+    async def __call__(self, result: CaseResult) -> None:
+        async with self._lock:
+            with session_scope() as session:
+                run = session.get(EvalRun, self.run_id)
+                if run is None:
+                    raise ValueError(f"run {self.run_id} 不存在")
+                target = session.execute(
+                    select(CaseResultRow)
+                    .where(
+                        CaseResultRow.run_id == self.run_id,
+                        CaseResultRow.sample_id == result.case.sample_id,
+                    )
+                    .order_by(CaseResultRow.id)
+                ).scalars().first()
+                if target is None:
+                    raise ValueError(
+                        f"run {self.run_id} 不存在 Case {result.case.sample_id}"
+                    )
+
+                pricing = (run.config_snapshot or {}).get("cost")
+                _replace_case_row(target, result, pricing)
+                rows = session.execute(
+                    select(CaseResultRow)
+                    .where(CaseResultRow.run_id == self.run_id)
+                    .order_by(CaseResultRow.id)
+                ).scalars().all()
+                merged = build_report(
+                    run_name=run.run_slug,
+                    results=[CaseResult.model_validate(row.detail_json) for row in rows],
+                    adapter_type=run.adapter_type,
+                    config_snapshot=run.config_snapshot or {},
+                    description=run.description,
+                    started_at=run.started_at,
+                    n_runs=run.n_runs or 1,
+                )
+                # 运行中的重评不能因为刷新汇总而提前变为结束状态或出现结束时间。
+                status, error_msg = run.status, run.error_msg
+                started_at, finished_at = run.started_at, run.finished_at
+                populate_run_summary(run, merged)
+                run.status, run.error_msg = status, error_msg
+                run.started_at, run.finished_at = started_at, finished_at
 
 
 def _case_image_turns(case):
@@ -280,6 +336,9 @@ def build_retry_cases_job(
         )
         adapter = build_eval_adapter(config)
         judges = build_judge_stack(config)
+        # 每条 Case 判完立即写入。前端轮询 case_result 后会看到新的分数/结论，
+        # 不必等待整批 Case 都结束。
+        progress.set_case_complete_callback(IncrementalRetryPersister(run_id))
         retried = await ej.evaluate(
             config,
             selected,

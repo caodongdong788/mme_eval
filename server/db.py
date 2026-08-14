@@ -62,6 +62,7 @@ def init_db(settings: Settings | None = None) -> None:
     _migrate_eval_run_trigger_type(engine)
     _migrate_eval_run_scheduled_evaluation_id(engine)
     _migrate_attribution_task_item_analysis(engine)
+    _migrate_attribution_task_item_attempt_count(engine)
     _migrate_attribution_task_active_index(engine)
 
 
@@ -131,6 +132,21 @@ def _migrate_attribution_task_item_analysis(engine) -> None:
             stored = get_stored_attribution(dict(row.detail_json or {}))
             if stored.get("available"):
                 item.analysis_json = stored
+
+
+def _migrate_attribution_task_item_attempt_count(engine) -> None:
+    """为历史归因明细补充原任务内重试次数。"""
+    inspector = inspect(engine)
+    if "attribution_task_item" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("attribution_task_item")}
+    if "attempt_count" in columns:
+        return
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "ALTER TABLE attribution_task_item "
+            "ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0"
+        )
 
 
 def _migrate_attribution_task_active_index(engine) -> None:

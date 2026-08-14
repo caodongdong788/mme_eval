@@ -7,8 +7,13 @@ from sqlalchemy.orm import Session
 
 from ...auth import get_current_user_optional
 from ...db import get_session
-from ...models_db import AttributionTaskItem, FeishuUser
-from ...schemas import AttributionTaskCreate, AttributionTaskOut, CaseAttributionOut
+from ...models_db import FeishuUser
+from ...schemas import (
+    AttributionTaskCreate,
+    AttributionTaskOut,
+    AttributionTaskRerun,
+    CaseAttributionOut,
+)
 from ...services.case_attribution import (
     get_stored_attribution,
 )
@@ -94,28 +99,15 @@ def get_case_attribution_task_result(
 @router.post(
     "/{run_id}/attribution-tasks/{task_id}/rerun",
     response_model=AttributionTaskOut,
-    status_code=201,
 )
 async def rerun_case_attribution_task(
     run_id: int,
     task_id: int,
+    payload: AttributionTaskRerun,
     session: Session = Depends(get_session),
-    current_user: FeishuUser | None = Depends(get_current_user_optional),
 ) -> dict:
-    run = get_run_or_404(session, run_id)
-    source = attribution_tasks.get_attribution_task_or_404(session, run_id, task_id)
-    sample_ids = [
-        item.sample_id
-        for item in session.query(AttributionTaskItem)
-        .filter_by(task_id=source.id)
-        .order_by(AttributionTaskItem.id)
-    ]
-    task = attribution_tasks.create_attribution_task(
-        session,
-        run,
-        sample_ids=sample_ids,
-        judge_model_id=source.judge_model_id,
-        created_by=current_user.name if current_user else None,
+    task = attribution_tasks.rerun_attribution_task_items(
+        session, run_id, task_id, payload.sample_ids
     )
     output = attribution_tasks.get_attribution_task(session, run_id, task.id)
     session.commit()

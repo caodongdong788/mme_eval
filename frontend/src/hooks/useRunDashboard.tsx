@@ -16,10 +16,13 @@ import { useRunDiff } from "./useRunDiff";
 import { useYamlEditorState } from "./useYamlEditorState";
 import { formatApiError } from "../utils/apiError";
 
-export function useRunDashboard(runId: number, failureTagLabel: (tag: string) => string) {
+export function useRunDashboard(
+  runId: number,
+  failureTagLabel: (tag: string) => string
+) {
   const navigate = useNavigate();
   const location = useLocation();
-  const routeState = location.state as { tab?: string; attributionTaskId?: number } | null;
+  const routeState = location.state as { tab?: string } | null;
 
   const [run, setRun] = useState<RunDetail | null>(null);
   const [progress, setProgress] = useState<ProgressInfo | null>(null);
@@ -55,17 +58,18 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
   const [attributionLaunchOpen, setAttributionLaunchOpen] = useState(false);
   const [attributionCases, setAttributionCases] = useState<CaseRow[]>([]);
   const [attributionLaunching, setAttributionLaunching] = useState(false);
-  const [attributionTaskId, setAttributionTaskId] = useState<number | undefined>(
-    () => routeState?.attributionTaskId,
-  );
 
   const caseFilters = useRunCaseFilters(
     runId,
     failureTagLabel,
     activeTab === "detail" || activeTab === "attribution",
-    run?.status,
+    run?.status
   );
-  const runDiff = useRunDiff(runId, () => setActiveTab("diff"), activeTab === "diff");
+  const runDiff = useRunDiff(
+    runId,
+    () => setActiveTab("diff"),
+    activeTab === "diff"
+  );
 
   const isBuiltinBenchmark =
     benchmarks.find((b) => b.id === run?.benchmark_id)?.source === "builtin";
@@ -79,11 +83,16 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
         setRun(r);
         // 重新评测完成后，后端会保留本次操作的用例级进度。首次进入页面也要
         // 拉取它，不能只在运行中轮询，否则刷新页面会丢掉完成态进度条。
-        void api.getProgress(runId).then(setProgress).catch(() => undefined);
+        void api
+          .getProgress(runId)
+          .then(setProgress)
+          .catch(() => undefined);
         if (r.benchmark_id != null) {
           api
             .listBenchmarks()
-            .then((bs) => setBenchmarkName(bs.find((b) => b.id === r.benchmark_id)?.name))
+            .then((bs) =>
+              setBenchmarkName(bs.find((b) => b.id === r.benchmark_id)?.name)
+            )
             .catch(() => undefined);
         }
       })
@@ -164,7 +173,8 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
   const submitRejudge = async () => {
     const v = await rejudgeForm.validateFields();
     const payload: RejudgePayload = {};
-    if (v.cases_benchmark_id != null) payload.cases_benchmark_id = v.cases_benchmark_id;
+    if (v.cases_benchmark_id != null)
+      payload.cases_benchmark_id = v.cases_benchmark_id;
     if (v.judge_model_id != null) payload.judge_model_id = v.judge_model_id;
     if (v.only_release_failed) payload.only_release_failed = true;
 
@@ -256,7 +266,11 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
 
   const openAttributionLaunch = (rows: CaseRow[]) => {
     setAttributionCases(rows);
-    if (judgeModels.length === 0) api.listJudgeModels().then(setJudgeModels).catch(() => undefined);
+    if (judgeModels.length === 0)
+      api
+        .listJudgeModels()
+        .then(setJudgeModels)
+        .catch(() => undefined);
     setAttributionLaunchOpen(true);
   };
 
@@ -270,18 +284,20 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
         judge_model_id: judgeModelId,
       });
       setAttributionLaunchOpen(false);
-      setAttributionTaskId(task.id);
       setActiveTab("attribution");
-      message.success(`归因任务已创建，将并发分析 ${task.total_count} 条不合格用例`);
+      message.success(
+        `归因任务已创建，将并发分析 ${task.total_count} 条不合格用例`
+      );
     } catch (e: unknown) {
       // 请求超时、旧版本启动异常或重复点击时，任务可能已经成功落库。
       // 优先带用户进入已有任务，避免出现“提示正在进行却看不到任务”的死角。
       try {
         const tasks = await api.listAttributionTasks(runId);
-        const activeTask = tasks.find((item) => item.status === "queued" || item.status === "running");
+        const activeTask = tasks.find(
+          (item) => item.status === "queued" || item.status === "running"
+        );
         if (activeTask) {
           setAttributionLaunchOpen(false);
-          setAttributionTaskId(activeTask.id);
           setActiveTab("attribution");
           message.warning(`已打开进行中的归因任务 #${activeTask.id}`);
           return;
@@ -300,13 +316,17 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
     const count = rows.length;
     Modal.confirm({
       title: `重新评测 ${count} 条用例？`,
-      content: "将重新调用 AI 助手并执行完整判分，完成后会原位覆盖这些用例的结果。",
+      content:
+        "将重新调用 AI 助手并执行完整判分，完成后会原位覆盖这些用例的结果。",
       okText: "开始重新评测",
       cancelText: "取消",
       onOk: async () => {
         setActing(true);
         try {
-          await api.retryCases(runId, rows.map((row) => row.sample_id));
+          await api.retryCases(
+            runId,
+            rows.map((row) => row.sample_id)
+          );
           const [nextRun, nextProgress] = await Promise.all([
             api.getRun(runId),
             api.getProgress(runId),
@@ -386,8 +406,6 @@ export function useRunDashboard(runId: number, failureTagLabel: (tag: string) =>
     setAttributionLaunchOpen,
     attributionCases,
     attributionLaunching,
-    attributionTaskId,
-    setAttributionTaskId,
     openAttributionLaunch,
     startAttributionTask,
     retrySelectedCases,

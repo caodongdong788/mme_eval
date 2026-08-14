@@ -21,12 +21,19 @@ import { api } from "./api/index";
 // 路由级懒加载：按页分包，首屏只加载登录/壳层，其余页面按需异步拉取。
 const BenchmarksPage = lazy(() => import("./pages/BenchmarksPage"));
 const JudgeModelsPage = lazy(() => import("./pages/JudgeModelsPage"));
-const EvaluationStandardPage = lazy(() => import("./pages/EvaluationStandardPage"));
+const EvaluationStandardPage = lazy(
+  () => import("./pages/EvaluationStandardPage")
+);
 const LaunchPage = lazy(() => import("./pages/LaunchPage"));
 const RunsPage = lazy(() => import("./pages/RunsPage"));
 const RunDashboardPage = lazy(() => import("./pages/RunDashboardPage"));
 const CaseDetailPage = lazy(() => import("./pages/CaseDetailPage"));
-const AttributionCaseDetailPage = lazy(() => import("./pages/AttributionCaseDetailPage"));
+const AttributionCaseDetailPage = lazy(
+  () => import("./pages/AttributionCaseDetailPage")
+);
+const AttributionTaskDetailPage = lazy(
+  () => import("./pages/AttributionTaskDetailPage")
+);
 const PairwisePage = lazy(() => import("./pages/PairwisePage"));
 const PairwiseDetailPage = lazy(() => import("./pages/PairwiseDetailPage"));
 const TrendsPage = lazy(() => import("./pages/TrendsPage"));
@@ -38,25 +45,53 @@ const MENU = [
     type: "group" as const,
     label: "评测",
     children: [
-      { key: "/runs", icon: <UnorderedListOutlined />, label: <Link to="/runs">评测列表</Link> },
-      { key: "/trends", icon: <LineChartOutlined />, label: <Link to="/trends">趋势看板</Link> },
-      { key: "/pairwise", icon: <SwapOutlined />, label: <Link to="/pairwise">Pairwise 对比</Link> },
+      {
+        key: "/runs",
+        icon: <UnorderedListOutlined />,
+        label: <Link to="/runs">评测列表</Link>,
+      },
+      {
+        key: "/trends",
+        icon: <LineChartOutlined />,
+        label: <Link to="/trends">趋势看板</Link>,
+      },
+      {
+        key: "/pairwise",
+        icon: <SwapOutlined />,
+        label: <Link to="/pairwise">Pairwise 对比</Link>,
+      },
     ],
   },
   {
     type: "group" as const,
     label: "资源",
     children: [
-      { key: "/benchmarks", icon: <DatabaseOutlined />, label: <Link to="/benchmarks">Benchmark 库</Link> },
-      { key: "/judge-models", icon: <ExperimentOutlined />, label: <Link to="/judge-models">参数配置</Link> },
-      { key: "/evaluation-standard", icon: <SlidersOutlined />, label: <Link to="/evaluation-standard">评分标准</Link> },
+      {
+        key: "/benchmarks",
+        icon: <DatabaseOutlined />,
+        label: <Link to="/benchmarks">Benchmark 库</Link>,
+      },
+      {
+        key: "/judge-models",
+        icon: <ExperimentOutlined />,
+        label: <Link to="/judge-models">参数配置</Link>,
+      },
+      {
+        key: "/evaluation-standard",
+        icon: <SlidersOutlined />,
+        label: <Link to="/evaluation-standard">评分标准</Link>,
+      },
     ],
   },
   {
     type: "group" as const,
     label: "操作",
     children: [
-      { key: "/launch", icon: <RocketOutlined />, label: <Link to="/launch">发起评测</Link> },
+      {
+        key: "/launch",
+        icon: <RocketOutlined />,
+        label: <Link to="/launch">发起评测</Link>,
+      },
     ],
   },
 ];
@@ -86,10 +121,26 @@ function useBreadcrumb() {
       ),
   });
   if (section === "runs" && parts[1]) {
-    items.push({ title: parts.length >= 4 ? <Link to={`/runs/${parts[1]}`}>{`运行 #${parts[1]}`}</Link> : `运行 #${parts[1]}` });
+    items.push({
+      title:
+        parts.length >= 4 ? (
+          <Link to={`/runs/${parts[1]}`}>{`运行 #${parts[1]}`}</Link>
+        ) : (
+          `运行 #${parts[1]}`
+        ),
+    });
   }
   if (section === "runs" && parts[2] === "attribution-tasks") {
-    items.push({ title: "归因结果" });
+    const taskPath = `/runs/${parts[1]}/attribution-tasks/${parts[3]}`;
+    items.push({
+      title:
+        parts.length > 4 ? (
+          <Link to={taskPath}>{`归因任务 #${parts[3]}`}</Link>
+        ) : (
+          `归因任务 #${parts[3]}`
+        ),
+    });
+    if (parts.length > 4) items.push({ title: "用例归因" });
   } else if (section === "runs" && parts[2] === "cases" && parts[3]) {
     items.push({ title: "用例明细" });
   }
@@ -107,16 +158,40 @@ function UserBar() {
   return (
     <Dropdown
       placement="bottomRight"
-      menu={{ items: [{ key: "logout", icon: <LogoutOutlined />, label: "退出登录", onClick: onLogout }] }}
+      menu={{
+        items: [
+          {
+            key: "logout",
+            icon: <LogoutOutlined />,
+            label: "退出登录",
+            onClick: onLogout,
+          },
+        ],
+      }}
     >
       <div className="app-userbar app-userbar--header">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Avatar size={30} src={user.avatar_url || undefined} icon={<UserOutlined />} />
+          <Avatar
+            size={30}
+            src={user.avatar_url || undefined}
+            icon={<UserOutlined />}
+          />
           <div style={{ lineHeight: 1.2, overflow: "hidden" }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden" }}>
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 600,
+                color: "var(--ink)",
+                whiteSpace: "nowrap",
+                textOverflow: "ellipsis",
+                overflow: "hidden",
+              }}
+            >
               {user.name}
             </div>
-            <div style={{ fontSize: 11, color: "var(--muted)" }}>已登录 · 飞书</div>
+            <div style={{ fontSize: 11, color: "var(--muted)" }}>
+              已登录 · 飞书
+            </div>
           </div>
         </div>
       </div>
@@ -140,7 +215,12 @@ function MainLayout() {
             <div className="app-brand-sub">Agent 评测平台</div>
           </span>
         </div>
-        <Menu mode="inline" selectedKeys={[selected]} items={MENU} style={{ borderInlineEnd: "none" }} />
+        <Menu
+          mode="inline"
+          selectedKeys={[selected]}
+          items={MENU}
+          style={{ borderInlineEnd: "none" }}
+        />
       </Sider>
       <Layout className="app-main-layout">
         <Layout.Header className="app-header">
@@ -152,7 +232,13 @@ function MainLayout() {
         <Content className="app-content">
           <Suspense
             fallback={
-              <div style={{ display: "flex", justifyContent: "center", padding: "80px 0" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  padding: "80px 0",
+                }}
+              >
                 <Spin />
               </div>
             }
@@ -161,14 +247,30 @@ function MainLayout() {
               <Route path="/" element={<Navigate to="/runs" replace />} />
               <Route path="/runs" element={<RunsPage />} />
               <Route path="/runs/:runId" element={<RunDashboardPage />} />
-              <Route path="/runs/:runId/cases/:sampleId" element={<CaseDetailPage />} />
-              <Route path="/runs/:runId/attribution-tasks/:taskId/cases/:sampleId" element={<AttributionCaseDetailPage />} />
+              <Route
+                path="/runs/:runId/cases/:sampleId"
+                element={<CaseDetailPage />}
+              />
+              <Route
+                path="/runs/:runId/attribution-tasks/:taskId"
+                element={<AttributionTaskDetailPage />}
+              />
+              <Route
+                path="/runs/:runId/attribution-tasks/:taskId/cases/:sampleId"
+                element={<AttributionCaseDetailPage />}
+              />
               <Route path="/pairwise" element={<PairwisePage />} />
-              <Route path="/pairwise/:comparisonId" element={<PairwiseDetailPage />} />
+              <Route
+                path="/pairwise/:comparisonId"
+                element={<PairwiseDetailPage />}
+              />
               <Route path="/launch" element={<LaunchPage />} />
               <Route path="/benchmarks" element={<BenchmarksPage />} />
               <Route path="/judge-models" element={<JudgeModelsPage />} />
-              <Route path="/evaluation-standard" element={<EvaluationStandardPage />} />
+              <Route
+                path="/evaluation-standard"
+                element={<EvaluationStandardPage />}
+              />
               <Route path="/trends" element={<TrendsPage />} />
             </Routes>
           </Suspense>

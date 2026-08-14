@@ -36,7 +36,10 @@ export default function RunDashboardPage() {
     );
   if (!dash.run) {
     return (
-      <div className="dash-page" style={{ display: "grid", placeItems: "center", paddingTop: 80 }}>
+      <div
+        className="dash-page"
+        style={{ display: "grid", placeItems: "center", paddingTop: 80 }}
+      >
         <Spin />
       </div>
     );
@@ -44,21 +47,27 @@ export default function RunDashboardPage() {
 
   const columns = buildCaseColumns(id, tagLabel);
   const retryContext = dash.progress?.progress?.context;
-  const retryingCaseCount = retryContext?.kind === "cases_retry"
-    ? retryContext.sample_ids?.length || 0
-    : retryContext?.kind === "case_retry"
-      ? 1
-      : 0;
+  const retryingCaseCount =
+    retryContext?.kind === "cases_retry"
+      ? retryContext.sample_ids?.length || 0
+      : retryContext?.kind === "case_retry"
+        ? 1
+        : 0;
   const retryStatus = dash.progress?.status || dash.run.status;
   const retryProgress = retryingCaseCount
     ? {
-        done: dash.progress?.progress?.case_done ?? (retryStatus === "success" ? retryingCaseCount : 0),
+        done:
+          dash.progress?.progress?.case_done ??
+          (retryStatus === "success" ? retryingCaseCount : 0),
         total: dash.progress?.progress?.case_total || retryingCaseCount,
         status: retryStatus,
         cancelled: dash.progress?.progress?.cancelled === true,
-        sampleIds: retryContext?.kind === "cases_retry"
-          ? retryContext.sample_ids || []
-          : retryContext?.sample_id ? [retryContext.sample_id] : [],
+        sampleIds:
+          retryContext?.kind === "cases_retry"
+            ? retryContext.sample_ids || []
+            : retryContext?.sample_id
+              ? [retryContext.sample_id]
+              : [],
         caseStates: dash.progress?.progress?.case_states || {},
       }
     : undefined;
@@ -107,7 +116,9 @@ export default function RunDashboardPage() {
                 filterValueOptions={dash.filterValueOptions}
                 exporting={dash.exporting}
                 loading={dash.loading}
-                live={dash.run.status === "running" || dash.run.status === "pending"}
+                live={
+                  dash.run.status === "running" || dash.run.status === "pending"
+                }
                 retryProgress={retryProgress}
                 onOpenYamlEditor={dash.openYamlEditor}
                 onOpenExport={() => dash.setExportOpen(true)}
@@ -120,16 +131,7 @@ export default function RunDashboardPage() {
           {
             key: "attribution",
             label: "归因分析",
-            children: (
-              <RunAttributionTab
-                runId={id}
-                runStatus={dash.run.status}
-                cases={dash.cases}
-                loading={dash.loading}
-                selectedTaskId={dash.attributionTaskId}
-                onSelectedTaskIdChange={dash.setAttributionTaskId}
-              />
-            ),
+            children: <RunAttributionTab runId={id} loading={dash.loading} />,
           },
           {
             key: "diff",
@@ -160,10 +162,14 @@ export default function RunDashboardPage() {
         open={dash.attributionLaunchOpen}
         loading={dash.attributionLaunching}
         requestedCount={dash.attributionCases.length}
-        failedCount={dash.attributionCases.filter((item) => !item.release_passed).length}
+        failedCount={
+          dash.attributionCases.filter((item) => !item.release_passed).length
+        }
         judgeModels={dash.judgeModels}
         onCancel={() => dash.setAttributionLaunchOpen(false)}
-        onSubmit={(judgeModelId) => void dash.startAttributionTask(judgeModelId)}
+        onSubmit={(judgeModelId) =>
+          void dash.startAttributionTask(judgeModelId)
+        }
       />
 
       <RejudgeModal
@@ -183,7 +189,8 @@ export default function RunDashboardPage() {
         benchmarkLabel={
           dash.run?.benchmark_id
             ? `#${dash.run.benchmark_id}「${
-                dash.benchmarks.find((b) => b.id === dash.run!.benchmark_id)?.name ||
+                dash.benchmarks.find((b) => b.id === dash.run!.benchmark_id)
+                  ?.name ||
                 dash.benchmarkName ||
                 "—"
               }」`
@@ -198,7 +205,6 @@ export default function RunDashboardPage() {
         onSaveAs={dash.saveYamlAsBenchmark}
         onOverwrite={dash.saveYamlOverwrite}
       />
-
     </div>
   );
 }

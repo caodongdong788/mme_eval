@@ -399,6 +399,7 @@ export interface AttributionTaskItem {
   scenario: string;
   case_type: string;
   status: "pending" | "running" | "success" | "failed" | string;
+  attempt_count?: number;
   error_msg: string;
   attribution_available: boolean;
   attribution_stale: boolean;

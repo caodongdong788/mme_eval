@@ -417,7 +417,7 @@ def test_each_attribution_task_keeps_its_own_result_snapshot(initialized_db, mon
     assert second_result["analysis"]["overall"]["summary"] == "第二次归因"
 
 
-def test_attribution_task_api_supports_rerun_and_delete(client, monkeypatch):
+def test_attribution_task_api_reruns_selected_items_in_place_and_deletes(client, monkeypatch):
     run_id, sample_ids, model_id = _seed_failed_cases()
     monkeypatch.setattr(attribution_tasks, "has_judge_model_api_key", lambda _model: True)
     monkeypatch.setattr(attribution_tasks, "start_attribution_task", lambda _task_id: None)
@@ -430,11 +430,19 @@ def test_attribution_task_api_supports_rerun_and_delete(client, monkeypatch):
     source_id = created.json()["id"]
     attribution_tasks.mark_attribution_task_start_failed(source_id, RuntimeError("test stop"))
 
-    rerun = client.post(f"/api/runs/{run_id}/attribution-tasks/{source_id}/rerun")
-    assert rerun.status_code == 201, rerun.text
+    rerun = client.post(
+        f"/api/runs/{run_id}/attribution-tasks/{source_id}/rerun",
+        json={"sample_ids": [sample_ids[0]]},
+    )
+    assert rerun.status_code == 200, rerun.text
     rerun_id = rerun.json()["id"]
-    assert rerun_id != source_id
+    assert rerun_id == source_id
     assert rerun.json()["total_count"] == len(sample_ids)
+    items = {item["sample_id"]: item for item in rerun.json()["items"]}
+    assert items[sample_ids[0]]["status"] == "pending"
+    assert items[sample_ids[0]]["attempt_count"] == 1
+    assert items[sample_ids[1]]["status"] == "failed"
+    assert items[sample_ids[1]]["attempt_count"] == 0
 
     deleted = client.delete(f"/api/runs/{run_id}/attribution-tasks/{rerun_id}")
     assert deleted.status_code == 204, deleted.text

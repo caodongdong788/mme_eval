@@ -11,7 +11,7 @@ from server.eval_job import build_eval_job, build_rejudge_job, build_resume_job,
 from server.ingest import attach_case_results, finalize_run, ingest_report
 from server.models_db import Benchmark, CaseResultRow, EvalRun
 from server.progress import InMemoryProgress
-from server.services.case_retry import _hydrate_frozen_case_images
+from server.services.case_retry import IncrementalRetryPersister, _hydrate_frozen_case_images
 from server.services.eval_artifacts import (
     IncrementalRunPersister,
     load_persisted_case_results,
@@ -317,6 +317,31 @@ def test_retry_image_hydration_keeps_frozen_case_truth():
 
     assert frozen.scenario != current.scenario
     assert frozen.turns[0].image_data_urls == ["data:image/png;base64,abc"]
+
+
+def test_incremental_retry_persister_replaces_case_before_batch_finishes(initialized_db):
+    source = make_report("incremental_retry")
+    target_id = source.results[0].case.sample_id
+    other_id = source.results[1].case.sample_id
+    with session_scope() as s:
+        run = ingest_report(s, source)
+        run_id = run.id
+        run.status = "running"
+        run.finished_at = None
+
+    replacement = source.results[0].model_copy(deep=True)
+    replacement.trace.messages[-1].content = "这是已即时写入的新回答"
+    asyncio.run(IncrementalRetryPersister(run_id)(replacement))
+
+    with session_scope() as s:
+        run = s.get(EvalRun, run_id)
+        rows = s.query(CaseResultRow).filter(CaseResultRow.run_id == run_id).all()
+        target = next(row for row in rows if row.sample_id == target_id)
+        other = next(row for row in rows if row.sample_id == other_id)
+        assert target.detail_json["trace"]["messages"][-1]["content"] == "这是已即时写入的新回答"
+        assert other.detail_json["trace"]["messages"][-1]["content"] != "这是已即时写入的新回答"
+        assert run.status == "running"
+        assert run.finished_at is None
 
 
 def test_retry_case_job_replaces_only_target_case(initialized_db, settings, monkeypatch):

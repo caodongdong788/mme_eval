@@ -96,6 +96,7 @@ def _task_out(session: Session, task: AttributionTask, *, include_items: bool) -
             "scenario": case_rows.get(item.sample_id).scenario if case_rows.get(item.sample_id) else "",
             "case_type": case_rows.get(item.sample_id).case_type if case_rows.get(item.sample_id) else "",
             "status": item.status,
+            "attempt_count": item.attempt_count,
             "error_msg": item.error_msg,
             "attribution_available": bool(
                 isinstance(item.analysis_json, dict) and item.analysis_json.get("available")
@@ -247,6 +248,62 @@ def resume_attribution_task(
         # 失败项通常没有结果；若存在不完整结果也不能作为本轮可查看归因。
         if not isinstance(item.analysis_json, dict) or not item.analysis_json.get("available"):
             item.analysis_json = None
+
+    task.status = "queued"
+    task.error_msg = ""
+    task.finished_at = None
+    try:
+        session.flush()
+        _refresh_task_counts(session, task)
+        session.flush()
+    except IntegrityError as exc:
+        session.rollback()
+        raise HTTPException(status_code=409, detail="该评测已有其他进行中的归因任务") from exc
+    return task
+
+
+def rerun_attribution_task_items(
+    session: Session,
+    run_id: int,
+    task_id: int,
+    sample_ids: list[str],
+) -> AttributionTask:
+    """在原归因任务内重新分析指定 Case，不创建新的任务记录。"""
+    task = get_attribution_task_or_404(session, run_id, task_id)
+    if task.status in {"queued", "running"}:
+        raise HTTPException(status_code=409, detail="该归因任务正在执行，请等待完成后重试")
+    other_active = session.scalar(
+        select(AttributionTask.id).where(
+            AttributionTask.run_id == run_id,
+            AttributionTask.id != task.id,
+            AttributionTask.status.in_(("queued", "running")),
+        )
+    )
+    if other_active is not None:
+        raise HTTPException(status_code=409, detail="该评测已有其他进行中的归因任务")
+
+    ordered_ids = list(dict.fromkeys(value.strip() for value in sample_ids if value.strip()))
+    if not ordered_ids:
+        raise HTTPException(status_code=422, detail="请至少选择一个用例")
+    items = list(session.scalars(
+        select(AttributionTaskItem).where(
+            AttributionTaskItem.task_id == task.id,
+            AttributionTaskItem.sample_id.in_(ordered_ids),
+        )
+    ))
+    by_sample = {item.sample_id: item for item in items}
+    unknown = [sample_id for sample_id in ordered_ids if sample_id not in by_sample]
+    if unknown:
+        raise HTTPException(status_code=422, detail=f"归因任务中不存在用例 {unknown[0]}")
+
+    for sample_id in ordered_ids:
+        item = by_sample[sample_id]
+        item.status = "pending"
+        item.attempt_count = int(item.attempt_count or 0) + 1
+        item.error_msg = ""
+        item.analysis_json = None
+        item.started_at = None
+        item.finished_at = None
 
     task.status = "queued"
     task.error_msg = ""

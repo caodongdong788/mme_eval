@@ -357,6 +357,8 @@ class AttributionTaskItem(Base):
     sample_id: Mapped[str] = mapped_column(String(200), index=True)
     # pending | running | success | failed
     status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    # 在同一归因任务内手动重跑该 Case 的次数；首次归因保持 0。
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
     error_msg: Mapped[str] = mapped_column(Text, default="")
     # 每次任务独立保存本次模型返回，避免后续重新归因覆盖旧任务的查看结果。
     analysis_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)

@@ -12,7 +12,10 @@ export default function AttributionCaseDetailPage() {
   const navigate = useNavigate();
   const runNumber = Number(runId);
   const taskNumber = Number(taskId);
-  const decodedSampleId = useMemo(() => decodeURIComponent(sampleId || ""), [sampleId]);
+  const decodedSampleId = useMemo(
+    () => decodeURIComponent(sampleId || ""),
+    [sampleId]
+  );
   const [task, setTask] = useState<AttributionTask | null>(null);
   const [result, setResult] = useState<CaseAttribution | null>(null);
   const [error, setError] = useState<string>();
@@ -23,39 +26,94 @@ export default function AttributionCaseDetailPage() {
     Promise.all([
       api.getAttributionTask(runNumber, taskNumber),
       api.getAttributionTaskResult(runNumber, taskNumber, decodedSampleId),
-    ]).then(([nextTask, nextResult]) => {
-      if (!alive) return;
-      setTask(nextTask);
-      setResult(nextResult);
-    }).catch((reason) => {
-      if (alive) setError(formatApiError(reason, "加载归因结果失败"));
-    });
-    return () => { alive = false; };
+    ])
+      .then(([nextTask, nextResult]) => {
+        if (!alive) return;
+        setTask(nextTask);
+        setResult(nextResult);
+      })
+      .catch((reason) => {
+        if (alive) setError(formatApiError(reason, "加载归因结果失败"));
+      });
+    return () => {
+      alive = false;
+    };
   }, [decodedSampleId, runNumber, taskNumber]);
 
-  const item = task?.items.find((candidate) => candidate.sample_id === decodedSampleId);
-  const returnState = { tab: "attribution", attributionTaskId: taskNumber };
+  const item = task?.items.find(
+    (candidate) => candidate.sample_id === decodedSampleId
+  );
+  const taskDetailPath = `/runs/${runNumber}/attribution-tasks/${taskNumber}`;
 
   if (error) {
-    return <div className="dash-page"><Result status="warning" title="无法加载归因结果" subTitle={error} extra={<Link to={`/runs/${runNumber}`} state={returnState}>返回归因任务</Link>} /></div>;
+    return (
+      <div className="dash-page">
+        <Result
+          status="warning"
+          title="无法加载归因结果"
+          subTitle={error}
+          extra={<Link to={taskDetailPath}>返回归因任务</Link>}
+        />
+      </div>
+    );
   }
   if (!task || !result) {
-    return <div className="dash-page attribution-result-page attribution-result-page--loading"><Spin size="large" /></div>;
+    return (
+      <div className="dash-page attribution-result-page attribution-result-page--loading">
+        <Spin size="large" />
+      </div>
+    );
   }
 
   return (
     <div className="dash-page attribution-result-page">
       <DashPanel
-        title={<Link to={`/runs/${runNumber}`} state={returnState} className="dash-table__link">← 返回归因任务</Link>}
-        extra={<Button onClick={() => navigate(`/runs/${runNumber}/cases/${encodeURIComponent(decodedSampleId)}`, { state: { from: { to: `/runs/${runNumber}/attribution-tasks/${taskNumber}/cases/${encodeURIComponent(decodedSampleId)}`, label: "归因结果" } } })}>查看原用例</Button>}
+        title={
+          <Link to={taskDetailPath} className="dash-table__link">
+            ← 返回归因任务
+          </Link>
+        }
+        extra={
+          <Button
+            onClick={() =>
+              navigate(
+                `/runs/${runNumber}/cases/${encodeURIComponent(decodedSampleId)}`,
+                {
+                  state: {
+                    from: {
+                      to: `/runs/${runNumber}/attribution-tasks/${taskNumber}/cases/${encodeURIComponent(decodedSampleId)}`,
+                      label: "归因结果",
+                    },
+                  },
+                }
+              )
+            }
+          >
+            查看原用例
+          </Button>
+        }
       >
-        <Descriptions title={`${decodedSampleId} · 归因结果`} column={{ xs: 1, md: 2, lg: 4 }} size="small">
+        <Descriptions
+          title={`${decodedSampleId} · 归因结果`}
+          column={{ xs: 1, md: 2, lg: 4 }}
+          size="small"
+        >
           <Descriptions.Item label="归因任务">#{task.id}</Descriptions.Item>
-          <Descriptions.Item label="分析模型">{task.judge_model_name || `模型 #${task.judge_model_id}`}</Descriptions.Item>
-          <Descriptions.Item label="场景">{item?.scenario || "—"}</Descriptions.Item>
-          <Descriptions.Item label="类别">{item?.case_type || "—"}</Descriptions.Item>
-          <Descriptions.Item label="状态"><Tag color="success">已完成</Tag></Descriptions.Item>
-          <Descriptions.Item label="创建时间">{formatApiDateTime(task.created_at)}</Descriptions.Item>
+          <Descriptions.Item label="分析模型">
+            {task.judge_model_name || `模型 #${task.judge_model_id}`}
+          </Descriptions.Item>
+          <Descriptions.Item label="场景">
+            {item?.scenario || "—"}
+          </Descriptions.Item>
+          <Descriptions.Item label="类别">
+            {item?.case_type || "—"}
+          </Descriptions.Item>
+          <Descriptions.Item label="状态">
+            <Tag color="success">已完成</Tag>
+          </Descriptions.Item>
+          <Descriptions.Item label="创建时间">
+            {formatApiDateTime(task.created_at)}
+          </Descriptions.Item>
         </Descriptions>
       </DashPanel>
 
@@ -64,7 +122,9 @@ export default function AttributionCaseDetailPage() {
           <AttributionDetail result={result} />
         </DashPanel>
       ) : (
-        <DashPanel title="归因结论与优化建议"><Empty description="该用例暂无可查看的归因结果" /></DashPanel>
+        <DashPanel title="归因结论与优化建议">
+          <Empty description="该用例暂无可查看的归因结果" />
+        </DashPanel>
       )}
     </div>
   );
