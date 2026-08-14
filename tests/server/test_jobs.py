@@ -144,6 +144,27 @@ def test_progress_percent_falls_back_to_current_phase_without_plan():
     assert p.snapshot()["percent"] == 50.0
 
 
+def test_restored_progress_floor_prevents_worker_restart_regression():
+    p = InMemoryProgress()
+    p.restore_percent_floor(43.9)
+    p.plan_phases(
+        [
+            ("run", "调用 chatbot", 63),
+            ("judge_dimension", "Judge 判分 (八维)", 63),
+            ("judge_guideline", "Judge 判分 (指南)", 63),
+        ]
+    )
+    p.start_phase("judge_dimension", "Judge 判分 (八维)", 63)
+    p.start_phase("judge_guideline", "Judge 判分 (指南)", 63)
+    p.start_phase("run", "调用 chatbot", 63)
+
+    assert p.snapshot()["percent"] == 43.9
+    p.advance("run", 63)
+    p.advance("judge_dimension", 20)
+    p.advance("judge_guideline", 20)
+    assert p.snapshot()["percent"] > 43.9
+
+
 def test_concurrency_limit_respected(initialized_db):
     runner = InProcessJobRunner(max_concurrent=2)
     run_ids = [_new_pending_run() for _ in range(4)]

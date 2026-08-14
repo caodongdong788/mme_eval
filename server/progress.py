@@ -40,6 +40,9 @@ class InMemoryProgress:
         self._case_states: dict[str, dict[str, Any]] = {}
         # 开跑前声明的全部阶段总量之和；用于全局单调百分比（None=未声明，回退当前阶段口径）。
         self._plan_total: int | None = None
+        # Worker 被部署/异常重启后会重建内存对象。保留数据库最后一次心跳的百分比
+        # 作为下限，避免恢复阶段初始化时让用户看到进度倒退。
+        self._percent_floor = 0.0
 
     def set_case_complete_callback(
         self, callback: CaseCompleteCallback | None
@@ -51,6 +54,19 @@ class InMemoryProgress:
         """声明本次任务实际要完成的用例数。"""
         self._case_total = max(0, int(total))
         self._case_done = min(self._case_done, self._case_total)
+
+    def restore_case_progress(self, completed: int, total: int) -> None:
+        """恢复持久化 Case 结果对应的完成基线。"""
+        self._case_total = max(0, int(total))
+        self._case_done = min(max(0, int(completed)), self._case_total)
+
+    def restore_percent_floor(self, percent: float | int | None) -> None:
+        """恢复上次持久化百分比；后续快照只能持平或前进。"""
+        try:
+            value = float(percent or 0.0)
+        except (TypeError, ValueError):
+            value = 0.0
+        self._percent_floor = min(max(value, 0.0), 100.0)
 
     def set_case_ids(self, sample_ids: Iterable[str]) -> None:
         """声明本次重评的 Case 范围，并初始化逐条进度。"""
@@ -124,6 +140,7 @@ class InMemoryProgress:
             percent = 0.0
             if cur and cur["total"]:
                 percent = round(min(cur["done"] / cur["total"], 1.0) * 100, 1)
+        percent = max(percent, self._percent_floor)
         return {
             "current": self.current,
             "current_label": cur["label"] if cur else "",

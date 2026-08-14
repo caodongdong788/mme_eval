@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -202,6 +203,61 @@ def test_resume_reuses_successful_traces(tmp_path: Path):
     # 新目录留痕齐全
     bundle = trace_store.read_traces(out_dir)
     assert set(k[0] for k in bundle.by_key) == {"c0", "c1", "c2"}
+
+
+def test_resume_skips_already_persisted_case_judging(tmp_path: Path, monkeypatch):
+    config = _config()
+    cases = _cases()
+    prev_dir = tmp_path / "outputs" / "before-restart"
+    baseline = asyncio.run(
+        evaluate(
+            config,
+            cases,
+            _CountingAdapter(),
+            [],
+            run_name="before-restart",
+            out_dir=prev_dir,
+        )
+    )
+    restored = baseline.results[0]
+    judged: list[str] = []
+
+    async def fake_judge_all(case, trace, _judges):
+        judged.append(case.sample_id)
+        result = restored.model_copy(deep=True)
+        result.case = case
+        result.trace = trace
+        return result
+
+    monkeypatch.setattr("medeval.service.judge_all", fake_judge_all)
+    progress = InMemoryProgress()
+    newly_completed: list[str] = []
+    progress.set_case_complete_callback(
+        lambda result: newly_completed.append(result.case.sample_id)
+    )
+    adapter = _CountingAdapter()
+    report = asyncio.run(
+        evaluate(
+            config,
+            cases,
+            adapter,
+            [SimpleNamespace(name="dimension")],
+            progress=progress,
+            run_name="after-restart",
+            out_dir=tmp_path / "outputs" / "after-restart",
+            resume_dir=prev_dir,
+            completed_results={restored.case.sample_id: restored},
+        )
+    )
+
+    assert adapter.calls == []
+    assert set(judged) == {"c1", "c2"}
+    assert set(newly_completed) == {"c1", "c2"}
+    assert [result.case.sample_id for result in report.results] == ["c0", "c1", "c2"]
+    snapshot = progress.snapshot()
+    assert snapshot["case_done"] == snapshot["case_total"] == 3
+    assert snapshot["phases"]["judge_dimension"]["done"] == 3
+    assert snapshot["percent"] == 100.0
 
 
 def test_resume_rejects_fingerprint_mismatch(tmp_path: Path):

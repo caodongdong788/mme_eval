@@ -20,6 +20,7 @@ from .eval_artifacts import (
     IncrementalRunPersister,
     apply_retention,
     copy_case_image_snapshot,
+    load_persisted_case_results,
     write_run_plan,
 )
 from .eval_stack import build_eval_adapter, build_judge_stack, prepare_run_config
@@ -114,6 +115,10 @@ def build_resume_job(
         write_run_plan(out_dir, cases, n_runs)
         if out_dir != src_dir:
             copy_case_image_snapshot(src_dir, out_dir)
+        sample_ids = [case.sample_id for case in cases]
+        completed_results = (
+            load_persisted_case_results(run_id, sample_ids) if in_place else {}
+        )
         progress.set_case_complete_callback(
             IncrementalRunPersister(
                 run_id,
@@ -122,7 +127,8 @@ def build_resume_job(
                 config_snapshot=config.public_snapshot(),
                 description=config.run.description,
                 n_runs=n_runs,
-                sample_order=[case.sample_id for case in cases],
+                sample_order=sample_ids,
+                initial_results=completed_results.values(),
             )
         )
 
@@ -136,6 +142,7 @@ def build_resume_job(
             account_owner=str(run_id),
             out_dir=out_dir,
             resume_dir=src_dir,
+            completed_results=completed_results,
         )
 
         prev = resolve_diff_target("auto", settings.outputs_dir, out_dir)

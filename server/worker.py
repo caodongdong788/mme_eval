@@ -10,7 +10,7 @@ import socket
 import uuid
 
 from .constants import EVAL_JOB_USER_ERROR
-from .db import init_db
+from .db import init_db, session_scope
 from .durable_jobs import build_job_from_payload
 from .durable_queue import (
     acknowledge_cancel,
@@ -21,15 +21,26 @@ from .durable_queue import (
     requeue_job,
 )
 from .jobs import _set_status
+from .models_db import EvalRun
 from .progress import InMemoryProgress
 from .settings import get_settings
 
 logger = logging.getLogger("mme.worker")
 
 
+def _restore_progress_floor(progress: InMemoryProgress, run_id: int) -> None:
+    """从最后一次心跳恢复百分比下限，避免 Worker 重启后进度倒退。"""
+    with session_scope() as session:
+        run = session.get(EvalRun, run_id)
+        snapshot = run.progress if run is not None and isinstance(run.progress, dict) else {}
+    progress.restore_percent_floor(snapshot.get("percent"))
+
+
 async def _execute_claimed(row, owner: str) -> None:
     settings = get_settings()
     progress = InMemoryProgress()
+    if int(row.attempts or 0) > 1 or row.kind == "resume":
+        _restore_progress_floor(progress, row.run_id)
     _set_status(row.run_id, "running")
     try:
         job = build_job_from_payload(row.run_id, row.kind, dict(row.payload or {}), settings)

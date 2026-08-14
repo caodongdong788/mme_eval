@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Iterable
 from copy import deepcopy
 from datetime import datetime
 import json
@@ -12,6 +13,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import select
+
 from medeval.config import Config
 from medeval.models import CaseResult, RunReport
 from medeval.reporter.aggregator import build_report
@@ -19,7 +22,7 @@ from medeval.service import write_core_artifacts
 
 from ..db import session_scope
 from ..ingest import attach_case_results, finalize_run, populate_run_summary
-from ..models_db import EvalRun
+from ..models_db import CaseResultRow, EvalRun
 from ..paths import safe_join
 from ..settings import Settings
 
@@ -48,6 +51,45 @@ def persist_incremental_report(run_id: int, report: RunReport) -> None:
         row.finished_at = finished_at
 
 
+def load_persisted_case_results(
+    run_id: int, sample_ids: Iterable[str]
+) -> dict[str, CaseResult]:
+    """读取当前 run 已完整落库的 CaseResult，供原地断点续跑复用。"""
+    allowed = set(sample_ids)
+    if not allowed:
+        return {}
+    restored: dict[str, CaseResult] = {}
+    with session_scope() as session:
+        rows = session.scalars(
+            select(CaseResultRow)
+            .where(
+                CaseResultRow.run_id == run_id,
+                CaseResultRow.sample_id.in_(allowed),
+            )
+            .order_by(CaseResultRow.id)
+        )
+        for row in rows:
+            try:
+                result = CaseResult.model_validate(row.detail_json)
+            except Exception:  # noqa: BLE001 - 旧/损坏明细不能阻断其余 Case 续跑
+                logger.warning(
+                    "run %s 的已落库 Case %s 无法恢复，将重新判分",
+                    run_id,
+                    row.sample_id,
+                    exc_info=True,
+                )
+                continue
+            if result.case.sample_id != row.sample_id:
+                logger.warning(
+                    "run %s 的 Case %s 明细 sample_id 不一致，将重新判分",
+                    run_id,
+                    row.sample_id,
+                )
+                continue
+            restored[row.sample_id] = result
+    return restored
+
+
 class IncrementalRunPersister:
     """把并发完成的 Case 串行聚合并幂等落库。"""
 
@@ -61,6 +103,7 @@ class IncrementalRunPersister:
         description: str,
         n_runs: int,
         sample_order: list[str],
+        initial_results: Iterable[CaseResult] = (),
     ) -> None:
         self.run_id = run_id
         self.run_name = run_name
@@ -71,7 +114,11 @@ class IncrementalRunPersister:
         self._sample_order = {
             sample_id: index for index, sample_id in enumerate(sample_order)
         }
-        self._results: dict[str, CaseResult] = {}
+        self._results: dict[str, CaseResult] = {
+            result.case.sample_id: result
+            for result in initial_results
+            if result.case.sample_id in self._sample_order
+        }
         self._started_at = datetime.utcnow()
         self._lock = asyncio.Lock()
 

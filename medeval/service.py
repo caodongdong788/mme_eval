@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -367,6 +368,7 @@ async def evaluate(
     account_owner: str = "",
     out_dir: Path | None = None,
     resume_dir: Path | None = None,
+    completed_results: Mapping[str, CaseResult] | None = None,
 ) -> RunReport:
     """完整评测编排：run_traces + judge_traces。不打印、不退出。
 
@@ -377,6 +379,12 @@ async def evaluate(
     progress = progress or NullProgress()
     started_at = datetime.utcnow()
     n_runs = config.run.repeat
+    case_ids = {case.sample_id for case in cases}
+    restored_results = {
+        sample_id: result
+        for sample_id, result in (completed_results or {}).items()
+        if sample_id in case_ids and result.case.sample_id == sample_id
+    }
 
     # 可选 OTel tracing：默认关闭、no-op；启用时为各 phase / adapter / judge 调用记 span。
     # 配置失败或未装 otel 时自动退化为 no-op，绝不影响主链路。
@@ -398,6 +406,9 @@ async def evaluate(
     set_case_total = getattr(progress, "set_case_total", None)
     if callable(set_case_total):
         set_case_total(len(cases))
+    restore_case_progress = getattr(progress, "restore_case_progress", None)
+    if callable(restore_case_progress) and restored_results:
+        restore_case_progress(len(restored_results), len(cases))
 
     async def case_started(case: TestCase) -> None:
         callback = getattr(progress, "case_started", None)
@@ -411,12 +422,17 @@ async def evaluate(
         # Judge 与 bot 调用并行流水：某条 Case 的全部对话完成后，立即判分、折叠并
         # 通知平台落库，不等待整个 benchmark 的所有对话执行完毕。
         for judge in judges:
+            phase_key = f"judge_{judge.name}"
             progress.start_phase(
-                f"judge_{judge.name}",
+                phase_key,
                 "Judge 判分 (八维)" if judge.name == "dimension" else "Judge 判分 (指南)",
                 len(cases) * n_runs,
             )
-        folded_results: list[CaseResult | None] = [None for _ in cases]
+            if restored_results:
+                progress.advance(phase_key, len(restored_results) * n_runs)
+        folded_results: list[CaseResult | None] = [
+            restored_results.get(case.sample_id) for case in cases
+        ]
         judge_sem = asyncio.Semaphore(config.run.judge_concurrency)
 
         async def judge_completed_case(
@@ -424,6 +440,10 @@ async def evaluate(
         ) -> None:
             # single_turn 模式会临时展平动态对话；判分仍必须使用原始 Case 真值。
             case = cases[index]
+            # 原地断点续跑时，完整 CaseResult 已增量落库。对话留痕仍会被
+            # run_traces 复用并重写进最终产物，但无需再次消耗 Judge 配额。
+            if case.sample_id in restored_results:
+                return
             case_judging = getattr(progress, "case_judging", None)
             if callable(case_judging):
                 case_judging(case.sample_id)

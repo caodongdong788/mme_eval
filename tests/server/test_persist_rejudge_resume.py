@@ -8,11 +8,14 @@ from factories import make_report
 from medeval import trace_store
 from server.db import session_scope
 from server.eval_job import build_eval_job, build_rejudge_job, build_resume_job, build_retry_case_job
-from server.ingest import finalize_run, ingest_report
+from server.ingest import attach_case_results, finalize_run, ingest_report
 from server.models_db import Benchmark, CaseResultRow, EvalRun
 from server.progress import InMemoryProgress
 from server.services.case_retry import _hydrate_frozen_case_images
-from server.services.eval_artifacts import IncrementalRunPersister
+from server.services.eval_artifacts import (
+    IncrementalRunPersister,
+    load_persisted_case_results,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -134,7 +137,19 @@ def test_incremental_results_are_visible_and_finalization_is_idempotent(
         assert row.total == 1
         assert session.query(CaseResultRow).filter_by(run_id=run_id).count() == 1
 
-    asyncio.run(persister(report.results[1]))
+    # 模拟 Worker 部署重启：新的 accumulator 必须以数据库已有结果为基线，
+    # 否则第二条完成时 run.total 会短暂从 1 退回 1，而不是累计到 2。
+    resumed_persister = IncrementalRunPersister(
+        run_id,
+        run_name=report.run_name,
+        adapter_type=report.adapter_type,
+        config_snapshot=report.config_snapshot,
+        description=report.description,
+        n_runs=report.n_runs,
+        sample_order=[result.case.sample_id for result in report.results],
+        initial_results=[report.results[0]],
+    )
+    asyncio.run(resumed_persister(report.results[1]))
     with session_scope() as session:
         row = session.get(EvalRun, run_id)
         assert row.status == "running"
@@ -147,6 +162,26 @@ def test_incremental_results_are_visible_and_finalization_is_idempotent(
         assert row.status == "success"
         assert row.total == 2
         assert session.query(CaseResultRow).filter_by(run_id=run_id).count() == 2
+
+
+def test_load_persisted_case_results_restores_only_requested_cases(initialized_db):
+    report = make_report("resume_baseline")
+    with session_scope() as session:
+        run = EvalRun(run_slug=report.run_name, name="恢复基线", status="running")
+        session.add(run)
+        session.flush()
+        run_id = run.id
+        attach_case_results(session, run_id, report)
+
+    restored = load_persisted_case_results(
+        run_id, [report.results[0].case.sample_id]
+    )
+
+    assert list(restored) == [report.results[0].case.sample_id]
+    assert (
+        restored[report.results[0].case.sample_id].composite_score
+        == report.results[0].composite_score
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -202,10 +237,12 @@ def test_resume_job_passes_resume_dir(initialized_db, settings, monkeypatch):
     captured: dict = {}
 
     async def fake_eval(config, cases, adapter, judges, *, progress=None,
-                        run_name=None, account_owner="", out_dir=None, resume_dir=None):
+                        run_name=None, account_owner="", out_dir=None, resume_dir=None,
+                        completed_results=None):
         captured["resume_dir"] = resume_dir
         captured["out_dir"] = out_dir
         captured["sample_ids"] = [c.sample_id for c in cases]
+        captured["completed_results"] = completed_results
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / "traces.jsonl.gz").write_bytes(b"gz")
         return make_report(run_name)
@@ -218,10 +255,50 @@ def test_resume_job_passes_resume_dir(initialized_db, settings, monkeypatch):
 
     assert captured["resume_dir"] == settings.outputs_dir / "src_2026-06-04_1"
     assert set(captured["sample_ids"]) == {"bc_001", "bc_002"}
+    assert captured["completed_results"] == {}
     with session_scope() as s:
         row = s.get(EvalRun, new_id)
         assert row.status == "success"
         assert row.has_traces is True
+
+
+def test_in_place_resume_passes_persisted_results_to_evaluator(
+    initialized_db, settings, monkeypatch
+):
+    src_id = _seed_source_run(settings, with_traces=True, n_runs=1)
+    report = make_report("src_2026-06-04_1")
+    with session_scope() as session:
+        attach_case_results(session, src_id, report)
+
+    captured: dict = {}
+
+    async def fake_eval(
+        config,
+        cases,
+        adapter,
+        judges,
+        *,
+        progress=None,
+        run_name=None,
+        completed_results=None,
+        **kwargs,
+    ):
+        captured["completed_results"] = completed_results
+        return report.model_copy(update={"run_name": run_name})
+
+    monkeypatch.setattr("server.eval_job.evaluate", fake_eval)
+    monkeypatch.setattr("server.eval_job.build_adapter", lambda *a, **k: object())
+
+    job = build_resume_job(
+        src_id,
+        source_run_id=src_id,
+        run_name="源评测",
+        in_place=True,
+        settings=settings,
+    )
+    asyncio.run(job(InMemoryProgress()))
+
+    assert set(captured["completed_results"]) == {"bc_001", "bc_002"}
 
 
 # ---------------------------------------------------------------------------

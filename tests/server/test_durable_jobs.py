@@ -17,6 +17,8 @@ from server.durable_jobs import build_job_from_payload
 from server.job_specs import attach_job_spec, get_job_spec
 from server.jobs import DatabaseJobRunner
 from server.models_db import EvalRun, EvaluationJob
+from server.progress import InMemoryProgress
+from server.worker import _restore_progress_floor
 
 
 def _new_run() -> int:
@@ -80,6 +82,17 @@ def test_heartbeat_and_graceful_requeue(initialized_db):
         assert stored.lease_owner is None
         assert run.status == "pending"
         assert run.progress["percent"] == 25.0
+
+
+def test_worker_restores_last_persisted_progress_floor(initialized_db):
+    run_id = _new_run()
+    with session_scope() as session:
+        session.get(EvalRun, run_id).progress = {"percent": 43.9}
+
+    progress = InMemoryProgress()
+    _restore_progress_floor(progress, run_id)
+
+    assert progress.snapshot()["percent"] == 43.9
 
 
 def test_cancelled_job_is_not_reclaimed(initialized_db):
