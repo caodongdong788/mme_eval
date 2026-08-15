@@ -83,10 +83,41 @@ def _rag_status_from_summary(summary: Any, chain_status: Any = None) -> str:
     return "unknown"
 
 
+def _rag_status_from_audit_snapshots(trace: dict[str, Any]) -> str | None:
+    """从 cx-agent 保存的医学文献审计快照推导 RAG 状态。
+
+    Langfuse 的链路可能延迟写入或因体积被截断；审计快照来自 cx-agent 的
+    文献工具调用结果，已经是更直接、且可在链路未同步时使用的证据。
+    """
+    audits = trace.get("cx_literature_audits")
+    if not isinstance(audits, list):
+        return None
+
+    valid_audits = [item for item in audits if isinstance(item, dict)]
+    if not valid_audits:
+        return None
+
+    selected_count = 0
+    for audit in valid_audits:
+        value = audit.get("selectedSourceCount", audit.get("selected_source_count", 0))
+        try:
+            selected_count += max(0, int(value or 0))
+        except (TypeError, ValueError):
+            continue
+    return "hit" if selected_count > 0 else "miss"
+
+
 def case_rag_status_from_detail(detail: Any) -> str:
     """从冻结链路快照提取真实 RAG 状态，供写入标量列和历史回填使用。"""
     detail = detail if isinstance(detail, dict) else {}
     trace = detail.get("trace") if isinstance(detail.get("trace"), dict) else {}
+
+    # 审计快照优先于 Langfuse：它由 cx-agent 在同一次请求中保存，不受异步
+    # 同步、采样和原始 trace 截断影响。
+    audit_status = _rag_status_from_audit_snapshots(trace)
+    if audit_status is not None:
+        return audit_status
+
     chain = trace.get("agent_chain") if isinstance(trace.get("agent_chain"), dict) else {}
     if not chain:
         return "unknown"
@@ -163,8 +194,8 @@ def case_trace_url(row: CaseResultRow) -> Optional[str]:
 def case_rag_status(row: CaseResultRow) -> str:
     """返回医学文献 RAG 的真实调用状态，而非本次 Run 的开关状态。
 
-    ``enable_rag`` 仅表示 Agent 可以使用 RAG；是否真的触发，必须以 Langfuse
-    同步后固化的 ``medical_literature_search`` 工具节点为准。
+    ``enable_rag`` 仅表示 Agent 可以使用 RAG；是否真的触发优先以 cx-agent
+    保存的文献审计快照判断，缺失时再回退到 Langfuse 工具链证据。
     """
     return case_rag_status_from_detail(row.detail_json)
 

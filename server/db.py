@@ -58,6 +58,7 @@ def init_db(settings: Settings | None = None) -> None:
     _migrate_benchmark_updated_at(engine)
     _migrate_legacy_open_api_key(engine)
     _migrate_case_list_display_columns(engine)
+    _backfill_case_rag_status_from_audits(engine)
     _migrate_case_judge_error(engine)
     _migrate_eval_run_trigger_type(engine)
     _migrate_eval_run_scheduled_evaluation_id(engine)
@@ -403,6 +404,38 @@ def _migrate_case_list_display_columns(engine) -> None:
                 bucket["passed"] += int(bool(release_passed))
             for run in session.scalars(select(EvalRun)):
                 run.by_case_type = grouped.get(run.id, {})
+
+
+def _backfill_case_rag_status_from_audits(engine) -> None:
+    """修复历史上因 Langfuse 尚未同步而保存为 unknown 的 RAG 状态。
+
+    仅检查 unknown 行，避免恢复旧版列表逐条读取大 JSON 的性能问题。审计快照
+    由 cx-agent 直接保存，能够在 Langfuse 延迟或截断时给出可靠的命中结论。
+    """
+    inspector = inspect(engine)
+    if "case_result" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("case_result")}
+    if "rag_status" not in columns:
+        return
+
+    from .models_db import CaseResultRow
+    from .services.case_query import case_rag_status_from_detail
+
+    maker = sessionmaker(bind=engine, class_=Session, expire_on_commit=False)
+    with maker.begin() as session:
+        rows = session.execute(
+            select(CaseResultRow.id, CaseResultRow.detail_json).where(
+                CaseResultRow.rag_status == "unknown"
+            )
+        ).all()
+        updates = [
+            {"id": row_id, "rag_status": status}
+            for row_id, detail in rows
+            if (status := case_rag_status_from_detail(detail)) != "unknown"
+        ]
+        if updates:
+            session.bulk_update_mappings(CaseResultRow, updates)
 
 
 def _migrate_case_judge_error(engine) -> None:
