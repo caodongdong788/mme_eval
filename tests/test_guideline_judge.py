@@ -137,6 +137,8 @@ def test_prompt_includes_case_initial_state_without_counting_it_as_coverage() ->
     assert "与用户在对话中亲口说出的信息具有同等事实效力" in captured
     assert "不得因当前用户消息未重复它们而判定 bot 编造" in captured
     assert "必须扫描全部 assistant 回复" in captured
+    assert "条件、概率和权限限定不得被截掉" in captured
+    assert "默认是示例或可选路径" in captured
 
 
 def test_prompt_includes_guideline_reference_answers() -> None:
@@ -208,7 +210,7 @@ def test_list_guideline_returns_missed_points_and_deduction() -> None:
     assert "扣分规则" in captured
     assert "reason 只写本次扣分的直接原因" in captured
     assert "不得复述检查点原文" in captured
-    assert "evidence 应截取导致扣分的最短 bot 原文" in captured
+    assert "evidence 应截取导致扣分的最短且语义完整的 bot 原文" in captured
 
 
 def test_untriggered_guideline_does_not_deduct() -> None:
@@ -224,6 +226,91 @@ def test_untriggered_guideline_does_not_deduct() -> None:
     verdict = asyncio.run(judge.judge(TestCase.model_validate(raw), trace()))[0]
     assert verdict.score == 3
     assert verdict.details["applicable"] is False
+
+
+def test_conditional_checkpoint_without_explicit_trigger_can_be_not_applicable() -> None:
+    raw = raw_case()
+    raw["evaluation"]["guidelines"][0]["criterion"] = [
+        "若回答提及自行加药，不得建议用户直接增加剂量。"
+    ]
+    raw["evaluation"]["guidelines"][0]["trigger"] = ""
+    judge = GuidelineJudge(enabled=False)
+    judge.enabled = True
+    captured = ""
+
+    async def fake_call(prompt: str):
+        nonlocal captured
+        captured = prompt
+        return {
+            "risk": {
+                "applicable": False,
+                "deduction": 3,
+                "reason": "前提未发生",
+                "evidence": [],
+                "checkpoint_audits": [],
+            }
+        }
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdict = asyncio.run(judge.judge(TestCase.model_validate(raw), trace()))[0]
+
+    assert verdict.score == verdict.max_score
+    assert verdict.details["applicable"] is False
+    assert verdict.details["applicability_source"] == "conditional_checkpoint"
+    assert "检查点中的‘若/如果/当……’前提" in captured
+    assert "用户最新明确陈述或纠正为准" in captured
+    assert "先确定日期锚点并逐步计算" in captured
+
+
+def test_explicit_single_omission_rule_corrects_model_over_deduction() -> None:
+    raw = raw_case()
+    raw["evaluation"]["guidelines"] = [{
+        "id": "tiered",
+        "dimension": "professional_accuracy",
+        "max_score": 2,
+        "criteria": ["说明用途", "说明限制"],
+        "deduction_rule": "遗漏一项关键要求扣 1 分；遗漏多项关键要求或出现相反表述扣 2 分。",
+    }]
+    judge = GuidelineJudge(enabled=False)
+    judge.enabled = True
+    current_trace = ConversationTrace(
+        messages=[ChatMessage(role="assistant", content="这个药主要用于缓解症状。")]
+    )
+
+    async def fake_call(prompt: str):
+        return {
+            "tiered": {
+                "deduction": 2,
+                "missed_points": [2],
+                "reason": "没有说明使用限制",
+                "evidence": [],
+                "checkpoint_audits": [
+                    {
+                        "index": 1,
+                        "status": "met",
+                        "searched_terms": ["缓解症状"],
+                        "evidence": ["这个药主要用于缓解症状。"],
+                        "explanation": "已说明用途",
+                    },
+                    {
+                        "index": 2,
+                        "status": "missing",
+                        "searched_terms": ["限制", "不适用"],
+                        "evidence": [],
+                        "explanation": "全文未说明限制",
+                    },
+                ],
+            }
+        }
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdict = asyncio.run(judge.judge(TestCase.model_validate(raw), current_trace))[0]
+
+    assert verdict.score == 1
+    assert verdict.details["model_deduction"] == 2
+    assert verdict.details["deduction"] == 1
+    assert verdict.details["deduction_adjusted_by_rule"] is True
+    assert "明确档位不一致" in verdict.reason
 
 
 def test_single_turn_mode_uses_main_guideline_semantics() -> None:

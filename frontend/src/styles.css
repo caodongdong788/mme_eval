@@ -4550,6 +4550,56 @@ a.ant-typography-secondary:hover {
   background: #fffaf0;
 }
 
+.attribution-evaluation-groups {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  background: #fff;
+}
+
+.attribution-evaluation-group {
+  overflow: hidden;
+  border: 1px solid var(--runs-border);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.attribution-evaluation-group__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--runs-border);
+  background: #fbfbfd;
+}
+
+.attribution-evaluation-group__head h5 {
+  margin: 0 0 4px;
+  color: var(--runs-text);
+  font-size: 14px;
+}
+
+.attribution-evaluation-group__head p {
+  margin: 0;
+  color: var(--runs-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.attribution-cluster-list--evaluation {
+  border: 0;
+  border-radius: 0;
+}
+
+.attribution-cluster-list--evaluation > .ant-collapse-item:last-child {
+  border-bottom: 0;
+}
+
+.attribution-evaluation-group .ant-empty {
+  margin-block: 22px;
+}
+
 .attribution-dimension-list,
 .attribution-cluster-list--nested {
   border: 0;
@@ -4615,6 +4665,10 @@ a.ant-typography-secondary:hover {
   }
 
   .attribution-summary-section__head {
+    flex-direction: column;
+  }
+
+  .attribution-evaluation-group__head {
     flex-direction: column;
   }
 

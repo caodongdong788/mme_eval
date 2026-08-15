@@ -87,6 +87,8 @@ def test_prompt_includes_case_initial_state_as_scoring_truth() -> None:
     assert "与用户在对话中亲口说出的信息具有同等事实效力" in captured
     assert "当前用户消息未重复该信息" in captured
     assert "只要任一来源已提供该信息" in captured
+    assert "用户最新明确陈述或纠正为准" in captured
+    assert "先确定日期锚点并逐步计算" in captured
 
 
 def test_prompt_includes_reference_answers_as_non_literal_quality_reference() -> None:
@@ -131,6 +133,9 @@ def test_prompt_enforces_role_boundaries_and_evidence_based_reasons() -> None:
     assert "患者只评被理解与共情、可执行性、沟通体验与继续意愿" in captured
     assert "至少一处具体表述作为证据" in captured
     assert "重复或过度的追问要扣分" in captured
+    assert "Case 已知事实并非都必须在回答中复述" in captured
+    assert "默认是示例或可选路径" in captured
+    assert "条件、概率和权限限定" in captured
 
 
 def test_prompt_uses_shared_dimension_standards() -> None:

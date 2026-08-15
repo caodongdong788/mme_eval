@@ -41,7 +41,7 @@ const task: AttributionTask = {
   diagnostic_summary: {
     available_results: 1,
     score_health_counts: { healthy: 1 },
-    validation_counts: { supported: 1 },
+    validation_counts: { supported: 1, questionable: 3, insufficient_evidence: 1 },
     clusters: [
       {
         category: "cx_agent_issue",
@@ -71,6 +71,97 @@ const task: AttributionTask = {
           control_cases: [],
           safety_checks: ["不得降低医学安全性"],
           acceptance_criteria: ["相关安全指南不再遗漏"],
+        },
+      },
+      {
+        category: "evaluation_review",
+        evaluation_issue_category: "judge_logic_issue",
+        cause_code: "judge_context_missing",
+        cause_label: "判分上下文需要复核",
+        owner: "judge",
+        sample_ids: ["case_11"],
+        deduction_ids: ["guideline.g02"],
+        dimensions: ["professional_accuracy"],
+        case_count: 1,
+        deduction_count: 1,
+        priority: "P1",
+        confidence: 0.8,
+        summary: "判分前缺少完整上下文。",
+        examples: ["判分前缺少完整上下文。"],
+        recommendations: [],
+        verification_plan: {
+          target_cases: ["case_11"],
+          control_cases: [],
+          safety_checks: [],
+          acceptance_criteria: [],
+        },
+      },
+      {
+        category: "evaluation_review",
+        evaluation_issue_category: "benchmark_criteria_conflict",
+        cause_code: "judge_or_benchmark_issue",
+        cause_label: "判据与参考答案冲突",
+        owner: "benchmark",
+        sample_ids: ["case_11"],
+        deduction_ids: ["guideline.g04"],
+        dimensions: ["professional_accuracy"],
+        case_count: 1,
+        deduction_count: 1,
+        priority: "P1",
+        confidence: 0.9,
+        summary: "同一行为在检查点中被禁止、在推荐回答中又被允许。",
+        examples: ["同一行为在检查点中被禁止、在推荐回答中又被允许。"],
+        recommendations: [],
+        verification_plan: {
+          target_cases: ["case_11"],
+          control_cases: [],
+          safety_checks: [],
+          acceptance_criteria: [],
+        },
+      },
+      {
+        category: "evaluation_review",
+        evaluation_issue_category: "annotation_rag_conflict",
+        cause_code: "judge_or_benchmark_issue",
+        cause_label: "标注超出文献证据",
+        owner: "benchmark",
+        sample_ids: ["case_11"],
+        deduction_ids: ["guideline.g05"],
+        dimensions: ["professional_accuracy"],
+        case_count: 1,
+        deduction_count: 1,
+        priority: "P1",
+        confidence: 0.85,
+        summary: "标注结论超出了实际 RAG 文献能支持的范围。",
+        examples: ["标注结论超出了实际 RAG 文献能支持的范围。"],
+        recommendations: [],
+        verification_plan: {
+          target_cases: ["case_11"],
+          control_cases: [],
+          safety_checks: [],
+          acceptance_criteria: [],
+        },
+      },
+      {
+        category: "insufficient_evidence",
+        cause_code: "trace_missing",
+        cause_label: "调用链证据缺失",
+        owner: "unknown",
+        sample_ids: ["case_11"],
+        deduction_ids: ["guideline.g03"],
+        dimensions: [],
+        case_count: 1,
+        deduction_count: 1,
+        priority: "P2",
+        confidence: 0.4,
+        summary: "缺少调用链记录，无法确认责任。",
+        examples: ["缺少调用链记录，无法确认责任。"],
+        recommendations: [],
+        verification_plan: {
+          target_cases: ["case_11"],
+          control_cases: [],
+          safety_checks: [],
+          acceptance_criteria: [],
         },
       },
     ],
@@ -132,6 +223,16 @@ describe("RunAttributionTab", () => {
     expect(screen.getByText("归因任务总结")).toBeInTheDocument();
     expect(screen.getByText("cx-agent 优化建议")).toBeInTheDocument();
     expect(screen.getByText("评测工具优化建议")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Benchmark 判据冲突" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "标注与 RAG 证据冲突" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "其他判分复核" })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "证据不足" })).toBeInTheDocument();
     fireEvent.click(screen.getAllByText("医学安全性")[0]);
     fireEvent.click(screen.getByText("召回证据未用于回答"));
     expect(screen.getAllByText("医学安全性").length).toBeGreaterThan(0);

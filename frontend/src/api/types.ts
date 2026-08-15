@@ -268,6 +268,13 @@ export interface AttributionDeductionAnalysis {
   deduction_id: string;
   dimension: string;
   deduction_validation: "supported" | "questionable" | "insufficient_evidence" | string;
+  evaluation_issue_category?:
+    | "none"
+    | "benchmark_criteria_conflict"
+    | "annotation_rag_conflict"
+    | "judge_logic_issue"
+    | "evidence_gap"
+    | string;
   severity?: "critical" | "high" | "medium" | "low" | string;
   rubric_contract?: {
     expected_behavior: string[];
@@ -353,6 +360,13 @@ export interface CaseAttributionAnalysis {
 
 export interface AttributionDiagnosticCluster {
   category: "cx_agent_issue" | "evaluation_review" | "insufficient_evidence" | string;
+  evaluation_issue_category?:
+    | "none"
+    | "benchmark_criteria_conflict"
+    | "annotation_rag_conflict"
+    | "judge_logic_issue"
+    | "evidence_gap"
+    | string;
   cause_code: string;
   cause_label: string;
   owner: string;

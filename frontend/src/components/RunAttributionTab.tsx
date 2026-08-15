@@ -977,6 +977,45 @@ function clusterCollapseItem(
   };
 }
 
+function EvaluationToolOptimizationGroup({
+  title,
+  description,
+  countLabel,
+  countColor,
+  clusters,
+  emptyDescription,
+}: {
+  title: string;
+  description: string;
+  countLabel: string;
+  countColor?: string;
+  clusters: NonNullable<AttributionTask["diagnostic_summary"]>["clusters"];
+  emptyDescription: string;
+}) {
+  return (
+    <section className="attribution-evaluation-group">
+      <div className="attribution-evaluation-group__head">
+        <div>
+          <h5>{title}</h5>
+          <p>{description}</p>
+        </div>
+        <Tag color={countColor}>{countLabel}</Tag>
+      </div>
+      {clusters.length ? (
+        <Collapse
+          className="attribution-cluster-list attribution-cluster-list--evaluation"
+          items={clusters.map(clusterCollapseItem)}
+        />
+      ) : (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description={emptyDescription}
+        />
+      )}
+    </section>
+  );
+}
+
 export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
   const summary = task.diagnostic_summary;
   if (!summary?.available_results) {
@@ -1006,9 +1045,25 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
   const evaluationClusters = clusters.filter(
     (cluster) => cluster.category === "evaluation_review"
   );
+  const benchmarkConflictClusters = evaluationClusters.filter(
+    (cluster) =>
+      cluster.evaluation_issue_category === "benchmark_criteria_conflict"
+  );
+  const annotationRagConflictClusters = evaluationClusters.filter(
+    (cluster) => cluster.evaluation_issue_category === "annotation_rag_conflict"
+  );
+  const judgeLogicClusters = evaluationClusters.filter(
+    (cluster) =>
+      !["benchmark_criteria_conflict", "annotation_rag_conflict"].includes(
+        cluster.evaluation_issue_category || "judge_logic_issue"
+      )
+  );
   const insufficientClusters = clusters.filter(
     (cluster) => cluster.category === "insufficient_evidence"
   );
+  const deductionCount = (
+    values: NonNullable<AttributionTask["diagnostic_summary"]>["clusters"]
+  ) => values.reduce((total, cluster) => total + cluster.deduction_count, 0);
   const unassignedClusters = cxAgentClusters.filter(
     (cluster) => !cluster.dimensions.length
   );
@@ -1110,28 +1165,47 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
           <div>
             <h4>评测工具优化建议</h4>
             <p>
-              汇总判分需复核与证据不足的问题，用于优化判据、判分模型和证据采集链路。
+              将 Benchmark 内部冲突、标注与 RAG 冲突、其他判分复核和证据不足分开汇总，避免混在同一类里误修。
             </p>
           </div>
           <Space size={6}>
-            <Tag color="orange">需复核 {evaluationClusters.length}</Tag>
-            <Tag>证据不足 {insufficientClusters.length}</Tag>
+            <Tag color="orange">需要复核 {validation.questionable || 0}</Tag>
+            <Tag>证据不足 {validation.insufficient_evidence || 0}</Tag>
           </Space>
         </div>
-        {evaluationClusters.length || insufficientClusters.length ? (
-          <Collapse
-            className="attribution-cluster-list"
-            items={[
-              ...evaluationClusters.map(clusterCollapseItem),
-              ...insufficientClusters.map(clusterCollapseItem),
-            ]}
+        <div className="attribution-evaluation-groups">
+          <EvaluationToolOptimizationGroup
+            title="Benchmark 判据冲突"
+            description="Benchmark 自身的适用条件、检查点、扣分规则或推荐回答互相矛盾、重叠或形成重复扣分；应先修正评测真值。"
+            countLabel={`${deductionCount(benchmarkConflictClusters)} 项冲突 · ${benchmarkConflictClusters.length} 个通用问题`}
+            countColor="red"
+            clusters={benchmarkConflictClusters}
+            emptyDescription="本次任务没有发现 Benchmark 自身判据冲突"
           />
-        ) : (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="本次任务暂未发现需要优化的评测工具问题"
+          <EvaluationToolOptimizationGroup
+            title="标注与 RAG 证据冲突"
+            description="标注或判分真值与实际召回的医学文献、说明书证据不一致，或结论超出了证据能支持的范围。"
+            countLabel={`${deductionCount(annotationRagConflictClusters)} 项冲突 · ${annotationRagConflictClusters.length} 个通用问题`}
+            countColor="volcano"
+            clusters={annotationRagConflictClusters}
+            emptyDescription="本次任务没有发现标注与 RAG 证据冲突"
           />
-        )}
+          <EvaluationToolOptimizationGroup
+            title="其他判分复核"
+            description="Benchmark 合同本身可执行，但判分过程可能误读完整上下文、条件限定、日期或扣分档位。"
+            countLabel={`${deductionCount(judgeLogicClusters)} 项待复核 · ${judgeLogicClusters.length} 个通用问题`}
+            countColor="orange"
+            clusters={judgeLogicClusters}
+            emptyDescription="本次任务没有其他需要复核的判分问题"
+          />
+          <EvaluationToolOptimizationGroup
+            title="证据不足"
+            description="现有调用链、RAG 审计或用户上下文不足以确认责任；先补齐证据，再判断应优化 AI 助手还是评测工具。"
+            countLabel={`${validation.insufficient_evidence || 0} 项证据不足 · ${insufficientClusters.length} 个待补齐问题`}
+            clusters={insufficientClusters}
+            emptyDescription="本次任务没有证据不足的问题"
+          />
+        </div>
       </section>
     </DashPanel>
   );

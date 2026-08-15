@@ -66,6 +66,7 @@ def score_eight_dimension_case(result: CaseResult) -> dict[str, Any]:
             "reference_answers": guideline.reference_answers,
             "deduction_rule": guideline.deduction_rule,
             "trigger": guideline.trigger,
+            "applicability_source": str(details.get("applicability_source", "")),
             "applicable": applicable,
             "score": score,
             "max_score": float(guideline.max_score),

@@ -172,6 +172,92 @@ def test_task_diagnostic_summary_does_not_merge_different_business_causes():
     assert len(summary["clusters"]) == 2
 
 
+def test_task_diagnostic_summary_splits_evaluation_tool_conflicts_for_legacy_results():
+    def stored(finding: str, owner: str = "benchmark"):
+        return {
+            "analysis": {
+                "score_health": {"status": "review_required"},
+                "deduction_analyses": [
+                    {
+                        "deduction_id": "guideline.g01",
+                        "dimension": "professional_accuracy",
+                        "severity": "high",
+                        "deduction_validation": "questionable",
+                        "issue_type": "factual_error",
+                        "root_cause_stage": "judge_validation",
+                        "finding": finding,
+                        "primary_cause": {
+                            "code": "judge_or_benchmark_issue",
+                            "label": finding,
+                            "owner": owner,
+                            "confidence": 0.9,
+                        },
+                    }
+                ],
+            }
+        }
+
+    summary = build_task_diagnostic_summary(
+        [
+            (
+                "case_benchmark",
+                stored("Benchmark 检查点与参考答案互相冲突，形成重复扣分"),
+            ),
+            (
+                "case_rag",
+                stored("标注真值与 RAG 召回的药品说明书相反，现有文献不支持该扣分"),
+            ),
+            (
+                "case_judge",
+                stored("判分模型忽略回答后半段，完整上下文已经给出该信息", "judge"),
+            ),
+        ]
+    )
+
+    categories = {
+        cluster["sample_ids"][0]: cluster["evaluation_issue_category"]
+        for cluster in summary["clusters"]
+    }
+    assert categories == {
+        "case_benchmark": "benchmark_criteria_conflict",
+        "case_rag": "annotation_rag_conflict",
+        "case_judge": "judge_logic_issue",
+    }
+
+
+def test_task_diagnostic_summary_keeps_explicit_evaluation_issue_category():
+    summary = build_task_diagnostic_summary(
+        [
+            (
+                "case_1",
+                {
+                    "analysis": {
+                        "score_health": {"status": "review_required"},
+                        "deduction_analyses": [
+                            {
+                                "deduction_id": "guideline.g01",
+                                "dimension": "medical_safety",
+                                "severity": "high",
+                                "deduction_validation": "questionable",
+                                "evaluation_issue_category": "annotation_rag_conflict",
+                                "finding": "简短结论中没有关键词也应保留结构化分类",
+                                "primary_cause": {
+                                    "code": "judge_or_benchmark_issue",
+                                    "label": "需要复核",
+                                    "owner": "benchmark",
+                                    "confidence": 0.8,
+                                },
+                            }
+                        ],
+                    }
+                },
+            )
+        ]
+    )
+
+    assert summary["clusters"][0]["evaluation_issue_category"] == "annotation_rag_conflict"
+
+
 def test_batch_attribution_runs_three_cases_concurrently_and_persists_items(
     initialized_db, monkeypatch
 ):

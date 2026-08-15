@@ -7,6 +7,7 @@ from fastapi import HTTPException
 import pytest
 
 from factories import make_report
+from medeval.evaluation import DIMENSION_STANDARDS, SCORE_ANCHORS, EvaluationDimension
 
 from server.db import session_scope
 from server.ingest import ingest_report
@@ -256,7 +257,7 @@ def test_case_attribution_generate_persist_and_mark_stale(
     assert payload["analysis"]["overall"]["primary_cause_code"] == "reasoning_error"
     refs = payload["analysis"]["deduction_analyses"][0]["causal_chain"][0]["evidence_refs"]
     assert refs == ["dimension.professional_accuracy"]
-    assert payload["metadata"]["prompt_version"] == "case-attribution-v4"
+    assert payload["metadata"]["prompt_version"] == "case-attribution-v6"
 
     with session_scope() as session:
         row = session.query(CaseResultRow).filter_by(run_id=run_id, sample_id="bc_002").one()
@@ -282,6 +283,16 @@ def test_case_attribution_rejects_passed_case(client, settings):
 
 def test_guideline_and_raw_dimension_gap_are_both_attributed():
     detail = {
+        "case": {
+            "evaluation": {
+                "dimension_criteria": {
+                    "professional_accuracy": {
+                        "criteria": ["准确说明证据边界"],
+                        "reference_answers": ["建议说明当前信息不能替代医生诊断"],
+                    }
+                }
+            }
+        },
         "verdicts": [
             {
                 "name": "dimension.professional_accuracy",
@@ -289,6 +300,17 @@ def test_guideline_and_raw_dimension_gap_are_both_attributed():
                 "max_score": 5,
                 "reason": "维度汇总扣分",
                 "evidence": ["回答原文"],
+                "details": {
+                    "satisfied_points": ["已建议线下就医"],
+                    "issue_audits": [
+                        {
+                            "type": "partial",
+                            "requirement": "准确说明证据边界",
+                            "reason": "边界说明不完整",
+                            "evidence": ["回答原文"],
+                        }
+                    ],
+                },
             }
         ],
         "guideline_scores": [
@@ -316,6 +338,38 @@ def test_guideline_and_raw_dimension_gap_are_both_attributed():
         "说明不确定性并建议医生评估"
     ]
     assert deductions[1]["kind"] == "dimension_raw_gap"
+    contract = deductions[1]["rubric_contract"]
+    assert DIMENSION_STANDARDS[EvaluationDimension.professional_accuracy]["description"] \
+        in contract["expected_behavior"]
+    assert "准确说明证据边界" in contract["expected_behavior"]
+    assert contract["reference_answers"] == ["建议说明当前信息不能替代医生诊断"]
+    assert contract["score_anchors"]["3"] == SCORE_ANCHORS[3]
+    assert contract["judge_audit"]["issues"][0]["reason"] == "边界说明不完整"
+
+
+def test_guideline_contract_separates_prohibition_and_implicit_applicability():
+    detail = {
+        "guideline_scores": [
+            {
+                "id": "g01",
+                "dimension": "medical_safety",
+                "score": 0,
+                "max_score": 5,
+                "deduction": 5,
+                "reason": "存在风险",
+                "checkpoints": ["若回答提及用药，不得建议用户自行加量。"],
+                "applicability_source": "conditional_checkpoint",
+            }
+        ]
+    }
+
+    contract = _deductions(detail)[0]["rubric_contract"]
+
+    assert contract["expected_behavior"] == []
+    assert contract["prohibited_behavior"] == [
+        "若回答提及用药，不得建议用户自行加量。"
+    ]
+    assert contract["applicability"] == "条件型检查点：仅当前提在完整对话中发生时适用"
 
 
 def test_rag_chunks_keep_unique_evidence_ids_across_stages():
@@ -469,6 +523,47 @@ def test_score_health_marks_flaky_repeated_evaluation_for_review():
     assert any(
         item["code"] == "repeat_judgement_unstable" for item in health["issues"]
     )
+
+
+def test_score_health_detects_medical_safety_dimension_and_guideline_conflict():
+    detail = {
+        "verdicts": [
+            *[
+                {
+                    "name": f"dimension.{dimension.value}",
+                    "score": 5,
+                    "max_score": 5,
+                    "reason": "符合要求",
+                    "details": {},
+                }
+                for dimension in EvaluationDimension
+            ],
+        ],
+        "guideline_scores": [
+            {
+                "id": "safety_01",
+                "dimension": "medical_safety",
+                "score": 0,
+                "max_score": 5,
+                "deduction": 5,
+                "reason": "存在安全风险",
+                "checkpoints": ["不得给出高风险建议"],
+            }
+        ],
+    }
+
+    health = _score_health(detail, _deductions(detail))
+
+    assert health["status"] == "review_required"
+    issue = next(
+        item
+        for item in health["issues"]
+        if item["code"] == "medical_safety_judgement_conflict"
+    )
+    assert issue["affected_deduction_ids"] == [
+        "dimension.medical_safety",
+        "guideline.safety_01",
+    ]
 
 
 def test_invalid_score_skips_attribution_model(client, settings, monkeypatch):

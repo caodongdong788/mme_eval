@@ -11,6 +11,8 @@ from collections import Counter
 import re
 from typing import Any, Iterable
 
+from .attribution_issue_categories import classify_evaluation_issue
+
 
 _SEVERITY_WEIGHT = {"critical": 4, "high": 3, "medium": 2, "low": 1}
 _VALIDATION_CATEGORY = {
@@ -78,7 +80,7 @@ def build_task_diagnostic_summary(
     """按复核结论 + 根因 + 责任模块聚合一批 Case。"""
     health_counts: Counter[str] = Counter()
     validation_counts: Counter[str] = Counter()
-    clusters: dict[tuple[str, str, str, str, str, str], dict[str, Any]] = {}
+    clusters: dict[tuple[str, str, str, str, str, str, str], dict[str, Any]] = {}
     available_results = 0
 
     for sample_id, stored in items:
@@ -97,6 +99,7 @@ def build_task_diagnostic_summary(
             validation = str(deduction.get("deduction_validation") or "insufficient_evidence")
             validation_counts[validation] += 1
             category = _VALIDATION_CATEGORY.get(validation, "insufficient_evidence")
+            evaluation_issue_category = classify_evaluation_issue(deduction)
             cause = _record(deduction.get("primary_cause"))
             code = str(cause.get("code") or "insufficient_evidence")
             owner = str(cause.get("owner") or "unknown")
@@ -105,6 +108,7 @@ def build_task_diagnostic_summary(
             cause_label = str(cause.get("label") or "原因待确认")
             key = (
                 category,
+                evaluation_issue_category,
                 code,
                 owner,
                 issue_type,
@@ -115,6 +119,7 @@ def build_task_diagnostic_summary(
                 key,
                 {
                     "category": category,
+                    "evaluation_issue_category": evaluation_issue_category,
                     "cause_code": code,
                     "cause_label": cause_label,
                     "owner": owner,
