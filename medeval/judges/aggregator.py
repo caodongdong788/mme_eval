@@ -45,6 +45,11 @@ async def _run_judge(
                 name=f"{judge.name}.error",
                 passed=False,
                 reason=f"judge crashed: {exc}",
+                details={
+                    "judge_error": True,
+                    "judge_error_stage": judge.name,
+                    "judge_error_message": str(exc),
+                },
             )
         ]
     try:

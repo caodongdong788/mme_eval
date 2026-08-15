@@ -13,7 +13,8 @@ import json
 
 from medeval.adapter.base import BaseAdapter, ChatResponse
 from medeval.config import parse_config
-from medeval.models import Level, TestCase, Turn, RunReport
+from medeval.evaluation import EvaluationDimension
+from medeval.models import JudgeVerdict, Level, TestCase, Turn, RunReport
 from medeval.service import (
     Artifacts,
     NullProgress,
@@ -167,6 +168,80 @@ def test_evaluate_notifies_completed_case_before_full_run_finishes():
         slow_case_gate.set()
         report = await task
         assert report.total == 2
+
+    asyncio.run(scenario())
+
+
+def test_evaluate_reruns_entire_case_once_after_judge_error():
+    """Judge 异常时必须重跑 Agent 对话，而不是只重判旧 trace。"""
+
+    class CountingAdapter(_StubAdapter):
+        def __init__(self):
+            self.calls = 0
+
+        async def chat(self, req) -> ChatResponse:
+            self.calls += 1
+            return await super().chat(req)
+
+    class FlakyDimensionJudge:
+        name = "dimension"
+
+        def __init__(self):
+            self.calls = 0
+
+        def fingerprint(self) -> str:
+            return "test-flaky-dimension"
+
+        async def judge(self, case, trace):
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("temporary judge outage")
+            return [
+                JudgeVerdict(
+                    name=f"dimension.{dimension.value}",
+                    passed=True,
+                    score=5,
+                    max_score=5,
+                )
+                for dimension in EvaluationDimension
+            ]
+
+    async def scenario() -> None:
+        adapter = CountingAdapter()
+        judge = FlakyDimensionJudge()
+        report = await evaluate(_config(), [_case()], adapter, [judge])
+        assert adapter.calls == 2
+        assert judge.calls == 2
+        assert report.results[0].judge_error is False
+        assert report.results[0].grade != "判分异常"
+
+    asyncio.run(scenario())
+
+
+def test_evaluate_stops_after_one_full_case_retry_when_judge_keeps_failing():
+    class CountingAdapter(_StubAdapter):
+        def __init__(self):
+            self.calls = 0
+
+        async def chat(self, req) -> ChatResponse:
+            self.calls += 1
+            return await super().chat(req)
+
+    class BrokenJudge:
+        name = "dimension"
+
+        def fingerprint(self) -> str:
+            return "test-broken-dimension"
+
+        async def judge(self, case, trace):
+            raise RuntimeError("persistent judge outage")
+
+    async def scenario() -> None:
+        adapter = CountingAdapter()
+        report = await evaluate(_config(), [_case()], adapter, [BrokenJudge()])
+        assert adapter.calls == 2
+        assert report.results[0].judge_error is True
+        assert report.results[0].grade == "判分异常"
 
     asyncio.run(scenario())
 

@@ -434,16 +434,19 @@ async def evaluate(
             restored_results.get(case.sample_id) for case in cases
         ]
         judge_sem = asyncio.Semaphore(config.run.judge_concurrency)
+        # 每个 Case 最多因判分服务异常而完整重跑一次。独立于 adapter.retry：
+        # adapter.retry 只重试单次请求；这里必须重新生成整段对话、RAG 和调用链证据。
+        judge_retry_attempts: dict[str, int] = {}
 
         async def judge_completed_case(
             index: int, _execution_case: TestCase, traces: list[ConversationTrace]
-        ) -> None:
+        ) -> bool:
             # single_turn 模式会临时展平动态对话；判分仍必须使用原始 Case 真值。
             case = cases[index]
             # 原地断点续跑时，完整 CaseResult 已增量落库。对话留痕仍会被
             # run_traces 复用并重写进最终产物，但无需再次消耗 Judge 配额。
             if case.sample_id in restored_results:
-                return
+                return False
             case_judging = getattr(progress, "case_judging", None)
             if callable(case_judging):
                 case_judging(case.sample_id)
@@ -457,7 +460,15 @@ async def evaluate(
                 run_results.append(result)
             folded = fold_n_runs([run_results])[0]
             folded_results[index] = folded
+            # 只在首次出现判分服务异常时要求执行器完整重跑该 Case。这里刻意
+            # 不通知平台“完成”，从而不会先落一份异常结果再被第二次覆盖。
+            if folded.judge_error:
+                attempts = judge_retry_attempts.get(case.sample_id, 0)
+                if attempts == 0:
+                    judge_retry_attempts[case.sample_id] = 1
+                    return True
             await _notify_case_completed(progress, folded)
+            return False
 
         # 每条用例独立成一条 Langfuse trace（按 session=run_name 分组，整段 run 可在
         # Sessions 视图整体回放）；judge 调用不纳入追踪。

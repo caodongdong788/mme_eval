@@ -376,7 +376,9 @@ async def run_cases(
     内层长度恒等于 ``repeat``。``on_progress(case, trace, run_index)`` 在每次
     (case, run) 完成后回调（兼容旧的 2 参数签名：缺省 ``run_index=0``）。
     ``on_case_complete(index, case, traces)`` 则在一条 Case 的所有重复执行完成后
-    调用，可返回 awaitable，用于立即判分和落库。
+    调用，可返回 awaitable，用于立即判分和落库。回调返回 ``True`` 时，执行器会
+    不把本轮判分写为终态并把该 Case 完整再跑一次（最多一次），适用于 Judge
+    调用异常后的自动恢复；第二次结果仍由回调正常落库，避免无限重试。
 
     ``executor='ray'`` 时改走分布式后端（worker 内按 ``adapter_type`` + ``adapter_config``
     自建 adapter，传入的 ``adapter`` 实例在 ray 路径下不参与对话）。其余参数语义不变。
@@ -415,18 +417,24 @@ async def run_cases(
     sem = asyncio.Semaphore(concurrency)
     traces: list[list[ConversationTrace]] = [[] for _ in range(len(cases))]
 
-    async def _wrap(i: int, case: TestCase):
+    async def _execute_case_attempt(
+        i: int, case: TestCase, whole_case_attempt: int
+    ) -> list[ConversationTrace]:
+        """执行一次完整 Case；Judge/落库回调必须在 adapter 并发槽位外运行。"""
         async with sem:
             if on_case_start:
                 pending = on_case_start(case)
                 if inspect.isawaitable(pending):
                     await pending
+
+            attempt_traces: list[ConversationTrace] = []
             for run_idx in range(repeat):
-                # 断点续跑：命中已落盘的成功留痕则直接复用，不调 adapter。
-                if resume_index is not None:
+                # 只允许在首次尝试中复用断点留痕。Judge 已异常时必须重新跑
+                # Agent、RAG 与调用链，不能把旧 trace 再送去判分。
+                if whole_case_attempt == 0 and resume_index is not None:
                     reused = resume_index.get((case.sample_id, run_idx))
                     if reused is not None and reused.error is None:
-                        traces[i].append(reused)
+                        attempt_traces.append(reused)
                         if on_progress:
                             try:
                                 on_progress(case, reused, run_idx)
@@ -455,18 +463,34 @@ async def run_cases(
                     tr = ConversationTrace(
                         messages=[], error=f"runner crashed: {e}"
                     )
-                traces[i].append(tr)
+                attempt_traces.append(tr)
                 if on_progress:
                     try:
                         on_progress(case, tr, run_idx)
                     except TypeError:
                         # 兼容老的 2 参回调签名
                         on_progress(case, tr)
-        # 判分/落库不占用 adapter 并发槽位，避免慢 Judge 阻塞下一条对话启动。
-        if on_case_complete:
-            pending = on_case_complete(i, case, list(traces[i]))
-            if inspect.isawaitable(pending):
-                await pending
+            return attempt_traces
+
+    async def _wrap(i: int, case: TestCase):
+        for whole_case_attempt in range(2):
+            attempt_traces = await _execute_case_attempt(i, case, whole_case_attempt)
+            # 判分/落库不占用 adapter 并发槽位，避免慢 Judge 阻塞下一条对话启动。
+            # 持久化保留每次实际执行的最后一个 trace。同 sample/run 键在恢复时
+            # 按最后一条读取，因此 Judge 异常后的有效重跑会覆盖首次留痕。
+            traces[i] = attempt_traces
+            retry_after_judge = False
+            if on_case_complete:
+                pending = on_case_complete(i, case, list(attempt_traces))
+                retry_after_judge = (
+                    await pending if inspect.isawaitable(pending) else bool(pending)
+                )
+            if not retry_after_judge or whole_case_attempt == 1:
+                break
+            log.warning(
+                "Judge failed for case %s; rerunning the entire case once",
+                case.sample_id,
+            )
 
     await asyncio.gather(*(_wrap(i, c) for i, c in enumerate(cases)))
     return traces
