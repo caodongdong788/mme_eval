@@ -95,6 +95,19 @@ def _rag_status_from_audit_snapshots(trace: dict[str, Any]) -> str | None:
 
     valid_audits = [item for item in audits if isinstance(item, dict)]
     if not valid_audits:
+        if trace.get("cx_literature_audit_fetched") is True:
+            return "not_triggered"
+        # 兼容上线前已完成的 cx-agent Case：该版本没有显式成功标记，但有
+        # cx session 且无审计错误时，空审计同样表示“未触发”，不应再展示为
+        # Langfuse 链路未同步。
+        identity = trace.get("evaluation_identity")
+        if (
+            isinstance(identity, dict)
+            and isinstance(identity.get("cx_session_id"), str)
+            and identity["cx_session_id"]
+            and not trace.get("cx_literature_audit_error")
+        ):
+            return "not_triggered"
         return None
 
     selected_count = 0

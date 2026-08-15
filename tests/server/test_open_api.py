@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from server.models_db import Benchmark, CaseResultRow, EvalRun, JudgeModelConfig
+from server.models_db import (
+    AttributionTask,
+    AttributionTaskItem,
+    Benchmark,
+    CaseResultRow,
+    EvalRun,
+    JudgeModelConfig,
+)
 
 
 def _open_headers(client, permissions: list[str] | None = None) -> dict[str, str]:
@@ -302,3 +309,152 @@ def test_open_api_returns_run_overview_metrics_without_case_data(client, session
     assert body["reliability"] == {"k": 3, "pass_at_k": 0.396}
     assert body["by_scenario"]["报告解读"] == {"total": 11, "passed": 2}
     assert "cases" not in body
+
+
+def test_open_api_returns_only_cx_agent_attribution_optimizations(client, session, settings):
+    headers = _open_headers(client, ["attributions:read"])
+    run = EvalRun(run_slug="attribution-open-api", name="归因 OpenAPI 测试", status="success")
+    session.add(run)
+    session.flush()
+    task = AttributionTask(
+        run_id=run.id,
+        judge_model_id=7,
+        judge_model_name="归因模型",
+        status="success",
+        requested_count=1,
+        total_count=1,
+        completed_count=1,
+        success_count=1,
+    )
+    session.add(task)
+    session.flush()
+    session.add(
+        CaseResultRow(
+            run_id=run.id,
+            sample_id="case_1",
+            scenario="潮热用药",
+            case_type="用药安全",
+        )
+    )
+    session.add(
+        AttributionTaskItem(
+            task_id=task.id,
+            sample_id="case_1",
+            status="success",
+            analysis_json={
+                "available": True,
+                "analysis": {
+                    "overall": {"summary": "回答没有使用已召回的药物禁忌证据"},
+                    "deduction_analyses": [
+                        {
+                            "deduction_id": "guideline.g01",
+                            "dimension": "professional_accuracy",
+                            "deduction_validation": "supported",
+                            "severity": "high",
+                            "issue_type": "factual_error",
+                            "root_cause_stage": "generation",
+                            "finding": "已召回证据但回答没有引用",
+                            "primary_cause": {
+                                "code": "rag_not_grounded",
+                                "label": "召回证据未用于回答",
+                                "owner": "generator",
+                            },
+                            "recommendations": [
+                                {
+                                    "priority": "P1",
+                                    "target": "提示词优化",
+                                    "action": "生成前逐条核对选中文献",
+                                }
+                            ],
+                        },
+                        {
+                            "deduction_id": "guideline.g02",
+                            "dimension": "medical_safety",
+                            "deduction_validation": "questionable",
+                            "finding": "判分模型忽略了回答后半段",
+                            "primary_cause": {
+                                "code": "judge_logic_issue",
+                                "label": "判分需复核",
+                                "owner": "judge",
+                            },
+                            "recommendations": [
+                                {
+                                    "priority": "P0",
+                                    "target": "判分模型",
+                                    "action": "修正判分上下文读取",
+                                }
+                            ],
+                        },
+                    ],
+                    "global_recommendations": [
+                        {
+                            "priority": "P1",
+                            "target": "回答生成",
+                            "action": "增加文献覆盖检查",
+                        },
+                        {
+                            "priority": "P0",
+                            "target": "Benchmark 判据",
+                            "action": "修正冲突规则",
+                        },
+                    ],
+                },
+            },
+        )
+    )
+    session.commit()
+
+    response = client.get("/api/open/v1/attribution-tasks", headers=headers)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["total"] == 1
+    output = body["items"][0]
+    assert output["id"] == task.id
+    assert output["report_url"] == (
+        f"{settings.frontend_url}/runs/{run.id}/attribution-tasks/{task.id}"
+    )
+    assert output["cx_agent_optimization_summary"]["cx_agent_case_count"] == 1
+    assert len(output["cx_agent_optimization_summary"]["clusters"]) == 1
+    case = output["cases"][0]
+    assert case["cx_agent_optimization"]["deductions"] == [
+        {
+            "deduction_id": "guideline.g01",
+            "dimension": "professional_accuracy",
+            "severity": "high",
+            "issue_type": "factual_error",
+            "root_cause_stage": "generation",
+            "finding": "已召回证据但回答没有引用",
+            "primary_cause": {
+                "code": "rag_not_grounded",
+                "label": "召回证据未用于回答",
+                "owner": "generator",
+            },
+            "root_cause_test": {},
+            "rag_diagnosis": {},
+            "recommendations": [
+                {
+                    "priority": "P1",
+                    "target": "提示词优化",
+                    "action": "生成前逐条核对选中文献",
+                    "expected_effect": "",
+                    "risk": "",
+                    "verification": "",
+                    "acceptance_criteria": "",
+                }
+            ],
+        }
+    ]
+    assert case["cx_agent_optimization"]["recommendations"][0]["target"] == "回答生成"
+    assert "判分模型" not in str(body)
+    assert "Benchmark 判据" not in str(body)
+
+    other_key = client.post(
+        "/api/config/open-api-keys",
+        json={"name": "仅评测查询测试 Key", "permissions": ["evaluations:read"]},
+    )
+    assert other_key.status_code == 201, other_key.text
+    forbidden = client.get(
+        "/api/open/v1/attribution-tasks",
+        headers={"X-MME-API-Key": other_key.json()["api_key"]},
+    )
+    assert forbidden.status_code == 403

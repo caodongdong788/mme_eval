@@ -9,7 +9,7 @@ const RAG_STATUS: Record<NonNullable<CaseRow["rag_status"]>, { label: string; ki
   failed: { label: "调用失败", kind: "fail" },
   triggered: { label: "已触发", kind: "warn" },
   not_triggered: { label: "未触发", kind: "muted" },
-  unknown: { label: "链路未同步", kind: "muted" },
+  unknown: { label: "快照未获取", kind: "muted" },
 };
 
 // 状态圆点 + 文字（去面状彩色 Tag；样式见 styles.css .status-dot）。

@@ -156,6 +156,7 @@ def create_attribution_task(
     sample_ids: list[str],
     judge_model_id: int,
     created_by: str | None,
+    include_passed: bool = False,
 ) -> AttributionTask:
     active = session.scalar(
         select(AttributionTask.id).where(
@@ -181,17 +182,24 @@ def create_attribution_task(
     unknown = [sample_id for sample_id in ordered_ids if sample_id not in by_sample]
     if unknown:
         raise HTTPException(status_code=422, detail=f"存在不属于当前评测的用例：{unknown[0]}")
-    failed_ids = [sample_id for sample_id in ordered_ids if not by_sample[sample_id].release_passed]
-    if not failed_ids:
-        raise HTTPException(status_code=422, detail="当前筛选结果没有不合格用例可归因")
+    target_ids = (
+        ordered_ids
+        if include_passed
+        else [sample_id for sample_id in ordered_ids if not by_sample[sample_id].release_passed]
+    )
+    if not target_ids:
+        raise HTTPException(
+            status_code=422,
+            detail="当前筛选结果没有可归因用例" if include_passed else "当前筛选结果没有不合格用例可归因",
+        )
     task = AttributionTask(
         run_id=run.id,
         judge_model_id=model.id,
         judge_model_name=model.name,
         status="queued",
         requested_count=len(ordered_ids),
-        total_count=len(failed_ids),
-        skipped_count=len(ordered_ids) - len(failed_ids),
+        total_count=len(target_ids),
+        skipped_count=len(ordered_ids) - len(target_ids),
         created_by=created_by,
     )
     session.add(task)
@@ -203,7 +211,7 @@ def create_attribution_task(
             status_code=409,
             detail="该评测已有进行中的归因任务，请等待完成后再发起",
         ) from exc
-    session.add_all(AttributionTaskItem(task_id=task.id, sample_id=sample_id) for sample_id in failed_ids)
+    session.add_all(AttributionTaskItem(task_id=task.id, sample_id=sample_id) for sample_id in target_ids)
     session.flush()
     return task
 

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..db import session_scope
 from ..jobs import get_job_runner
-from ..models_db import Benchmark, EvalRun, ScheduledEvaluation
+from ..models_db import Benchmark, CaseResultRow, EvalRun, JudgeModelConfig, ScheduledEvaluation
 from ..schemas import AdapterOverride, JudgeOverride, RunCreate, ScheduledEvaluationCreate, ScheduledEvaluationUpdate
 from ..settings import Settings, get_settings
 from . import runs as runs_svc
@@ -117,6 +117,11 @@ def _get_or_404(session: Session, task_id: int) -> ScheduledEvaluation:
 def _validate_references(session: Session, payload: ScheduledEvaluationCreate) -> None:
     if session.get(Benchmark, payload.benchmark_id) is None:
         raise HTTPException(status_code=404, detail=f"benchmark {payload.benchmark_id} 不存在")
+    if (
+        payload.auto_attribution_enabled
+        and session.get(JudgeModelConfig, payload.auto_attribution_model_id) is None
+    ):
+        raise HTTPException(status_code=404, detail="自动归因所选模型不存在")
 
 
 def list_scheduled_evaluations(session: Session) -> list[ScheduledEvaluation]:
@@ -281,6 +286,64 @@ async def launch_scheduled_evaluation(
                 failed_run.error_msg = f"定时任务提交执行队列失败：{exc}"[:2000]
         raise
     return plan
+
+
+async def start_configured_attribution(run_id: int) -> int | None:
+    """按定时任务配置为本次已完成评测自动创建归因任务。
+
+    归因范围仅由 Case 的综合评价 ``grade`` 决定；人工创建归因任务仍保持原有的
+    “仅不合格 Case”行为。创建和提交归因 worker 分开事务，避免后台任务读到未提交数据。
+    """
+    from . import attribution_tasks
+
+    attribution_task_id: int | None = None
+    try:
+        with session_scope() as session:
+            run = session.get(EvalRun, run_id)
+            if run is None or run.trigger_type != "scheduled" or not run.scheduled_evaluation_id:
+                return None
+            schedule = session.get(ScheduledEvaluation, run.scheduled_evaluation_id)
+            if schedule is None or not schedule.auto_attribution_enabled:
+                return None
+
+            grades = list(dict.fromkeys(schedule.auto_attribution_grades or []))
+            if not grades or not schedule.auto_attribution_model_id:
+                logger.warning("定时任务 #%s 自动归因配置无效，已跳过", schedule.id)
+                return None
+            sample_ids = list(session.scalars(
+                select(CaseResultRow.sample_id)
+                .where(
+                    CaseResultRow.run_id == run.id,
+                    CaseResultRow.grade.in_(grades),
+                )
+                .order_by(CaseResultRow.sample_id)
+            ))
+            if not sample_ids:
+                logger.info("定时任务 #%s 本次无命中自动归因范围的 Case", schedule.id)
+                return None
+            task = attribution_tasks.create_attribution_task(
+                session,
+                run,
+                sample_ids=sample_ids,
+                judge_model_id=schedule.auto_attribution_model_id,
+                created_by=schedule.created_by or "定时任务自动归因",
+                include_passed=True,
+            )
+            attribution_task_id = task.id
+    except Exception:  # noqa: BLE001 - 自动归因不得将已成功评测标为失败
+        logger.exception("run #%s 自动创建归因任务失败", run_id)
+        return None
+
+    if attribution_task_id is not None:
+        try:
+            attribution_tasks.start_attribution_task(attribution_task_id)
+        except Exception:  # noqa: BLE001 - 保留已创建任务，方便人工恢复
+            logger.exception("run #%s 自动归因任务 #%s 启动失败", run_id, attribution_task_id)
+            attribution_tasks.mark_attribution_task_start_failed(
+                attribution_task_id, RuntimeError("自动归因任务提交失败")
+            )
+            return None
+    return attribution_task_id
 
 
 async def _scheduler_loop() -> None:

@@ -254,6 +254,10 @@ class ScheduledEvaluation(Base):
     enable_judge: Mapped[bool] = mapped_column(Boolean, default=True)
     judge_model_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     user_simulator_model_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # 评测完成后按综合评价范围自动创建归因任务；默认关闭，历史任务行为不变。
+    auto_attribution_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    auto_attribution_grades: Mapped[list[str]] = mapped_column(JSON, default=list)
+    auto_attribution_model_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     next_run_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, index=True)
     last_run_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
@@ -316,7 +320,7 @@ class CaseResultRow(Base):
 
 
 class AttributionTask(Base):
-    """一批不合格用例的 AI 归因任务。
+    """一批用例的 AI 归因任务。
 
     任务和逐 Case 结果分表保存，页面可以轮询到已完成项，不需要等待整批 LLM 调用结束。
     """

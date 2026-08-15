@@ -190,7 +190,7 @@ export function PairwiseDetailSummaryCard({
             showIcon
             style={{ marginTop: 14 }}
             message={`本结论只基于 ${ragScope.rag_side} 侧（RAG 组）真实触发 RAG 的 ${ragScope.selected_cases} 题`}
-            description={`共有 ${ragScope.common_cases} 题，排除未触发或链路未知 ${ragScope.excluded_cases} 题（未知 ${ragScope.unknown_cases} 题）。`}
+            description={`共有 ${ragScope.common_cases} 题，排除未触发或未获取快照 ${ragScope.excluded_cases} 题（未获取 ${ragScope.unknown_cases} 题）。`}
           />
         )}
         <div className="runs-kpi-row runs-kpi-row--overview" style={{ marginTop: 16, marginBottom: 0 }}>

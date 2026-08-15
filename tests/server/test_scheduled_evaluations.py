@@ -1,7 +1,14 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 
-from server.models_db import Benchmark, EvalRun, ScheduledEvaluation
+from server.models_db import (
+    AttributionTask,
+    Benchmark,
+    CaseResultRow,
+    EvalRun,
+    JudgeModelConfig,
+    ScheduledEvaluation,
+)
 from server.services.scheduled_evaluations import compute_next_run_at
 from server.services.scheduled_evaluations import fetch_latest_active_deeptrace_version_name
 from server.services.scheduled_evaluations import run_due_scheduled_evaluations_once
@@ -116,6 +123,58 @@ def test_failed_due_schedule_is_retried_after_backoff(session, monkeypatch):
     assert "queue unavailable" in refreshed.last_error
     assert before + timedelta(minutes=4, seconds=50) <= refreshed.next_run_at
     assert refreshed.next_run_at <= datetime.utcnow() + timedelta(minutes=5, seconds=10)
+
+
+def test_scheduled_auto_attribution_uses_selected_grades(session, monkeypatch):
+    from server.services import attribution_tasks, scheduled_evaluations as service
+
+    benchmark = Benchmark(name="自动归因范围测试集", source="offline")
+    model = JudgeModelConfig(
+        name="自动归因模型", provider="openai", model="judge", api_key="test-key"
+    )
+    session.add_all([benchmark, model])
+    session.flush()
+    schedule = ScheduledEvaluation(
+        name="自动归因定时任务",
+        benchmark_id=benchmark.id,
+        enable_judge=True,
+        auto_attribution_enabled=True,
+        auto_attribution_grades=["良好", "不合格"],
+        auto_attribution_model_id=model.id,
+    )
+    session.add(schedule)
+    session.flush()
+    run = EvalRun(
+        run_slug="auto-attribution-run",
+        name="自动归因 run",
+        status="success",
+        trigger_type="scheduled",
+        benchmark_id=benchmark.id,
+        scheduled_evaluation_id=schedule.id,
+    )
+    session.add(run)
+    session.flush()
+    session.add_all([
+        CaseResultRow(run_id=run.id, sample_id="good", scenario="x", grade="良好", release_passed=True),
+        CaseResultRow(run_id=run.id, sample_id="failed", scenario="x", grade="不合格", release_passed=False),
+        CaseResultRow(run_id=run.id, sample_id="pass", scenario="x", grade="合格", release_passed=True),
+    ])
+    session.commit()
+    run_id = run.id
+
+    started: list[int] = []
+    monkeypatch.setattr(attribution_tasks, "start_attribution_task", lambda task_id: started.append(task_id))
+
+    task_id = asyncio.run(service.start_configured_attribution(run_id))
+
+    assert task_id is not None
+    session.expire_all()
+    task = session.get(AttributionTask, task_id)
+    assert task is not None
+    assert task.requested_count == 2
+    assert task.total_count == 2
+    assert task.skipped_count == 0
+    assert started == [task_id]
 
 
 def test_fetches_latest_active_deeptrace_version_name(settings):

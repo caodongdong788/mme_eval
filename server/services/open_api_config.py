@@ -19,6 +19,7 @@ OPEN_API_PERMISSIONS: dict[str, str] = {
     "judge_models:read": "读取判分模型",
     "evaluations:create": "创建评测任务",
     "evaluations:read": "查询评测任务状态",
+    "attributions:read": "查询归因任务与 CX-Agent 优化建议",
 }
 
 

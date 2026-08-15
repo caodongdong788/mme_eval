@@ -51,7 +51,8 @@ def _unique_recommendations(values: Iterable[Any], limit: int = 8) -> list[dict[
     return output
 
 
-def _recommendation_category(item: dict[str, Any]) -> str:
+def recommendation_category(item: dict[str, Any]) -> str:
+    """按优化目标归类建议，供任务汇总和 Open API 使用。"""
     text = f"{item.get('target') or ''} {item.get('action') or ''}"
     if re.search(r"benchmark|judge|评测|判分|判据|评分", text, re.IGNORECASE):
         return "evaluation_review"
@@ -155,11 +156,11 @@ def build_task_diagnostic_summary(
                 cluster["findings"].append(finding)
             cluster["recommendations"].extend(
                 item for item in deduction.get("recommendations") or []
-                if isinstance(item, dict) and _recommendation_category(item) == category
+                if isinstance(item, dict) and recommendation_category(item) == category
             )
             cluster["recommendations"].extend(
                 item for item in global_recommendations
-                if _recommendation_category(item) == category
+                if recommendation_category(item) == category
             )
             verification = _record(analysis.get("verification_plan"))
             if verification:

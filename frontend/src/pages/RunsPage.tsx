@@ -151,15 +151,24 @@ export default function RunsPage() {
       render: (s: string, r: RunSummary) => {
         if (s === "running" || s === "pending") {
           const p = progress[r.id]?.progress;
+          const percent = Math.max(0, Math.min(100, Number(p?.percent) || 0));
           return (
-            <Space direction="vertical" size={2} style={{ minWidth: 140 }}>
+            <div className="runs-table__running-status">
               <RunStatusTag status={s} />
               {p && (
                 <Tooltip title={`${p.current_label || ""} ${p.done || 0}/${p.total || 0}`}>
-                  <Progress percent={p.percent || 0} size="small" strokeColor="var(--runs-purple)" />
+                  <div className="runs-table__progress-row">
+                    <Progress
+                      percent={percent}
+                      showInfo={false}
+                      size="small"
+                      strokeColor="var(--runs-purple)"
+                    />
+                    <span className="runs-table__progress-text">{percent.toFixed(1)}%</span>
+                  </div>
                 </Tooltip>
               )}
-            </Space>
+            </div>
           );
         }
         if (s === "failed") {

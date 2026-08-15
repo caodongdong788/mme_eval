@@ -93,6 +93,7 @@ async def _run_one(
     cx_langfuse_trace_ids: list[str] = []
     cx_evaluation_share_url: str | None = None
     cx_literature_audits: list[dict] = []
+    cx_literature_audit_fetched = False
     cx_literature_audit_error: str | None = None
     simulation_trace: list[dict] = []
     simulation_state: SimulationState | None = None
@@ -319,6 +320,8 @@ async def _run_one(
     if callable(fetch_literature_audits):
         try:
             cx_literature_audits = await fetch_literature_audits(session_id)
+            # 空数组也是一个明确事实：该会话未产生医学文献检索审计，而非接口未同步。
+            cx_literature_audit_fetched = True
         except Exception as exc:  # noqa: BLE001 - 观测增强失败不得覆盖评测结论
             cx_literature_audit_error = str(exc)
 
@@ -336,6 +339,7 @@ async def _run_one(
         langfuse_trace_ids=cx_langfuse_trace_ids,
         cx_evaluation_share_url=cx_evaluation_share_url,
         cx_literature_audits=cx_literature_audits,
+        cx_literature_audit_fetched=cx_literature_audit_fetched,
         cx_literature_audit_error=cx_literature_audit_error,
         evaluation_identity=evaluation_identity,
         simulation_trace=simulation_trace,

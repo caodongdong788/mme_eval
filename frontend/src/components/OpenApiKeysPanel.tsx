@@ -22,6 +22,7 @@ const PERMISSIONS: Array<{ value: OpenApiPermission; label: string; description:
   { value: "judge_models:read", label: "读取判分模型", description: "查询可用判分模型" },
   { value: "evaluations:create", label: "创建评测任务", description: "通过 API 发起评测" },
   { value: "evaluations:read", label: "查询任务状态", description: "查看评测进度和结果" },
+  { value: "attributions:read", label: "查询归因任务", description: "查看 CX-Agent 优化建议和用例归因明细" },
 ];
 
 const permissionLabels = Object.fromEntries(PERMISSIONS.map((item) => [item.value, item.label]));

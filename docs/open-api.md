@@ -27,6 +27,7 @@ X-MME-API-Key: mme_xxxxxxxxxxxxxxxxx
 | `judge_models:read` | 查询判分模型 |
 | `evaluations:create` | 创建评测任务 |
 | `evaluations:read` | 查询单个或批量评测任务结果 |
+| `attributions:read` | 查询归因任务的 CX-Agent 优化建议 |
 
 ## 2. 推荐调用流程
 
@@ -301,7 +302,94 @@ curl -sS "$MME_BASE_URL/api/open/v1/evaluations?trigger_type=scheduled&status=su
 | `other_cases` | 没有以上四种最终评级的用例数量，如历史数据缺少评级或执行异常 |
 | `failed_cases` | 所有最终未通过的用例数量；它可能包含 `unqualified_cases` 之外的异常未通过用例 |
 
-## 8. Python 调用模板
+## 8. 查询归因任务的 CX-Agent 优化建议
+
+`GET /api/open/v1/attribution-tasks`
+
+所需权限：`attributions:read`
+
+该接口用于将已完成或进行中的归因任务提供给外部自动化程序。它**只返回已经确认属于 CX-Agent 的优化建议**：
+
+- 任务级：同类 Case 合并后的 CX-Agent 通用优化点；
+- Case 级：该 Case 中有证据支持的扣分项、根因、RAG 诊断与 CX-Agent 优化建议；
+- 不返回 Benchmark 判据冲突、判分复核、标注与 RAG 冲突、证据不足等评测工具优化内容。
+
+查询参数：
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `run_id` | integer | 否 | 全部 | 仅查询指定评测任务下的归因任务 |
+| `status` | string | 否 | 全部 | `queued`、`running`、`success`、`partial`、`failed` |
+| `limit` | integer | 否 | `20` | 每页归因任务数，1–50 |
+| `offset` | integer | 否 | `0` | 分页偏移量 |
+
+```bash
+curl -sS "$MME_BASE_URL/api/open/v1/attribution-tasks?run_id=35&status=success" \
+  -H "X-MME-API-Key: $MME_API_KEY"
+```
+
+成功响应：
+
+```json
+{
+  "total": 1,
+  "items": [
+    {
+      "id": 5,
+      "run_id": 35,
+      "run_name": "真实患者集回归",
+      "report_url": "https://mme.senzco.com/runs/35/attribution-tasks/5",
+      "status": "success",
+      "total_count": 23,
+      "completed_count": 23,
+      "success_count": 23,
+      "failed_count": 0,
+      "cx_agent_optimization_summary": {
+        "cx_agent_case_count": 23,
+        "clusters": [
+          {
+            "cause_label": "召回证据未用于回答",
+            "dimensions": ["专业准确性与边界"],
+            "case_count": 4,
+            "priority": "P1",
+            "recommendations": [
+              {
+                "target": "提示词优化",
+                "action": "生成回答前逐条核对选中文献"
+              }
+            ]
+          }
+        ]
+      },
+      "cases": [
+        {
+          "sample_id": "case_12",
+          "scenario": "升白片用药",
+          "case_type": "用药方法与药物安全",
+          "status": "success",
+          "cx_agent_optimization": {
+            "summary": "回答未使用已召回的关键风险证据",
+            "deductions": [
+              {
+                "deduction_id": "guideline.g02",
+                "dimension": "professional_accuracy",
+                "finding": "已召回证据但回答没有引用",
+                "primary_cause": {"label": "召回证据未用于回答", "owner": "generator"},
+                "recommendations": [{"target": "提示词优化", "action": "增加文献覆盖检查"}]
+              }
+            ],
+            "recommendations": []
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+`report_url` 可直接打开该归因任务的详情页。任务正在执行时，已完成 Case 会立即出现在 `cases` 中；尚未完成、失败或评测侧需要复核的 Case，其 `cx_agent_optimization.deductions` 会为空。
+
+## 9. Python 调用模板
 
 ```python
 import os
@@ -357,7 +445,7 @@ if run["status"] != "success":
 print(f"评测完成，run_id={run['id']}，看板：{run['dashboard_url']}")
 ```
 
-## 9. 错误码
+## 10. 错误码
 
 | 状态码 | 说明 | 常见处理方式 |
 | --- | --- | --- |
@@ -369,7 +457,7 @@ print(f"评测完成，run_id={run['id']}，看板：{run['dashboard_url']}")
 | `503` | 平台尚未创建可用 API Key | 请平台管理员在「Open API」页签创建并授权 |
 | `5xx` | 平台暂时异常 | 使用指数退避重试查询；创建任务前先确认是否已创建成功，避免重复任务 |
 
-## 10. 给 AI 调用方的约束
+## 11. 给 AI 调用方的约束
 
 1. 只能调用本文列出的 `/api/open/v1` 接口，不要尝试调用平台后台管理接口。
 2. API Key 只能从安全环境变量读取，绝不在回复中输出其完整值。

@@ -625,6 +625,9 @@ class ConversationTrace(BaseModel):
     # 评测结束、账号释放前从 cx-agent 测试审计接口固化的医学文献 RAG 原始命中。
     # Langfuse 可能截断工具输出；该快照保留完整 Top-K chunk 供 MME 长期审计。
     cx_literature_audits: list[dict[str, Any]] = Field(default_factory=list)
+    # 审计接口是否已成功返回。空 audits 在该标记为真时表示 Agent 未触发文献检索，
+    # 不是“尚未同步”；默认 False 兼容历史留痕和非 cx-agent adapter。
+    cx_literature_audit_fetched: bool = False
     cx_literature_audit_error: str | None = None
     # 专用测试账号的领取/重置证据与请求前画像快照。仅观测、不参与判分。
     evaluation_identity: dict[str, Any] = Field(default_factory=dict)

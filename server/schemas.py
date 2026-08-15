@@ -237,6 +237,11 @@ class ScheduledEvaluationCreate(BaseModel):
     enable_judge: bool = True
     judge_model_id: Optional[int] = None
     user_simulator_model_id: Optional[int] = None
+    auto_attribution_enabled: bool = False
+    auto_attribution_grades: list[Literal["优秀", "良好", "合格", "不合格"]] = Field(
+        default_factory=list
+    )
+    auto_attribution_model_id: Optional[int] = None
 
     @field_validator("name")
     @classmethod
@@ -265,6 +270,14 @@ class ScheduledEvaluationCreate(BaseModel):
             self.weekdays = []
         if not self.enable_judge and self.judge_model_id is not None:
             raise ValueError("未启用判分模型时不能选择打分模型")
+        self.auto_attribution_grades = list(dict.fromkeys(self.auto_attribution_grades))
+        if self.auto_attribution_enabled:
+            if not self.enable_judge:
+                raise ValueError("自动归因需要启用 LLM 判分")
+            if not self.auto_attribution_model_id:
+                raise ValueError("自动归因需要选择归因模型")
+            if not self.auto_attribution_grades:
+                raise ValueError("请至少选择一个自动归因的综合评价范围")
         return self
 
 
@@ -283,6 +296,9 @@ class ScheduledEvaluationUpdate(BaseModel):
     enable_judge: Optional[bool] = None
     judge_model_id: Optional[int] = None
     user_simulator_model_id: Optional[int] = None
+    auto_attribution_enabled: Optional[bool] = None
+    auto_attribution_grades: Optional[list[Literal["优秀", "良好", "合格", "不合格"]]] = None
+    auto_attribution_model_id: Optional[int] = None
 
 
 class ScheduledEvaluationOut(ScheduledEvaluationCreate):
@@ -424,6 +440,100 @@ class OpenEvaluationBatchOut(BaseModel):
     items: list[OpenEvaluationBatchItem]
 
 
+class OpenAttributionRecommendation(BaseModel):
+    priority: str = ""
+    target: str = ""
+    action: str = ""
+    expected_effect: str = ""
+    risk: str = ""
+    verification: str = ""
+    acceptance_criteria: str = ""
+
+
+class OpenAttributionDeduction(BaseModel):
+    deduction_id: str
+    dimension: str = ""
+    severity: str = "medium"
+    issue_type: str = "other"
+    root_cause_stage: str = ""
+    finding: str = ""
+    primary_cause: dict[str, Any] = Field(default_factory=dict)
+    root_cause_test: dict[str, Any] = Field(default_factory=dict)
+    rag_diagnosis: dict[str, Any] = Field(default_factory=dict)
+    recommendations: list[OpenAttributionRecommendation] = Field(default_factory=list)
+
+
+class OpenAttributionCaseOptimization(BaseModel):
+    summary: str = ""
+    deductions: list[OpenAttributionDeduction] = Field(default_factory=list)
+    recommendations: list[OpenAttributionRecommendation] = Field(default_factory=list)
+
+
+class OpenAttributionCaseOut(BaseModel):
+    sample_id: str
+    scenario: str = ""
+    case_type: str = ""
+    status: str
+    attempt_count: int = 0
+    error_msg: str = ""
+    attribution_available: bool = False
+    started_at: Optional[ApiDateTime] = None
+    finished_at: Optional[ApiDateTime] = None
+    cx_agent_optimization: OpenAttributionCaseOptimization
+
+
+class OpenAttributionCluster(BaseModel):
+    cause_code: str = ""
+    cause_label: str = ""
+    owner: str = ""
+    issue_type: str = "other"
+    issue_types: list[str] = Field(default_factory=list)
+    root_cause_stage: str = ""
+    sample_ids: list[str] = Field(default_factory=list)
+    deduction_ids: list[str] = Field(default_factory=list)
+    dimensions: list[str] = Field(default_factory=list)
+    case_count: int = 0
+    deduction_count: int = 0
+    priority: str = "P2"
+    confidence: float = 0
+    summary: str = ""
+    examples: list[str] = Field(default_factory=list)
+    recommendations: list[OpenAttributionRecommendation] = Field(default_factory=list)
+    verification_plan: dict[str, Any] = Field(default_factory=dict)
+
+
+class OpenAttributionTaskSummary(BaseModel):
+    cx_agent_case_count: int = 0
+    clusters: list[OpenAttributionCluster] = Field(default_factory=list)
+
+
+class OpenAttributionTaskOut(BaseModel):
+    id: int
+    run_id: int
+    run_name: str = ""
+    report_url: str
+    judge_model_id: int
+    judge_model_name: str = ""
+    status: str
+    requested_count: int
+    total_count: int
+    skipped_count: int
+    completed_count: int
+    success_count: int
+    failed_count: int
+    error_msg: str = ""
+    created_at: Optional[ApiDateTime] = None
+    started_at: Optional[ApiDateTime] = None
+    finished_at: Optional[ApiDateTime] = None
+    cx_agent_optimization_summary: OpenAttributionTaskSummary
+    cases: list[OpenAttributionCaseOut] = Field(default_factory=list)
+
+
+class OpenAttributionTaskBatchOut(BaseModel):
+    total: int
+    items: list[OpenAttributionTaskOut]
+
+
 class CaseAttributionOut(BaseModel):
     """单个用例的持久化 AI 归因；未生成时 analysis 为 null。"""
 
@@ -482,6 +592,7 @@ OpenApiPermission = Literal[
     "judge_models:read",
     "evaluations:create",
     "evaluations:read",
+    "attributions:read",
 ]
 
 

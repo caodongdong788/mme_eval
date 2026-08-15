@@ -2180,6 +2180,36 @@ a.ant-typography-secondary:hover {
   color: var(--runs-text);
   font-weight: 500;
 }
+.runs-table__running-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+.runs-table__progress-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+.runs-table__progress-row .ant-progress {
+  min-width: 0;
+  margin: 0;
+  line-height: 1;
+}
+.runs-table__progress-row .ant-progress-outer {
+  margin: 0;
+  padding: 0;
+}
+.runs-table__progress-text {
+  color: var(--runs-text-muted);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
 .dash-table__danger-link,
 .dash-table__danger-btn,
 .runs-table__danger-btn {

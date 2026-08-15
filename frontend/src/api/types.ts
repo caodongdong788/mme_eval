@@ -167,6 +167,9 @@ export interface ScheduledEvaluation {
   enable_judge: boolean;
   judge_model_id?: number | null;
   user_simulator_model_id?: number | null;
+  auto_attribution_enabled: boolean;
+  auto_attribution_grades: Array<"优秀" | "良好" | "合格" | "不合格">;
+  auto_attribution_model_id?: number | null;
   next_run_at?: string | null;
   last_run_at?: string | null;
   last_error: string;
@@ -570,7 +573,8 @@ export type OpenApiPermission =
   | "benchmarks:read"
   | "judge_models:read"
   | "evaluations:create"
-  | "evaluations:read";
+  | "evaluations:read"
+  | "attributions:read";
 
 export interface OpenApiAccessKey {
   id: number;

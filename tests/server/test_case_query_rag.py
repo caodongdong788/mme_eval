@@ -60,3 +60,24 @@ def test_rag_status_prefers_cx_agent_audit_when_langfuse_is_not_synced():
 def test_rag_status_uses_audit_snapshot_for_empty_retrieval():
     detail = {"trace": {"cx_literature_audits": [{"selectedSourceCount": 0}]}}
     assert case_rag_status(row(detail)) == "miss"
+
+
+def test_rag_status_marks_successful_empty_audit_as_not_triggered():
+    detail = {
+        "trace": {
+            "cx_literature_audits": [],
+            "cx_literature_audit_fetched": True,
+        }
+    }
+    assert case_rag_status(row(detail)) == "not_triggered"
+
+
+def test_rag_status_handles_legacy_cx_empty_audit_as_not_triggered():
+    detail = {
+        "trace": {
+            "cx_literature_audits": [],
+            "cx_literature_audit_error": None,
+            "evaluation_identity": {"cx_session_id": "cx-session-1"},
+        }
+    }
+    assert case_rag_status(row(detail)) == "not_triggered"

@@ -61,6 +61,7 @@ def init_db(settings: Settings | None = None) -> None:
     _backfill_case_rag_status_from_audits(engine)
     _migrate_case_judge_error(engine)
     _migrate_eval_run_trigger_type(engine)
+    _migrate_scheduled_evaluation_auto_attribution(engine)
     _migrate_eval_run_scheduled_evaluation_id(engine)
     _migrate_attribution_task_item_attempt_count(engine)
     _migrate_attribution_task_item_analysis(engine)
@@ -248,6 +249,36 @@ def _migrate_eval_run_scheduled_evaluation_id(engine) -> None:
                 )
                 .values(scheduled_evaluation_id=task.id)
             )
+
+
+def _migrate_scheduled_evaluation_auto_attribution(engine) -> None:
+    """为已有定时任务补齐自动归因配置，默认维持关闭。"""
+    inspector = inspect(engine)
+    if "scheduled_evaluation" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("scheduled_evaluation")}
+    with engine.begin() as connection:
+        if "auto_attribution_enabled" not in columns:
+            connection.exec_driver_sql(
+                "ALTER TABLE scheduled_evaluation "
+                "ADD COLUMN auto_attribution_enabled BOOLEAN DEFAULT FALSE"
+            )
+        if "auto_attribution_grades" not in columns:
+            connection.exec_driver_sql(
+                "ALTER TABLE scheduled_evaluation ADD COLUMN auto_attribution_grades JSON"
+            )
+        if "auto_attribution_model_id" not in columns:
+            connection.exec_driver_sql(
+                "ALTER TABLE scheduled_evaluation ADD COLUMN auto_attribution_model_id INTEGER"
+            )
+        connection.execute(
+            text(
+                "UPDATE scheduled_evaluation "
+                "SET auto_attribution_grades = :grades "
+                "WHERE auto_attribution_grades IS NULL"
+            ),
+            {"grades": '["不合格"]'},
+        )
 
 
 def _migrate_legacy_open_api_key(engine) -> None:

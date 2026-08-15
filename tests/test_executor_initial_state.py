@@ -16,6 +16,11 @@ class _CaptureAdapter(BaseAdapter):
         return ChatResponse(reply=f"第{len(self.requests)}轮回答")
 
 
+class _AuditCaptureAdapter(_CaptureAdapter):
+    async def fetch_literature_audits(self, mme_session_id: str) -> list[dict]:
+        return []
+
+
 def test_runner_passes_same_initial_state_through_multiturn_metadata() -> None:
     case = TestCase.model_validate(
         {
@@ -77,3 +82,21 @@ def test_runner_passes_resolved_turn_images_to_adapter() -> None:
 
     assert trace.error is None
     assert adapter.requests[0].images == ["data:image/jpeg;base64,aGVsbG8="]
+
+
+def test_runner_marks_successful_empty_literature_audit_as_fetched() -> None:
+    case = TestCase.model_validate(
+        {
+            "schema_version": "2.0",
+            "sample_id": "empty_audit_case",
+            "scenario": "医学文献 RAG",
+            "level": "L2",
+            "turns": [{"role": "user", "content": "普通咨询"}],
+            "evaluation": {},
+        }
+    )
+
+    trace = asyncio.run(_run_one(case, _AuditCaptureAdapter(), timeout_s=5, retry=0))
+
+    assert trace.cx_literature_audits == []
+    assert trace.cx_literature_audit_fetched is True

@@ -22,11 +22,13 @@ from ..schemas import (
     OpenEvaluationOut,
     OpenEvaluationGradeResult,
     OpenEvaluationResult,
+    OpenAttributionTaskBatchOut,
     OpenJudgeModelOut,
     RunCreate,
 )
 from ..services import benchmark_catalog as benchmark_svc
 from ..services import judge_models as judge_models_svc
+from ..services import open_attribution_api as open_attribution_api_svc
 from ..services import runs as runs_svc
 from .runs import build_eval_job
 
@@ -270,6 +272,39 @@ def list_open_evaluations(
             for run in runs
         ],
     )
+
+
+@router.get(
+    "/attribution-tasks",
+    response_model=OpenAttributionTaskBatchOut,
+    summary="查询归因任务的 CX-Agent 优化建议",
+    dependencies=[Depends(require_open_api_permission("attributions:read"))],
+)
+def list_open_attribution_tasks(
+    run_id: int | None = Query(default=None, gt=0, description="可选：仅查询某个评测任务的归因任务"),
+    status: str | None = Query(
+        default=None,
+        description="可选：queued/running/success/partial/failed",
+    ),
+    limit: int = Query(default=20, ge=1, le=50),
+    offset: int = Query(default=0, ge=0),
+    session: Session = Depends(get_session),
+) -> OpenAttributionTaskBatchOut:
+    valid_statuses = {"queued", "running", "success", "partial", "failed"}
+    if status is not None and status not in valid_statuses:
+        raise HTTPException(
+            status_code=422,
+            detail="status 必须是 queued、running、success、partial 或 failed",
+        )
+    total, items = open_attribution_api_svc.list_open_attribution_tasks(
+        session,
+        run_id=run_id,
+        status=status,
+        limit=limit,
+        offset=offset,
+        frontend_url=get_settings().frontend_url,
+    )
+    return OpenAttributionTaskBatchOut(total=total, items=items)
 
 
 @router.get(

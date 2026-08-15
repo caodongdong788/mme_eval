@@ -81,7 +81,7 @@ export const CASE_FILTER_FIELDS: CaseFilterFieldDefinition[] = [
       { value: "failed", label: "调用失败" },
       { value: "triggered", label: "已触发" },
       { value: "not_triggered", label: "未触发" },
-      { value: "unknown", label: "链路未同步" },
+      { value: "unknown", label: "快照未获取" },
     ],
   },
   {
