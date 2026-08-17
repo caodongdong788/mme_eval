@@ -3,6 +3,7 @@ import type { AttributionDeductionAnalysis } from "../api";
 import {
   answerUsageDisplayName,
   attributionDeductionLabel,
+  cxAgentSuggestionCategory,
   humanizeAttributionText,
   informationStageDisplayName,
   queryQualityDisplayName,
@@ -51,5 +52,20 @@ describe("attributionDisplay", () => {
   it("uses the business-facing prompt optimization label", () => {
     expect(humanizeAttributionText("AI 助手提示词与agent_prompt均需调整"))
       .toBe("提示词优化与提示词优化均需调整");
+  });
+
+  it("groups structured RAG diagnoses into actionable optimization directions", () => {
+    const category = (source: Parameters<typeof cxAgentSuggestionCategory>[0]) =>
+      cxAgentSuggestionCategory(source).label;
+
+    expect(category({ cause_code: "rag_not_called" })).toBe("未触发 RAG");
+    expect(category({ rag_diagnosis: { query_quality: "wrong" } })).toBe("检索词不完整或错误");
+    expect(category({ cause_code: "rag_recall_error" })).toBe("召回不足");
+    expect(category({ cause_code: "rag_threshold_error" })).toBe("阈值/过滤过严");
+    expect(category({ cause_code: "rag_rerank_error" })).toBe("重排选择错误");
+    expect(category({ cause_code: "rag_not_grounded" })).toBe("召回后未引用");
+    expect(category({ rag_diagnosis: { answer_usage: "misinterpreted" } })).toBe("证据理解错误");
+    expect(category({ cause_code: "rag_corpus_gap" })).toBe("知识库缺失或过期");
+    expect(category({ evaluation_issue_category: "missing_rag_reference" })).toBe("缺少 RAG 引用");
   });
 });

@@ -219,6 +219,10 @@ describe("AttributionCaseDetailPage", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "证据不足，暂不归责展开" })
     );
+    // 单 Case 与任务汇总使用同一层级：八维 → 优化方向 → P0/P1/P2。
+    fireEvent.click(screen.getByText("专业准确性与边界"));
+    expect(screen.getByText("回答生成优化")).toBeInTheDocument();
+    expect(screen.getByText("P1 · 较高优先级")).toBeInTheDocument();
     fireEvent.click(screen.getByText("回答在证据不足时给出了确定诊断"));
     expect(screen.getByText("评测要求与实际差距")).toBeInTheDocument();
     expect(screen.getByText("缺少不确定性说明和就医建议")).toBeInTheDocument();

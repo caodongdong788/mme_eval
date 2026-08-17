@@ -75,13 +75,55 @@ def _priority(case_count: int, severities: list[str], category: str) -> str:
     return "P2"
 
 
+def _rag_optimization_category(deduction: dict[str, Any], evaluation_issue_category: str) -> str:
+    """将结构化 RAG 诊断归入可执行的优化方向。
+
+    不从自由文本猜测，优先使用 primary_cause.code 和 rag_diagnosis 的枚举值；
+    汇总页与单 Case 页因此可以稳定地展示同一套 RAG 优化分类。
+    """
+    if evaluation_issue_category == "missing_rag_reference":
+        return "missing_rag_reference"
+    cause = _record(deduction.get("primary_cause"))
+    code = str(cause.get("code") or "").lower()
+    diagnosis = _record(deduction.get("rag_diagnosis"))
+    status = str(diagnosis.get("diagnosis") or "").lower()
+    query_quality = str(diagnosis.get("query_quality") or "").lower()
+    answer_usage = str(diagnosis.get("answer_usage") or "").lower()
+
+    if code == "rag_not_called" or status == "not_called":
+        return "rag_not_called"
+    if code == "rag_call_failed" or status == "failed":
+        return "rag_call_failed"
+    if code == "rag_query_error" or status == "query_error" or query_quality in {"incomplete", "wrong"}:
+        return "rag_query_error"
+    if code == "rag_corpus_gap" or status == "corpus_gap":
+        return "rag_corpus_gap"
+    if code == "rag_recall_error" or status == "recall_error":
+        return "rag_recall_error"
+    if code == "rag_threshold_error" or status == "threshold_error":
+        return "rag_threshold_error"
+    if code in {"rag_candidate_or_rerank_error", "rag_rerank_error"} or status in {
+        "candidate_or_rerank_error",
+        "rerank_error",
+    }:
+        return "rag_rerank_error"
+    if code == "rag_not_grounded" or status == "selected_not_used" or answer_usage == "not_used":
+        return "rag_not_grounded"
+    if code == "rag_misinterpreted" or status == "selected_misinterpreted" or answer_usage in {
+        "misinterpreted",
+        "unsupported_claim",
+    }:
+        return "rag_misinterpreted"
+    return ""
+
+
 def build_task_diagnostic_summary(
     items: Iterable[tuple[str, dict[str, Any] | None]],
 ) -> dict[str, Any]:
     """按复核结论 + 根因 + 责任模块聚合一批 Case。"""
     health_counts: Counter[str] = Counter()
     validation_counts: Counter[str] = Counter()
-    clusters: dict[tuple[str, str, str, str, str, str, str], dict[str, Any]] = {}
+    clusters: dict[tuple[str, str, str, str, str, str, str, str], dict[str, Any]] = {}
     available_results = 0
 
     for sample_id, stored in items:
@@ -107,6 +149,9 @@ def build_task_diagnostic_summary(
                 if evaluation_issue_category == "missing_rag_reference"
                 else _VALIDATION_CATEGORY.get(validation, "insufficient_evidence")
             )
+            rag_optimization_category = _rag_optimization_category(
+                deduction, evaluation_issue_category
+            )
             cause = _record(deduction.get("primary_cause"))
             code = str(cause.get("code") or "insufficient_evidence")
             owner = str(cause.get("owner") or "unknown")
@@ -120,6 +165,7 @@ def build_task_diagnostic_summary(
                 owner,
                 issue_type,
                 root_cause_stage,
+                rag_optimization_category,
                 _normalized_label(cause_label),
             )
             cluster = clusters.setdefault(
@@ -131,6 +177,7 @@ def build_task_diagnostic_summary(
                     "cause_label": cause_label,
                     "owner": owner,
                     "root_cause_stage": root_cause_stage,
+                    "rag_optimization_category": rag_optimization_category,
                     "issue_types": [],
                     "sample_ids": [],
                     "deduction_ids": [],

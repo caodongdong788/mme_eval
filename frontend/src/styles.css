@@ -4754,6 +4754,59 @@ a.ant-typography-secondary:hover {
   background: #fbfbfd;
 }
 
+.attribution-suggestion-groups {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #fbfbfd;
+}
+
+.attribution-suggestion-group {
+  overflow: hidden;
+  border: 1px solid var(--runs-border);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.attribution-suggestion-group__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--runs-border);
+  background: #f7f5ff;
+  color: var(--runs-text);
+}
+
+.attribution-suggestion-group__head--summary {
+  align-items: flex-start;
+}
+
+.attribution-suggestion-group__head .attribution-muted {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.attribution-priority-group + .attribution-priority-group {
+  border-top: 1px solid var(--runs-border);
+}
+
+.attribution-priority-group__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  color: var(--runs-text-muted);
+  font-size: 12px;
+}
+
+.attribution-priority-group .attribution-cluster-list--nested .ant-collapse-header {
+  background: #fff;
+}
+
 .attribution-cluster-detail {
   padding: 4px 4px 10px;
 }
@@ -4790,7 +4843,9 @@ a.ant-typography-secondary:hover {
 
   .attribution-review-group__head,
   .attribution-evaluation-group__cases,
-  .attribution-evaluation-actions .attribution-muted {
+  .attribution-evaluation-actions .attribution-muted,
+  .attribution-suggestion-group__head,
+  .attribution-suggestion-group__head .attribution-muted {
     flex-direction: column;
   }
 

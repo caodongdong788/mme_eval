@@ -260,6 +260,11 @@ describe("RunAttributionTab", () => {
     expect(
       screen.getByRole("heading", { name: "其他判分复核" })
     ).toBeInTheDocument();
+    // cx-agent 建议先按八维，再按优化方向和优先级展开。
+    fireEvent.click(screen.getAllByText("医学安全性")[0]);
+    expect(screen.getByText("召回后未引用")).toBeInTheDocument();
+    expect(screen.getByText("P0 · 最高优先级")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("尚未关联维度"));
     expect(screen.getByText("缺少 RAG 引用")).toBeInTheDocument();
     const collapseButtons = screen.getAllByRole("button", {
       name: "展开列表",
@@ -278,7 +283,6 @@ describe("RunAttributionTab", () => {
       screen.getAllByRole("button", { name: "收起列表" })[0]
     ).toBeInTheDocument();
     expect(screen.getAllByText("建议操作：").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getAllByText("医学安全性")[0]);
     fireEvent.click(screen.getByText("召回证据未用于回答"));
     expect(screen.getAllByText("医学安全性").length).toBeGreaterThan(0);
     expect(

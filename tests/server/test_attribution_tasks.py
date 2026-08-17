@@ -322,6 +322,56 @@ def test_task_diagnostic_summary_keeps_missing_rag_reference_separate_from_other
     assert generic_evidence_gap["clusters"][0]["evaluation_issue_category"] == "evidence_gap"
 
 
+def test_task_diagnostic_summary_keeps_structured_rag_optimization_categories():
+    def stored(code: str, diagnosis: str = ""):
+        return {
+            "analysis": {
+                "deduction_analyses": [
+                    {
+                        "deduction_id": f"guideline.{code}",
+                        "dimension": "professional_accuracy",
+                        "deduction_validation": "supported",
+                        "primary_cause": {
+                            "code": code,
+                            "label": code,
+                            "owner": "rag",
+                            "confidence": 0.8,
+                        },
+                        "rag_diagnosis": {"diagnosis": diagnosis},
+                    }
+                ]
+            }
+        }
+
+    summary = build_task_diagnostic_summary(
+        [
+            ("case_not_called", stored("rag_not_called")),
+            ("case_query", stored("rag_query_error")),
+            ("case_recall", stored("rag_recall_error")),
+            ("case_threshold", stored("rag_threshold_error")),
+            ("case_rerank", stored("rag_rerank_error")),
+            ("case_unused", stored("rag_not_grounded")),
+            ("case_misread", stored("rag_misinterpreted")),
+            ("case_corpus", stored("rag_corpus_gap")),
+        ]
+    )
+
+    categories = {
+        cluster["sample_ids"][0]: cluster["rag_optimization_category"]
+        for cluster in summary["clusters"]
+    }
+    assert categories == {
+        "case_not_called": "rag_not_called",
+        "case_query": "rag_query_error",
+        "case_recall": "rag_recall_error",
+        "case_threshold": "rag_threshold_error",
+        "case_rerank": "rag_rerank_error",
+        "case_unused": "rag_not_grounded",
+        "case_misread": "rag_misinterpreted",
+        "case_corpus": "rag_corpus_gap",
+    }
+
+
 def test_batch_attribution_runs_three_cases_concurrently_and_persists_items(
     initialized_db, monkeypatch
 ):
