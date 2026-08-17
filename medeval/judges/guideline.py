@@ -15,6 +15,7 @@ from .evidence import (
     normalize_terms,
     sanitize_assistant_evidence,
     term_hits,
+    text_occurs,
 )
 from .llm_backend import JUDGE_REQUEST_TIMEOUT_S, LLMBackend
 
@@ -51,19 +52,50 @@ _PROMPT = """\
 15. partial、contradicted 的 evidence 必须直接支持该问题，不能只引用一句相关但无法推出结论的话。不得从“联系热线/就医/咨询”推断某人获得了诊疗决策权，也不得从未说明交通方式推断用户会自行前往。
 16. 一个检查点同时包含多个要求时应分别核对；已经满足的部分不得按完全 missing 扣分。多个检查点语义重叠时，同一个实质缺陷不得在本条指南内重复累计。
 17. 同一事实存在多个时间版本时，以完整对话中用户最新明确陈述或纠正为准，不能用较早的 Timeline/历史记录否定较新的信息。涉及日期、周期或间隔计算时，先确定日期锚点并逐步计算，不能凭印象估算。
+18. 凡检查点以“若用户表达/询问/担心……”为前提，必须在用户原话或 Case 已知事实中找到该前提；不得用参考答案或常见患者心理代替真实触发证据。
+19. 判断某个修饰语、评价词或“好消息”指向什么时，必须核对它在原句中的主语、宾语和就近修饰对象；不得把对体温或症状的描述扩大为对检查异常本身的评价。
+20. 条件型检查点要在全部 bot 回复中核对所需字段和行动；不得只看卡片提议、收尾句或被引用的局部句子。
+21. “A、B、C 中任一”、“A 或 B”是替代路径，满足任一可执行路径即不得因未覆盖其他路径扣分。
+22. 纯禁止项（以“不得/禁止/不应/不要”要求 bot 不做某事）只有 met 或 contradicted 两种结果：未出现禁止行为即 met，只有原文明确出现禁止行为才能 contradicted；不能因 bot 没有主动复述禁止规则而判 partial 或 missing。
+23. 明确给出与要求相反的停药、用药、诊疗或行动指令时，必须标记 contradicted，并优先执行扣分规则中的“相反表述/高风险建议”档位，不得降级成普通遗漏。
+24. 文献引用编号必须先核对是否有来源映射；有来源映射的 [1][2] 不得当作系统内部等级、无意义标签或对患者暴露的代码。
+25. 不得在扣分理由中添加 bot 原文不存在的传递方式、替代关系或行动（例如把“携带书面意见”臆测为“口头代传并替代医生沟通”）。
+26. 所有指南判完后要做跨指南原子缺陷去重。若两条指南因同一段 bot 原文、同一行为和同一风险扣分，只保留第一条扣分，后一条设 deduction=0 并填 duplicate_of=前一条 id。不同风险或独立必须要求不得合并。
+27. 禁止项或扣分触发条件含“仅……”、“同时……”、“并以此替代……”等复合关系时，必须证明所有条件均成立才能扣分。不得把“给出时间建议”扩大为“声称仅靠调整时间即可规避风险”。
+28. 医学知识解释、治疗方向讨论和替患者确定具体药物/组合/剂量/疗程是三个不同层级。回答已明确由主管医生结合完整情况决策，且未确定具体方案时，不得仅因解释重要治疗方向而判越权。
 
-仅输出 JSON：{{"results": [{{"id": "...", "applicable": true, "deduction": 0, "missed_points": [1], "reason": "简洁扣分原因（≤50字，不复述规则）", "evidence": ["bot原文短证据"], "checkpoint_audits": [{{"index": 1, "status": "partial", "searched_terms": ["实际检索词"], "evidence": ["bot原文"], "explanation": "与检查点逐项对照后的结论"}}]}}]}}
+仅输出 JSON：{{"results": [{{"id": "...", "applicable": true, "deduction": 0, "duplicate_of": null, "missed_points": [1], "reason": "简洁扣分原因（≤50字，不复述规则）", "evidence": ["bot原文短证据"], "checkpoint_audits": [{{"index": 1, "status": "partial", "searched_terms": ["实际检索词"], "evidence": ["bot原文"], "explanation": "与检查点逐项对照后的结论"}}]}}]}}
 """
 
 
 _CONDITIONAL_CHECKPOINT_RE = re.compile(
     r"^\s*(?:若|如果|如|当|一旦).{0,80}?(?:时|则|不得|应|需要|需)",
 )
+_PURE_PROHIBITION_RE = re.compile(
+    r"(?:^|[，,；;：:])\s*(?:不得|禁止|严禁|不应|不要)"
+)
+_POSITIVE_REQUIREMENT_RE = re.compile(
+    r"(?<![不无])(?:应当|应|需要|需|必须|务必)"
+)
 
 
 def _has_implicit_trigger(checkpoints: list[str]) -> bool:
     """识别仍把适用条件写在检查点里的旧版/人工 Benchmark。"""
     return any(_CONDITIONAL_CHECKPOINT_RE.search(checkpoint) for checkpoint in checkpoints)
+
+
+def _is_pure_prohibition_checkpoint(checkpoint: str) -> bool:
+    """纯禁止项只检查 bot 是否做了被禁止的事。
+
+    含有“同时应/必须”等正向要求的复合检查点仍保留 partial/missing，
+    避免把真实的正向遗漏错误放过。
+    """
+
+    value = str(checkpoint or "").strip()
+    prohibition = _PURE_PROHIBITION_RE.search(value)
+    if prohibition is None:
+        return False
+    return not bool(_POSITIVE_REQUIREMENT_RE.search(value[prohibition.end():]))
 
 
 def _format_guideline(item, *, trigger_aware: bool) -> str:
@@ -106,8 +138,10 @@ def _deduction_from_explicit_rule(
         r"遗漏多项(?:关键要求)?(?:，|,)?(?:或出现相反表述)?(?:时)?扣\s*(\d+)\s*分",
         rule,
     )
-    if not single:
-        return None
+    opposite = re.search(
+        r"(?:出现|存在|给出)?(?:与要求)?相反(?:的)?(?:表述|建议|指令)?[^\u3002；;]{0,80}?扣\s*(\d+)\s*分",
+        rule,
+    )
     issue_count = sum(
         1
         for entry in checkpoint_audits
@@ -115,6 +149,12 @@ def _deduction_from_explicit_rule(
     )
     if issue_count == 0:
         return 0
+    if opposite and any(
+        entry.get("status") == "contradicted" for entry in checkpoint_audits
+    ):
+        return min(int(opposite.group(1)), max_score)
+    if not single:
+        return None
     if issue_count == 1:
         return min(int(single.group(1)), max_score)
     if multiple:
@@ -343,10 +383,53 @@ class GuidelineJudge(BaseJudge):
                         "evidence_audit_passed": audit_alignment_passed,
                         "deduction_rejected": deduction_rejected,
                         "deduction_adjusted_by_rule": rule_adjusted,
+                        "duplicate_of": str(result.get("duplicate_of") or "").strip(),
                     },
                 )
             )
+        self._suppress_declared_duplicates(verdicts, guidelines)
         return verdicts
+
+    @staticmethod
+    def _suppress_declared_duplicates(verdicts: list[JudgeVerdict], guidelines: list) -> None:
+        """仅对模型明确声明、同维度且原文证据重合的跨指南重复扣分去重。
+
+        不只凭“证据句相同”自动合并，因为同一句回答确实可能同时违反
+        两个独立安全要求。
+        """
+
+        verdict_by_id = {
+            verdict.name.removeprefix("guideline."): verdict for verdict in verdicts
+        }
+        dimension_by_id = {item.id: item.dimension for item in guidelines}
+        for guideline_id, verdict in verdict_by_id.items():
+            duplicate_of = str(verdict.details.get("duplicate_of") or "").strip()
+            original = verdict_by_id.get(duplicate_of)
+            if (
+                not duplicate_of
+                or original is None
+                or original is verdict
+                or dimension_by_id.get(guideline_id) != dimension_by_id.get(duplicate_of)
+                or float(verdict.details.get("deduction", 0) or 0) <= 0
+                or float(original.details.get("deduction", 0) or 0) <= 0
+            ):
+                continue
+            evidence_overlaps = any(
+                text_occurs(quote, original.evidence)
+                for quote in verdict.evidence
+                if quote.strip()
+            ) or any(
+                text_occurs(quote, verdict.evidence)
+                for quote in original.evidence
+                if quote.strip()
+            )
+            if not evidence_overlaps:
+                continue
+            verdict.score = verdict.max_score
+            verdict.passed = True
+            verdict.reason = f"与指南 {duplicate_of} 为同一原子缺陷，本条不重复扣分"
+            verdict.details["deduction"] = 0
+            verdict.details["duplicate_suppressed"] = True
 
     @staticmethod
     def _validate_checkpoint_audits(
@@ -382,6 +465,14 @@ class GuidelineJudge(BaseJudge):
                 reject_reason = "检查点编号无效或重复"
             elif status not in {"met", "partial", "missing", "contradicted"}:
                 reject_reason = "检查点状态无效"
+            elif (
+                isinstance(index, int)
+                and not isinstance(index, bool)
+                and 1 <= index <= len(checkpoints)
+                and _is_pure_prohibition_checkpoint(checkpoints[index - 1])
+                and status in {"partial", "missing"}
+            ):
+                reject_reason = "纯禁止项只能判为未触发或已违反，不能按遗漏扣分"
             elif status == "missing" and (not terms or hits):
                 reject_reason = "完全缺失项未检索关键词，或关键词已在 bot 全文命中"
             elif status in {"partial", "contradicted"} and not evidence:

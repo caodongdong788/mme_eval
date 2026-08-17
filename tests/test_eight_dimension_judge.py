@@ -136,6 +136,12 @@ def test_prompt_enforces_role_boundaries_and_evidence_based_reasons() -> None:
     assert "Case 已知事实并非都必须在回答中复述" in captured
     assert "默认是示例或可选路径" in captured
     assert "条件、概率和权限限定" in captured
+    assert "context_evidence" in captured
+    assert "已给出任一明确可执行路径" in captured
+    assert "共情不要求必须明说" in captured
+    assert "不要求必须使用“您”" in captured
+    assert "必须扫描全部 bot 回复" in captured
+    assert "不得自动升格为阈值错误" in captured
 
 
 def test_prompt_uses_shared_dimension_standards() -> None:
@@ -298,3 +304,90 @@ def test_accepts_hallucination_only_when_bot_claim_has_no_known_source() -> None
 
     assert verdict.score == 1
     assert verdict.details["issue_audits"][0]["known_fact_hits"] == []
+
+
+def test_conditional_user_requirement_needs_real_trigger_evidence() -> None:
+    raw = raw_case()
+    requirement = "若用户表达对副作用或耐受性的担心，应给予针对性安抚。"
+    raw["evaluation"]["dimension_criteria"]["empathy"] = {
+        "criteria": [requirement],
+    }
+    current_case = TestCase.model_validate(raw)
+    current_trace = ConversationTrace(messages=[
+        ChatMessage(role="user", content="这些信息能决定后续方案吗？"),
+        ChatMessage(role="assistant", content="这些信息需要交给主管医生综合判断。"),
+    ])
+    judge = EightDimensionJudge(enabled=False)
+    judge.enabled = True
+    scores = {dimension.value: 5 for dimension in EvaluationDimension}
+    scores["empathy"] = 3
+
+    async def fake_call(prompt: str):
+        return (
+            scores,
+            {key: "stub" for key in scores},
+            {
+                "empathy": {
+                    "issues": [{
+                        "type": "missing",
+                        "requirement": requirement,
+                        "reason": "未安抚用户对副作用和身体耐受的担心",
+                        "evidence": ["这些信息需要交给主管医生综合判断。"],
+                        "context_evidence": [],
+                        "searched_terms": ["副作用", "耐受"],
+                    }]
+                }
+            },
+        )
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdicts = asyncio.run(judge.judge(current_case, current_trace))
+    verdict = next(v for v in verdicts if v.name == "dimension.empathy")
+
+    assert verdict.score == 5
+    assert verdict.details["score_rejected"] is True
+    assert "触发证据" in verdict.details["rejected_issue_audits"][0]["rejected_reason"]
+
+
+def test_conditional_user_requirement_accepts_verified_user_trigger() -> None:
+    raw = raw_case()
+    requirement = "若用户表达对副作用或耐受性的担心，应给予针对性安抚。"
+    raw["evaluation"]["dimension_criteria"]["empathy"] = {
+        "criteria": [requirement],
+    }
+    current_case = TestCase.model_validate(raw)
+    current_trace = ConversationTrace(messages=[
+        ChatMessage(role="user", content="我很担心副作用，身体会不会承受不住？"),
+        ChatMessage(role="assistant", content="具体方案需要主管医生评估。"),
+    ])
+    judge = EightDimensionJudge(enabled=False)
+    judge.enabled = True
+    scores = {dimension.value: 5 for dimension in EvaluationDimension}
+    scores["empathy"] = 3
+
+    async def fake_call(prompt: str):
+        return (
+            scores,
+            {key: "stub" for key in scores},
+            {
+                "empathy": {
+                    "issues": [{
+                        "type": "missing",
+                        "requirement": requirement,
+                        "reason": "未承接已明确表达的副作用和耐受性担心",
+                        "evidence": ["具体方案需要主管医生评估。"],
+                        "context_evidence": ["我很担心副作用，身体会不会承受不住？"],
+                        "searched_terms": ["副作用", "承受"],
+                    }]
+                }
+            },
+        )
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdicts = asyncio.run(judge.judge(current_case, current_trace))
+    verdict = next(v for v in verdicts if v.name == "dimension.empathy")
+
+    assert verdict.score == 3
+    assert verdict.details["issue_audits"][0]["context_evidence"] == [
+        "我很担心副作用，身体会不会承受不住？"
+    ]

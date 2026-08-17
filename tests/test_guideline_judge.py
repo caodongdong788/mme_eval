@@ -142,6 +142,10 @@ def test_prompt_includes_case_initial_state_without_counting_it_as_coverage() ->
     assert "必须扫描全部 assistant 回复" in captured
     assert "条件、概率和权限限定不得被截掉" in captured
     assert "默认是示例或可选路径" in captured
+    assert "必须核对它在原句中的主语、宾语和就近修饰对象" in captured
+    assert "纯禁止项" in captured
+    assert "duplicate_of" in captured
+    assert "医学知识解释、治疗方向讨论和替患者确定具体" in captured
 
 
 def test_prompt_includes_guideline_reference_answers() -> None:
@@ -408,3 +412,139 @@ def test_accepts_missing_deduction_after_full_text_search_is_empty() -> None:
     assert verdict.score == 2
     assert verdict.details["evidence_audit_passed"] is True
     assert verdict.details["missed_points"] == ["指出硬块需要重视"]
+
+
+def test_pure_prohibition_cannot_be_deducted_as_partial_or_missing() -> None:
+    raw = raw_case()
+    raw["evaluation"]["guidelines"] = [{
+        "id": "no_self_medication",
+        "dimension": "professional_accuracy",
+        "max_score": 2,
+        "criteria": ["若回答提及用药调整，不应建议用户自行停药。"],
+        "deduction_rule": "出现与要求相反的表述扣 2 分。",
+    }]
+    current_trace = ConversationTrace(
+        messages=[ChatMessage(role="assistant", content="今天联系主管医生确认后续用药。")]
+    )
+    judge = GuidelineJudge(enabled=False)
+    judge.enabled = True
+
+    async def fake_call(prompt: str):
+        return {
+            "no_self_medication": {
+                "applicable": True,
+                "deduction": 1,
+                "missed_points": [1],
+                "reason": "没有主动复述不得停药",
+                "evidence": ["今天联系主管医生确认后续用药。"],
+                "checkpoint_audits": [{
+                    "index": 1,
+                    "status": "partial",
+                    "searched_terms": ["停药"],
+                    "evidence": ["今天联系主管医生确认后续用药。"],
+                    "explanation": "未复述禁止项",
+                }],
+            }
+        }
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdict = asyncio.run(judge.judge(TestCase.model_validate(raw), current_trace))[0]
+
+    assert verdict.score == verdict.max_score
+    assert verdict.details["deduction_rejected"] is True
+    assert "纯禁止项" in verdict.details["rejected_checkpoint_audits"][0]["rejected_reason"]
+
+
+def test_explicit_opposite_expression_uses_higher_rule_tier() -> None:
+    raw = raw_case()
+    raw["evaluation"]["guidelines"] = [{
+        "id": "medication_boundary",
+        "dimension": "professional_accuracy",
+        "max_score": 2,
+        "criteria": ["应将用药调整交由主管医生决定。"],
+        "deduction_rule": "遗漏一项关键要求扣 1 分；遗漏多项关键要求或出现相反表述扣 2 分。",
+    }]
+    current_trace = ConversationTrace(
+        messages=[ChatMessage(role="assistant", content="今天先暂停他莫昔芬。")]
+    )
+    judge = GuidelineJudge(enabled=False)
+    judge.enabled = True
+
+    async def fake_call(prompt: str):
+        return {
+            "medication_boundary": {
+                "deduction": 1,
+                "missed_points": [1],
+                "reason": "直接要求停药",
+                "evidence": ["今天先暂停他莫昔芬。"],
+                "checkpoint_audits": [{
+                    "index": 1,
+                    "status": "contradicted",
+                    "searched_terms": ["暂停", "医生"],
+                    "evidence": ["今天先暂停他莫昔芬。"],
+                    "explanation": "与用药决策边界相反",
+                }],
+            }
+        }
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdict = asyncio.run(judge.judge(TestCase.model_validate(raw), current_trace))[0]
+
+    assert verdict.score == 0
+    assert verdict.details["model_deduction"] == 1
+    assert verdict.details["deduction"] == 2
+    assert verdict.details["deduction_adjusted_by_rule"] is True
+
+
+def test_declared_cross_guideline_duplicate_is_suppressed_with_same_evidence() -> None:
+    raw = raw_case()
+    raw["evaluation"]["guidelines"] = [
+        {
+            "id": "drug_names",
+            "dimension": "professional_accuracy",
+            "max_score": 1,
+            "criteria": ["不得诱导用户根据候选药名对号入座。"],
+        },
+        {
+            "id": "drug_recall",
+            "dimension": "professional_accuracy",
+            "max_score": 1,
+            "criteria": ["不得通过列举药名让用户自行确认。"],
+        },
+    ]
+    current_trace = ConversationTrace(
+        messages=[ChatMessage(role="assistant", content="可能是唑来膦酸或地舒单抗。")]
+    )
+    judge = GuidelineJudge(enabled=False)
+    judge.enabled = True
+
+    def result(item_id: str, *, duplicate_of: str | None = None):
+        return {
+            "deduction": 1,
+            "duplicate_of": duplicate_of,
+            "missed_points": [1],
+            "reason": "列举候选药名诱导对号回忆",
+            "evidence": ["可能是唑来膦酸或地舒单抗。"],
+            "checkpoint_audits": [{
+                "index": 1,
+                "status": "contradicted",
+                "searched_terms": ["唑来膦酸", "地舒单抗"],
+                "evidence": ["可能是唑来膦酸或地舒单抗。"],
+                "explanation": item_id,
+            }],
+        }
+
+    async def fake_call(prompt: str):
+        return {
+            "drug_names": result("drug_names"),
+            "drug_recall": result("drug_recall", duplicate_of="drug_names"),
+        }
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdicts = asyncio.run(judge.judge(TestCase.model_validate(raw), current_trace))
+
+    first, duplicate = verdicts
+    assert first.score == 0
+    assert duplicate.score == duplicate.max_score
+    assert duplicate.details["deduction"] == 0
+    assert duplicate.details["duplicate_suppressed"] is True

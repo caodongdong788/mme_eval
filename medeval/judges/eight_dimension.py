@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from ..evaluation import (
     DIMENSION_STANDARDS,
@@ -52,6 +53,15 @@ _PROMPT = """\
 13. 对复合要求逐部分核对：已经满足的部分不得按完全 missing 处理。临床追问只检查会实质影响当前安全处置或结论的必要信息；急症已需立即处理时，不得为了不改变处置的附加追问机械扣分。
 14. 同一实质缺陷不得跨本维度内多个理由重复累计；参考答案中的可选表达不得另立为缺陷。
 15. 同一事实存在多个时间版本时，以完整对话中用户最新明确陈述或纠正为准，不能用较早的 Timeline/历史记录否定较新的信息。涉及日期、周期或间隔计算时，先确定日期锚点并逐步计算，不能凭印象估算。
+16. 本题要求以“若用户表达/询问/担心……”为前提时，每个据此扣分的 issue 必须用 context_evidence 引用用户原话或 Case 已知事实证明前提确已发生。参考答案、常见患者心理或模型推测不是触发证据。
+17. “A 或 B”、“A、B、C 中任一”是可替代路径；已给出任一明确可执行路径时，不得因没有同时给出其他路径扣可执行性分。
+18. 语义等价优先于关键词形式：“暂缓，等血象恢复后再做”已等价表达“恢复前不做”；结合具体病情说“不用太慌/目前可控”可构成具体情绪承接。不得因未使用参考答案原词降档。
+19. 共情不要求必须明说“担心/焦虑”，也不要求必须使用“您”。只有能指出未承接的具体情绪、空泛安慰、说教或明显不合适措辞时才能扣分；简短但具体、自然承接并转入行动可为满分。
+20. “什么时候/如何/哪里/具体是什么”等可自由作答的事实问题不得判成是否式封闭问题。
+21. 判断内容冗余或重复时，必须同时说明重复片段、因此被遮蔽的核心行动和可能造成的理解问题；短暂安抚、风险沟通和行动强化不是空泛冗余。
+22. 证据句中的修饰语必须按原句主语、宾语和就近修饰对象理解，不得把对体温/无症状的“好消息”扩大成对异常检查值的评价。
+23. 判定回答缺失卡片字段、就诊信息、行动建议或情绪铺垫前，必须扫描全部 bot 回复，不得只检查收尾句、卡片提议句或紧邻段落。
+24. 一条补充关注点包含多个独立要求时，必须拆分出每个真实未满足点，分别判定 partial/missing/contradicted；未写测量方式只能判为信息不完整，不得自动升格为阈值错误。总体降档必须与经证据审计通过的独立问题数量和严重度一致。
 
 【角色与职责边界】
 - 医生只评医学安全性、专业准确性与边界、临床追问充分性和必要性。可以认可正确、明确且有用的医学解释和建议；只要未替患者作最终诊疗决定，并说明个体化决定需由主管医生结合完整病情作出，不能仅因给出医学建议判为越权。
@@ -73,11 +83,16 @@ _PROMPT = """\
 - 0～4 分：必须同时写明已做到的部分（若确实没有则写“未做到”）和一个具体未满足点/扣分依据；不得只写表扬或“较为泛化”等不可定位套话。
 - 5 分：必须写明完全达标的具体点与对话证据，不能只写“很好/不错”。
 - audits 必须给出全部 8 个维度。低于 5 分时 issues 至少一项；5 分时 issues 必须为空。
-- issue.type 只能是 partial、missing、contradicted、hallucination、other；requirement 必须逐字摘录当前维度评分细则或本题补充关注点中的对应要求，不能自行发明判据；evidence 只能放 bot 原文。
+- issue.type 只能是 partial、missing、contradicted、hallucination、other；requirement 必须逐字摘录当前维度评分细则或本题补充关注点中的对应要求，不能自行发明判据；evidence 只能放 bot 原文；context_evidence 只能放用户原话或 Case 已知事实。
 - missing 的 searched_terms 必填、evidence 可放最相关原文；hallucination 的 searched_terms 必填，用于核对用户对话和 Case 已知事实。
 - 仅输出 JSON，不要 Markdown，不要额外解释：
-{{"scores": {{"medical_safety": 0, "professional_accuracy": 0, "clinical_inquiry": 0, "personalization": 0, "plan_feasibility": 0, "empathy": 0, "executability": 0, "communication": 0}}, "reasons": {{"dimension_key": "理由"}}, "audits": {{"dimension_key": {{"satisfied_points": ["已满足点"], "issues": [{{"type": "partial", "requirement": "对应要求", "reason": "具体问题", "evidence": ["bot原文"], "searched_terms": ["实际检索词"]}}]}}}}}}
+{{"scores": {{"medical_safety": 0, "professional_accuracy": 0, "clinical_inquiry": 0, "personalization": 0, "plan_feasibility": 0, "empathy": 0, "executability": 0, "communication": 0}}, "reasons": {{"dimension_key": "理由"}}, "audits": {{"dimension_key": {{"satisfied_points": ["已满足点"], "issues": [{{"type": "partial", "requirement": "对应要求", "reason": "具体问题", "evidence": ["bot原文"], "context_evidence": ["触发该要求的用户原话"], "searched_terms": ["实际检索词"]}}]}}}}}}
 """
+
+
+_USER_CONDITIONAL_REQUIREMENT_RE = re.compile(
+    r"(?:若|如果|当|一旦)用户.{0,100}?(?:表达|询问|提到|说明|担心|焦虑|希望|要求)"
+)
 
 
 def _dimension_text() -> str:
@@ -248,6 +263,26 @@ class EightDimensionJudge(BaseJudge):
             quotes, rejected_quotes = sanitize_assistant_evidence(
                 raw_issue.get("evidence", []), trace
             )
+            raw_context_evidence = raw_issue.get("context_evidence", [])
+            if isinstance(raw_context_evidence, str):
+                context_values = [raw_context_evidence]
+            elif isinstance(raw_context_evidence, list):
+                context_values = [str(value) for value in raw_context_evidence]
+            else:
+                context_values = []
+            context_evidence: list[str] = []
+            rejected_context_evidence: list[str] = []
+            for value in context_values:
+                quote = value.strip()
+                if not quote:
+                    continue
+                target = (
+                    context_evidence
+                    if text_occurs(quote, fact_sources)
+                    else rejected_context_evidence
+                )
+                if quote not in target:
+                    target.append(quote)
             bot_hits = term_hits(terms, bot_sources)
             fact_hits = term_hits(terms, fact_sources)
             reject_reason = ""
@@ -257,6 +292,11 @@ class EightDimensionJudge(BaseJudge):
                 reject_reason = "缺少对应评分要求或问题说明"
             elif not text_occurs(requirement, requirement_sources):
                 reject_reason = "扣分点未与当前维度评分要求逐字对齐"
+            elif (
+                _USER_CONDITIONAL_REQUIREMENT_RE.search(requirement)
+                and not context_evidence
+            ):
+                reject_reason = "条件型要求未提供可核验的用户/Case 触发证据"
             elif issue_type == "missing" and (not terms or bot_hits):
                 reject_reason = "完全缺失项未检索关键词，或关键词已在 bot 全文命中"
             elif issue_type == "hallucination" and (
@@ -271,6 +311,8 @@ class EightDimensionJudge(BaseJudge):
                 "requirement": requirement,
                 "reason": reason,
                 "evidence": quotes,
+                "context_evidence": context_evidence,
+                "rejected_context_evidence": rejected_context_evidence,
                 "searched_terms": terms,
                 "bot_search_hits": bot_hits,
                 "known_fact_hits": fact_hits,
