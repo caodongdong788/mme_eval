@@ -5,6 +5,17 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# 所有入口（GitLab CI 与人工 SSH）都执行此脚本。用主机锁串行化 Docker 重建，
+# 避免两个部署同时 recreate 同名容器而产生 name conflict。
+DEPLOY_LOCK_FILE="${MME_DEPLOY_LOCK_FILE:-/var/lock/mme_eval_deploy.lock}"
+DEPLOY_LOCK_TIMEOUT_S="${MME_DEPLOY_LOCK_TIMEOUT_S:-900}"
+mkdir -p "$(dirname "$DEPLOY_LOCK_FILE")"
+exec 9>"$DEPLOY_LOCK_FILE"
+if ! flock -w "$DEPLOY_LOCK_TIMEOUT_S" 9; then
+  echo "MME deployment lock timeout after ${DEPLOY_LOCK_TIMEOUT_S}s; another deployment is still running" >&2
+  exit 1
+fi
+
 COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.release.yml)
 
 BEFORE_REV="${MME_DEPLOY_BEFORE_REV:-$(git rev-parse HEAD)}"
