@@ -499,6 +499,9 @@ def _migrate_case_judge_error(engine) -> None:
                 ) or (
                     "八维判分失败" in str(verdict.get("reason") or "")
                     or "指南判分失败" in str(verdict.get("reason") or "")
+                    # 历史版本把模型返回 None/浮点/越界扣分保守折算为满额扣分。
+                    # 这不是业务扣分，升级时需一并回填为可重试的判分异常。
+                    or "模型返回非法扣分" in str(verdict.get("reason") or "")
                 )
 
             judge_error = any(

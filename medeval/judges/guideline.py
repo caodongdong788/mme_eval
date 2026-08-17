@@ -217,7 +217,24 @@ class GuidelineJudge(BaseJudge):
                 and not isinstance(raw_deduction, bool)
                 and 0 <= raw_deduction <= item.max_score
             )
-            deduction = 0 if not applicable else (int(raw_deduction) if valid else item.max_score)
+            # ``deduction`` 是该指南判分的必填整数。None、浮点数、越界值都不
+            # 是“应该扣满分”的业务结论，而是判分模型未产出有效结果。把这类
+            # 错误伪装成扣分会直接污染 Case 总分和归因结论，必须让整条 Case
+            # 进入 judge_error → 整体重试链路。
+            invalid_deduction = not failure_reason and applicable and not valid
+            item_judge_error_details = dict(judge_error_details)
+            item_failure_reason = failure_reason
+            if invalid_deduction:
+                item_failure_reason = f"指南判分失败：模型返回非法扣分 {raw_deduction!r}"
+                item_judge_error_details = {
+                    "judge_error": True,
+                    "judge_error_stage": "guideline",
+                    "judge_error_message": item_failure_reason,
+                }
+            # 异常条目不制造虚假的 0 分/安全门禁扣分；报告层会展示“判分异常”。
+            deduction = 0 if (not applicable or invalid_deduction) else (
+                int(raw_deduction) if valid else item.max_score
+            )
             audit = self._validate_checkpoint_audits(
                 result.get("checkpoint_audits", []),
                 checkpoints=item.checkpoints,
@@ -278,11 +295,9 @@ class GuidelineJudge(BaseJudge):
             ):
                 deduction = item.max_score
             score = item.max_score - deduction
-            reason = failure_reason or str(result.get("reason", ""))
-            if not failure_reason and not valid_applicable:
+            reason = item_failure_reason or str(result.get("reason", ""))
+            if not item_failure_reason and not valid_applicable:
                 reason = "模型未返回有效 applicable，保守按已触发处理；" + reason
-            if not failure_reason and applicable and not valid:
-                reason = f"模型返回非法扣分 {raw_deduction!r}，保守按最多扣分"
             if deduction_rejected:
                 reason = "扣分未通过全文证据核验，本条不执行扣分并标记复核"
             elif rule_adjusted:
@@ -307,7 +322,7 @@ class GuidelineJudge(BaseJudge):
                     reason=reason,
                     evidence=evidence,
                     details={
-                        **judge_error_details,
+                        **item_judge_error_details,
                         "applicable": applicable,
                         "trigger": item.trigger,
                         "applicability_source": (

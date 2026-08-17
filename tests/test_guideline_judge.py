@@ -81,7 +81,7 @@ def test_medical_safety_guideline_coerces_any_deduction_to_five() -> None:
     assert verdict.max_score == 5
 
 
-def test_invalid_fractional_score_is_zero() -> None:
+def test_invalid_deduction_marks_guideline_as_judge_error() -> None:
     judge = GuidelineJudge(enabled=False)
     judge.enabled = True
 
@@ -90,8 +90,11 @@ def test_invalid_fractional_score_is_zero() -> None:
 
     judge._call = fake_call  # type: ignore[method-assign]
     verdict = asyncio.run(judge.judge(case(), trace()))[0]
-    assert verdict.score == 0
-    assert "非法扣分" in verdict.reason
+    # 非法输出不是业务扣分，不能再按最高扣分折算；上层会整体重试该 Case。
+    assert verdict.score == verdict.max_score
+    assert verdict.details["judge_error"] is True
+    assert verdict.details["judge_error_stage"] == "guideline"
+    assert "指南判分失败" in verdict.reason
 
 
 def test_failure_scores_every_guideline_zero() -> None:
