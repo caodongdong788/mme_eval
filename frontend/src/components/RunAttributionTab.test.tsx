@@ -144,7 +144,8 @@ const task: AttributionTask = {
         },
       },
       {
-        category: "insufficient_evidence",
+        category: "cx_agent_issue",
+        evaluation_issue_category: "missing_rag_reference",
         cause_code: "trace_missing",
         cause_label: "调用链证据缺失",
         owner: "unknown",
@@ -239,6 +240,18 @@ describe("RunAttributionTab", () => {
     expect(screen.getByText("cx-agent 优化建议")).toBeInTheDocument();
     expect(screen.getByText("评测工具优化建议")).toBeInTheDocument();
     expect(
+      screen.getByRole("button", { name: "cx-agent 优化建议展开" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "评测工具优化建议展开" })
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "cx-agent 优化建议展开" })
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "评测工具优化建议展开" })
+    );
+    expect(
       screen.getByRole("heading", { name: "Benchmark 判据冲突" })
     ).toBeInTheDocument();
     expect(
@@ -247,7 +260,12 @@ describe("RunAttributionTab", () => {
     expect(
       screen.getByRole("heading", { name: "其他判分复核" })
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "证据不足" })).toBeInTheDocument();
+    expect(screen.getByText("缺少 RAG 引用")).toBeInTheDocument();
+    const collapseButtons = screen.getAllByRole("button", {
+      name: "展开列表",
+    });
+    expect(collapseButtons).toHaveLength(3);
+    fireEvent.click(collapseButtons[0]);
     const caseLinks = screen.getAllByRole("link", {
       name: "查看 case_11 归因",
     });
@@ -256,15 +274,10 @@ describe("RunAttributionTab", () => {
       "href",
       "/runs/26/attribution-tasks/99/cases/case_11"
     );
-    expect(screen.getAllByText("建议操作：").length).toBeGreaterThan(0);
-    const collapseButtons = screen.getAllByRole("button", {
-      name: "收起列表",
-    });
-    expect(collapseButtons).toHaveLength(4);
-    fireEvent.click(collapseButtons[0]);
     expect(
-      screen.getByRole("button", { name: "展开列表" })
+      screen.getAllByRole("button", { name: "收起列表" })[0]
     ).toBeInTheDocument();
+    expect(screen.getAllByText("建议操作：").length).toBeGreaterThan(0);
     fireEvent.click(screen.getAllByText("医学安全性")[0]);
     fireEvent.click(screen.getByText("召回证据未用于回答"));
     expect(screen.getAllByText("医学安全性").length).toBeGreaterThan(0);

@@ -187,7 +187,9 @@ curl -H "X-MME-API-Key: <key>" \
 git push gitlab main
 ```
 
-向 GitLab 的默认分支推送后会自动触发生产部署。Pipeline 通过 SSH 在生产机执行 `scripts/deploy_release.sh`：它会拉取当前分支、复用 Docker 依赖层缓存，先更新 `app` 并等待健康检查。评测由独立 `worker` 执行，普通页面/API 发布不会中断在跑任务；仅当评测执行相关代码变化时才滚动更新 Worker，任务会通过数据库租约和 partial traces 自动续跑。数据库与数据卷不会被重建。
+向 GitLab 的默认分支推送后会自动触发生产部署。Pipeline 通过 SSH 在生产机执行 `scripts/deploy_release.sh`：它会拉取当前分支、复用 Docker 依赖层缓存，更新 `app` 后等待健康检查。评测由独立 `worker` 执行，普通页面/API 发布不会中断在跑任务；仅当评测执行相关代码变化时才滚动更新 Worker，任务会通过数据库租约和 partial traces 自动续跑。数据库与数据卷不会被重建。
+
+当前生产 Web 为单实例原地替换，替换容器的短暂窗口可能出现 502；恢复健康后即可正常访问，任务数据不会丢失。完整的发布、验证、故障处理和后续零中断切换方案见 [生产发布说明](docs/production-deployment.md)。
 
 首次启用前，在 GitLab 项目的 **Settings → CI/CD → Variables** 中配置以下受保护变量（生产分支也应设为 Protected）：
 

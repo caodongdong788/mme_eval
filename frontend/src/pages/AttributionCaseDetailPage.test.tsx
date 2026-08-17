@@ -1,10 +1,12 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, type AttributionTask, type CaseAttribution } from "../api";
 import { clearConfigLabelMapCache } from "../hooks/useConfigLabelMap";
 import { renderWithProviders } from "../test/renderWithProviders";
 import AttributionCaseDetailPage from "./AttributionCaseDetailPage";
+
+afterEach(cleanup);
 
 vi.mock("../api", () => ({
   api: {
@@ -205,6 +207,18 @@ describe("AttributionCaseDetailPage", () => {
     expect(screen.queryByText("医学知识检索（RAG）")).not.toBeInTheDocument();
     expect(screen.queryByText("医学安全性专项分析")).not.toBeInTheDocument();
     expect(screen.getByText("cx-agent问题归因")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "cx-agent问题归因展开" })
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "cx-agent问题归因展开" })
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "需要复核的判分展开" })
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "证据不足，暂不归责展开" })
+    );
     fireEvent.click(screen.getByText("回答在证据不足时给出了确定诊断"));
     expect(screen.getByText("评测要求与实际差距")).toBeInTheDocument();
     expect(screen.getByText("缺少不确定性说明和就医建议")).toBeInTheDocument();
@@ -271,6 +285,11 @@ describe("AttributionCaseDetailPage", () => {
     );
 
     expect(await screen.findByText("需要复核的判分")).toBeInTheDocument();
+    const reviewExpand = screen.getByRole("button", {
+      name: "需要复核的判分展开",
+    });
+    expect(reviewExpand).toBeInTheDocument();
+    fireEvent.click(reviewExpand);
     expect(screen.getByText("Benchmark 判据冲突")).toBeInTheDocument();
     expect(screen.getByText("标注与 RAG 证据冲突")).toBeInTheDocument();
     expect(screen.getByText("其他判分复核")).toBeInTheDocument();

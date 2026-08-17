@@ -99,8 +99,14 @@ def build_task_diagnostic_summary(
                 continue
             validation = str(deduction.get("deduction_validation") or "insufficient_evidence")
             validation_counts[validation] += 1
-            category = _VALIDATION_CATEGORY.get(validation, "insufficient_evidence")
             evaluation_issue_category = classify_evaluation_issue(deduction)
+            # “缺少 RAG 引用”说明 cx-agent 没有把本应提供的检索依据
+            # 映射到回答，属于 RAG 优化项，不归入评测工具待复核。
+            category = (
+                "cx_agent_issue"
+                if evaluation_issue_category == "missing_rag_reference"
+                else _VALIDATION_CATEGORY.get(validation, "insufficient_evidence")
+            )
             cause = _record(deduction.get("primary_cause"))
             code = str(cause.get("code") or "insufficient_evidence")
             owner = str(cause.get("owner") or "unknown")

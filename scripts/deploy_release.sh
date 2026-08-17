@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# MME 单机生产部署：Web 先无损更新，再滚动 Worker；任务由数据库租约自动续跑。
+# MME 单机生产部署：单个 Web 容器原地替换，再按需滚动 Worker；任务由数据库租约自动续跑。
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -427,6 +427,7 @@ def test_invalid_deduction_validation_falls_back_to_insufficient_evidence():
     item = normalized["deduction_analyses"][0]
     assert item["deduction_validation"] == "insufficient_evidence"
     assert item["primary_cause"]["code"] == "insufficient_evidence"
+    assert item["evaluation_issue_category"] == "evidence_gap"
     assert normalized["overall"]["conclusion_category"] == "insufficient_evidence"
 
 

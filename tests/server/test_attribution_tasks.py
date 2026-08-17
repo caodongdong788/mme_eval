@@ -260,6 +260,68 @@ def test_task_diagnostic_summary_keeps_explicit_evaluation_issue_category():
     assert summary["clusters"][0]["evaluation_issue_category"] == "annotation_rag_conflict"
 
 
+def test_task_diagnostic_summary_keeps_missing_rag_reference_separate_from_other_evidence_gaps():
+    summary = build_task_diagnostic_summary(
+        [
+            (
+                "case_1",
+                {
+                    "analysis": {
+                        "deduction_analyses": [
+                            {
+                                "deduction_id": "guideline.g01",
+                                "dimension": "professional_accuracy",
+                                "severity": "medium",
+                                "deduction_validation": "insufficient_evidence",
+                                "evaluation_issue_category": "missing_rag_reference",
+                                "finding": "没有提供可回链的药品说明书或 RAG 文献原文",
+                                "primary_cause": {
+                                    "code": "insufficient_evidence",
+                                    "label": "证据不足",
+                                    "owner": "unknown",
+                                    "confidence": 0.2,
+                                },
+                            }
+                        ],
+                    }
+                },
+            )
+        ]
+    )
+
+    assert summary["validation_counts"] == {"insufficient_evidence": 1}
+    assert summary["clusters"][0]["category"] == "cx_agent_issue"
+    assert summary["clusters"][0]["evaluation_issue_category"] == "missing_rag_reference"
+
+    generic_evidence_gap = build_task_diagnostic_summary(
+        [
+            (
+                "case_2",
+                {
+                    "analysis": {
+                        "deduction_analyses": [
+                            {
+                                "deduction_id": "guideline.g02",
+                                "dimension": "clinical_inquiry",
+                                "deduction_validation": "insufficient_evidence",
+                                "evaluation_issue_category": "evidence_gap",
+                                "finding": "缺少完整用户档案",
+                                "primary_cause": {
+                                    "code": "insufficient_evidence",
+                                    "label": "证据不足",
+                                    "owner": "unknown",
+                                    "confidence": 0.2,
+                                },
+                            }
+                        ]
+                    }
+                },
+            )
+        ]
+    )
+    assert generic_evidence_gap["clusters"][0]["evaluation_issue_category"] == "evidence_gap"
+
+
 def test_batch_attribution_runs_three_cases_concurrently_and_persists_items(
     initialized_db, monkeypatch
 ):

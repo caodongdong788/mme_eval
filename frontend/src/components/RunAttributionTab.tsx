@@ -509,8 +509,10 @@ function DeductionPanel({
   kind: AttributionModuleKind;
 }) {
   const validation =
-    VALIDATION_LABELS[item.deduction_validation] ||
-    VALIDATION_LABELS.insufficient_evidence;
+    item.evaluation_issue_category === "missing_rag_reference"
+      ? { label: "缺少 RAG 引用", color: "blue" }
+      : VALIDATION_LABELS[item.deduction_validation] ||
+        VALIDATION_LABELS.insufficient_evidence;
   const cause = item.primary_cause || {
     label: "待确认",
     owner: "unknown",
@@ -693,6 +695,16 @@ function fallbackRecommendation(
   item: AttributionDeductionAnalysis
 ): AttributionRecommendation {
   const label = attributionDeductionLabel(item);
+  if (item.evaluation_issue_category === "missing_rag_reference") {
+    return {
+      priority: "P1",
+      target: "RAG 引用",
+      action: `为“${label}”涉及的医学事实建立回答片段与检索原文的可回链引用；无法提供来源时避免将结论表述为确定事实。`,
+      expected_effect: "让回答中的医学结论可追溯，并能明确区分知识依据、RAG 召回和 Benchmark 判据。",
+      verification: `使用当前用例重新回归，确认“${label}”中的关键医学结论可定位到对应 RAG 原文。`,
+      acceptance_criteria: "每条需要医学依据的结论均能展示有效的 RAG 来源或明确说明未引用依据。",
+    };
+  }
   if (kind === "supported") {
     return {
       priority: "P1",
@@ -781,12 +793,13 @@ function AttributionAnalysisModule({
       ? "以下建议只针对已确认的 AI 助手、RAG 或对话流程问题。"
       : kind === "questionable"
         ? "以下建议只针对 Benchmark 判据、判分模型和评测证据读取问题。"
-        : "补齐证据后再判断责任归属，避免在证据不足时误改 AI 助手或评测规则。";
+        : "补齐缺失的调用链、用户上下文或 RAG 审计后，再判断责任归属，避免误改 AI 助手或评测规则。";
   const recommendations = moduleRecommendations(
     kind,
     items,
     globalRecommendations
   );
+  const [expanded, setExpanded] = useState(false);
   const reviewGroups = QUESTIONABLE_REVIEW_GROUPS.map((group) => ({
     ...group,
     items: items.filter(
@@ -821,8 +834,17 @@ function AttributionAnalysisModule({
           </Space>
           <p>{description}</p>
         </div>
+        <Button
+          type="link"
+          size="small"
+          aria-label={`${title}${expanded ? "收起" : "展开"}`}
+          icon={expanded ? <UpOutlined /> : <DownOutlined />}
+          onClick={() => setExpanded((current) => !current)}
+        >
+          {expanded ? "收起列表" : "展开列表"}
+        </Button>
       </div>
-      {kind === "questionable" && items.length ? (
+      {expanded && kind === "questionable" && items.length ? (
         <div className="attribution-review-groups">
           {reviewGroups.map((group) => (
             <section className="attribution-review-group" key={group.key}>
@@ -844,18 +866,18 @@ function AttributionAnalysisModule({
             </section>
           ))}
         </div>
-      ) : items.length ? (
+      ) : expanded && items.length ? (
         <Collapse
           className="attribution-collapse attribution-module__items"
           items={deductionItems(items)}
         />
-      ) : (
+      ) : expanded ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
           description={`暂无${title}`}
         />
-      )}
-      {recommendations.length || limitations.length ? (
+      ) : null}
+      {expanded && (recommendations.length || limitations.length) ? (
         <div className="attribution-module__advice">
           <div className="attribution-module__advice-title">
             <BulbOutlined />
@@ -894,14 +916,21 @@ export function AttributionDetail({ result }: { result: CaseAttribution }) {
       return left.deduction_id.localeCompare(right.deduction_id);
     }
   );
+  const ragReferenceMissing = deductions.filter(
+    (item) => item.evaluation_issue_category === "missing_rag_reference"
+  );
   const supported = deductions.filter(
-    (item) => item.deduction_validation === "supported"
+    (item) =>
+      item.deduction_validation === "supported" &&
+      item.evaluation_issue_category !== "missing_rag_reference"
   );
   const questionable = deductions.filter(
     (item) => item.deduction_validation === "questionable"
   );
   const insufficient = deductions.filter(
-    (item) => item.deduction_validation === "insufficient_evidence"
+    (item) =>
+      item.deduction_validation === "insufficient_evidence" &&
+      item.evaluation_issue_category !== "missing_rag_reference"
   );
   return (
     <div className="attribution-layout">
@@ -939,8 +968,8 @@ export function AttributionDetail({ result }: { result: CaseAttribution }) {
       <AttributionAnalysisModule
         kind="supported"
         title="cx-agent问题归因"
-        description="这些问题有对话原文或调用链证据支持，应优先修复 AI 助手的回答、追问、RAG 使用或流程编排。"
-        items={supported}
+        description="包含已由对话或调用链证实的问题，以及需要补齐 RAG 引用的明确优化项；应优先修复回答、追问、RAG 使用或流程编排。"
+        items={[...supported, ...ragReferenceMissing]}
         allItems={deductions}
         globalRecommendations={analysis.global_recommendations || []}
       />
@@ -955,7 +984,7 @@ export function AttributionDetail({ result }: { result: CaseAttribution }) {
       <AttributionAnalysisModule
         kind="insufficient"
         title="证据不足，暂不归责"
-        description="当前证据无法判断是 AI 助手问题还是评测问题，需要先补齐调用链、RAG 审计或用户上下文。"
+        description="当前证据不足以确认责任；其中需要核对 RAG 但缺少引用的项目会单独标记为“缺少 RAG 引用”。"
         items={insufficient}
         allItems={deductions}
         globalRecommendations={analysis.global_recommendations || []}
@@ -1096,15 +1125,26 @@ function fallbackEvaluationRecommendation(
       acceptance_criteria: "每条保留的扣分均有可追溯的 RAG 或权威文献依据。",
     };
   }
+  if (category === "missing_rag_reference") {
+    return {
+      priority: cluster.priority,
+      target: "RAG 引用与证据采集",
+      action:
+        "为每个扣分项补齐可定位到原文片段的 RAG 文献、药品说明书或权威来源引用；引用缺失时将结论标记为待补证，不直接归责。",
+      expected_effect: "先区分 RAG 事实依据与 Benchmark 判据，避免因来源缺失而误判。",
+      verification: "补齐引用后重新归因，检查每个结论都能回链到原始 RAG 或权威来源。",
+      acceptance_criteria: "关联 Case 不再处于“缺少 RAG 引用”状态，且每条扣分均有可追溯来源。",
+    };
+  }
   if (category === "evidence_gap") {
     return {
       priority: cluster.priority,
-      target: "评测证据采集",
+      target: "归因证据采集",
       action:
-        "补齐对话、用户档案、RAG 审计和判分输入中的缺失链路；证据不完整时将结论标记为待补证，不直接归责。",
-      expected_effect: "避免因缺失调用链或上下文而误判。",
-      verification: "补齐链路后重新归因，并检查每个结论都能回链到原始证据。",
-      acceptance_criteria: "关联 Case 的归因不再停留在“证据不足”。",
+        "补齐当前扣分项缺失的对话原文、用户上下文、调用链或判分输入；证据不完整时保持待补证，不直接归责。",
+      expected_effect: "避免因上下文或调用链缺失而误判。",
+      verification: "补齐缺失证据后重新归因，确认结论可回链到真实输入。",
+      acceptance_criteria: "关联 Case 不再处于“证据不足”状态，且结论可追溯。",
     };
   }
   return {
@@ -1221,7 +1261,7 @@ function EvaluationToolOptimizationGroup({
 }) {
   const caseIds = [...new Set(clusters.flatMap((cluster) => cluster.sample_ids))];
   const actions = actionableEvaluationRecommendations(clusters);
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   return (
     <section className="attribution-evaluation-group">
       <div className="attribution-evaluation-group__head">
@@ -1274,6 +1314,8 @@ function EvaluationToolOptimizationGroup({
 }
 
 export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
+  const [cxAgentExpanded, setCxAgentExpanded] = useState(false);
+  const [evaluationExpanded, setEvaluationExpanded] = useState(false);
   const summary = task.diagnostic_summary;
   if (!summary?.available_results) {
     return (
@@ -1318,16 +1360,28 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
   const insufficientClusters = clusters.filter(
     (cluster) => cluster.category === "insufficient_evidence"
   );
+  const missingRagReferenceClusters = cxAgentClusters.filter(
+    (cluster) => cluster.evaluation_issue_category === "missing_rag_reference"
+  );
+  const otherEvidenceGapClusters = insufficientClusters;
   const deductionCount = (
     values: NonNullable<AttributionTask["diagnostic_summary"]>["clusters"]
   ) => values.reduce((total, cluster) => total + cluster.deduction_count, 0);
-  const unassignedClusters = cxAgentClusters.filter(
+  const missingRagReferenceCount = deductionCount(missingRagReferenceClusters);
+  const genericEvidenceGapCount = Math.max(
+    0,
+    (validation.insufficient_evidence || 0) - missingRagReferenceCount
+  );
+  const standardCxAgentClusters = cxAgentClusters.filter(
+    (cluster) => cluster.evaluation_issue_category !== "missing_rag_reference"
+  );
+  const unassignedClusters = standardCxAgentClusters.filter(
     (cluster) => !cluster.dimensions.length
   );
 
   const dimensionItems: NonNullable<CollapseProps["items"]> =
     EVALUATION_DIMENSIONS.map((dimension, dimensionIndex) => {
-      const dimensionClusters = cxAgentClusters.filter((cluster) =>
+      const dimensionClusters = standardCxAgentClusters.filter((cluster) =>
         cluster.dimensions.includes(dimension)
       );
       const affectedCases = new Set(
@@ -1386,6 +1440,28 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
       ),
     });
   }
+  if (missingRagReferenceClusters.length) {
+    dimensionItems.push({
+      key: "missing-rag-reference",
+      label: (
+        <div className="attribution-dimension-heading">
+          <span className="attribution-dimension-index">RAG</span>
+          <strong>缺少 RAG 引用</strong>
+          <span className="attribution-dimension-count">
+            {`${missingRagReferenceClusters.length} 个 RAG 优化点 · ${new Set(missingRagReferenceClusters.flatMap((cluster) => cluster.sample_ids)).size} 个 Case`}
+          </span>
+        </div>
+      ),
+      children: (
+        <Collapse
+          className="attribution-cluster-list attribution-cluster-list--nested"
+          items={missingRagReferenceClusters.map((cluster, index) =>
+            clusterCollapseItem(cluster, index, task)
+          )}
+        />
+      ),
+    });
+  }
 
   return (
     <DashPanel
@@ -1399,9 +1475,9 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
     >
       <Space size={8} wrap className="attribution-diagnostic-stats">
         <Tag color="blue">已分析 {summary.available_results} 条</Tag>
-        <Tag color="red">cx-agent 问题 {validation.supported || 0} 项</Tag>
+        <Tag color="red">cx-agent 问题 {(validation.supported || 0) + missingRagReferenceCount} 项</Tag>
         <Tag color="orange">判分需复核 {validation.questionable || 0} 项</Tag>
-        <Tag>证据不足 {validation.insufficient_evidence || 0} 项</Tag>
+        <Tag>证据不足 {genericEvidenceGapCount} 项</Tag>
       </Space>
       <AttributionTaskProgress task={task} />
 
@@ -1410,15 +1486,28 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
           <div>
             <h4>cx-agent 优化建议</h4>
             <p>
-              按八维评分标准归档；同类 Case 的相似根因已合并为一个通用优化点。
+              按八维评分标准归档，并单列 RAG 引用优化；同类 Case 的相似根因已合并为一个通用优化点。
             </p>
           </div>
-          <Tag color="red">{cxAgentClusters.length} 个通用优化点</Tag>
+          <Space size={6}>
+            <Tag color="red">{cxAgentClusters.length} 个通用优化点</Tag>
+            <Button
+              type="link"
+              size="small"
+              aria-label={`cx-agent 优化建议${cxAgentExpanded ? "收起" : "展开"}`}
+              icon={cxAgentExpanded ? <UpOutlined /> : <DownOutlined />}
+              onClick={() => setCxAgentExpanded((current) => !current)}
+            >
+              {cxAgentExpanded ? "收起列表" : "展开列表"}
+            </Button>
+          </Space>
         </div>
-        <Collapse
-          className="attribution-dimension-list"
-          items={dimensionItems}
-        />
+        {cxAgentExpanded ? (
+          <Collapse
+            className="attribution-dimension-list"
+            items={dimensionItems}
+          />
+        ) : null}
       </section>
 
       <section className="attribution-summary-section attribution-summary-section--evaluation">
@@ -1426,51 +1515,62 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
           <div>
             <h4>评测工具优化建议</h4>
             <p>
-              将 Benchmark 内部冲突、标注与 RAG 冲突、其他判分复核和证据不足分开汇总，避免混在同一类里误修。
+              将 Benchmark 内部冲突、标注与 RAG 冲突、其他判分复核和其他证据不足分开汇总，避免混在同一类里误修。
             </p>
           </div>
           <Space size={6}>
             <Tag color="orange">需要复核 {validation.questionable || 0}</Tag>
-            <Tag>证据不足 {validation.insufficient_evidence || 0}</Tag>
+            <Tag>证据不足 {genericEvidenceGapCount}</Tag>
+            <Button
+              type="link"
+              size="small"
+              aria-label={`评测工具优化建议${evaluationExpanded ? "收起" : "展开"}`}
+              icon={evaluationExpanded ? <UpOutlined /> : <DownOutlined />}
+              onClick={() => setEvaluationExpanded((current) => !current)}
+            >
+              {evaluationExpanded ? "收起列表" : "展开列表"}
+            </Button>
           </Space>
         </div>
-        <div className="attribution-evaluation-groups">
-          <EvaluationToolOptimizationGroup
-            task={task}
-            title="Benchmark 判据冲突"
-            description="Benchmark 自身的适用条件、检查点、扣分规则或推荐回答互相矛盾、重叠或形成重复扣分；应先修正评测真值。"
-            countLabel={`${deductionCount(benchmarkConflictClusters)} 项冲突 · ${benchmarkConflictClusters.length} 个通用问题`}
-            countColor="red"
-            clusters={benchmarkConflictClusters}
-            emptyDescription="本次任务没有发现 Benchmark 自身判据冲突"
-          />
-          <EvaluationToolOptimizationGroup
-            task={task}
-            title="标注与 RAG 证据冲突"
-            description="标注或判分真值与实际召回的医学文献、说明书证据不一致，或结论超出了证据能支持的范围。"
-            countLabel={`${deductionCount(annotationRagConflictClusters)} 项冲突 · ${annotationRagConflictClusters.length} 个通用问题`}
-            countColor="volcano"
-            clusters={annotationRagConflictClusters}
-            emptyDescription="本次任务没有发现标注与 RAG 证据冲突"
-          />
-          <EvaluationToolOptimizationGroup
-            task={task}
-            title="其他判分复核"
-            description="Benchmark 合同本身可执行，但判分过程可能误读完整上下文、条件限定、日期或扣分档位。"
-            countLabel={`${deductionCount(judgeLogicClusters)} 项待复核 · ${judgeLogicClusters.length} 个通用问题`}
-            countColor="orange"
-            clusters={judgeLogicClusters}
-            emptyDescription="本次任务没有其他需要复核的判分问题"
-          />
-          <EvaluationToolOptimizationGroup
-            task={task}
-            title="证据不足"
-            description="现有调用链、RAG 审计或用户上下文不足以确认责任；先补齐证据，再判断应优化 AI 助手还是评测工具。"
-            countLabel={`${validation.insufficient_evidence || 0} 项证据不足 · ${insufficientClusters.length} 个待补齐问题`}
-            clusters={insufficientClusters}
-            emptyDescription="本次任务没有证据不足的问题"
-          />
-        </div>
+        {evaluationExpanded ? (
+          <div className="attribution-evaluation-groups">
+            <EvaluationToolOptimizationGroup
+              task={task}
+              title="Benchmark 判据冲突"
+              description="Benchmark 自身的适用条件、检查点、扣分规则或推荐回答互相矛盾、重叠或形成重复扣分；应先修正评测真值。"
+              countLabel={`${deductionCount(benchmarkConflictClusters)} 项冲突 · ${benchmarkConflictClusters.length} 个通用问题`}
+              countColor="red"
+              clusters={benchmarkConflictClusters}
+              emptyDescription="本次任务没有发现 Benchmark 自身判据冲突"
+            />
+            <EvaluationToolOptimizationGroup
+              task={task}
+              title="标注与 RAG 证据冲突"
+              description="标注或判分真值与实际召回的医学文献、说明书证据不一致，或结论超出了证据能支持的范围。"
+              countLabel={`${deductionCount(annotationRagConflictClusters)} 项冲突 · ${annotationRagConflictClusters.length} 个通用问题`}
+              countColor="volcano"
+              clusters={annotationRagConflictClusters}
+              emptyDescription="本次任务没有发现标注与 RAG 证据冲突"
+            />
+            <EvaluationToolOptimizationGroup
+              task={task}
+              title="其他判分复核"
+              description="Benchmark 合同本身可执行，但判分过程可能误读完整上下文、条件限定、日期或扣分档位。"
+              countLabel={`${deductionCount(judgeLogicClusters)} 项待复核 · ${judgeLogicClusters.length} 个通用问题`}
+              countColor="orange"
+              clusters={judgeLogicClusters}
+              emptyDescription="本次任务没有其他需要复核的判分问题"
+            />
+            <EvaluationToolOptimizationGroup
+              task={task}
+              title="其他证据不足"
+              description="缺少的是对话原文、用户上下文、调用链或判分输入等非 RAG 证据；不应将其误标为 RAG 问题。"
+              countLabel={`${deductionCount(otherEvidenceGapClusters)} 项证据不足 · ${otherEvidenceGapClusters.length} 个待补齐问题`}
+              clusters={otherEvidenceGapClusters}
+              emptyDescription="本次任务没有其他证据不足的问题"
+            />
+          </div>
+        ) : null}
       </section>
     </DashPanel>
   );

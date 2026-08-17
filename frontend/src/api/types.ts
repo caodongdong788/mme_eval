@@ -276,6 +276,7 @@ export interface AttributionDeductionAnalysis {
     | "benchmark_criteria_conflict"
     | "annotation_rag_conflict"
     | "judge_logic_issue"
+    | "missing_rag_reference"
     | "evidence_gap"
     | string;
   severity?: "critical" | "high" | "medium" | "low" | string;
@@ -368,6 +369,7 @@ export interface AttributionDiagnosticCluster {
     | "benchmark_criteria_conflict"
     | "annotation_rag_conflict"
     | "judge_logic_issue"
+    | "missing_rag_reference"
     | "evidence_gap"
     | string;
   cause_code: string;

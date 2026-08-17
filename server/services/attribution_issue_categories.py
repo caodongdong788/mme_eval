@@ -15,6 +15,8 @@ EVALUATION_ISSUE_CATEGORIES = {
     "benchmark_criteria_conflict",
     "annotation_rag_conflict",
     "judge_logic_issue",
+    "missing_rag_reference",
+    # evidence_gap 表示非 RAG 的通用证据缺失，与缺少 RAG 引用分开处理。
     "evidence_gap",
 }
 
@@ -47,10 +49,17 @@ def classify_evaluation_issue(deduction: dict[str, Any]) -> str:
     validation = str(deduction.get("deduction_validation") or "")
     if validation == "supported":
         return "none"
+    explicit = str(deduction.get("evaluation_issue_category") or "")
     if validation == "insufficient_evidence":
+        # Rubric 是独立的评测真值，不能因其没有绑定 RAG 就要求补文献。
+        # 只有该项本来依赖 RAG 审计、却缺少可回链的召回原文/引用映射时，
+        # 才使用 missing_rag_reference；其他证据缺失保持 evidence_gap。
+        if explicit in {"missing_rag_reference", "evidence_gap"}:
+            return explicit
         return "evidence_gap"
 
-    explicit = str(deduction.get("evaluation_issue_category") or "")
+    if explicit == "evidence_gap":
+        return "evidence_gap"
     if explicit in EVALUATION_ISSUE_CATEGORIES - {"none", "evidence_gap"}:
         return explicit
     if validation != "questionable":
