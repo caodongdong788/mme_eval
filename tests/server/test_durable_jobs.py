@@ -13,6 +13,7 @@ from server.durable_queue import (
     enqueue_attribution_job,
     finish_job,
     heartbeat_job,
+    queue_snapshot,
     reconcile_succeeded_run_statuses,
     reconcile_unqueued_runs,
     requeue_job,
@@ -193,11 +194,23 @@ def test_attribution_job_is_deduplicated_and_can_be_cancelled(initialized_db):
         assert row.kind == "attribution"
         assert row.payload == {"attribution_task_id": task_id}
 
+    # 归因不改写评测结果，不能阻止用户修复判分异常的 Case。
+    assert queue_snapshot(run_id) is None
+
     assert cancel_attribution_job(task_id)
     with session_scope() as session:
         row = session.get(EvaluationJob, first)
         assert row is not None and row.status == "cancelled"
     assert claim_job("worker-a", 30) is None
+
+
+def test_queue_snapshot_keeps_active_evaluation_visible_when_attribution_exists(initialized_db):
+    run_id = _new_run()
+    with session_scope() as session:
+        session.add(EvaluationJob(run_id=run_id, kind="evaluation", payload={}, status="running"))
+        session.add(EvaluationJob(run_id=run_id, kind="attribution", payload={}, status="queued"))
+
+    assert queue_snapshot(run_id) == {"state": "running", "position": 0}
 
 
 def test_interrupted_evaluation_rebuilds_as_in_place_resume(initialized_db):

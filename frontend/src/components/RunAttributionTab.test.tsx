@@ -257,6 +257,14 @@ describe("RunAttributionTab", () => {
       "/runs/26/attribution-tasks/99/cases/case_11"
     );
     expect(screen.getAllByText("建议操作：").length).toBeGreaterThan(0);
+    const collapseButtons = screen.getAllByRole("button", {
+      name: "收起列表",
+    });
+    expect(collapseButtons).toHaveLength(4);
+    fireEvent.click(collapseButtons[0]);
+    expect(
+      screen.getByRole("button", { name: "展开列表" })
+    ).toBeInTheDocument();
     fireEvent.click(screen.getAllByText("医学安全性")[0]);
     fireEvent.click(screen.getByText("召回证据未用于回答"));
     expect(screen.getAllByText("医学安全性").length).toBeGreaterThan(0);

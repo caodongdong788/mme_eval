@@ -20,10 +20,12 @@ import {
 } from "antd";
 import {
   BulbOutlined,
+  DownOutlined,
   DeleteOutlined,
   EyeOutlined,
   LinkOutlined,
   RedoOutlined,
+  UpOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import {
@@ -1219,6 +1221,7 @@ function EvaluationToolOptimizationGroup({
 }) {
   const caseIds = [...new Set(clusters.flatMap((cluster) => cluster.sample_ids))];
   const actions = actionableEvaluationRecommendations(clusters);
+  const [expanded, setExpanded] = useState(true);
   return (
     <section className="attribution-evaluation-group">
       <div className="attribution-evaluation-group__head">
@@ -1226,10 +1229,24 @@ function EvaluationToolOptimizationGroup({
           <h5>{title}</h5>
           <p>{description}</p>
         </div>
-        <Tag color={countColor}>{countLabel}</Tag>
+        <Space size={4} wrap>
+          <Tag color={countColor}>{countLabel}</Tag>
+          {clusters.length ? (
+            <Button
+              type="link"
+              size="small"
+              aria-label={expanded ? "收起列表" : "展开列表"}
+              icon={expanded ? <UpOutlined /> : <DownOutlined />}
+              onClick={() => setExpanded((current) => !current)}
+            >
+              {expanded ? "收起列表" : "展开列表"}
+            </Button>
+          ) : null}
+        </Space>
       </div>
       {clusters.length ? (
-        <>
+        expanded ? (
+          <>
           <div className="attribution-evaluation-group__cases">
             <strong>关联 Case：</strong>
             <CaseAttributionLinks task={task} sampleIds={caseIds} />
@@ -1244,7 +1261,8 @@ function EvaluationToolOptimizationGroup({
               clusterCollapseItem(cluster, index, task)
             )}
           />
-        </>
+          </>
+        ) : null
       ) : (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}

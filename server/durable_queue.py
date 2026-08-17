@@ -339,10 +339,19 @@ def progress_snapshot(run_id: int) -> dict[str, Any] | None:
 
 
 def queue_snapshot(run_id: int) -> dict[str, Any] | None:
+    """返回会改写评测结果的活跃任务状态。
+
+    归因任务附着在既有 Case 结果上，既不会执行 Agent 也不会覆盖评测分数，
+    因而不能阻止用户针对判分异常 Case 发起重新评测。这里必须只观察执行类
+    Job，避免“归因分析中”被误提示为“评测进行中”。
+    """
     with session_scope() as session:
         row = session.scalar(
             select(EvaluationJob)
-            .where(EvaluationJob.run_id == run_id)
+            .where(
+                EvaluationJob.run_id == run_id,
+                EvaluationJob.kind.in_(RUN_EXECUTION_KINDS),
+            )
             .order_by(EvaluationJob.id.desc())
         )
         if row is None or row.status not in ACTIVE_STATUSES:
