@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Descriptions, Empty, Result, Spin, Tag } from "antd";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { api, type AttributionTask, type CaseAttribution } from "../api";
 import { AttributionDetail } from "../components/RunAttributionTab";
 import { DashPanel } from "../components/DashPanel";
@@ -9,7 +9,6 @@ import { formatApiDateTime } from "../utils/datetime";
 
 export default function AttributionCaseDetailPage() {
   const { runId, taskId, sampleId } = useParams();
-  const navigate = useNavigate();
   const runNumber = Number(runId);
   const taskNumber = Number(taskId);
   const decodedSampleId = useMemo(
@@ -44,6 +43,7 @@ export default function AttributionCaseDetailPage() {
     (candidate) => candidate.sample_id === decodedSampleId
   );
   const taskDetailPath = `/runs/${runNumber}/attribution-tasks/${taskNumber}`;
+  const originalCasePath = `/runs/${runNumber}/cases/${encodeURIComponent(decodedSampleId)}`;
 
   if (error) {
     return (
@@ -75,19 +75,9 @@ export default function AttributionCaseDetailPage() {
         }
         extra={
           <Button
-            onClick={() =>
-              navigate(
-                `/runs/${runNumber}/cases/${encodeURIComponent(decodedSampleId)}`,
-                {
-                  state: {
-                    from: {
-                      to: `/runs/${runNumber}/attribution-tasks/${taskNumber}/cases/${encodeURIComponent(decodedSampleId)}`,
-                      label: "归因结果",
-                    },
-                  },
-                }
-              )
-            }
+            href={originalCasePath}
+            target="_blank"
+            rel="noopener noreferrer"
           >
             查看原用例
           </Button>

@@ -52,15 +52,23 @@ export const runsApi = {
       .then((r) => r.data),
   createAttributionTask: (id: number, payload: { sample_ids: string[]; judge_model_id: number }) =>
     http.post<AttributionTask>(`/runs/${id}/attribution-tasks`, payload).then((r) => r.data),
-  rerunAttributionTask: (id: number, taskId: number, sampleIds: string[]) =>
+  rerunAttributionTask: (
+    id: number,
+    taskId: number,
+    sampleIds: string[],
+    judgeModelId: number
+  ) =>
     http
       .post<AttributionTask>(`/runs/${id}/attribution-tasks/${taskId}/rerun`, {
         sample_ids: sampleIds,
+        judge_model_id: judgeModelId,
       })
       .then((r) => r.data),
-  resumeAttributionTask: (id: number, taskId: number) =>
+  resumeAttributionTask: (id: number, taskId: number, judgeModelId: number) =>
     http
-      .post<AttributionTask>(`/runs/${id}/attribution-tasks/${taskId}/resume`)
+      .post<AttributionTask>(`/runs/${id}/attribution-tasks/${taskId}/resume`, {
+        judge_model_id: judgeModelId,
+      })
       .then((r) => r.data),
   deleteAttributionTask: (id: number, taskId: number) =>
     http.delete(`/runs/${id}/attribution-tasks/${taskId}`).then((r) => r.data),

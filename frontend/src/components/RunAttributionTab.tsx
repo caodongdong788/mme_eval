@@ -41,7 +41,9 @@ import {
   type AttributionTask,
   type AttributionTaskItem,
   type CaseAttribution,
+  type JudgeModel,
 } from "../api";
+import { AttributionTaskLaunchModal } from "./AttributionTaskLaunchModal";
 import { formatApiError } from "../utils/apiError";
 import { EVALUATION_DIMENSIONS } from "../labels";
 import {
@@ -1219,6 +1221,17 @@ export interface RunAttributionTabProps {
   onSelectedTaskIdChange?: (taskId: number | undefined) => void;
 }
 
+type AttributionModelSelection =
+  | {
+      mode: "rerun";
+      task: AttributionTask;
+      sampleIds: string[];
+    }
+  | {
+      mode: "resume";
+      task: AttributionTask;
+    };
+
 export function RunAttributionTab({
   runId,
   loading,
@@ -1235,6 +1248,9 @@ export function RunAttributionTab({
     null
   );
   const [selectedSampleIds, setSelectedSampleIds] = useState<string[]>([]);
+  const [judgeModels, setJudgeModels] = useState<JudgeModel[]>([]);
+  const [modelSelection, setModelSelection] =
+    useState<AttributionModelSelection | null>(null);
 
   const loadTasks = useCallback(
     async (silent = false) => {
@@ -1300,12 +1316,16 @@ export function RunAttributionTab({
     }, 1500);
     return () => window.clearInterval(timer);
   }, [detailMode, loadTask, loadTasks, task?.status, tasks]);
-  const rerunSelectedCases = useCallback(async () => {
-    if (!task || selectedSampleIds.length === 0) return;
-    setActionTaskId(task.id);
+  const rerunSelectedCases = useCallback(async (
+    source: AttributionTask,
+    sampleIds: string[],
+    judgeModelId: number
+  ) => {
+    if (sampleIds.length === 0) return;
+    setActionTaskId(source.id);
     try {
       const next = normalizeTaskCounts(
-        await api.rerunAttributionTask(runId, task.id, selectedSampleIds)
+        await api.rerunAttributionTask(runId, source.id, sampleIds, judgeModelId)
       );
       setTasks((current) =>
         current.map((item) =>
@@ -1313,23 +1333,24 @@ export function RunAttributionTab({
         )
       );
       setTask(next);
+      setModelSelection(null);
       setSelectedSampleIds([]);
       message.success(
-        `归因任务 #${next.id} 已开始重试 ${selectedSampleIds.length} 条用例`
+        `归因任务 #${next.id} 已开始重试 ${sampleIds.length} 条用例`
       );
     } catch (error) {
       message.error(formatApiError(error, "重新归因失败"));
     } finally {
       setActionTaskId(undefined);
     }
-  }, [runId, selectedSampleIds, task]);
+  }, [runId]);
 
   const resumeTask = useCallback(
-    async (source: AttributionTask) => {
+    async (source: AttributionTask, judgeModelId: number) => {
       setActionTaskId(source.id);
       try {
         const next = normalizeTaskCounts(
-          await api.resumeAttributionTask(runId, source.id)
+          await api.resumeAttributionTask(runId, source.id, judgeModelId)
         );
         setTasks((current) =>
           current.map((item) =>
@@ -1339,6 +1360,7 @@ export function RunAttributionTab({
         if (detailMode && selectedTaskId === source.id) {
           setTask(next);
         }
+        setModelSelection(null);
         message.success(
           `归因任务 #${next.id} 已继续：保留已完成结果，仅分析剩余用例`
         );
@@ -1350,6 +1372,19 @@ export function RunAttributionTab({
     },
     [detailMode, runId, selectedTaskId]
   );
+
+  const openModelSelection = useCallback(async (selection: AttributionModelSelection) => {
+    if (judgeModels.length === 0) {
+      try {
+        const models = await api.listJudgeModels();
+        setJudgeModels(models);
+      } catch (error) {
+        message.error(formatApiError(error, "加载归因模型失败"));
+        return;
+      }
+    }
+    setModelSelection(selection);
+  }, [judgeModels.length]);
 
   const removeTask = useCallback(
     async (source: AttributionTask) => {
@@ -1407,12 +1442,8 @@ export function RunAttributionTab({
                   <Link
                     className="attribution-case-link"
                     to={`/runs/${runId}/cases/${item.sample_id}`}
-                    state={{
-                      from: {
-                        to: `/runs/${runId}/attribution-tasks/${task.id}`,
-                        label: `归因任务 #${task.id}`,
-                      },
-                    }}
+                    target="_blank"
+                    rel="noopener noreferrer"
                   >
                     <LinkOutlined />
                   </Link>
@@ -1513,6 +1544,9 @@ export function RunAttributionTab({
               icon={<RedoOutlined />}
               disabled={hasActiveTask}
               loading={actionTaskId === item.id}
+              onClick={() =>
+                void openModelSelection({ mode: "resume", task: item })
+              }
             >
               继续归因
             </AttributionActionButton>
@@ -1525,16 +1559,7 @@ export function RunAttributionTab({
               >
                 <EyeOutlined /> 查看明细
               </Link>
-              {canResume ? (
-                <Popconfirm
-                  title={`保留已完成的 ${item.success_count} 条归因结果，仅继续其余 ${item.total_count - item.success_count} 条用例。`}
-                  okText="继续归因"
-                  cancelText="取消"
-                  onConfirm={() => void resumeTask(item)}
-                >
-                  {resumeButton}
-                </Popconfirm>
-              ) : null}
+              {canResume ? resumeButton : null}
               <Popconfirm
                 title={
                   item.status === "queued" || item.status === "running"
@@ -1555,10 +1580,42 @@ export function RunAttributionTab({
         },
       },
     ],
-    [actionTaskId, hasActiveTask, removeTask, resumeTask, runId]
+    [actionTaskId, hasActiveTask, openModelSelection, removeTask, runId]
   );
   const selectedCount = selectedSampleIds.length;
   const canSelectAll = Boolean(task?.items.length) && !hasActiveTask;
+  const modelSelectionModal = (
+    <AttributionTaskLaunchModal
+      open={Boolean(modelSelection)}
+      loading={actionTaskId === modelSelection?.task.id}
+      requestedCount={
+        modelSelection?.mode === "rerun"
+          ? modelSelection.sampleIds.length
+          : Math.max(
+              0,
+              (modelSelection?.task.total_count || 0) -
+                (modelSelection?.task.success_count || 0)
+            )
+      }
+      failedCount={1}
+      judgeModels={judgeModels}
+      mode={modelSelection?.mode || "rerun"}
+      defaultJudgeModelId={modelSelection?.task.judge_model_id}
+      onCancel={() => setModelSelection(null)}
+      onSubmit={(judgeModelId) => {
+        if (!modelSelection) return;
+        if (modelSelection.mode === "rerun") {
+          void rerunSelectedCases(
+            modelSelection.task,
+            modelSelection.sampleIds,
+            judgeModelId
+          );
+        } else {
+          void resumeTask(modelSelection.task, judgeModelId);
+        }
+      }}
+    />
+  );
 
   if (!detailMode)
     return (
@@ -1597,6 +1654,7 @@ export function RunAttributionTab({
               }}
             />
           )}
+          {modelSelectionModal}
         </DashPanel>
       </div>
     );
@@ -1649,22 +1707,21 @@ export function RunAttributionTab({
                   }
                 >
                   <span>
-                    <Popconfirm
-                      title={`将在当前归因任务 #${task.id} 内重新分析已选 ${selectedCount} 条用例，不会创建新任务。`}
-                      okText="开始重试"
-                      cancelText="取消"
+                    <Button
+                      type="primary"
+                      icon={<RedoOutlined />}
                       disabled={hasActiveTask || !selectedCount}
-                      onConfirm={() => void rerunSelectedCases()}
+                      loading={actionTaskId === task.id}
+                      onClick={() =>
+                        void openModelSelection({
+                          mode: "rerun",
+                          task,
+                          sampleIds: selectedSampleIds,
+                        })
+                      }
                     >
-                      <Button
-                        type="primary"
-                        icon={<RedoOutlined />}
-                        disabled={hasActiveTask || !selectedCount}
-                        loading={actionTaskId === task.id}
-                      >
-                        重新归因{selectedCount ? `（${selectedCount}）` : ""}
-                      </Button>
-                    </Popconfirm>
+                      重新归因{selectedCount ? `（${selectedCount}）` : ""}
+                    </Button>
                   </span>
                 </Tooltip>
               </Space>
@@ -1748,6 +1805,7 @@ export function RunAttributionTab({
           </Space>
         ) : null}
       </Modal>
+      {modelSelectionModal}
     </div>
   );
 }

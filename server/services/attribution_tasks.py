@@ -216,13 +216,24 @@ def create_attribution_task(
     return task
 
 
+def _set_attribution_task_model(
+    session: Session, task: AttributionTask, judge_model_id: int
+) -> None:
+    """将未完成/重试用例切换到用户本次选择的归因模型。"""
+    model = get_judge_model_or_404(session, judge_model_id)
+    if not has_judge_model_api_key(model):
+        raise HTTPException(status_code=422, detail=f"归因模型「{model.name}」未配置可用的 API Key")
+    task.judge_model_id = model.id
+    task.judge_model_name = model.name
+
+
 def resume_attribution_task(
-    session: Session, run_id: int, task_id: int
+    session: Session, run_id: int, task_id: int, judge_model_id: int
 ) -> AttributionTask:
     """在原任务中继续归因，只重新排队未成功完成的 Case。
 
     服务重启或模型调用异常后，已成功写入 ``analysis_json`` 的条目不可被覆盖；
-    仅把 pending/running/failed 条目恢复为 pending，由后续 worker 按原模型继续处理。
+    仅把 pending/running/failed 条目恢复为 pending，并按本次选择的模型继续处理。
     """
     task = get_attribution_task_or_404(session, run_id, task_id)
     if task.status in {"queued", "running"}:
@@ -247,6 +258,8 @@ def resume_attribution_task(
     ))
     if not items:
         raise HTTPException(status_code=422, detail="该归因任务已全部完成，无需继续归因")
+
+    _set_attribution_task_model(session, task, judge_model_id)
 
     for item in items:
         item.status = "pending"
@@ -275,6 +288,7 @@ def rerun_attribution_task_items(
     run_id: int,
     task_id: int,
     sample_ids: list[str],
+    judge_model_id: int,
 ) -> AttributionTask:
     """在原归因任务内重新分析指定 Case，不创建新的任务记录。"""
     task = get_attribution_task_or_404(session, run_id, task_id)
@@ -303,6 +317,8 @@ def rerun_attribution_task_items(
     unknown = [sample_id for sample_id in ordered_ids if sample_id not in by_sample]
     if unknown:
         raise HTTPException(status_code=422, detail=f"归因任务中不存在用例 {unknown[0]}")
+
+    _set_attribution_task_model(session, task, judge_model_id)
 
     for sample_id in ordered_ids:
         item = by_sample[sample_id]

@@ -12,6 +12,7 @@ from ...schemas import (
     AttributionTaskCreate,
     AttributionTaskOut,
     AttributionTaskRerun,
+    AttributionTaskResume,
     CaseAttributionOut,
 )
 from ...services.case_attribution import (
@@ -107,7 +108,7 @@ async def rerun_case_attribution_task(
     session: Session = Depends(get_session),
 ) -> dict:
     task = attribution_tasks.rerun_attribution_task_items(
-        session, run_id, task_id, payload.sample_ids
+        session, run_id, task_id, payload.sample_ids, payload.judge_model_id
     )
     output = attribution_tasks.get_attribution_task(session, run_id, task.id)
     session.commit()
@@ -126,10 +127,13 @@ async def rerun_case_attribution_task(
 async def resume_case_attribution_task(
     run_id: int,
     task_id: int,
+    payload: AttributionTaskResume,
     session: Session = Depends(get_session),
 ) -> dict:
     """在原归因任务中继续未完成的 Case，已完成结果保持不变。"""
-    task = attribution_tasks.resume_attribution_task(session, run_id, task_id)
+    task = attribution_tasks.resume_attribution_task(
+        session, run_id, task_id, payload.judge_model_id
+    )
     output = attribution_tasks.get_attribution_task(session, run_id, task.id)
     session.commit()
     try:

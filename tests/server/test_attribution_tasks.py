@@ -505,6 +505,16 @@ def test_each_attribution_task_keeps_its_own_result_snapshot(initialized_db, mon
 
 def test_attribution_task_api_reruns_selected_items_in_place_and_deletes(client, monkeypatch):
     run_id, sample_ids, model_id = _seed_failed_cases()
+    with session_scope() as session:
+        replacement = JudgeModelConfig(
+            name="rerun-selected-model",
+            provider="openai",
+            model="replacement-model",
+            api_key="test-key",
+        )
+        session.add(replacement)
+        session.flush()
+        replacement_model_id = replacement.id
     monkeypatch.setattr(attribution_tasks, "has_judge_model_api_key", lambda _model: True)
     monkeypatch.setattr(attribution_tasks, "start_attribution_task", lambda _task_id: None)
 
@@ -518,11 +528,13 @@ def test_attribution_task_api_reruns_selected_items_in_place_and_deletes(client,
 
     rerun = client.post(
         f"/api/runs/{run_id}/attribution-tasks/{source_id}/rerun",
-        json={"sample_ids": [sample_ids[0]]},
+        json={"sample_ids": [sample_ids[0]], "judge_model_id": replacement_model_id},
     )
     assert rerun.status_code == 200, rerun.text
     rerun_id = rerun.json()["id"]
     assert rerun_id == source_id
+    assert rerun.json()["judge_model_id"] == replacement_model_id
+    assert rerun.json()["judge_model_name"] == "rerun-selected-model"
     assert rerun.json()["total_count"] == len(sample_ids)
     items = {item["sample_id"]: item for item in rerun.json()["items"]}
     assert items[sample_ids[0]]["status"] == "pending"
@@ -559,6 +571,16 @@ def test_deleting_run_cascades_attribution_task_and_items(client, monkeypatch):
 
 def test_attribution_task_api_resumes_only_unfinished_items(client, monkeypatch):
     run_id, sample_ids, model_id = _seed_failed_cases()
+    with session_scope() as session:
+        replacement = JudgeModelConfig(
+            name="resume-selected-model",
+            provider="openai",
+            model="replacement-model",
+            api_key="test-key",
+        )
+        session.add(replacement)
+        session.flush()
+        replacement_model_id = replacement.id
     started: list[int] = []
     monkeypatch.setattr(attribution_tasks, "has_judge_model_api_key", lambda _model: True)
     monkeypatch.setattr(attribution_tasks, "start_attribution_task", lambda task_id: started.append(task_id))
@@ -581,10 +603,15 @@ def test_attribution_task_api_resumes_only_unfinished_items(client, monkeypatch)
             item.error_msg = "服务重启导致归因中断"
         attribution_tasks._refresh_task_counts(session, task)
 
-    resumed = client.post(f"/api/runs/{run_id}/attribution-tasks/{task_id}/resume")
+    resumed = client.post(
+        f"/api/runs/{run_id}/attribution-tasks/{task_id}/resume",
+        json={"judge_model_id": replacement_model_id},
+    )
     assert resumed.status_code == 200, resumed.text
     payload = resumed.json()
     assert payload["id"] == task_id
+    assert payload["judge_model_id"] == replacement_model_id
+    assert payload["judge_model_name"] == "resume-selected-model"
     assert payload["status"] == "queued"
     assert payload["success_count"] == 1
     assert payload["completed_count"] == 1
@@ -618,7 +645,7 @@ def test_resumed_task_executes_only_pending_items(initialized_db, monkeypatch):
             item.status = "failed"
         attribution_tasks._refresh_task_counts(session, task)
         task_id = task.id
-        attribution_tasks.resume_attribution_task(session, run_id, task_id)
+        attribution_tasks.resume_attribution_task(session, run_id, task_id, model_id)
 
     asyncio.run(attribution_tasks.run_attribution_task(task_id))
     assert set(called) == set(sample_ids[1:])

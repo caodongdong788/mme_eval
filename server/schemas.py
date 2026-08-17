@@ -550,6 +550,11 @@ class AttributionTaskCreate(BaseModel):
 
 class AttributionTaskRerun(BaseModel):
     sample_ids: list[str] = Field(min_length=1, max_length=100)
+    judge_model_id: int = Field(gt=0)
+
+
+class AttributionTaskResume(BaseModel):
+    judge_model_id: int = Field(gt=0)
 
 
 class AttributionTaskItemOut(BaseModel):

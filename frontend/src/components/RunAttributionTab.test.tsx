@@ -12,6 +12,7 @@ vi.mock("../api/index", () => ({
     getAttributionTask: vi.fn(),
     listAttributionTasks: vi.fn(),
     createAttributionTask: vi.fn(),
+    listJudgeModels: vi.fn(),
     rerunAttributionTask: vi.fn(),
     resumeAttributionTask: vi.fn(),
     deleteAttributionTask: vi.fn(),
@@ -183,6 +184,20 @@ describe("RunAttributionTab", () => {
   beforeEach(() => {
     clearConfigLabelMapCache();
     mockedApi.getJudgeVerdictLabels.mockResolvedValue({});
+    mockedApi.listJudgeModels.mockResolvedValue([
+      {
+        id: 1,
+        name: "kimi-k2.6",
+        model: "kimi-k2.6",
+        has_api_key: true,
+      } as any,
+      {
+        id: 2,
+        name: "qwen3.8-max",
+        model: "qwen3.8-max",
+        has_api_key: true,
+      } as any,
+    ]);
     mockedApi.listAttributionTasks.mockResolvedValue([{ ...task, items: [] }]);
     mockedApi.getAttributionTask.mockResolvedValue(task);
   });
@@ -273,12 +288,16 @@ describe("RunAttributionTab", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /全\s*选/ }));
     fireEvent.click(screen.getByRole("button", { name: /重新归因（1）/ }));
+    expect(await screen.findByText("归因分析模型")).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "开始重试" }));
 
     await vi.waitFor(() =>
-      expect(mockedApi.rerunAttributionTask).toHaveBeenCalledWith(26, 99, [
-        "case_11",
-      ])
+      expect(mockedApi.rerunAttributionTask).toHaveBeenCalledWith(
+        26,
+        99,
+        ["case_11"],
+        1
+      )
     );
     expect(mockedApi.createAttributionTask).not.toHaveBeenCalled();
     expect(await screen.findByText("等待重试")).toBeInTheDocument();
@@ -408,4 +427,5 @@ describe("RunAttributionTab", () => {
       screen.getAllByRole("button").map((button) => button.textContent)
     ).toContain("继续归因");
   });
+
 });
