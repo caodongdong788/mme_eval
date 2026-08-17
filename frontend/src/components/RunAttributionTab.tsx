@@ -1101,36 +1101,6 @@ export function AttributionDetail({ result }: { result: CaseAttribution }) {
   );
 }
 
-function AttributionClusterDetails({
-  cluster,
-  task,
-}: {
-  cluster: NonNullable<
-    AttributionTask["diagnostic_summary"]
-  >["clusters"][number];
-  task: AttributionTask;
-}) {
-  return (
-    <div className="attribution-cluster-detail">
-      <Descriptions size="small" column={{ xs: 1, md: 2 }}>
-        <Descriptions.Item label="影响用例">
-          <CaseAttributionLinks task={task} sampleIds={cluster.sample_ids} />
-        </Descriptions.Item>
-        <Descriptions.Item label="影响维度">
-          {cluster.dimensions.map(dimensionDisplayName).join("、") ||
-            "未关联维度"}
-        </Descriptions.Item>
-        <Descriptions.Item label="平均置信度">
-          {confidencePercent(cluster.confidence)}%
-        </Descriptions.Item>
-        <Descriptions.Item label="责任环节">
-          {OWNER_LABELS[cluster.owner] || "待确认"}
-        </Descriptions.Item>
-      </Descriptions>
-    </div>
-  );
-}
-
 function CaseAttributionLinks({
   task,
   sampleIds,
@@ -1252,42 +1222,6 @@ function CxAgentClusterPriorityGroups({
   );
 }
 
-function clusterCollapseItem(
-  cluster: NonNullable<
-    AttributionTask["diagnostic_summary"]
-  >["clusters"][number],
-  index: number,
-  task: AttributionTask
-) {
-  return {
-    key: `${cluster.category}-${cluster.cause_code}-${cluster.owner}-${index}`,
-    label: (
-      <div className="attribution-cluster-label">
-        <Space size={8} wrap>
-          <Tag
-            color={
-              cluster.priority === "P0"
-                ? "red"
-                : cluster.priority === "P1"
-                  ? "orange"
-                  : "blue"
-            }
-          >
-            {cluster.priority}
-          </Tag>
-          <strong>{humanizeAttributionText(cluster.cause_label)}</strong>
-          <Tag>{cluster.case_count} 个 Case</Tag>
-          <Tag>{cluster.deduction_count} 个问题</Tag>
-        </Space>
-        <div className="attribution-muted">
-          {humanizeAttributionText(cluster.summary)}
-        </div>
-      </div>
-    ),
-    children: <AttributionClusterDetails cluster={cluster} task={task} />,
-  };
-}
-
 function fallbackEvaluationRecommendation(
   category: string | undefined,
   cluster: NonNullable<AttributionTask["diagnostic_summary"]>["clusters"][number]
@@ -1347,114 +1281,35 @@ function fallbackEvaluationRecommendation(
   };
 }
 
-type EvaluationAction = AttributionRecommendation & { sampleIds: string[] };
-
-function actionableEvaluationRecommendations(
-  clusters: NonNullable<AttributionTask["diagnostic_summary"]>["clusters"]
-): EvaluationAction[] {
-  const grouped = new Map<string, EvaluationAction>();
-  clusters.forEach((cluster) => {
-    const recommendations = cluster.recommendations?.length
-      ? cluster.recommendations
-      : [
-          fallbackEvaluationRecommendation(
-            cluster.evaluation_issue_category,
-            cluster
-          ),
-        ];
-    recommendations.forEach((recommendation) => {
-      const key = `${recommendation.target}::${recommendation.action}`;
-      const current = grouped.get(key);
-      if (current) {
-        current.sampleIds = [...new Set([...current.sampleIds, ...cluster.sample_ids])];
-      } else {
-        grouped.set(key, {
-          ...recommendation,
-          sampleIds: [...new Set(cluster.sample_ids)],
-        });
-      }
-    });
-  });
-  return [...grouped.values()];
-}
-
-function EvaluationActionList({
-  task,
-  items,
-}: {
-  task: AttributionTask;
-  items: EvaluationAction[];
-}) {
-  return (
-    <List
-      className="attribution-evaluation-actions"
-      dataSource={items}
-      renderItem={(item) => (
-        <List.Item>
-          <div>
-            <Space size={8} wrap>
-              <Tag
-                color={
-                  item.priority === "P0"
-                    ? "red"
-                    : item.priority === "P1"
-                      ? "orange"
-                      : "blue"
-                }
-              >
-                {priorityDisplayName(item.priority)}
-              </Tag>
-              <strong>{humanizeAttributionText(item.target)}</strong>
-            </Space>
-            <div className="attribution-evaluation-actions__action">
-              <strong>建议操作：</strong>
-              {humanizeAttributionText(item.action)}
-            </div>
-            <div className="attribution-muted">
-              <strong>关联 Case：</strong>
-              <CaseAttributionLinks task={task} sampleIds={item.sampleIds} />
-            </div>
-          </div>
-        </List.Item>
-      )}
-    />
-  );
-}
-
-function EvaluationToolOptimizationGroup({
+function EvaluationConflictGroup({
   task,
   title,
-  description,
   countLabel,
   countColor,
+  issueLabel,
   clusters,
   emptyDescription,
 }: {
   task: AttributionTask;
   title: string;
-  description: string;
   countLabel: string;
   countColor?: string;
+  issueLabel: string;
   clusters: NonNullable<AttributionTask["diagnostic_summary"]>["clusters"];
   emptyDescription: string;
 }) {
-  const caseIds = [...new Set(clusters.flatMap((cluster) => cluster.sample_ids))];
-  const actions = actionableEvaluationRecommendations(clusters);
   const [expanded, setExpanded] = useState(false);
   return (
     <section className="attribution-evaluation-group">
       <div className="attribution-evaluation-group__head">
-        <div>
-          <h5>{title}</h5>
-          <p>{description}</p>
-        </div>
+        <h5>{title}</h5>
         <Space size={4} wrap>
           <Tag color={countColor}>{countLabel}</Tag>
           {clusters.length ? (
             <Button
               type="link"
               size="small"
-              aria-label={expanded ? "收起列表" : "展开列表"}
+              aria-label={`${title}${expanded ? "收起" : "展开"}`}
               icon={expanded ? <UpOutlined /> : <DownOutlined />}
               onClick={() => setExpanded((current) => !current)}
             >
@@ -1465,22 +1320,42 @@ function EvaluationToolOptimizationGroup({
       </div>
       {clusters.length ? (
         expanded ? (
-          <>
-          <div className="attribution-evaluation-group__cases">
-            <strong>关联 Case：</strong>
-            <CaseAttributionLinks task={task} sampleIds={caseIds} />
-          </div>
-          <div className="attribution-evaluation-group__actions">
-            <div className="attribution-section-title">可执行优化操作</div>
-            <EvaluationActionList task={task} items={actions} />
-          </div>
-          <Collapse
-            className="attribution-cluster-list attribution-cluster-list--evaluation"
-            items={clusters.map((cluster, index) =>
-              clusterCollapseItem(cluster, index, task)
-            )}
+          <List
+            className="attribution-evaluation-conflicts"
+            dataSource={clusters}
+            renderItem={(cluster) => {
+              const actions = cluster.recommendations?.length
+                ? cluster.recommendations.map((item) => item.action).filter(Boolean)
+                : [
+                    fallbackEvaluationRecommendation(
+                      cluster.evaluation_issue_category,
+                      cluster
+                    ).action,
+                  ];
+              return (
+                <List.Item>
+                  <div className="attribution-evaluation-conflict">
+                    <div>
+                      <strong>{issueLabel}：</strong>
+                      {humanizeAttributionText(cluster.summary || cluster.cause_label)}
+                    </div>
+                    <div>
+                      <strong>建议操作：</strong>
+                      <div className="attribution-evaluation-conflict__actions">
+                        {actions.map((action) => (
+                          <div key={action}>{humanizeAttributionText(action)}</div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="attribution-evaluation-conflict__cases">
+                      <strong>关联 Case：</strong>
+                      <CaseAttributionLinks task={task} sampleIds={cluster.sample_ids} />
+                    </div>
+                  </div>
+                </List.Item>
+              );
+            }}
           />
-          </>
         ) : null
       ) : (
         <Empty
@@ -1705,38 +1580,38 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
         </div>
         {evaluationExpanded ? (
           <div className="attribution-evaluation-groups">
-            <EvaluationToolOptimizationGroup
+            <EvaluationConflictGroup
               task={task}
               title="Benchmark 判据冲突"
-              description="Benchmark 自身的适用条件、检查点、扣分规则或推荐回答互相矛盾、重叠或形成重复扣分；应先修正评测真值。"
               countLabel={`${deductionCount(benchmarkConflictClusters)} 项冲突 · ${benchmarkConflictClusters.length} 个通用问题`}
               countColor="red"
+              issueLabel="判据冲突点"
               clusters={benchmarkConflictClusters}
               emptyDescription="本次任务没有发现 Benchmark 自身判据冲突"
             />
-            <EvaluationToolOptimizationGroup
+            <EvaluationConflictGroup
               task={task}
-              title="标注与 RAG 证据冲突"
-              description="标注或判分真值与实际召回的医学文献、说明书证据不一致，或结论超出了证据能支持的范围。"
+              title="判分点与 RAG 证据冲突"
               countLabel={`${deductionCount(annotationRagConflictClusters)} 项冲突 · ${annotationRagConflictClusters.length} 个通用问题`}
               countColor="volcano"
+              issueLabel="判分点与 RAG 证据冲突点"
               clusters={annotationRagConflictClusters}
-              emptyDescription="本次任务没有发现标注与 RAG 证据冲突"
+              emptyDescription="本次任务没有发现判分点与 RAG 证据冲突"
             />
-            <EvaluationToolOptimizationGroup
+            <EvaluationConflictGroup
               task={task}
               title="其他判分复核"
-              description="Benchmark 合同本身可执行，但判分过程可能误读完整上下文、条件限定、日期或扣分档位。"
               countLabel={`${deductionCount(judgeLogicClusters)} 项待复核 · ${judgeLogicClusters.length} 个通用问题`}
               countColor="orange"
+              issueLabel="判分复核点"
               clusters={judgeLogicClusters}
               emptyDescription="本次任务没有其他需要复核的判分问题"
             />
-            <EvaluationToolOptimizationGroup
+            <EvaluationConflictGroup
               task={task}
               title="其他证据不足"
-              description="缺少的是对话原文、用户上下文、调用链或判分输入等非 RAG 证据；不应将其误标为 RAG 问题。"
               countLabel={`${deductionCount(otherEvidenceGapClusters)} 项证据不足 · ${otherEvidenceGapClusters.length} 个待补齐问题`}
+              issueLabel="证据不足点"
               clusters={otherEvidenceGapClusters}
               emptyDescription="本次任务没有其他证据不足的问题"
             />

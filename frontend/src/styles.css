@@ -4720,6 +4720,39 @@ a.ant-typography-secondary:hover {
   line-height: 1.6;
 }
 
+.attribution-evaluation-conflicts .ant-list-item {
+  align-items: flex-start;
+  padding: 14px 16px;
+}
+
+.attribution-evaluation-conflict {
+  display: grid;
+  gap: 9px;
+  width: 100%;
+  color: var(--runs-text);
+  line-height: 1.7;
+}
+
+.attribution-evaluation-conflict > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.attribution-evaluation-conflict > div > strong {
+  flex: 0 0 auto;
+  color: var(--runs-text-secondary);
+}
+
+.attribution-evaluation-conflict__actions {
+  display: grid;
+  gap: 4px;
+}
+
+.attribution-evaluation-conflict__cases > .ant-space {
+  flex: 1;
+}
+
 .attribution-dimension-list,
 .attribution-cluster-list--nested {
   border: 0;
