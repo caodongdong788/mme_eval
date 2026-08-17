@@ -11,7 +11,9 @@ from server.durable_queue import (
     cancel_attribution_job,
     claim_job,
     enqueue_attribution_job,
+    finish_job,
     heartbeat_job,
+    reconcile_succeeded_run_statuses,
     reconcile_unqueued_runs,
     requeue_job,
 )
@@ -103,6 +105,71 @@ def test_cancelled_job_is_not_reclaimed(initialized_db):
         session.add(EvaluationJob(run_id=run_id, kind="resume", payload={}, status="queued"))
     assert cancel_job(run_id)
     assert claim_job("worker-a", 30) is None
+
+
+def test_successful_durable_job_atomically_marks_run_success(initialized_db):
+    run_id = _new_run()
+    with session_scope() as session:
+        session.add(EvaluationJob(run_id=run_id, kind="evaluation", payload={}, status="queued"))
+
+    job = claim_job("worker-a", 30)
+    assert job is not None
+    assert finish_job(job.id, "worker-a", "succeeded")
+
+    with session_scope() as session:
+        run = session.get(EvalRun, run_id)
+        assert run is not None
+        assert run.status == "success"
+        assert run.error_msg == ""
+        assert run.finished_at is not None
+
+
+def test_reconcile_succeeded_run_status_repairs_only_stale_failure(initialized_db):
+    run_id = _new_run()
+    with session_scope() as session:
+        run = session.get(EvalRun, run_id)
+        assert run is not None
+        run.status = "failed"
+        run.error_msg = "评测任务执行失败，详见服务端日志"
+        run.finished_at = datetime.utcnow() - timedelta(seconds=10)
+        session.add(
+            EvaluationJob(
+                run_id=run_id,
+                kind="evaluation",
+                payload={},
+                status="succeeded",
+                finished_at=datetime.utcnow(),
+            )
+        )
+
+    assert reconcile_succeeded_run_statuses() == 1
+    with session_scope() as session:
+        run = session.get(EvalRun, run_id)
+        assert run is not None
+        assert run.status == "success"
+        assert run.error_msg == ""
+
+
+def test_reconcile_succeeded_run_status_does_not_touch_active_run(initialized_db):
+    run_id = _new_run()
+    with session_scope() as session:
+        run = session.get(EvalRun, run_id)
+        assert run is not None
+        run.status = "running"
+        session.add(
+            EvaluationJob(
+                run_id=run_id,
+                kind="evaluation",
+                payload={},
+                status="succeeded",
+                finished_at=datetime.utcnow(),
+            )
+        )
+
+    assert reconcile_succeeded_run_statuses() == 0
+    with session_scope() as session:
+        run = session.get(EvalRun, run_id)
+        assert run is not None and run.status == "running"
 
 
 def test_attribution_job_is_deduplicated_and_can_be_cancelled(initialized_db):

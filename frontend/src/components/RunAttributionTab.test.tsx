@@ -248,6 +248,15 @@ describe("RunAttributionTab", () => {
       screen.getByRole("heading", { name: "其他判分复核" })
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "证据不足" })).toBeInTheDocument();
+    const caseLinks = screen.getAllByRole("link", {
+      name: "查看 case_11 归因",
+    });
+    expect(caseLinks.length).toBeGreaterThan(0);
+    expect(caseLinks[0]).toHaveAttribute(
+      "href",
+      "/runs/26/attribution-tasks/99/cases/case_11"
+    );
+    expect(screen.getAllByText("建议操作：").length).toBeGreaterThan(0);
     fireEvent.click(screen.getAllByText("医学安全性")[0]);
     fireEvent.click(screen.getByText("召回证据未用于回答"));
     expect(screen.getAllByText("医学安全性").length).toBeGreaterThan(0);
@@ -341,6 +350,8 @@ describe("RunAttributionTab", () => {
       await screen.findByText("任务 #99 · 用例归因结果")
     ).toBeInTheDocument();
     expect(await screen.findByText(/分析中 1/)).toBeInTheDocument();
+    // 正在分析只表示已开始，不得提前记入整体完成率。
+    expect(await screen.findByText("0%")).toBeInTheDocument();
     await new Promise((resolve) => window.setTimeout(resolve, 1650));
     expect(
       mockedApi.getAttributionTask.mock.calls.length

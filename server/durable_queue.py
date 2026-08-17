@@ -13,6 +13,44 @@ from .paths import safe_join
 from .settings import Settings
 
 ACTIVE_STATUSES = ("queued", "running")
+# 这些 Job 才会直接决定 ``EvalRun`` 的终态。归因任务附着在已完成的
+# 评测记录之上，绝不能改写原评测状态。
+RUN_EXECUTION_KINDS = ("evaluation", "resume", "rejudge", "cases_retry")
+
+
+def reconcile_succeeded_run_statuses() -> int:
+    """修复“持久化 Job 成功、Run 却仍为失败”的历史竞态。
+
+    某些旧版本在 Web 服务重启窗口内可能先写入通用失败状态，而独立 Worker
+    随后已经成功完成 Job。只以 *同一 run 最新的执行类 Job* 为准，且仅当
+    该成功 Job 的完成时间不早于 Run 的失败时间时才回填；运行中、排队中及
+    后续真正失败的任务都不会被触及。
+    """
+    repaired = 0
+    with session_scope() as session:
+        jobs = list(session.scalars(
+            select(EvaluationJob)
+            .where(EvaluationJob.kind.in_(RUN_EXECUTION_KINDS))
+            .order_by(EvaluationJob.run_id, EvaluationJob.id.desc())
+        ))
+        latest_by_run: dict[int, EvaluationJob] = {}
+        for job in jobs:
+            latest_by_run.setdefault(job.run_id, job)
+
+        for run_id, job in latest_by_run.items():
+            if job.status != "succeeded" or job.finished_at is None:
+                continue
+            run = session.get(EvalRun, run_id)
+            if run is None or run.status != "failed":
+                continue
+            # 若失败发生在成功 Job 之后，则它属于新的真实失败，不能覆盖。
+            if run.finished_at is not None and job.finished_at < run.finished_at:
+                continue
+            run.status = "success"
+            run.error_msg = ""
+            run.finished_at = job.finished_at
+            repaired += 1
+    return repaired
 
 
 def reconcile_unqueued_runs(settings: Settings) -> tuple[int, int]:
@@ -223,6 +261,14 @@ def finish_job(job_id: int, owner: str, status: str, *, error: str = "") -> bool
         row.finished_at = datetime.utcnow()
         row.lease_owner = None
         row.lease_expires_at = None
+        # Job 已经无异常返回时，先在同一事务中把对应 Run 收敛为成功。这样即使
+        # 随后 Web 服务重启或旧协程迟到，也不会出现“Job 成功、页面失败”的窗口。
+        if status == "succeeded" and row.kind in RUN_EXECUTION_KINDS:
+            run = session.get(EvalRun, row.run_id)
+            if run is not None:
+                run.status = "success"
+                run.error_msg = ""
+                run.finished_at = row.finished_at
         return True
 
 

@@ -7,7 +7,7 @@ import asyncio
 from server.constants import EVAL_JOB_USER_ERROR
 from server.db import session_scope
 from server.jobs import InProcessJobRunner
-from server.models_db import EvalRun
+from server.models_db import EvalRun, EvaluationJob
 from server.progress import InMemoryProgress
 
 
@@ -88,6 +88,32 @@ def test_job_failure_records_error(initialized_db):
         row = s.get(EvalRun, run_id)
         assert row.error_msg == EVAL_JOB_USER_ERROR
         assert row.finished_at is not None
+
+
+def test_late_failure_does_not_override_latest_successful_durable_job(initialized_db):
+    """旧协程迟到回写失败时，不能覆盖持久化 Worker 的成功终态。"""
+    from server.jobs import _set_status
+
+    run_id = _new_pending_run()
+    with session_scope() as s:
+        run = s.get(EvalRun, run_id)
+        assert run is not None
+        run.status = "success"
+        s.add(
+            EvaluationJob(
+                run_id=run_id,
+                kind="evaluation",
+                payload={},
+                status="succeeded",
+            )
+        )
+
+    _set_status(run_id, "failed", error=EVAL_JOB_USER_ERROR)
+    with session_scope() as s:
+        run = s.get(EvalRun, run_id)
+        assert run is not None
+        assert run.status == "success"
+        assert run.error_msg == ""
 
 
 def test_progress_percent_monotonic_across_phases():

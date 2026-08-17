@@ -55,14 +55,16 @@ async def _lifespan(app: FastAPI):
     from .pairwise_job import reconcile_orphaned_pairwise
 
     if get_settings().job_runner_mode == "database":
-        from .durable_queue import reconcile_unqueued_runs
+        from .durable_queue import reconcile_succeeded_run_statuses, reconcile_unqueued_runs
 
         n_recovered, n_unrecoverable = reconcile_unqueued_runs(get_settings())
+        n_status_repaired = reconcile_succeeded_run_statuses()
         n_runs = 0
         logger.info(
-            "持久化队列校准：恢复 %s 条、缺少断点失败 %s 条",
+            "持久化队列校准：恢复 %s 条、缺少断点失败 %s 条、成功状态回填 %s 条",
             n_recovered,
             n_unrecoverable,
+            n_status_repaired,
         )
     else:
         n_runs = reconcile_orphaned_runs()

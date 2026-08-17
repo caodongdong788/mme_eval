@@ -223,4 +223,56 @@ describe("AttributionCaseDetailPage", () => {
     fireEvent.click(screen.getByRole("link", { name: "← 返回归因任务" }));
     expect(await screen.findByText("归因任务明细页")).toBeInTheDocument();
   });
+
+  it("groups questionable deductions by the evaluation review source", async () => {
+    const baseDeduction = result.analysis!.deduction_analyses[0];
+    mockedApi.getAttributionTaskResult.mockResolvedValue({
+      ...result,
+      analysis: {
+        ...result.analysis!,
+        deduction_analyses: [
+          baseDeduction,
+          {
+            ...baseDeduction,
+            deduction_id: "guideline.g03_benchmark_conflict",
+            deduction_validation: "questionable",
+            evaluation_issue_category: "benchmark_criteria_conflict",
+            finding: "检查点与推荐回答的适用条件冲突。",
+          },
+          {
+            ...baseDeduction,
+            deduction_id: "guideline.g04_annotation_rag_conflict",
+            deduction_validation: "questionable",
+            evaluation_issue_category: "annotation_rag_conflict",
+            finding: "标注结论无法由当前 RAG 原文支持。",
+          },
+          {
+            ...baseDeduction,
+            deduction_id: "guideline.g05_judge_logic",
+            deduction_validation: "questionable",
+            evaluation_issue_category: "judge_logic_issue",
+            finding: "判分可能遗漏了用户档案中的限定条件。",
+          },
+        ],
+      },
+    });
+
+    renderWithProviders(
+      <MemoryRouter
+        initialEntries={["/runs/26/attribution-tasks/28/cases/case_23"]}
+      >
+        <Routes>
+          <Route
+            path="/runs/:runId/attribution-tasks/:taskId/cases/:sampleId"
+            element={<AttributionCaseDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("需要复核的判分")).toBeInTheDocument();
+    expect(screen.getByText("Benchmark 判据冲突")).toBeInTheDocument();
+    expect(screen.getByText("标注与 RAG 证据冲突")).toBeInTheDocument();
+    expect(screen.getByText("其他判分复核")).toBeInTheDocument();
+  });
 });

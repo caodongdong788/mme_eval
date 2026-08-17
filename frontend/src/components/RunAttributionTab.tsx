@@ -171,12 +171,12 @@ function AttributionTaskProgress({ task }: { task: AttributionTask }) {
   const pendingCount = Number.isFinite(task.pending_count)
     ? task.pending_count
     : Math.max(0, task.total_count - task.completed_count - runningCount);
-  const enteredCount = Math.min(
-    task.total_count,
-    task.completed_count + runningCount
-  );
+  // 汇总进度只表示已落库的终态 Case（成功或失败）。运行中的 Case 已进入
+  // 并发槽位但尚未产出结果，不能提前计入完成率，否则“20/22 + 分析中 2”会
+  // 错误显示为 100%。
+  const terminalCount = Math.min(task.total_count, task.completed_count);
   const percent = task.total_count
-    ? Math.round((enteredCount / task.total_count) * 100)
+    ? Math.round((terminalCount / task.total_count) * 100)
     : 0;
   const progressStatus =
     task.status === "failed"
@@ -455,6 +455,39 @@ function RecommendationList({ items }: { items: AttributionRecommendation[] }) {
 }
 
 type AttributionModuleKind = "supported" | "questionable" | "insufficient";
+
+const QUESTIONABLE_REVIEW_GROUPS = [
+  {
+    key: "benchmark_criteria_conflict",
+    title: "Benchmark 判据冲突",
+    description:
+      "检查点、扣分规则、推荐回答或适用条件彼此矛盾，需先修正 Benchmark 的评测真值。",
+  },
+  {
+    key: "annotation_rag_conflict",
+    title: "标注与 RAG 证据冲突",
+    description:
+      "已有标注或判分结论与本用例可核对的 RAG 医学证据不一致，需复核证据与真值。",
+  },
+  {
+    key: "judge_logic_issue",
+    title: "其他判分复核",
+    description:
+      "判据本身暂未发现冲突，但判分可能漏读上下文、条件限制或扣分档位，需复核判分逻辑。",
+  },
+] as const;
+
+function questionableReviewGroup(
+  item: AttributionDeductionAnalysis
+): (typeof QUESTIONABLE_REVIEW_GROUPS)[number]["key"] {
+  if (item.evaluation_issue_category === "benchmark_criteria_conflict") {
+    return "benchmark_criteria_conflict";
+  }
+  if (item.evaluation_issue_category === "annotation_rag_conflict") {
+    return "annotation_rag_conflict";
+  }
+  return "judge_logic_issue";
+}
 
 const REQUIRED_INFORMATION_LABELS: Record<string, string> = {
   patient_context: "用户档案与历史事实",
@@ -752,6 +785,30 @@ function AttributionAnalysisModule({
     items,
     globalRecommendations
   );
+  const reviewGroups = QUESTIONABLE_REVIEW_GROUPS.map((group) => ({
+    ...group,
+    items: items.filter(
+      (item) => questionableReviewGroup(item) === group.key
+    ),
+  }));
+  const deductionItems = (values: AttributionDeductionAnalysis[]) =>
+    values.map((item, index) => ({
+      key: item.deduction_id,
+      label: (
+        <div className="attribution-module__item-label">
+          <strong>
+            {index + 1}. {attributionDeductionLabel(item)}
+          </strong>
+          <span>
+            {humanizeAttributionText(
+              item.finding || item.primary_cause?.label,
+              allItems
+            )}
+          </span>
+        </div>
+      ),
+      children: <DeductionPanel item={item} analyses={allItems} kind={kind} />,
+    }));
   return (
     <section className={`attribution-module attribution-module--${kind}`}>
       <div className="attribution-module__header">
@@ -763,28 +820,32 @@ function AttributionAnalysisModule({
           <p>{description}</p>
         </div>
       </div>
-      {items.length ? (
+      {kind === "questionable" && items.length ? (
+        <div className="attribution-review-groups">
+          {reviewGroups.map((group) => (
+            <section className="attribution-review-group" key={group.key}>
+              <div className="attribution-review-group__head">
+                <div>
+                  <strong>{group.title}</strong>
+                  <p>{group.description}</p>
+                </div>
+                <Tag color="orange">{group.items.length} 项</Tag>
+              </div>
+              {group.items.length ? (
+                <Collapse
+                  className="attribution-collapse attribution-module__items"
+                  items={deductionItems(group.items)}
+                />
+              ) : (
+                <div className="attribution-review-group__empty">本用例暂无此类复核项</div>
+              )}
+            </section>
+          ))}
+        </div>
+      ) : items.length ? (
         <Collapse
           className="attribution-collapse attribution-module__items"
-          items={items.map((item, index) => ({
-            key: item.deduction_id,
-            label: (
-              <div className="attribution-module__item-label">
-                <strong>
-                  {index + 1}. {attributionDeductionLabel(item)}
-                </strong>
-                <span>
-                  {humanizeAttributionText(
-                    item.finding || item.primary_cause?.label,
-                    allItems
-                  )}
-                </span>
-              </div>
-            ),
-            children: (
-              <DeductionPanel item={item} analyses={allItems} kind={kind} />
-            ),
-          }))}
+          items={deductionItems(items)}
         />
       ) : (
         <Empty
@@ -908,16 +969,18 @@ export function AttributionDetail({ result }: { result: CaseAttribution }) {
 
 function AttributionClusterDetails({
   cluster,
+  task,
 }: {
   cluster: NonNullable<
     AttributionTask["diagnostic_summary"]
   >["clusters"][number];
+  task: AttributionTask;
 }) {
   return (
     <div className="attribution-cluster-detail">
       <Descriptions size="small" column={{ xs: 1, md: 2 }}>
         <Descriptions.Item label="影响用例">
-          {cluster.sample_ids.join("、")}
+          <CaseAttributionLinks task={task} sampleIds={cluster.sample_ids} />
         </Descriptions.Item>
         <Descriptions.Item label="影响维度">
           {cluster.dimensions.map(dimensionDisplayName).join("、") ||
@@ -944,11 +1007,37 @@ function AttributionClusterDetails({
   );
 }
 
+function CaseAttributionLinks({
+  task,
+  sampleIds,
+}: {
+  task: AttributionTask;
+  sampleIds: string[];
+}) {
+  const ids = [...new Set(sampleIds)].sort((left, right) =>
+    left.localeCompare(right, undefined, { numeric: true })
+  );
+  return (
+    <Space size={[4, 4]} wrap>
+      {ids.map((sampleId) => (
+        <Link
+          key={sampleId}
+          aria-label={`查看 ${sampleId} 归因`}
+          to={`/runs/${task.run_id}/attribution-tasks/${task.id}/cases/${encodeURIComponent(sampleId)}`}
+        >
+          {sampleId}
+        </Link>
+      ))}
+    </Space>
+  );
+}
+
 function clusterCollapseItem(
   cluster: NonNullable<
     AttributionTask["diagnostic_summary"]
   >["clusters"][number],
-  index: number
+  index: number,
+  task: AttributionTask
 ) {
   return {
     key: `${cluster.category}-${cluster.cause_code}-${cluster.owner}-${index}`,
@@ -975,11 +1064,144 @@ function clusterCollapseItem(
         </div>
       </div>
     ),
-    children: <AttributionClusterDetails cluster={cluster} />,
+    children: <AttributionClusterDetails cluster={cluster} task={task} />,
   };
 }
 
+function fallbackEvaluationRecommendation(
+  category: string | undefined,
+  cluster: NonNullable<AttributionTask["diagnostic_summary"]>["clusters"][number]
+): AttributionRecommendation {
+  if (category === "benchmark_criteria_conflict") {
+    return {
+      priority: cluster.priority,
+      target: "Benchmark 判据",
+      action:
+        "逐条核对检查点、扣分规则和推荐回答的适用条件；对同一行为结论相反的内容只保留一条明确规则，并补充边界条件。",
+      expected_effect: "消除同一回答被相互矛盾的规则判定的情况。",
+      verification: "用关联 Case 重新判分，并人工抽查规则、推荐回答和结论是否一致。",
+      acceptance_criteria: "关联 Case 不再出现相同判据下的相反结论。",
+    };
+  }
+  if (category === "annotation_rag_conflict") {
+    return {
+      priority: cluster.priority,
+      target: "标注与 RAG 证据",
+      action:
+        "将标注结论与本 Case 的 RAG 原文逐条对照；无法由原文直接支持的结论改为待复核，或补充可追溯的权威来源。",
+      expected_effect: "让标注、判分理由和医学证据使用同一事实依据。",
+      verification: "复核关联 Case 的引用片段，确认每条扣分都能定位到支持它的证据。",
+      acceptance_criteria: "每条保留的扣分均有可追溯的 RAG 或权威文献依据。",
+    };
+  }
+  if (category === "evidence_gap") {
+    return {
+      priority: cluster.priority,
+      target: "评测证据采集",
+      action:
+        "补齐对话、用户档案、RAG 审计和判分输入中的缺失链路；证据不完整时将结论标记为待补证，不直接归责。",
+      expected_effect: "避免因缺失调用链或上下文而误判。",
+      verification: "补齐链路后重新归因，并检查每个结论都能回链到原始证据。",
+      acceptance_criteria: "关联 Case 的归因不再停留在“证据不足”。",
+    };
+  }
+  return {
+    priority: cluster.priority,
+    target: "判分模型与规则",
+    action:
+      "将完整对话、用户档案、RAG 证据和扣分规则一起输入判分复核；明确条件限制和扣分档位，避免只依据局部文本扣分。",
+    expected_effect: "减少漏读上下文、误用条件或扣分档位不一致的问题。",
+    verification: "使用关联 Case 及同类边界 Case 回归，核对判分理由能对应原文和判据。",
+    acceptance_criteria: "判分理由、原文证据和最终分数三者一致。",
+  };
+}
+
+type EvaluationAction = AttributionRecommendation & { sampleIds: string[] };
+
+function actionableEvaluationRecommendations(
+  clusters: NonNullable<AttributionTask["diagnostic_summary"]>["clusters"]
+): EvaluationAction[] {
+  const grouped = new Map<string, EvaluationAction>();
+  clusters.forEach((cluster) => {
+    const recommendations = cluster.recommendations?.length
+      ? cluster.recommendations
+      : [
+          fallbackEvaluationRecommendation(
+            cluster.evaluation_issue_category,
+            cluster
+          ),
+        ];
+    recommendations.forEach((recommendation) => {
+      const key = `${recommendation.target}::${recommendation.action}`;
+      const current = grouped.get(key);
+      if (current) {
+        current.sampleIds = [...new Set([...current.sampleIds, ...cluster.sample_ids])];
+      } else {
+        grouped.set(key, {
+          ...recommendation,
+          sampleIds: [...new Set(cluster.sample_ids)],
+        });
+      }
+    });
+  });
+  return [...grouped.values()];
+}
+
+function EvaluationActionList({
+  task,
+  items,
+}: {
+  task: AttributionTask;
+  items: EvaluationAction[];
+}) {
+  return (
+    <List
+      className="attribution-evaluation-actions"
+      dataSource={items}
+      renderItem={(item) => (
+        <List.Item>
+          <div>
+            <Space size={8} wrap>
+              <Tag
+                color={
+                  item.priority === "P0"
+                    ? "red"
+                    : item.priority === "P1"
+                      ? "orange"
+                      : "blue"
+                }
+              >
+                {priorityDisplayName(item.priority)}
+              </Tag>
+              <strong>{humanizeAttributionText(item.target)}</strong>
+            </Space>
+            <div className="attribution-evaluation-actions__action">
+              <strong>建议操作：</strong>
+              {humanizeAttributionText(item.action)}
+            </div>
+            <div className="attribution-muted">
+              <strong>关联 Case：</strong>
+              <CaseAttributionLinks task={task} sampleIds={item.sampleIds} />
+            </div>
+            <div className="attribution-muted">
+              <strong>如何验证：</strong>
+              {humanizeAttributionText(item.verification)}
+            </div>
+            {item.acceptance_criteria ? (
+              <div className="attribution-muted">
+                <strong>完成标准：</strong>
+                {humanizeAttributionText(item.acceptance_criteria)}
+              </div>
+            ) : null}
+          </div>
+        </List.Item>
+      )}
+    />
+  );
+}
+
 function EvaluationToolOptimizationGroup({
+  task,
   title,
   description,
   countLabel,
@@ -987,6 +1209,7 @@ function EvaluationToolOptimizationGroup({
   clusters,
   emptyDescription,
 }: {
+  task: AttributionTask;
   title: string;
   description: string;
   countLabel: string;
@@ -994,6 +1217,8 @@ function EvaluationToolOptimizationGroup({
   clusters: NonNullable<AttributionTask["diagnostic_summary"]>["clusters"];
   emptyDescription: string;
 }) {
+  const caseIds = [...new Set(clusters.flatMap((cluster) => cluster.sample_ids))];
+  const actions = actionableEvaluationRecommendations(clusters);
   return (
     <section className="attribution-evaluation-group">
       <div className="attribution-evaluation-group__head">
@@ -1004,10 +1229,22 @@ function EvaluationToolOptimizationGroup({
         <Tag color={countColor}>{countLabel}</Tag>
       </div>
       {clusters.length ? (
-        <Collapse
-          className="attribution-cluster-list attribution-cluster-list--evaluation"
-          items={clusters.map(clusterCollapseItem)}
-        />
+        <>
+          <div className="attribution-evaluation-group__cases">
+            <strong>关联 Case：</strong>
+            <CaseAttributionLinks task={task} sampleIds={caseIds} />
+          </div>
+          <div className="attribution-evaluation-group__actions">
+            <div className="attribution-section-title">可执行优化操作</div>
+            <EvaluationActionList task={task} items={actions} />
+          </div>
+          <Collapse
+            className="attribution-cluster-list attribution-cluster-list--evaluation"
+            items={clusters.map((cluster, index) =>
+              clusterCollapseItem(cluster, index, task)
+            )}
+          />
+        </>
       ) : (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -1096,7 +1333,9 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
         children: dimensionClusters.length ? (
           <Collapse
             className="attribution-cluster-list attribution-cluster-list--nested"
-            items={dimensionClusters.map(clusterCollapseItem)}
+            items={dimensionClusters.map((cluster, index) =>
+              clusterCollapseItem(cluster, index, task)
+            )}
           />
         ) : (
           <Empty
@@ -1122,7 +1361,9 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
       children: (
         <Collapse
           className="attribution-cluster-list attribution-cluster-list--nested"
-          items={unassignedClusters.map(clusterCollapseItem)}
+          items={unassignedClusters.map((cluster, index) =>
+            clusterCollapseItem(cluster, index, task)
+          )}
         />
       ),
     });
@@ -1177,6 +1418,7 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
         </div>
         <div className="attribution-evaluation-groups">
           <EvaluationToolOptimizationGroup
+            task={task}
             title="Benchmark 判据冲突"
             description="Benchmark 自身的适用条件、检查点、扣分规则或推荐回答互相矛盾、重叠或形成重复扣分；应先修正评测真值。"
             countLabel={`${deductionCount(benchmarkConflictClusters)} 项冲突 · ${benchmarkConflictClusters.length} 个通用问题`}
@@ -1185,6 +1427,7 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
             emptyDescription="本次任务没有发现 Benchmark 自身判据冲突"
           />
           <EvaluationToolOptimizationGroup
+            task={task}
             title="标注与 RAG 证据冲突"
             description="标注或判分真值与实际召回的医学文献、说明书证据不一致，或结论超出了证据能支持的范围。"
             countLabel={`${deductionCount(annotationRagConflictClusters)} 项冲突 · ${annotationRagConflictClusters.length} 个通用问题`}
@@ -1193,6 +1436,7 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
             emptyDescription="本次任务没有发现标注与 RAG 证据冲突"
           />
           <EvaluationToolOptimizationGroup
+            task={task}
             title="其他判分复核"
             description="Benchmark 合同本身可执行，但判分过程可能误读完整上下文、条件限定、日期或扣分档位。"
             countLabel={`${deductionCount(judgeLogicClusters)} 项待复核 · ${judgeLogicClusters.length} 个通用问题`}
@@ -1201,6 +1445,7 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
             emptyDescription="本次任务没有其他需要复核的判分问题"
           />
           <EvaluationToolOptimizationGroup
+            task={task}
             title="证据不足"
             description="现有调用链、RAG 审计或用户上下文不足以确认责任；先补齐证据，再判断应优化 AI 助手还是评测工具。"
             countLabel={`${validation.insufficient_evidence || 0} 项证据不足 · ${insufficientClusters.length} 个待补齐问题`}

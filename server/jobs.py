@@ -11,10 +11,12 @@ import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
 
+from sqlalchemy import select
+
 from .constants import EVAL_JOB_USER_ERROR
 from .db import session_scope
 from .job_specs import get_job_spec, JobFn, without_api_keys
-from .models_db import EvalRun
+from .models_db import EvalRun, EvaluationJob
 from .progress import InMemoryProgress
 from .settings import get_settings
 
@@ -75,6 +77,19 @@ def _set_status(
         row = session.get(EvalRun, run_id)
         if row is None:
             return
+        # 独立 Worker 已成功收敛的 Job 是最终真值。忽略旧进程/迟到协程针对
+        # 同一已成功 Job 的通用失败回写，避免部署窗口把完成任务重新显示为失败。
+        if status == "failed" and row.status == "success":
+            latest_job = session.scalar(
+                select(EvaluationJob)
+                .where(
+                    EvaluationJob.run_id == run_id,
+                    EvaluationJob.kind.in_(("evaluation", "resume", "rejudge", "cases_retry")),
+                )
+                .order_by(EvaluationJob.id.desc())
+            )
+            if latest_job is not None and latest_job.status == "succeeded":
+                return
         row.status = status
         if status == "running" and row.started_at is None:
             row.started_at = datetime.utcnow()
