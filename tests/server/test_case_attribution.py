@@ -104,7 +104,8 @@ class _FakeBackend:
         assert "rag_audits" in prompt
         assert "atomic_deductions" in prompt
         assert "score_health" in prompt
-        assert kwargs["request_timeout_s"] == 300.0
+        assert kwargs["request_timeout_s"] == 600.0
+        assert max_retries == 2
         assert kwargs["retry_transient_errors"] is True
         return {
             "analysis_status": "complete",

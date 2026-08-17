@@ -39,10 +39,13 @@ from .langfuse_trace import sync_conversation_trace
 PROMPT_VERSION = "case-attribution-v7"
 _STORAGE_KEY = "attribution_analysis"
 _MAX_STRING = 1800
-# 归因是后台任务，单个 Case 从首次请求到重试结束最多占用 300 秒。
-# 外层总超时是最终边界，避免每次重试都重新获得 300 秒。
-_ATTRIBUTION_TOTAL_TIMEOUT_S = 300.0
-_ATTRIBUTION_MAX_RETRIES = 3
+# 归因是后台任务：单次模型请求最多 600 秒，最多发起 3 次完整请求
+# （首次 + 最多 2 次重试）。外层 1,800 秒是最终边界，避免任务无限占用
+# Worker；重试会重新生成完整 JSON，不会接续前一次的部分输出。
+_ATTRIBUTION_REQUEST_TIMEOUT_S = 600.0
+_ATTRIBUTION_MAX_ATTEMPTS = 3
+_ATTRIBUTION_MAX_RETRIES = _ATTRIBUTION_MAX_ATTEMPTS - 1
+_ATTRIBUTION_TOTAL_TIMEOUT_S = _ATTRIBUTION_REQUEST_TIMEOUT_S * _ATTRIBUTION_MAX_ATTEMPTS
 
 _VALID_DIMENSIONS = {dimension.value for dimension in EvaluationDimension}
 _DIMENSION_LABELS = {
@@ -1351,14 +1354,17 @@ async def generate_case_attribution(
                 prompt,
                 temperature,
                 max_retries=_ATTRIBUTION_MAX_RETRIES,
-                request_timeout_s=_ATTRIBUTION_TOTAL_TIMEOUT_S,
+                request_timeout_s=_ATTRIBUTION_REQUEST_TIMEOUT_S,
                 retry_transient_errors=True,
                 request_headers=request_headers or None,
             )
     except TimeoutError as exc:
         raise HTTPException(
             status_code=504,
-            detail="AI 归因生成超时（300 秒），该用例已自动标记失败，可稍后重新归因",
+            detail=(
+                "AI 归因生成超时（单次 600 秒、最多 3 次尝试、累计 1,800 秒），"
+                "该用例已自动标记失败，可稍后重新归因"
+            ),
         ) from exc
     except Exception as exc:  # noqa: BLE001 - API 层返回稳定的用户错误，不泄露密钥
         reason = _safe_provider_error(exc)
