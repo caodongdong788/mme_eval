@@ -1,7 +1,7 @@
 """归因任务的跨 Case 聚合诊断。
 
 单 Case 归因回答“这条为什么失败”；本模块把相同责任环节和根因合并，
-让任务页面直接回答“最值得先修的系统性问题是什么、影响多少 Case、如何验证”。
+让任务页面直接回答“最值得先修的系统性问题是什么、影响多少 Case、应该怎么优化”。
 聚合只使用已经落库的结构化归因，不再额外调用模型。
 """
 
@@ -133,9 +133,6 @@ def build_task_diagnostic_summary(
         available_results += 1
         health = str(_record(analysis.get("score_health")).get("status") or "unknown")
         health_counts[health] += 1
-        global_recommendations = [
-            item for item in analysis.get("global_recommendations") or [] if isinstance(item, dict)
-        ]
         for deduction in analysis.get("deduction_analyses") or []:
             if not isinstance(deduction, dict):
                 continue
@@ -210,10 +207,6 @@ def build_task_diagnostic_summary(
             cluster["recommendations"].extend(
                 item for item in deduction.get("recommendations") or []
                 if isinstance(item, dict) and recommendation_category(item) == category
-            )
-            cluster["recommendations"].extend(
-                item for item in global_recommendations
-                if recommendation_category(item) == category
             )
             verification = _record(analysis.get("verification_plan"))
             if verification:

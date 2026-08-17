@@ -4811,6 +4811,30 @@ a.ant-typography-secondary:hover {
   padding: 4px 4px 10px;
 }
 
+.attribution-cluster-detail--optimization {
+  display: grid;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.attribution-optimization-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--runs-text);
+  line-height: 1.7;
+}
+
+.attribution-optimization-field > strong {
+  flex: 0 0 auto;
+  color: var(--runs-text-secondary);
+}
+
+.attribution-optimization-actions {
+  display: grid;
+  gap: 6px;
+}
+
 .attribution-result-page--loading {
   display: grid;
   min-height: 60vh;

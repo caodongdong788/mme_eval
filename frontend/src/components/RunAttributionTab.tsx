@@ -427,27 +427,9 @@ function RecommendationList({ items }: { items: AttributionRecommendation[] }) {
                     {priorityDisplayName(item.priority)}
                   </Tag>
                   <div className="attribution-recommendations__action">
+                    <strong>怎么优化：</strong>
                     {humanizeAttributionText(item.action)}
                   </div>
-                  {item.expected_effect ? (
-                    <div className="attribution-muted">
-                      预期效果：{humanizeAttributionText(item.expected_effect)}
-                    </div>
-                  ) : null}
-                  {item.risk ? (
-                    <div className="attribution-muted">
-                      修改风险：{humanizeAttributionText(item.risk)}
-                    </div>
-                  ) : null}
-                  <div className="attribution-muted">
-                    如何验证：{humanizeAttributionText(item.verification)}
-                  </div>
-                  {item.acceptance_criteria ? (
-                    <div className="attribution-muted">
-                      验收标准：
-                      {humanizeAttributionText(item.acceptance_criteria)}
-                    </div>
-                  ) : null}
                 </div>
               </List.Item>
             )}
@@ -1160,16 +1142,6 @@ function AttributionClusterDetails({
           {OWNER_LABELS[cluster.owner] || "待确认"}
         </Descriptions.Item>
       </Descriptions>
-      <div className="attribution-section-title">通用优化建议</div>
-      <RecommendationList items={cluster.recommendations || []} />
-      {cluster.verification_plan?.acceptance_criteria?.length ? (
-        <Alert
-          type="info"
-          showIcon
-          message="回归验收标准"
-          description={cluster.verification_plan.acceptance_criteria.join("；")}
-        />
-      ) : null}
     </div>
   );
 }
@@ -1203,80 +1175,94 @@ type AttributionCluster = NonNullable<
   AttributionTask["diagnostic_summary"]
 >["clusters"][number];
 
-function CxAgentClusterCategoryGroups({
-  task,
+function fallbackCxAgentOptimizationAction(categoryKey: string) {
+  const actions: Record<string, string> = {
+    safety_policy: "在安全策略中补充对应风险场景的触发条件和明确处置指引，并在生成回答时强制执行。",
+    prompt: "在系统提示词中补充该场景的必答要点与边界，要求回答逐项覆盖。",
+    rag_not_called: "为该类问题补充 RAG 触发条件，命中时必须发起医学文献检索。",
+    rag_query_error: "优化检索词生成规则，将关键症状、治疗阶段和药物信息一并纳入查询。",
+    rag_recall_error: "补充同义词和关键医学术语召回策略，提高相关文献进入候选集的概率。",
+    rag_threshold_error: "复核相关文献的过滤阈值，避免有效证据在阈值阶段被过早丢弃。",
+    rag_rerank_error: "调整候选文献排序规则，使与当前问题最直接相关的证据优先进入最终上下文。",
+    rag_not_grounded: "在回答生成前加入已选文献覆盖检查，要求关键结论基于已召回证据表达。",
+    rag_misinterpreted: "在回答生成规则中要求先核对文献适用条件，再输出结论，避免误读或过度外推。",
+    rag_corpus_gap: "补齐对应主题的权威文献或说明书，并建立更新维护机制。",
+    rag_missing_reference: "补齐回答结论与已召回文献片段之间的引用映射，确保关键结论可追溯。",
+    context: "在回答前读取并使用与当前问题相关的用户档案、既往事实和检查信息。",
+    orchestration: "调整对话流程，在回答前补齐必要追问或调用相应工具，再给出针对性建议。",
+    generation: "在回答生成规则中增加该场景的关键检查项，避免遗漏核心结论或行动建议。",
+  };
+  return actions[categoryKey] || "根据该问题的根因，在回答生成流程中补充明确的处理规则和关键检查项。";
+}
+
+function cxAgentOptimizationActions(cluster: AttributionCluster, categoryKey: string) {
+  const actions = [...new Set(
+    (cluster.recommendations || [])
+      .map((item) => String(item.action || "").trim())
+      .filter(Boolean)
+  )];
+  return actions.length ? actions : [fallbackCxAgentOptimizationAction(categoryKey)];
+}
+
+function CxAgentClusterPriorityGroups({
   clusters,
 }: {
-  task: AttributionTask;
   clusters: AttributionCluster[];
 }) {
-  const categories = new Map<string, {
-    label: string;
-    clusters: AttributionCluster[];
-  }>();
-  clusters.forEach((cluster) => {
-    const category = cxAgentSuggestionCategory({
-      owner: cluster.owner,
-      evaluation_issue_category: cluster.evaluation_issue_category,
-      cause_code: cluster.cause_code,
-      rag_optimization_category: cluster.rag_optimization_category,
-      recommendations: cluster.recommendations,
-    });
-    const entry = categories.get(category.key) || {
-      label: category.label,
-      clusters: [],
-    };
-    entry.clusters.push(cluster);
-    categories.set(category.key, entry);
-  });
-
   return (
     <div className="attribution-suggestion-groups attribution-suggestion-groups--summary">
-      {[...categories.entries()]
-        .sort(([left], [right]) =>
-          cxAgentSuggestionCategoryOrder(left) - cxAgentSuggestionCategoryOrder(right)
-        )
-        .map(([key, group]) => {
-          const sampleIds = [
-            ...new Set(group.clusters.flatMap((cluster) => cluster.sample_ids)),
-          ];
-          return (
-            <section className="attribution-suggestion-group" key={key}>
-              <div className="attribution-suggestion-group__head attribution-suggestion-group__head--summary">
-                <div>
-                  <strong>{group.label}</strong>
-                  <div className="attribution-muted">
-                    <strong>关联 Case：</strong>
-                    <CaseAttributionLinks task={task} sampleIds={sampleIds} />
-                  </div>
-                </div>
-                <Tag>{group.clusters.length} 个通用优化点</Tag>
-              </div>
-              {PRIORITY_ORDER.map((priority) => {
-                const priorityClusters = group.clusters.filter(
-                  (cluster) => cluster.priority === priority
-                );
-                if (!priorityClusters.length) return null;
-                return (
-                  <div className="attribution-priority-group" key={priority}>
-                    <div className="attribution-priority-group__head">
-                      <Tag color={priority === "P0" ? "red" : priority === "P1" ? "orange" : "blue"}>
-                        {priority} · {priorityDisplayName(priority)}
-                      </Tag>
-                      <span>{priorityClusters.length} 个优化点</span>
+      {PRIORITY_ORDER.map((priority) => {
+        const priorityClusters = clusters.filter(
+          (cluster) => cluster.priority === priority
+        );
+        if (!priorityClusters.length) return null;
+        return (
+          <div className="attribution-priority-group" key={priority}>
+            <div className="attribution-priority-group__head">
+              <Tag color={priority === "P0" ? "red" : priority === "P1" ? "orange" : "blue"}>
+                {priority} · {priorityDisplayName(priority)}
+              </Tag>
+              <span>{priorityClusters.length} 个问题</span>
+            </div>
+            <Collapse
+              className="attribution-cluster-list attribution-cluster-list--nested"
+              items={priorityClusters.map((cluster, index) => {
+                const category = cxAgentSuggestionCategory({
+                  owner: cluster.owner,
+                  evaluation_issue_category: cluster.evaluation_issue_category,
+                  cause_code: cluster.cause_code,
+                  rag_optimization_category: cluster.rag_optimization_category,
+                  recommendations: cluster.recommendations,
+                });
+                const actions = cxAgentOptimizationActions(cluster, category.key);
+                return {
+                  key: `${cluster.category}-${cluster.cause_code}-${cluster.owner}-${index}`,
+                  label: (
+                    <div className="attribution-cluster-label">
+                      <strong>{humanizeAttributionText(cluster.summary || cluster.cause_label)}</strong>
                     </div>
-                    <Collapse
-                      className="attribution-cluster-list attribution-cluster-list--nested"
-                      items={priorityClusters.map((cluster, index) =>
-                        clusterCollapseItem(cluster, index, task)
-                      )}
-                    />
-                  </div>
-                );
+                  ),
+                  children: (
+                    <div className="attribution-cluster-detail attribution-cluster-detail--optimization">
+                      <div className="attribution-optimization-field">
+                        <strong>优化建议分类：</strong>{category.label}
+                      </div>
+                      <div className="attribution-optimization-field">
+                        <strong>怎么优化：</strong>
+                        <div className="attribution-optimization-actions">
+                          {actions.map((action) => (
+                            <div key={action}>{humanizeAttributionText(action)}</div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ),
+                };
               })}
-            </section>
-          );
-        })}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1443,16 +1429,6 @@ function EvaluationActionList({
               <strong>关联 Case：</strong>
               <CaseAttributionLinks task={task} sampleIds={item.sampleIds} />
             </div>
-            <div className="attribution-muted">
-              <strong>如何验证：</strong>
-              {humanizeAttributionText(item.verification)}
-            </div>
-            {item.acceptance_criteria ? (
-              <div className="attribution-muted">
-                <strong>完成标准：</strong>
-                {humanizeAttributionText(item.acceptance_criteria)}
-              </div>
-            ) : null}
           </div>
         </List.Item>
       )}
@@ -1618,10 +1594,7 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
           </div>
         ),
         children: dimensionClusters.length ? (
-          <CxAgentClusterCategoryGroups
-            task={task}
-            clusters={dimensionClusters}
-          />
+          <CxAgentClusterPriorityGroups clusters={dimensionClusters} />
         ) : (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -1644,10 +1617,7 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
         </div>
       ),
       children: (
-        <CxAgentClusterCategoryGroups
-          task={task}
-          clusters={unassignedClusters}
-        />
+        <CxAgentClusterPriorityGroups clusters={unassignedClusters} />
       ),
     });
   }
@@ -1675,7 +1645,7 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
           <div>
             <h4>cx-agent 优化建议</h4>
             <p>
-              按八维评分标准归档；每个维度再按优化方向和 P0/P1/P2 优先级汇总，同类 Case 的相似根因已合并为一个通用优化点。
+              按八维评分标准归档：每个维度内依次展示 P0/P1/P2 问题、优化建议分类与具体优化动作。
             </p>
           </div>
           <Space size={6}>

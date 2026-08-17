@@ -258,7 +258,7 @@ def test_case_attribution_generate_persist_and_mark_stale(
     assert payload["analysis"]["overall"]["primary_cause_code"] == "reasoning_error"
     refs = payload["analysis"]["deduction_analyses"][0]["causal_chain"][0]["evidence_refs"]
     assert refs == ["dimension.professional_accuracy"]
-    assert payload["metadata"]["prompt_version"] == "case-attribution-v7"
+    assert payload["metadata"]["prompt_version"] == "case-attribution-v8"
 
     with session_scope() as session:
         row = session.query(CaseResultRow).filter_by(run_id=run_id, sample_id="bc_002").one()
