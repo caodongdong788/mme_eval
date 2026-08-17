@@ -8,6 +8,7 @@ import {
   Modal,
   Popconfirm,
   Progress,
+  Select,
   Space,
   Spin,
   Table,
@@ -52,7 +53,6 @@ import {
   answerUsageDisplayName,
   attributionDeductionLabel,
   cxAgentSuggestionCategory,
-  cxAgentSuggestionCategoryOrder,
   dimensionDisplayName,
   humanizeAttributionText,
   humanizeEvidenceRef,
@@ -755,67 +755,81 @@ function priorityForDeduction(item: AttributionDeductionAnalysis) {
   return "P2";
 }
 
-function CxAgentDeductionCategoryGroups({
+function cxAgentDeductionOptimizationActions(
+  item: AttributionDeductionAnalysis,
+  categoryKey: string
+) {
+  const actions = [...new Set(
+    (item.recommendations || [])
+      .map((recommendation) => String(recommendation.action || "").trim())
+      .filter(Boolean)
+  )];
+  return actions.length
+    ? actions
+    : [fallbackCxAgentOptimizationAction(categoryKey)];
+}
+
+function CxAgentDeductionPriorityGroups({
   items,
-  renderItems,
 }: {
   items: AttributionDeductionAnalysis[];
-  renderItems: (items: AttributionDeductionAnalysis[]) => NonNullable<CollapseProps["items"]>;
 }) {
-  const categories = new Map<string, {
-    label: string;
-    items: AttributionDeductionAnalysis[];
-  }>();
-  items.forEach((item) => {
-    const category = cxAgentSuggestionCategory({
-      owner: item.primary_cause?.owner,
-      evaluation_issue_category: item.evaluation_issue_category,
-      cause_code: item.primary_cause?.code,
-      rag_diagnosis: item.rag_diagnosis,
-      recommendations: item.recommendations,
-    });
-    const entry = categories.get(category.key) || {
-      label: category.label,
-      items: [],
-    };
-    entry.items.push(item);
-    categories.set(category.key, entry);
-  });
-
   return (
     <div className="attribution-suggestion-groups">
-      {[...categories.entries()]
-        .sort(([left], [right]) =>
-          cxAgentSuggestionCategoryOrder(left) - cxAgentSuggestionCategoryOrder(right)
-        )
-        .map(([key, group]) => (
-          <section className="attribution-suggestion-group" key={key}>
-            <div className="attribution-suggestion-group__head">
-              <strong>{group.label}</strong>
-              <Tag>{group.items.length} 项优化点</Tag>
+      {PRIORITY_ORDER.map((priority) => {
+        const priorityItems = items.filter(
+          (item) => priorityForDeduction(item) === priority
+        );
+        if (!priorityItems.length) return null;
+        return (
+          <div className="attribution-priority-group" key={priority}>
+            <div className="attribution-priority-group__head">
+              <Tag color={priority === "P0" ? "red" : priority === "P1" ? "orange" : "blue"}>
+                {priority} · {priorityDisplayName(priority)}
+              </Tag>
+              <span>{priorityItems.length} 个问题</span>
             </div>
-            {PRIORITY_ORDER.map((priority) => {
-              const priorityItems = group.items.filter(
-                (item) => priorityForDeduction(item) === priority
-              );
-              if (!priorityItems.length) return null;
-              return (
-                <div className="attribution-priority-group" key={priority}>
-                  <div className="attribution-priority-group__head">
-                    <Tag color={priority === "P0" ? "red" : priority === "P1" ? "orange" : "blue"}>
-                      {priority} · {priorityDisplayName(priority)}
-                    </Tag>
-                    <span>{priorityItems.length} 项</span>
-                  </div>
-                  <Collapse
-                    className="attribution-cluster-list attribution-cluster-list--nested"
-                    items={renderItems(priorityItems)}
-                  />
-                </div>
-              );
-            })}
-          </section>
-        ))}
+            <Collapse
+              className="attribution-cluster-list attribution-cluster-list--nested"
+              items={priorityItems.map((item) => {
+                const category = cxAgentSuggestionCategory({
+                  owner: item.primary_cause?.owner,
+                  evaluation_issue_category: item.evaluation_issue_category,
+                  cause_code: item.primary_cause?.code,
+                  rag_diagnosis: item.rag_diagnosis,
+                  recommendations: item.recommendations,
+                });
+                const actions = cxAgentDeductionOptimizationActions(item, category.key);
+                return {
+                  key: item.deduction_id,
+                  label: (
+                    <div className="attribution-cluster-label">
+                      <strong>
+                        {humanizeAttributionText(item.finding || item.primary_cause?.label)}
+                      </strong>
+                    </div>
+                  ),
+                  children: (
+                    <div className="attribution-cluster-detail attribution-cluster-detail--optimization">
+                      <div className="attribution-optimization-field">
+                        <strong>优化建议分类：</strong>{category.label}
+                      </div>
+                      <div className="attribution-optimization-field">
+                        <strong>怎么优化：</strong>
+                        <div className="attribution-optimization-actions">
+                          {actions.map((action) => (
+                            <div key={action}>{humanizeAttributionText(action)}</div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ),
+                };
+              })}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -902,10 +916,7 @@ function AttributionAnalysisModule({
           </div>
         ),
         children: dimensionItems.length ? (
-          <CxAgentDeductionCategoryGroups
-            items={dimensionItems}
-            renderItems={deductionItems}
-          />
+          <CxAgentDeductionPriorityGroups items={dimensionItems} />
         ) : (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -930,10 +941,7 @@ function AttributionAnalysisModule({
         </div>
       ),
       children: (
-        <CxAgentDeductionCategoryGroups
-          items={unassignedSupportedItems}
-          renderItems={deductionItems}
-        />
+        <CxAgentDeductionPriorityGroups items={unassignedSupportedItems} />
       ),
     });
   }
@@ -995,7 +1003,7 @@ function AttributionAnalysisModule({
           description={`暂无${title}`}
         />
       ) : null}
-      {expanded && (recommendations.length || limitations.length) ? (
+      {expanded && kind !== "supported" && (recommendations.length || limitations.length) ? (
         <div className="attribution-module__advice">
           <div className="attribution-module__advice-title">
             <BulbOutlined />
@@ -1042,9 +1050,6 @@ export function AttributionDetail({ result }: { result: CaseAttribution }) {
       item.deduction_validation === "supported" &&
       item.evaluation_issue_category !== "missing_rag_reference"
   );
-  const questionable = deductions.filter(
-    (item) => item.deduction_validation === "questionable"
-  );
   const insufficient = deductions.filter(
     (item) =>
       item.deduction_validation === "insufficient_evidence" &&
@@ -1060,42 +1065,11 @@ export function AttributionDetail({ result }: { result: CaseAttribution }) {
           description="请从用例明细重新发起归因任务。"
         />
       ) : null}
-      {analysis.score_health && analysis.score_health.status !== "healthy" ? (
-        <Alert
-          type={
-            analysis.score_health.status === "invalid" ? "error" : "warning"
-          }
-          showIcon
-          message={
-            analysis.score_health.status === "invalid"
-              ? "判分异常，暂不归责 cx-agent"
-              : "判分需要复核"
-          }
-          description={
-            <div>
-              <div>{analysis.score_health.summary}</div>
-              {analysis.score_health.issues?.map((issue) => (
-                <div key={`${issue.code}-${issue.message}`}>
-                  · {humanizeAttributionText(issue.message, deductions)}
-                </div>
-              ))}
-            </div>
-          }
-        />
-      ) : null}
       <AttributionAnalysisModule
         kind="supported"
-        title="cx-agent问题归因"
-        description="包含已由对话或调用链证实的问题，以及需要补齐 RAG 引用的明确优化项；应优先修复回答、追问、RAG 使用或流程编排。"
+        title="cx-agent 优化建议"
+        description="按八维评分标准归档：每个维度内依次展示 P0/P1/P2 问题、优化建议分类与具体优化动作。"
         items={[...supported, ...ragReferenceMissing]}
-        allItems={deductions}
-        globalRecommendations={analysis.global_recommendations || []}
-      />
-      <AttributionAnalysisModule
-        kind="questionable"
-        title="需要复核的判分"
-        description="这些扣分与对话原文、用户档案或医学证据存在矛盾，先优化评测判据或判分逻辑，不应直接修改 AI 助手。"
-        items={questionable}
         allItems={deductions}
         globalRecommendations={analysis.global_recommendations || []}
       />
@@ -1509,6 +1483,9 @@ function EvaluationToolOptimizationGroup({
 
 export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
   const [cxAgentExpanded, setCxAgentExpanded] = useState(false);
+  const [selectedCxAgentPriorities, setSelectedCxAgentPriorities] = useState<
+    (typeof PRIORITY_ORDER)[number][]
+  >([...PRIORITY_ORDER]);
   const [evaluationExpanded, setEvaluationExpanded] = useState(false);
   const summary = task.diagnostic_summary;
   if (!summary?.available_results) {
@@ -1534,6 +1511,11 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
   const clusters = summary.clusters || [];
   const cxAgentClusters = clusters.filter(
     (cluster) => cluster.category === "cx_agent_issue"
+  );
+  const filteredCxAgentClusters = cxAgentClusters.filter((cluster) =>
+    selectedCxAgentPriorities.includes(
+      cluster.priority as (typeof PRIORITY_ORDER)[number]
+    )
   );
   const evaluationClusters = clusters.filter(
     (cluster) => cluster.category === "evaluation_review"
@@ -1567,12 +1549,15 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
     (validation.insufficient_evidence || 0) - missingRagReferenceCount
   );
   const unassignedClusters = cxAgentClusters.filter(
-    (cluster) => !cluster.dimensions.length
+    (cluster) =>
+      selectedCxAgentPriorities.includes(
+        cluster.priority as (typeof PRIORITY_ORDER)[number]
+      ) && !cluster.dimensions.length
   );
 
   const dimensionItems: NonNullable<CollapseProps["items"]> =
     EVALUATION_DIMENSIONS.map((dimension, dimensionIndex) => {
-      const dimensionClusters = cxAgentClusters.filter((cluster) =>
+      const dimensionClusters = filteredCxAgentClusters.filter((cluster) =>
         cluster.dimensions.includes(dimension)
       );
       const affectedCases = new Set(
@@ -1648,8 +1633,24 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
               按八维评分标准归档：每个维度内依次展示 P0/P1/P2 问题、优化建议分类与具体优化动作。
             </p>
           </div>
-          <Space size={6}>
-            <Tag color="red">{cxAgentClusters.length} 个通用优化点</Tag>
+          <Space size={6} wrap className="attribution-priority-filter">
+            <Select
+              aria-label="按问题等级筛选 cx-agent 优化点"
+              mode="multiple"
+              value={selectedCxAgentPriorities}
+              options={PRIORITY_ORDER.map((priority) => ({
+                label: `${priority} · ${priorityDisplayName(priority)}`,
+                value: priority,
+              }))}
+              maxTagCount="responsive"
+              placeholder="按问题等级筛选"
+              onChange={(values: (typeof PRIORITY_ORDER)[number][]) =>
+                setSelectedCxAgentPriorities(
+                  values.length ? values : [...PRIORITY_ORDER]
+                )
+              }
+            />
+            <Tag color="red">{filteredCxAgentClusters.length} 个通用优化点</Tag>
             <Button
               type="link"
               size="small"

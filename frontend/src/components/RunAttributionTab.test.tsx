@@ -248,6 +248,9 @@ describe("RunAttributionTab", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "cx-agent 优化建议展开" })
     );
+    expect(screen.getByRole("combobox", {
+      name: "按问题等级筛选 cx-agent 优化点",
+    })).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "评测工具优化建议展开" })
     );

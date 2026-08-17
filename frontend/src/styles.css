@@ -4619,6 +4619,10 @@ a.ant-typography-secondary:hover {
   line-height: 1.6;
 }
 
+.attribution-priority-filter .ant-select {
+  min-width: 248px;
+}
+
 .attribution-summary-section--evaluation .attribution-summary-section__head {
   background: #fffaf0;
 }
@@ -4859,6 +4863,14 @@ a.ant-typography-secondary:hover {
 
   .attribution-summary-section__head {
     flex-direction: column;
+  }
+
+  .attribution-priority-filter {
+    width: 100%;
+  }
+
+  .attribution-priority-filter .ant-select {
+    width: 100%;
   }
 
   .attribution-evaluation-group__head {

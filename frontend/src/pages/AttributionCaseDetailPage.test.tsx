@@ -206,43 +206,30 @@ describe("AttributionCaseDetailPage", () => {
     expect(await screen.findByText("case_23 · 归因结果")).toBeInTheDocument();
     expect(screen.queryByText("医学知识检索（RAG）")).not.toBeInTheDocument();
     expect(screen.queryByText("医学安全性专项分析")).not.toBeInTheDocument();
-    expect(screen.getByText("cx-agent问题归因")).toBeInTheDocument();
+    expect(screen.getByText("cx-agent 优化建议")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "cx-agent问题归因展开" })
+      screen.getByRole("button", { name: "cx-agent 优化建议展开" })
     ).toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("button", { name: "cx-agent问题归因展开" })
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "需要复核的判分展开" })
+      screen.getByRole("button", { name: "cx-agent 优化建议展开" })
     );
     fireEvent.click(
       screen.getByRole("button", { name: "证据不足，暂不归责展开" })
     );
-    // 单 Case 与任务汇总使用同一层级：八维 → 优化方向 → P0/P1/P2。
+    // 单 Case 与任务汇总使用同一层级：八维 → P0/P1/P2 → 问题 → 分类 → 怎么优化。
     fireEvent.click(screen.getByText("专业准确性与边界"));
-    expect(screen.getByText("回答生成优化")).toBeInTheDocument();
     expect(screen.getByText("P1 · 较高优先级")).toBeInTheDocument();
     fireEvent.click(screen.getByText("回答在证据不足时给出了确定诊断"));
-    expect(screen.getByText("评测要求与实际差距")).toBeInTheDocument();
-    expect(screen.getByText("缺少不确定性说明和就医建议")).toBeInTheDocument();
-    expect(screen.getByText("根因反事实检查")).toBeInTheDocument();
-    expect(screen.getByText("优化建议")).toBeInTheDocument();
-    expect(screen.getByText("提示词优化")).toBeInTheDocument();
-    expect(screen.getByText("RAG 优化")).toBeInTheDocument();
-    expect(screen.getByText("判分提示词优化")).toBeInTheDocument();
-    expect(screen.getByText("判分上下文优化")).toBeInTheDocument();
-    expect(screen.getByText("判分证据核验")).toBeInTheDocument();
-    expect(screen.getByText("判分一致性优化")).toBeInTheDocument();
-    expect(screen.queryByText("AI 助手优化建议")).not.toBeInTheDocument();
-    expect(screen.queryByText("AI 助手提示词")).not.toBeInTheDocument();
-    expect(screen.getByText("需要复核的判分")).toBeInTheDocument();
+    expect(screen.getByText("优化建议分类：")).toBeInTheDocument();
+    expect(screen.getByText("怎么优化：")).toBeInTheDocument();
+    expect(screen.queryByText("判分需要复核")).not.toBeInTheDocument();
+    expect(screen.queryByText("需要复核的判分")).not.toBeInTheDocument();
     expect(screen.getByText("证据不足，暂不归责")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("link", { name: "← 返回归因任务" }));
     expect(await screen.findByText("归因任务明细页")).toBeInTheDocument();
   });
 
-  it("groups questionable deductions by the evaluation review source", async () => {
+  it("does not render evaluation-review summaries for questionable deductions", async () => {
     const baseDeduction = result.analysis!.deduction_analyses[0];
     mockedApi.getAttributionTaskResult.mockResolvedValue({
       ...result,
@@ -288,14 +275,10 @@ describe("AttributionCaseDetailPage", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("需要复核的判分")).toBeInTheDocument();
-    const reviewExpand = screen.getByRole("button", {
-      name: "需要复核的判分展开",
-    });
-    expect(reviewExpand).toBeInTheDocument();
-    fireEvent.click(reviewExpand);
-    expect(screen.getByText("Benchmark 判据冲突")).toBeInTheDocument();
-    expect(screen.getByText("标注与 RAG 证据冲突")).toBeInTheDocument();
-    expect(screen.getByText("其他判分复核")).toBeInTheDocument();
+    expect(await screen.findByText("cx-agent 优化建议")).toBeInTheDocument();
+    expect(screen.queryByText("需要复核的判分")).not.toBeInTheDocument();
+    expect(screen.queryByText("Benchmark 判据冲突")).not.toBeInTheDocument();
+    expect(screen.queryByText("标注与 RAG 证据冲突")).not.toBeInTheDocument();
+    expect(screen.queryByText("其他判分复核")).not.toBeInTheDocument();
   });
 });
