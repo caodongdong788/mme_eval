@@ -353,10 +353,12 @@ async def run_cases(
     concurrency: int = 4,
     timeout_s: float = 60,
     retry: int = 2,
+    case_timeout_s: float = 600.0,
     repeat: int = 1,
     on_progress=None,
     on_case_start=None,
     on_case_complete=None,
+    on_case_timeout=None,
     retry_backoff_base_s: float = 0.0,
     retry_backoff_max_s: float = 40.0,
     *,
@@ -378,7 +380,9 @@ async def run_cases(
     ``on_case_complete(index, case, traces)`` 则在一条 Case 的所有重复执行完成后
     调用，可返回 awaitable，用于立即判分和落库。回调返回 ``True`` 时，执行器会
     不把本轮判分写为终态并把该 Case 完整再跑一次（最多一次），适用于 Judge
-    调用异常后的自动恢复；第二次结果仍由回调正常落库，避免无限重试。
+    调用异常后的自动恢复；第二次结果仍由回调正常落库，避免无限重试。每次完整
+    Case 尝试（对话与 Judge）受 ``case_timeout_s`` 总预算限制；最终超时可通过
+    ``on_case_timeout`` 记录明确终态。
 
     ``executor='ray'`` 时改走分布式后端（worker 内按 ``adapter_type`` + ``adapter_config``
     自建 adapter，传入的 ``adapter`` 实例在 ray 路径下不参与对话）。其余参数语义不变。
@@ -388,6 +392,8 @@ async def run_cases(
     """
     if repeat < 1:
         raise ValueError(f"repeat must be a positive integer (got {repeat})")
+    if case_timeout_s <= 0:
+        raise ValueError(f"case_timeout_s must be positive (got {case_timeout_s})")
 
     if executor == "ray":
         if any(case.conversation is not None for case in cases):
@@ -420,71 +426,116 @@ async def run_cases(
     async def _execute_case_attempt(
         i: int, case: TestCase, whole_case_attempt: int
     ) -> list[ConversationTrace]:
-        """执行一次完整 Case；Judge/落库回调必须在 adapter 并发槽位外运行。"""
-        async with sem:
-            if on_case_start:
-                pending = on_case_start(case)
-                if inspect.isawaitable(pending):
-                    await pending
+        """执行一次完整 Case；调用方已取得 adapter 并发槽位。"""
+        if on_case_start:
+            pending = on_case_start(case)
+            if inspect.isawaitable(pending):
+                await pending
 
-            attempt_traces: list[ConversationTrace] = []
-            for run_idx in range(repeat):
-                # 只允许在首次尝试中复用断点留痕。Judge 已异常时必须重新跑
-                # Agent、RAG 与调用链，不能把旧 trace 再送去判分。
-                if whole_case_attempt == 0 and resume_index is not None:
-                    reused = resume_index.get((case.sample_id, run_idx))
-                    if reused is not None and reused.error is None:
-                        attempt_traces.append(reused)
-                        if on_progress:
-                            try:
-                                on_progress(case, reused, run_idx)
-                            except TypeError:
-                                on_progress(case, reused)
-                        continue
-                suffix = f"#run{run_idx}" if repeat > 1 else ""
+        attempt_traces: list[ConversationTrace] = []
+        for run_idx in range(repeat):
+            # 只允许在首次尝试中复用断点留痕。Judge 已异常时必须重新跑
+            # Agent、RAG 与调用链，不能把旧 trace 再送去判分。
+            if whole_case_attempt == 0 and resume_index is not None:
+                reused = resume_index.get((case.sample_id, run_idx))
+                if reused is not None and reused.error is None:
+                    attempt_traces.append(reused)
+                    if on_progress:
+                        try:
+                            on_progress(case, reused, run_idx)
+                        except TypeError:
+                            on_progress(case, reused)
+                    continue
+            suffix = f"#run{run_idx}" if repeat > 1 else ""
+            try:
+                tr = await _run_one(
+                    case,
+                    adapter,
+                    timeout_s,
+                    retry,
+                    suffix,
+                    backoff_base_s=retry_backoff_base_s,
+                    backoff_max_s=retry_backoff_max_s,
+                    run_idx=run_idx,
+                    run_name=run_name,
+                    account_owner=account_owner,
+                    user_simulator=user_simulator,
+                )
+            except Exception as e:
+                log.exception(
+                    "Unhandled error in case %s (run %d)", case.sample_id, run_idx
+                )
+                tr = ConversationTrace(
+                    messages=[], error=f"runner crashed: {e}"
+                )
+            attempt_traces.append(tr)
+            if on_progress:
                 try:
-                    tr = await _run_one(
-                        case,
-                        adapter,
-                        timeout_s,
-                        retry,
-                        suffix,
-                        backoff_base_s=retry_backoff_base_s,
-                        backoff_max_s=retry_backoff_max_s,
-                        run_idx=run_idx,
-                        run_name=run_name,
-                        account_owner=account_owner,
-                        user_simulator=user_simulator,
-                    )
-                except Exception as e:
-                    log.exception(
-                        "Unhandled error in case %s (run %d)", case.sample_id, run_idx
-                    )
-                    tr = ConversationTrace(
-                        messages=[], error=f"runner crashed: {e}"
-                    )
-                attempt_traces.append(tr)
-                if on_progress:
-                    try:
-                        on_progress(case, tr, run_idx)
-                    except TypeError:
-                        # 兼容老的 2 参回调签名
-                        on_progress(case, tr)
-            return attempt_traces
+                    on_progress(case, tr, run_idx)
+                except TypeError:
+                    # 兼容老的 2 参回调签名
+                    on_progress(case, tr)
+        return attempt_traces
 
     async def _wrap(i: int, case: TestCase):
         for whole_case_attempt in range(2):
-            attempt_traces = await _execute_case_attempt(i, case, whole_case_attempt)
+            # 排队等待不计入单题预算：拿到 adapter 并发槽位后才开始计时，避免
+            # 大 benchmark 中尚未发出请求的 Case 因排队而超时。
+            async with sem:
+                attempt_started = time.monotonic()
+                timeout_phase: str | None = None
+                try:
+                    attempt_traces = await asyncio.wait_for(
+                        _execute_case_attempt(i, case, whole_case_attempt),
+                        timeout=case_timeout_s,
+                    )
+                except asyncio.TimeoutError:
+                    timeout_phase = "agent"
+                    attempt_traces = [
+                        ConversationTrace(
+                            messages=[],
+                            error=(
+                                f"case attempt timeout after {case_timeout_s:g}s "
+                                "during agent execution"
+                            ),
+                        )
+                    ]
             # 判分/落库不占用 adapter 并发槽位，避免慢 Judge 阻塞下一条对话启动。
             # 持久化保留每次实际执行的最后一个 trace。同 sample/run 键在恢复时
             # 按最后一条读取，因此 Judge 异常后的有效重跑会覆盖首次留痕。
             traces[i] = attempt_traces
             retry_after_judge = False
-            if on_case_complete:
-                pending = on_case_complete(i, case, list(attempt_traces))
-                retry_after_judge = (
-                    await pending if inspect.isawaitable(pending) else bool(pending)
-                )
+            if timeout_phase is None and on_case_complete:
+                remaining_s = case_timeout_s - (time.monotonic() - attempt_started)
+                try:
+                    pending = on_case_complete(i, case, list(attempt_traces))
+                    if inspect.isawaitable(pending):
+                        retry_after_judge = await asyncio.wait_for(
+                            pending, timeout=max(0.0, remaining_s)
+                        )
+                    else:
+                        retry_after_judge = bool(pending)
+                except asyncio.TimeoutError:
+                    timeout_phase = "judge"
+                    retry_after_judge = whole_case_attempt == 0
+                    log.warning(
+                        "Judge timed out within %ss case budget for %s",
+                        case_timeout_s,
+                        case.sample_id,
+                    )
+
+            if timeout_phase == "agent":
+                if on_case_timeout:
+                    pending = on_case_timeout(i, case, list(attempt_traces), timeout_phase)
+                    if inspect.isawaitable(pending):
+                        await pending
+                break
+            if timeout_phase == "judge" and whole_case_attempt == 1:
+                if on_case_timeout:
+                    pending = on_case_timeout(i, case, list(attempt_traces), timeout_phase)
+                    if inspect.isawaitable(pending):
+                        await pending
+                break
             if not retry_after_judge or whole_case_attempt == 1:
                 break
             log.warning(

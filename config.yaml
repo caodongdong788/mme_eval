@@ -14,8 +14,9 @@ run:
   concurrency: 2               # 同时跑几个用例（cx-agent 会访问真实 LLM/DB；本地先保守）
   judge_concurrency: 2         # LLM 判官/语义裁决并发（与 bot 分离，防 QPM 429）
   llm_min_interval_s: 0.8      # 判官 API 最小调用间隔（秒），进一步平滑 QPM
-  timeout_s: 90                # 单轮调用超时
-  retry: 2                     # 失败重试次数
+  timeout_s: 90                # 单次 cx-agent 调用超时；失败仍重试
+  retry: 2                     # 单次 cx-agent 调用失败重试次数
+  case_timeout_s: 600          # 一次完整 Case（对话+判分）总超时；判分失败后整题最多再跑一次
   repeat: 1                    # 每条 case 重复跑 N 次；N>1 时做 majority voting（基线可用 --repeat 3）
   evaluation_mode: single_turn # single_turn=main 固定 turns；multi_turn=动态用户模拟（页面可覆盖）
   executor: local             # 执行后端：local（默认单进程并发）或 ray（分布式，需 pip install 'medeval[ray]'）

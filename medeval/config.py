@@ -62,8 +62,13 @@ class RunCfg(_Strict):
     judge_concurrency: int = Field(2, ge=1)
     # 判官 API 两次调用之间的最小间隔（秒），缓和 QPM；0 = 仅受 judge_concurrency 约束。
     llm_min_interval_s: float = Field(0.5, ge=0.0)
+    # 单次 cx-agent 请求的超时与重试策略。即使 Case 有总预算，单请求仍沿用
+    # 既有的失败重试机制，避免瞬时网络/上游故障直接导致整题失败。
     timeout_s: float = 90.0
     retry: int = 2
+    # 一次完整 Case 尝试（对话 + LLM 判分）的总预算。首次仅在判分失败时才会
+    # 整题重跑一次，因此单题累计最多为 2 * case_timeout_s。
+    case_timeout_s: float = Field(600.0, gt=0.0)
     repeat: int = Field(1, ge=1)
     # single_turn：沿用 main 的固定 turns 执行；multi_turn：启用 conversation
     # 与动态用户模拟器。页面发起 Run 时可覆盖，且随 config_snapshot 固化。

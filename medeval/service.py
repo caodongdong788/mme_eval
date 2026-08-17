@@ -30,7 +30,15 @@ from .judges import (
     GuidelineJudge,
     judge_all,
 )
-from .models import CaseResult, ConversationTrace, RunReport, TestCase, Turn
+from .models import (
+    CaseResult,
+    ConversationTrace,
+    FailureTag,
+    JudgeVerdict,
+    RunReport,
+    TestCase,
+    Turn,
+)
 from .observability import langfuse_tracing as lf
 from .observability.tracing import configure_tracing, span
 from .reporter import build_report, diff_runs, write_json, write_transcripts_xlsx
@@ -187,6 +195,7 @@ async def run_traces(
     account_owner: str = "",
     on_case_start=None,
     on_case_complete=None,
+    on_case_timeout=None,
 ) -> list[list[ConversationTrace]]:
     """run 阶段：唯一 adapter 副作用，产出 ``list[list[ConversationTrace]]``。
 
@@ -259,6 +268,7 @@ async def run_traces(
                 concurrency=concurrency,
                 timeout_s=config.run.timeout_s,
                 retry=config.run.retry,
+                case_timeout_s=config.run.case_timeout_s,
                 repeat=n_runs,
                 on_progress=on_run,
                 on_case_start=on_case_start,
@@ -274,6 +284,7 @@ async def run_traces(
                 account_owner=account_owner,
                 user_simulator=build_user_simulator(config),
                 on_case_complete=on_case_complete,
+                on_case_timeout=on_case_timeout,
             )
     finally:
         if writer is not None:
@@ -470,6 +481,52 @@ async def evaluate(
             await _notify_case_completed(progress, folded)
             return False
 
+        async def case_attempt_timed_out(
+            index: int,
+            _execution_case: TestCase,
+            traces: list[ConversationTrace],
+            phase: str,
+        ) -> None:
+            """整题预算耗尽时写入可解释终态，避免任务显示为无结果。"""
+            case = cases[index]
+            trace = traces[0] if traces else ConversationTrace(
+                messages=[],
+                error=f"case attempt timeout after {config.run.case_timeout_s:g}s",
+            )
+            is_judge_timeout = phase == "judge"
+            verdicts = (
+                [
+                    JudgeVerdict(
+                        name="dimension.error",
+                        passed=False,
+                        reason=(
+                            f"LLM 判分在单题 {config.run.case_timeout_s:g} 秒预算内未完成"
+                        ),
+                        details={
+                            "judge_error": True,
+                            "judge_error_stage": "case_timeout",
+                            "judge_error_message": (
+                                f"case attempt timeout after {config.run.case_timeout_s:g}s"
+                            ),
+                        },
+                    )
+                ]
+                if is_judge_timeout
+                else []
+            )
+            result = CaseResult(
+                case=case,
+                trace=trace,
+                verdicts=verdicts,
+                medical_safety_passed=False,
+                release_passed=False,
+                judge_error=is_judge_timeout,
+                failure_tags=([] if is_judge_timeout else [FailureTag.ADAPTER_ERROR.value]),
+            )
+            apply_grading([result])
+            folded_results[index] = result
+            await _notify_case_completed(progress, result)
+
         # 每条用例独立成一条 Langfuse trace（按 session=run_name 分组，整段 run 可在
         # Sessions 视图整体回放）；judge 调用不纳入追踪。
         await run_traces(
@@ -483,6 +540,7 @@ async def evaluate(
             resume_dir=Path(resume_dir) if resume_dir is not None else None,
             on_case_start=case_started,
             on_case_complete=judge_completed_case,
+            on_case_timeout=case_attempt_timed_out,
         )
         if any(result is None for result in folded_results):
             raise RuntimeError("evaluate 未生成完整的用例结果")

@@ -246,6 +246,86 @@ def test_evaluate_stops_after_one_full_case_retry_when_judge_keeps_failing():
     asyncio.run(scenario())
 
 
+def test_evaluate_retries_full_case_once_when_judge_exhausts_case_budget():
+    """Judge 超过单题预算后，应从头重跑一次完整 Agent 对话。"""
+
+    class CountingAdapter(_StubAdapter):
+        def __init__(self):
+            self.calls = 0
+
+        async def chat(self, req) -> ChatResponse:
+            self.calls += 1
+            return await super().chat(req)
+
+    class SlowThenHealthyJudge:
+        name = "dimension"
+
+        def __init__(self):
+            self.calls = 0
+
+        def fingerprint(self) -> str:
+            return "test-slow-then-healthy"
+
+        async def judge(self, case, trace):
+            self.calls += 1
+            if self.calls == 1:
+                await asyncio.sleep(0.08)
+            return [
+                JudgeVerdict(
+                    name=f"dimension.{dimension.value}",
+                    passed=True,
+                    score=5,
+                    max_score=5,
+                )
+                for dimension in EvaluationDimension
+            ]
+
+    async def scenario() -> None:
+        config = _config()
+        config.run.case_timeout_s = 0.04
+        adapter = CountingAdapter()
+        judge = SlowThenHealthyJudge()
+        report = await evaluate(config, [_case()], adapter, [judge])
+        assert adapter.calls == 2
+        assert judge.calls == 2
+        assert report.results[0].judge_error is False
+
+    asyncio.run(scenario())
+
+
+def test_evaluate_records_judge_timeout_after_second_case_attempt():
+    """两次判分都耗尽预算时必须生成“判分异常”，不能让整条任务无结果。"""
+
+    class CountingAdapter(_StubAdapter):
+        def __init__(self):
+            self.calls = 0
+
+        async def chat(self, req) -> ChatResponse:
+            self.calls += 1
+            return await super().chat(req)
+
+    class AlwaysSlowJudge:
+        name = "dimension"
+
+        def fingerprint(self) -> str:
+            return "test-always-slow"
+
+        async def judge(self, case, trace):
+            await asyncio.sleep(0.08)
+            return []
+
+    async def scenario() -> None:
+        config = _config()
+        config.run.case_timeout_s = 0.04
+        adapter = CountingAdapter()
+        report = await evaluate(config, [_case()], adapter, [AlwaysSlowJudge()])
+        assert adapter.calls == 2
+        assert report.results[0].judge_error is True
+        assert report.results[0].grade == "判分异常"
+
+    asyncio.run(scenario())
+
+
 # --- resolve_diff_target ---------------------------------------------------
 
 
