@@ -62,6 +62,7 @@ npm run build
 - 多文件或评分主链路变更应先更新 `graphify-out/`，写明实施计划，并在实现后严格校验。
 - 使用测试驱动覆盖 Schema、Judge、公式和报告边界。
 - 保留用户已有的无关工作区改动，不执行破坏性 Git 操作。
+- 生产发布唯一代码源为 GitLab `git@gitlab.soundws.com:cx/cx-mme.git`：需要提交、推送和部署时只执行 `git push gitlab main`，不得向 GitHub `origin` 推送；生产机跟踪 GitLab。
 
 ## 前后端约定
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from copy import deepcopy
+from dataclasses import replace
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -15,6 +16,7 @@ from server.models_db import (
     AttributionTaskItem,
     CaseResultRow,
     EvalRun,
+    EvaluationJob,
     JudgeModelConfig,
 )
 from server.services import attribution_tasks
@@ -650,3 +652,45 @@ def test_resumed_task_executes_only_pending_items(initialized_db, monkeypatch):
     asyncio.run(attribution_tasks.run_attribution_task(task_id))
     assert set(called) == set(sample_ids[1:])
     assert sample_ids[0] not in called
+
+
+def test_database_recovery_enqueues_interrupted_attribution_without_losing_successes(
+    initialized_db, monkeypatch
+):
+    """Web 发布后应由 Worker 从未完成 Case 接续，不重置已写入的结果。"""
+    run_id, sample_ids, model_id = _seed_failed_cases()
+    monkeypatch.setattr(attribution_tasks, "has_judge_model_api_key", lambda _model: True)
+    monkeypatch.setattr(
+        "server.settings.get_settings",
+        lambda: replace(initialized_db, job_runner_mode="database"),
+    )
+    with session_scope() as session:
+        run = session.get(EvalRun, run_id)
+        task = attribution_tasks.create_attribution_task(
+            session, run, sample_ids=sample_ids, judge_model_id=model_id, created_by="test"
+        )
+        task.status = "running"
+        items = list(session.query(AttributionTaskItem).filter_by(task_id=task.id).order_by(AttributionTaskItem.id))
+        items[0].status = "success"
+        items[0].analysis_json = {"available": True, "analysis": {"overall": {"summary": "保留"}}}
+        items[1].status = "running"  # 模拟服务在模型请求中重启
+        attribution_tasks._refresh_task_counts(session, task)
+        task_id = task.id
+
+    assert attribution_tasks.reconcile_orphaned_attribution_tasks() == 1
+    with session_scope() as session:
+        job = session.query(EvaluationJob).filter_by(kind="attribution").one()
+        assert job.payload == {"attribution_task_id": task_id}
+        item = session.query(AttributionTaskItem).filter_by(task_id=task_id, sample_id=sample_ids[0]).one()
+        assert item.status == "success"
+
+    async def fake_generate(_session, _run, row, **_kwargs):
+        return {"available": True, "stale": False, "analysis": {"sample": row.sample_id}, "metadata": {}}
+
+    monkeypatch.setattr(attribution_tasks, "generate_case_attribution", fake_generate)
+    monkeypatch.setattr(attribution_tasks, "_global_semaphore", None)
+    asyncio.run(attribution_tasks.run_attribution_task(task_id, recover_interrupted_items=True))
+    with session_scope() as session:
+        payload = attribution_tasks.get_attribution_task(session, run_id, task_id)
+    assert payload["status"] == "success"
+    assert payload["success_count"] == len(sample_ids)

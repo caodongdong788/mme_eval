@@ -39,15 +39,29 @@ def _restore_progress_floor(progress: InMemoryProgress, run_id: int) -> None:
 async def _execute_claimed(row, owner: str) -> None:
     settings = get_settings()
     progress = InMemoryProgress()
-    if int(row.attempts or 0) > 1 or row.kind == "resume":
+    is_attribution = row.kind == "attribution"
+
+    def _mark_attribution_failure(error: str) -> None:
+        if not is_attribution:
+            return
+        task_id = int((row.payload or {}).get("attribution_task_id") or 0)
+        if task_id <= 0:
+            return
+        from .services.attribution_tasks import mark_attribution_task_worker_failed
+
+        mark_attribution_task_worker_failed(task_id, error)
+    if not is_attribution and (int(row.attempts or 0) > 1 or row.kind == "resume"):
         _restore_progress_floor(progress, row.run_id)
-    _set_status(row.run_id, "running")
+    if not is_attribution:
+        _set_status(row.run_id, "running")
     try:
         job = build_job_from_payload(row.run_id, row.kind, dict(row.payload or {}), settings)
     except Exception:  # noqa: BLE001
         logger.exception("无法还原评测任务 job_id=%s run_id=%s", row.id, row.run_id)
         finish_job(row.id, owner, "failed", error=EVAL_JOB_USER_ERROR)
-        _set_status(row.run_id, "failed", error=EVAL_JOB_USER_ERROR)
+        _mark_attribution_failure("无法恢复持久化归因任务")
+        if not is_attribution:
+            _set_status(row.run_id, "failed", error=EVAL_JOB_USER_ERROR)
         return
     task = asyncio.create_task(job(progress), name=f"evaluation-job-{row.id}")
     interrupted = False
@@ -63,7 +77,9 @@ async def _execute_claimed(row, owner: str) -> None:
                     row.id,
                     owner,
                     settings.job_lease_seconds,
-                    progress=progress.snapshot(),
+                    # 归因的进度由 attribution_task / item 分表维护，不能覆盖
+                    # 已完成评测 Run 的进度快照。
+                    progress=None if is_attribution else progress.snapshot(),
                 ):
                     interrupted = True
                     task.cancel()
@@ -97,17 +113,20 @@ async def _execute_claimed(row, owner: str) -> None:
         if job_status(row.id) == "cancelled":
             acknowledge_cancel(row.id, owner)
             return
-        logger.exception("评测任务失败 job_id=%s run_id=%s", row.id, row.run_id)
+        logger.exception("%s任务失败 job_id=%s run_id=%s", "归因" if is_attribution else "评测", row.id, row.run_id)
         finish_job(row.id, owner, "failed", error=EVAL_JOB_USER_ERROR)
-        _set_status(
-            row.run_id,
-            "failed",
-            error=EVAL_JOB_USER_ERROR,
-            progress=progress.snapshot(),
-        )
+        _mark_attribution_failure("Worker 执行异常")
+        if not is_attribution:
+            _set_status(
+                row.run_id,
+                "failed",
+                error=EVAL_JOB_USER_ERROR,
+                progress=progress.snapshot(),
+            )
     else:
         if finish_job(row.id, owner, "succeeded"):
-            _set_status(row.run_id, "success", progress=progress.snapshot())
+            if not is_attribution:
+                _set_status(row.run_id, "success", progress=progress.snapshot())
 
 
 async def _worker_slot(slot: int, owner_prefix: str) -> None:

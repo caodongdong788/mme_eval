@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..db import session_scope
+from ..durable_queue import cancel_attribution_job, enqueue_attribution_job
 from ..models_db import (
     AttributionTask,
     AttributionTaskItem,
@@ -416,9 +417,25 @@ async def _run_item(task_id: int, item_id: int) -> None:
             _refresh_task_counts(session, task)
 
 
-async def run_attribution_task(task_id: int) -> None:
+async def run_attribution_task(task_id: int, *, recover_interrupted_items: bool = False) -> None:
+    """执行一个归因任务。
+
+    生产环境由持久化 Worker 调用。若上一个 Worker 在模型调用期间重启，
+    ``running`` 条目没有机会写入终态；新 Worker 领取到同一个租约任务时把
+    它们恢复为 ``pending``，从该 Case 继续，不覆盖已成功的归因快照。
+    """
     _set_task_running(task_id)
     with session_scope() as session:
+        if recover_interrupted_items:
+            for item in session.scalars(
+                select(AttributionTaskItem).where(
+                    AttributionTaskItem.task_id == task_id,
+                    AttributionTaskItem.status == "running",
+                )
+            ):
+                item.status = "pending"
+                item.error_msg = ""
+                item.started_at = None
         item_ids = list(session.scalars(
             select(AttributionTaskItem.id)
             .where(
@@ -434,6 +451,21 @@ async def run_attribution_task(task_id: int) -> None:
 
 
 def start_attribution_task(task_id: int) -> None:
+    """提交归因任务。
+
+    database 模式下只入队，由独立 Worker 领取；因此 app 重启、前端刷新和
+    发布均不会丢失归因协程。in_process 保留给本地开发/测试兼容。
+    """
+    from ..settings import get_settings
+
+    with session_scope() as session:
+        task = session.get(AttributionTask, task_id)
+        if task is None:
+            return
+        run_id = task.run_id
+    if get_settings().job_runner_mode == "database":
+        enqueue_attribution_job(run_id, task_id)
+        return
     _task_futures[task_id] = asyncio.create_task(
         run_attribution_task(task_id), name=f"mme-attribution-{task_id}"
     )
@@ -489,6 +521,9 @@ async def delete_attribution_task(session: Session, run_id: int, task_id: int) -
         cancel_attribution_task(task.id),
         _cancel_codex_gateway_task(session, task),
     )
+    # database Worker 中的归因任务不在 Web 进程内，必须显式取消其租约 Job；
+    # 否则删除后 Worker 仍可能继续发送模型请求。
+    cancel_attribution_job(task.id)
     session.execute(delete(AttributionTaskItem).where(AttributionTaskItem.task_id == task.id))
     session.delete(task)
     session.flush()
@@ -527,27 +562,72 @@ def mark_attribution_task_start_failed(task_id: int, exc: Exception) -> None:
         task.finished_at = datetime.utcnow()
 
 
+def mark_attribution_task_worker_failed(task_id: int, error: str) -> None:
+    """Worker 无法执行归因 Job 时收敛任务，保留已完成结果以便原地继续。"""
+    with session_scope() as session:
+        task = session.get(AttributionTask, task_id)
+        if task is None:
+            return
+        for item in session.scalars(
+            select(AttributionTaskItem).where(
+                AttributionTaskItem.task_id == task.id,
+                AttributionTaskItem.status.in_(("pending", "running")),
+            )
+        ):
+            item.status = "failed"
+            item.error_msg = "归因 Worker 异常中断，可继续归因"
+            item.finished_at = datetime.utcnow()
+        _refresh_task_counts(session, task)
+        # _refresh_task_counts 会根据已成功/失败 Case 生成 partial/failed 终态；
+        # error_msg 用于页面说明为何需要用户继续，而不是显示为一直运行。
+        task.error_msg = f"归因 Worker 异常：{error}"[:1000]
+        task.finished_at = datetime.utcnow()
+
+
 def reconcile_orphaned_attribution_tasks() -> int:
-    """进程重启后明确标记中断任务，避免页面无限显示“分析中”。"""
+    """启动时补齐遗失的归因队列任务，并恢复被中断的 Case。
+
+    评测任务已由数据库租约队列保证重启恢复；归因同样走该机制。历史版本
+    创建的进程内归因没有对应 EvaluationJob 时，在此补入队列。已有活跃
+    Worker Job 时不改动，避免 Web 服务发布影响正在生成的归因。
+    """
+    from ..settings import get_settings
+
+    if get_settings().job_runner_mode != "database":
+        # 本地兼容模式没有独立 Worker，仍明确把被中断任务收敛为可见失败，
+        # 让用户可以点击“继续归因”。
+        with session_scope() as session:
+            tasks = list(session.scalars(
+                select(AttributionTask).where(AttributionTask.status.in_(("queued", "running")))
+            ))
+            for task in tasks:
+                for item in session.scalars(
+                    select(AttributionTaskItem).where(
+                        AttributionTaskItem.task_id == task.id,
+                        AttributionTaskItem.status.in_(("pending", "running")),
+                    )
+                ):
+                    item.status = "failed"
+                    item.error_msg = "服务重启导致归因中断"
+                    item.finished_at = datetime.utcnow()
+                _refresh_task_counts(session, task)
+                task.status = "failed"
+                task.error_msg = "服务重启导致归因任务中断，请重新发起"
+                task.finished_at = datetime.utcnow()
+            return len(tasks)
+
+    recover: list[tuple[int, int]] = []
     with session_scope() as session:
         tasks = list(session.scalars(
             select(AttributionTask).where(AttributionTask.status.in_(("queued", "running")))
         ))
         for task in tasks:
-            for item in session.scalars(
-                select(AttributionTaskItem).where(
-                    AttributionTaskItem.task_id == task.id,
-                    AttributionTaskItem.status.in_(("pending", "running")),
-                )
-            ):
-                item.status = "failed"
-                item.error_msg = "服务重启导致归因中断"
-                item.finished_at = datetime.utcnow()
-            _refresh_task_counts(session, task)
-            task.status = "failed"
-            task.error_msg = "服务重启导致归因任务中断，请重新发起"
-            task.finished_at = datetime.utcnow()
-        return len(tasks)
+            # enqueue_attribution_job 内部会再次去重，这里不强依赖 JSON 方言；
+            # 先记录，等当前事务提交后再创建持久化 Job。
+            recover.append((task.run_id, task.id))
+    for run_id, task_id in recover:
+        enqueue_attribution_job(run_id, task_id)
+    return len(recover)
 
 
 async def stop_attribution_tasks() -> None:

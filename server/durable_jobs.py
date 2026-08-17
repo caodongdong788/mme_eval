@@ -113,4 +113,13 @@ def build_job_from_payload(
             sample_ids=list(payload.get("sample_ids") or []),
             settings=settings,
         )
+    if kind == "attribution":
+        from .services.attribution_tasks import run_attribution_task
+
+        task_id = int(payload["attribution_task_id"])
+
+        async def _run_attribution(_progress):
+            await run_attribution_task(task_id, recover_interrupted_items=True)
+
+        return _run_attribution
     raise ValueError(f"不支持的持久化任务类型: {kind}")

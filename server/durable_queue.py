@@ -95,6 +95,57 @@ def enqueue_job(run_id: int, kind: str, payload: dict[str, Any]) -> int:
         return row.id
 
 
+def enqueue_attribution_job(run_id: int, task_id: int) -> int:
+    """为归因任务创建持久化 Worker Job。
+
+    归因任务不能再依赖 Web 进程内的 ``asyncio.Task``：Web 发布或重启后，
+    内存协程会消失，但逐 Case 的归因结果已经落库。这里按归因任务 ID 去重，
+    使 Worker 可在租约过期或重启后从尚未成功的 Case 继续。
+    """
+    with session_scope() as session:
+        active = list(session.scalars(
+            select(EvaluationJob).where(
+                EvaluationJob.run_id == run_id,
+                EvaluationJob.kind == "attribution",
+                EvaluationJob.status.in_(ACTIVE_STATUSES),
+            )
+        ))
+        for row in active:
+            if int((row.payload or {}).get("attribution_task_id") or 0) == task_id:
+                return row.id
+        row = EvaluationJob(
+            run_id=run_id,
+            kind="attribution",
+            payload={"attribution_task_id": task_id},
+            status="queued",
+        )
+        session.add(row)
+        session.flush()
+        return row.id
+
+
+def cancel_attribution_job(task_id: int) -> bool:
+    """取消指定归因任务的持久化 Job，而不影响同一评测的普通评测 Job。"""
+    cancelled = False
+    with session_scope() as session:
+        rows = list(session.scalars(
+            select(EvaluationJob).where(
+                EvaluationJob.kind == "attribution",
+                EvaluationJob.status.in_(ACTIVE_STATUSES),
+            )
+        ))
+        for row in rows:
+            if int((row.payload or {}).get("attribution_task_id") or 0) != task_id:
+                continue
+            row.status = "cancelled"
+            row.finished_at = datetime.utcnow()
+            row.lease_expires_at = None
+            if row.lease_owner is None:
+                row.heartbeat_at = datetime.utcnow()
+            cancelled = True
+    return cancelled
+
+
 def claim_job(owner: str, lease_seconds: int) -> EvaluationJob | None:
     """领取最早的排队任务，或接管租约已过期的运行中任务。"""
     now = datetime.utcnow()
@@ -185,11 +236,13 @@ def requeue_job(job_id: int, owner: str) -> bool:
         row.lease_owner = None
         row.lease_expires_at = None
         row.heartbeat_at = datetime.utcnow()
-        run = session.get(EvalRun, row.run_id)
-        if run is not None and run.status not in {"success", "failed"}:
-            run.status = "pending"
-            run.error_msg = ""
-            run.finished_at = None
+        # 归因是评测完成后的附属任务，不能把原评测 Run 回写为 pending。
+        if row.kind != "attribution":
+            run = session.get(EvalRun, row.run_id)
+            if run is not None and run.status not in {"success", "failed"}:
+                run.status = "pending"
+                run.error_msg = ""
+                run.finished_at = None
         return True
 
 

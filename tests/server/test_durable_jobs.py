@@ -8,7 +8,9 @@ from datetime import datetime, timedelta
 from server.db import session_scope
 from server.durable_queue import (
     cancel_job,
+    cancel_attribution_job,
     claim_job,
+    enqueue_attribution_job,
     heartbeat_job,
     reconcile_unqueued_runs,
     requeue_job,
@@ -16,7 +18,7 @@ from server.durable_queue import (
 from server.durable_jobs import build_job_from_payload
 from server.job_specs import attach_job_spec, get_job_spec
 from server.jobs import DatabaseJobRunner
-from server.models_db import EvalRun, EvaluationJob
+from server.models_db import AttributionTask, EvalRun, EvaluationJob
 from server.progress import InMemoryProgress
 from server.worker import _restore_progress_floor
 
@@ -100,6 +102,34 @@ def test_cancelled_job_is_not_reclaimed(initialized_db):
     with session_scope() as session:
         session.add(EvaluationJob(run_id=run_id, kind="resume", payload={}, status="queued"))
     assert cancel_job(run_id)
+    assert claim_job("worker-a", 30) is None
+
+
+def test_attribution_job_is_deduplicated_and_can_be_cancelled(initialized_db):
+    run_id = _new_run()
+    with session_scope() as session:
+        task = AttributionTask(
+            run_id=run_id,
+            judge_model_id=1,
+            judge_model_name="attribution-model",
+            status="queued",
+        )
+        session.add(task)
+        session.flush()
+        task_id = task.id
+
+    first = enqueue_attribution_job(run_id, task_id)
+    assert enqueue_attribution_job(run_id, task_id) == first
+    with session_scope() as session:
+        row = session.get(EvaluationJob, first)
+        assert row is not None
+        assert row.kind == "attribution"
+        assert row.payload == {"attribution_task_id": task_id}
+
+    assert cancel_attribution_job(task_id)
+    with session_scope() as session:
+        row = session.get(EvaluationJob, first)
+        assert row is not None and row.status == "cancelled"
     assert claim_job("worker-a", 30) is None
 
 
