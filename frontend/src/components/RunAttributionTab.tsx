@@ -861,7 +861,7 @@ function AttributionAnalysisModule({
     kind === "supported"
       ? "优化建议"
       : kind === "questionable"
-        ? "评测系统优化逻辑"
+        ? "可执行优化操作"
         : "需要补充的证据";
   const adviceDescription =
     kind === "supported"
@@ -1050,6 +1050,9 @@ export function AttributionDetail({ result }: { result: CaseAttribution }) {
       item.deduction_validation === "supported" &&
       item.evaluation_issue_category !== "missing_rag_reference"
   );
+  const evaluationToolIssues = deductions.filter(
+    (item) => item.deduction_validation === "questionable"
+  );
   const insufficient = deductions.filter(
     (item) =>
       item.deduction_validation === "insufficient_evidence" &&
@@ -1070,6 +1073,14 @@ export function AttributionDetail({ result }: { result: CaseAttribution }) {
         title="cx-agent 优化建议"
         description="按八维评分标准归档：每个维度内依次展示 P0/P1/P2 问题、优化建议分类与具体优化动作。"
         items={[...supported, ...ragReferenceMissing]}
+        allItems={deductions}
+        globalRecommendations={analysis.global_recommendations || []}
+      />
+      <AttributionAnalysisModule
+        kind="questionable"
+        title="评测工具优化建议"
+        description="展示本用例中 Benchmark 判据、标注与 RAG 证据、判分模型或判分上下文的问题，并给出对应的优化操作。"
+        items={evaluationToolIssues}
         allItems={deductions}
         globalRecommendations={analysis.global_recommendations || []}
       />

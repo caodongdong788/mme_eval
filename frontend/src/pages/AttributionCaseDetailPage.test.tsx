@@ -229,7 +229,7 @@ describe("AttributionCaseDetailPage", () => {
     expect(await screen.findByText("归因任务明细页")).toBeInTheDocument();
   });
 
-  it("does not render evaluation-review summaries for questionable deductions", async () => {
+  it("shows evaluation-tool optimization for questionable deductions", async () => {
     const baseDeduction = result.analysis!.deduction_analyses[0];
     mockedApi.getAttributionTaskResult.mockResolvedValue({
       ...result,
@@ -276,9 +276,13 @@ describe("AttributionCaseDetailPage", () => {
     );
 
     expect(await screen.findByText("cx-agent 优化建议")).toBeInTheDocument();
-    expect(screen.queryByText("需要复核的判分")).not.toBeInTheDocument();
-    expect(screen.queryByText("Benchmark 判据冲突")).not.toBeInTheDocument();
-    expect(screen.queryByText("标注与 RAG 证据冲突")).not.toBeInTheDocument();
-    expect(screen.queryByText("其他判分复核")).not.toBeInTheDocument();
+    expect(screen.getByText("评测工具优化建议")).toBeInTheDocument();
+    expect(screen.queryByText("判分需要复核")).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "评测工具优化建议展开" })
+    );
+    expect(screen.getByText("Benchmark 判据冲突")).toBeInTheDocument();
+    expect(screen.getByText("标注与 RAG 证据冲突")).toBeInTheDocument();
+    expect(screen.getByText("其他判分复核")).toBeInTheDocument();
   });
 });
