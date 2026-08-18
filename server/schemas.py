@@ -608,6 +608,22 @@ class AttributionTaskOut(BaseModel):
     items: list[AttributionTaskItemOut] = Field(default_factory=list)
 
 
+class AttributionCategoryCount(BaseModel):
+    key: str
+    label: str
+    case_count: int
+    parent_key: Optional[str] = None
+    parent_label: Optional[str] = None
+
+
+class RunAttributionCategoryStats(BaseModel):
+    """Run 概览中的归因分类统计；每个 Case 在同一分类下只计一次。"""
+
+    attributed_case_count: int = 0
+    first_level: list[AttributionCategoryCount] = Field(default_factory=list)
+    second_level: list[AttributionCategoryCount] = Field(default_factory=list)
+
+
 OpenApiPermission = Literal[
     "benchmarks:read",
     "judge_models:read",

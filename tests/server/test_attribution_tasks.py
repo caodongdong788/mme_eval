@@ -798,6 +798,119 @@ def test_each_attribution_task_keeps_its_own_result_snapshot(initialized_db, mon
     assert second_result["analysis"]["overall"]["summary"] == "第二次归因"
 
 
+def test_run_attribution_category_stats_uses_latest_case_and_deduplicates(initialized_db):
+    run_id, sample_ids, model_id = _seed_failed_cases()
+
+    def deduction(code: str, domain: str, component: str, suffix: str) -> dict:
+        return {
+            "deduction_id": f"guideline.{suffix}",
+            "dimension": "professional_accuracy",
+            "severity": "high",
+            "deduction_validation": "supported",
+            "evaluation_issue_category": "none",
+            "finding": f"{code} finding",
+            "primary_cause": {
+                "code": code,
+                "label": code,
+                "owner": "clinical_reasoning",
+                "confidence": 0.9,
+            },
+            "optimization_classification": {
+                "domain": domain,
+                "component": component,
+                "failure_mode": code,
+                "action_type": (
+                    "clinical_reasoning" if domain == "clinical_reasoning"
+                    else "response_composition" if domain == "response_delivery"
+                    else "rag_trigger"
+                ),
+                "evidence_status": "sufficient",
+            },
+            "recommendations": [],
+        }
+
+    def snapshot(*deductions: dict) -> dict:
+        return {
+            "available": True,
+            "stale": False,
+            "analysis": {
+                "score_health": {"status": "healthy", "issues": []},
+                "deduction_analyses": list(deductions),
+                "verification_plan": {},
+            },
+            "metadata": {},
+        }
+
+    with session_scope() as session:
+        old = AttributionTask(
+            run_id=run_id,
+            judge_model_id=model_id,
+            judge_model_name="old",
+            status="success",
+            requested_count=1,
+            total_count=1,
+            completed_count=1,
+            success_count=1,
+        )
+        session.add(old)
+        session.flush()
+        session.add(AttributionTaskItem(
+            task_id=old.id,
+            sample_id=sample_ids[0],
+            status="success",
+            analysis_json=snapshot(deduction(
+                "rag_not_called", "medical_rag", "rag_trigger", "old"
+            )),
+        ))
+
+        latest = AttributionTask(
+            run_id=run_id,
+            judge_model_id=model_id,
+            judge_model_name="latest",
+            status="success",
+            requested_count=2,
+            total_count=2,
+            completed_count=2,
+            success_count=2,
+        )
+        session.add(latest)
+        session.flush()
+        session.add_all([
+            AttributionTaskItem(
+                task_id=latest.id,
+                sample_id=sample_ids[0],
+                status="success",
+                # 同一 Case 的两个扣分项落在同一分类，只能计一次。
+                analysis_json=snapshot(
+                    deduction("risk_benefit_error", "clinical_reasoning", "risk_benefit", "a"),
+                    deduction("risk_benefit_error", "clinical_reasoning", "risk_benefit", "b"),
+                ),
+            ),
+            AttributionTaskItem(
+                task_id=latest.id,
+                sample_id=sample_ids[1],
+                status="success",
+                analysis_json=snapshot(
+                    deduction("risk_benefit_error", "clinical_reasoning", "risk_benefit", "c"),
+                    deduction("response_style_error", "response_delivery", "response_style", "d"),
+                ),
+            ),
+        ])
+
+    with session_scope() as session:
+        stats = attribution_tasks.get_run_attribution_category_stats(session, run_id)
+
+    assert stats["attributed_case_count"] == 2
+    assert {row["label"]: row["case_count"] for row in stats["first_level"]} == {
+        "Agent 决策与推理策略": 2,
+        "提示词与回答生成策略": 1,
+    }
+    assert {row["label"]: row["case_count"] for row in stats["second_level"]} == {
+        "风险识别不足": 2,
+        "缺少共情与确认": 1,
+    }
+
+
 def test_attribution_task_api_reruns_selected_items_in_place_and_deletes(client, monkeypatch):
     run_id, sample_ids, model_id = _seed_failed_cases()
     with session_scope() as session:

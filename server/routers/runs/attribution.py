@@ -14,6 +14,7 @@ from ...schemas import (
     AttributionTaskRerun,
     AttributionTaskResume,
     CaseAttributionOut,
+    RunAttributionCategoryStats,
 )
 from ...services.case_attribution import (
     get_stored_attribution,
@@ -45,6 +46,18 @@ def list_case_attribution_tasks(
 ) -> list[dict]:
     get_run_or_404(session, run_id)
     return attribution_tasks.list_attribution_tasks(session, run_id)
+
+
+@router.get(
+    "/{run_id}/attribution-category-stats",
+    response_model=RunAttributionCategoryStats,
+)
+def get_run_attribution_category_stats(
+    run_id: int,
+    session: Session = Depends(get_session),
+) -> dict:
+    get_run_or_404(session, run_id)
+    return attribution_tasks.get_run_attribution_category_stats(session, run_id)
 
 
 @router.post("/{run_id}/attribution-tasks", response_model=AttributionTaskOut, status_code=201)

@@ -17,7 +17,7 @@ import { CodeOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import { type ReactNode, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { DIM_LABEL, EVALUATION_DIMENSIONS } from "../labels";
+import { DIM_LABEL, EVALUATION_DIMENSION_ROLE, EVALUATION_DIMENSIONS, EVALUATION_ROLE_LABEL, EVALUATION_ROLE_ORDER } from "../labels";
 
 type CaseData = Record<string, any>;
 type Pair = [string, unknown];
@@ -189,33 +189,70 @@ function TimelineEditor({ value, onChange }: { value: unknown; onChange: (next: 
 function GuidelinesEditor({ value, onChange }: { value: unknown; onChange: (next: CaseData[]) => void }) {
   const guidelines: CaseData[] = Array.isArray(value) ? value.map((item) => ({ ...(item || {}) })) : [];
   const update = (index: number, patch: CaseData) => onChange(guidelines.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+  const entries = guidelines.map((guide, sourceIndex) => ({ guide, sourceIndex }));
+  const entriesForDimension = (dimension: string) => entries.filter(({ guide }) => guide.dimension === dimension);
+  const orderedEntries = [
+    ...EVALUATION_DIMENSIONS.flatMap(entriesForDimension),
+    ...entries.filter(({ guide }) => !EVALUATION_DIMENSIONS.includes(guide.dimension)),
+  ];
+  const displayIndex = new Map(orderedEntries.map(({ sourceIndex }, index) => [sourceIndex, index + 1]));
+  const roleGroups = EVALUATION_ROLE_ORDER.map((role) => ({
+    role,
+    dimensions: EVALUATION_DIMENSIONS.map((dimension, dimensionIndex) => ({
+      dimension,
+      dimensionIndex,
+      entries: EVALUATION_DIMENSION_ROLE[dimension] === role ? entriesForDimension(dimension) : [],
+    })).filter((group) => group.entries.length > 0),
+  })).filter((group) => group.dimensions.length > 0);
+  const unassignedEntries = entries.filter(({ guide }) => !EVALUATION_DIMENSIONS.includes(guide.dimension));
+  const countCriteria = (guide: CaseData) => {
+    const criteria = guide.criteria ?? guide.criterion;
+    return Array.isArray(criteria) ? criteria.length : criteria ? 1 : 0;
+  };
+  const guidelineCard = (guide: CaseData, sourceIndex: number) => {
+    const criteriaValue = guide.criteria ?? guide.criterion;
+    const criteria = Array.isArray(criteriaValue) ? criteriaValue.map(String) : criteriaValue ? [String(criteriaValue)] : [];
+    const referenceAnswers = Array.isArray(guide.reference_answers) ? guide.reference_answers.map(String) : guide.reference_answers ? [String(guide.reference_answers)] : [];
+    return (
+      <Card
+        key={guide.id || sourceIndex}
+        size="small"
+        className="case-editor-guideline-card"
+        title={<span className="case-editor-guideline-card__title"><em>扣分项 {String(displayIndex.get(sourceIndex) || sourceIndex + 1).padStart(2, "0")}</em><strong>{DIM_LABEL[guide.dimension as keyof typeof DIM_LABEL] || "请选择关联维度"}</strong></span>}
+        extra={<Button type="text" danger icon={<DeleteOutlined />} onClick={() => onChange(guidelines.filter((_, i) => i !== sourceIndex))}>删除</Button>}
+      >
+        <div className="case-editor-guide-meta">
+          <label className="case-editor-input-field"><span>关联评测维度</span><Select value={guide.dimension || undefined} placeholder="请选择" options={EVALUATION_DIMENSIONS.map((dimension) => ({ value: dimension, label: DIM_LABEL[dimension] }))} onChange={(dimension) => update(sourceIndex, { dimension })} /></label>
+          <label className="case-editor-input-field"><span>最高扣分</span><InputNumber min={0} value={guide.max_score ?? 1} onChange={(max_score) => update(sourceIndex, { max_score: max_score ?? 0 })} /></label>
+        </div>
+        <Typography.Text className="case-editor-field-label">检查点</Typography.Text>
+        <RequirementList value={criteria} onChange={(next) => update(sourceIndex, { criteria: next })} placeholder="请输入检查点" addText="新增检查点" />
+        <Typography.Text className="case-editor-field-label">好答案（可选）</Typography.Text>
+        <Typography.Paragraph className="case-editor-section-hint">用于说明理想回答的内容方向，评测时仅作质量参考，不要求逐字一致。</Typography.Paragraph>
+        <RequirementList value={referenceAnswers} onChange={(next) => update(sourceIndex, { reference_answers: next })} placeholder="请输入好答案" addText="新增好答案" />
+        <label className="case-editor-input-field case-editor-deduction-rule"><span>扣分规则（可选）</span><Input.TextArea value={guide.deduction_rule || ""} placeholder="例如：遗漏一项关键要求扣 1 分" autoSize={{ minRows: 2, maxRows: 5 }} onChange={(event) => update(sourceIndex, { deduction_rule: event.target.value })} /></label>
+      </Card>
+    );
+  };
   return (
     <div className="case-editor-guideline-list">
-      {guidelines.map((guide, index) => {
-        const criteriaValue = guide.criteria ?? guide.criterion;
-        const criteria = Array.isArray(criteriaValue) ? criteriaValue.map(String) : criteriaValue ? [String(criteriaValue)] : [];
-        const referenceAnswers = Array.isArray(guide.reference_answers) ? guide.reference_answers.map(String) : guide.reference_answers ? [String(guide.reference_answers)] : [];
-        return (
-          <Card
-            key={index}
-            size="small"
-            className="case-editor-guideline-card"
-            title={<span className="case-editor-guideline-card__title"><em>扣分项 {String(index + 1).padStart(2, "0")}</em><strong>{DIM_LABEL[guide.dimension as keyof typeof DIM_LABEL] || "请选择关联维度"}</strong></span>}
-            extra={<Button type="text" danger icon={<DeleteOutlined />} onClick={() => onChange(guidelines.filter((_, i) => i !== index))}>删除</Button>}
-          >
-            <div className="case-editor-guide-meta">
-              <label className="case-editor-input-field"><span>关联评测维度</span><Select value={guide.dimension || undefined} placeholder="请选择" options={EVALUATION_DIMENSIONS.map((dimension) => ({ value: dimension, label: DIM_LABEL[dimension] }))} onChange={(dimension) => update(index, { dimension })} /></label>
-              <label className="case-editor-input-field"><span>最高扣分</span><InputNumber min={0} value={guide.max_score ?? 1} onChange={(max_score) => update(index, { max_score: max_score ?? 0 })} /></label>
-            </div>
-            <Typography.Text className="case-editor-field-label">检查点</Typography.Text>
-            <RequirementList value={criteria} onChange={(next) => update(index, { criteria: next })} placeholder="请输入检查点" addText="新增检查点" />
-            <Typography.Text className="case-editor-field-label">好答案（可选）</Typography.Text>
-            <Typography.Paragraph className="case-editor-section-hint">用于说明理想回答的内容方向，评测时仅作质量参考，不要求逐字一致。</Typography.Paragraph>
-            <RequirementList value={referenceAnswers} onChange={(next) => update(index, { reference_answers: next })} placeholder="请输入好答案" addText="新增好答案" />
-            <label className="case-editor-input-field case-editor-deduction-rule"><span>扣分规则（可选）</span><Input.TextArea value={guide.deduction_rule || ""} placeholder="例如：遗漏一项关键要求扣 1 分" autoSize={{ minRows: 2, maxRows: 5 }} onChange={(event) => update(index, { deduction_rule: event.target.value })} /></label>
-          </Card>
-        );
-      })}
+      {roleGroups.map(({ role, dimensions }) => (
+        <section className="case-editor-guideline-role-group" key={role}>
+          <header className="case-editor-guideline-role-group__header"><strong>{EVALUATION_ROLE_LABEL[role]}</strong><span>{dimensions.reduce((total, group) => total + group.entries.length, 0)} 个扣分项</span></header>
+          {dimensions.map(({ dimension, dimensionIndex, entries: dimensionEntries }) => (
+            <section className="case-editor-guideline-dimension-group" key={dimension}>
+              <header className="case-editor-guideline-dimension-group__header"><em>{String(dimensionIndex + 1).padStart(2, "0")}</em><strong>{DIM_LABEL[dimension]}</strong><span>{dimensionEntries.length} 个扣分项 · {dimensionEntries.reduce((total, { guide }) => total + countCriteria(guide), 0)} 个检查点</span></header>
+              <div className="case-editor-guideline-dimension-group__items">{dimensionEntries.map(({ guide, sourceIndex }) => guidelineCard(guide, sourceIndex))}</div>
+            </section>
+          ))}
+        </section>
+      ))}
+      {unassignedEntries.length > 0 ? (
+        <section className="case-editor-guideline-role-group case-editor-guideline-role-group--unassigned">
+          <header className="case-editor-guideline-role-group__header"><strong>未关联维度</strong><span>{unassignedEntries.length} 个扣分项</span></header>
+          <div className="case-editor-guideline-dimension-group__items">{unassignedEntries.map(({ guide, sourceIndex }) => guidelineCard(guide, sourceIndex))}</div>
+        </section>
+      ) : null}
       <Button
         type="dashed"
         icon={<PlusOutlined />}

@@ -117,6 +117,11 @@ class _FakeBackend:
         assert "不得泛化" in prompt
         assert "不得出现 node UUID" in prompt
         assert "不要写“终答生成节点 node:xxxx”" in prompt
+        assert "属于正常的指南门禁覆盖" in prompt
+        assert "芳香化酶抑制剂（如来曲唑）联合卵巢抑制" in prompt
+        assert "允许 cx-agent 作有边界的临床合理推断" in prompt
+        assert "不能把“询问是否执行”误当成“已经执行但内容不完整”" in prompt
+        assert "已经生成卡片后，才可依据真实卡片内容判断是否遗漏" in prompt
         assert kwargs["request_timeout_s"] == 600.0
         assert max_retries == 2
         assert kwargs["retry_transient_errors"] is True
@@ -293,7 +298,7 @@ def test_case_attribution_generate_persist_and_mark_stale(
         "insufficient_evidence": "evidence",
     }[normalized_item["deduction_validation"]]
     assert normalized_item["recommendations"][0]["scope"] == expected_scope
-    assert payload["metadata"]["prompt_version"] == "case-attribution-v12"
+    assert payload["metadata"]["prompt_version"] == "case-attribution-v15"
 
     with session_scope() as session:
         row = session.query(CaseResultRow).filter_by(run_id=run_id, sample_id="bc_002").one()
@@ -913,7 +918,7 @@ def test_score_health_marks_flaky_repeated_evaluation_for_review():
     )
 
 
-def test_score_health_detects_medical_safety_dimension_and_guideline_conflict():
+def test_score_health_accepts_medical_safety_base_score_overridden_by_guideline_gate():
     detail = {
         "verdicts": [
             *[
@@ -942,16 +947,8 @@ def test_score_health_detects_medical_safety_dimension_and_guideline_conflict():
 
     health = _score_health(detail, _deductions(detail))
 
-    assert health["status"] == "review_required"
-    issue = next(
-        item
-        for item in health["issues"]
-        if item["code"] == "medical_safety_judgement_conflict"
-    )
-    assert issue["affected_deduction_ids"] == [
-        "dimension.medical_safety",
-        "guideline.safety_01",
-    ]
+    assert health["status"] == "healthy"
+    assert health["issues"] == []
 
 
 def test_invalid_score_skips_attribution_model(client, settings, monkeypatch):

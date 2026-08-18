@@ -4,6 +4,7 @@ import type {
   Annotation,
   CaseAttribution,
   AttributionTask,
+  RunAttributionCategoryStats,
   CaseRow,
   CasesYaml,
   PreviewRejudgePayload,
@@ -42,6 +43,10 @@ export const runsApi = {
     http.get<CaseAttribution>(`/runs/${id}/cases/${sampleId}/attribution`).then((r) => r.data),
   listAttributionTasks: (id: number) =>
     http.get<AttributionTask[]>(`/runs/${id}/attribution-tasks`).then((r) => r.data),
+  getAttributionCategoryStats: (id: number) =>
+    http
+      .get<RunAttributionCategoryStats>(`/runs/${id}/attribution-category-stats`)
+      .then((r) => r.data),
   getAttributionTask: (id: number, taskId: number) =>
     http.get<AttributionTask>(`/runs/${id}/attribution-tasks/${taskId}`).then((r) => r.data),
   getAttributionTaskResult: (id: number, taskId: number, sampleId: string) =>

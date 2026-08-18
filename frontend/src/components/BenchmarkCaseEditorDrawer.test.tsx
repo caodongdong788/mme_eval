@@ -60,4 +60,35 @@ describe("BenchmarkCaseEditorDrawer criteria variant", () => {
     expect(screen.getByText("好答案（可选）")).toBeInTheDocument();
     expect(screen.getByDisplayValue("先说明危险信号，再建议尽快就医。")).toBeInTheDocument();
   });
+
+  it("groups guidelines by dimension in doctor, nurse, patient order", () => {
+    const groupedCase = {
+      ...testCase,
+      evaluation: {
+        ...testCase.evaluation,
+        guidelines: [
+          { id: "g01", dimension: "empathy", criteria: ["患者检查点一"] },
+          { id: "g02", dimension: "medical_safety", criteria: ["医生检查点"] },
+          { id: "g03", dimension: "personalization", criteria: ["护士检查点"] },
+          { id: "g04", dimension: "empathy", criteria: ["患者检查点二"] },
+        ],
+      },
+    };
+    renderWithProviders(
+      <BenchmarkCaseEditorDrawer open loading={false} saving={false} source="uploaded" caseFile="cases.yaml" value={groupedCase} onChange={vi.fn()} onClose={vi.fn()} />
+    );
+
+    fireEvent.click(screen.getByText("指南扣分点（4）"));
+
+    const roleGroups = Array.from(document.body.querySelectorAll(".case-editor-guideline-role-group"));
+    expect(roleGroups).toHaveLength(3);
+    expect(roleGroups[0]).toHaveTextContent("医生端");
+    expect(roleGroups[0]).toHaveTextContent("医学安全性");
+    expect(roleGroups[1]).toHaveTextContent("护士端");
+    expect(roleGroups[1]).toHaveTextContent("个性化相关性");
+    expect(roleGroups[2]).toHaveTextContent("患者端");
+    expect(roleGroups[2]).toHaveTextContent("患者检查点一");
+    expect(roleGroups[2]).toHaveTextContent("患者检查点二");
+    expect(roleGroups[2].querySelectorAll(".case-editor-guideline-dimension-group")).toHaveLength(1);
+  });
 });

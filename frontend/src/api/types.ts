@@ -468,6 +468,20 @@ export interface AttributionTask {
   items: AttributionTaskItem[];
 }
 
+export interface AttributionCategoryCount {
+  key: string;
+  label: string;
+  case_count: number;
+  parent_key?: string | null;
+  parent_label?: string | null;
+}
+
+export interface RunAttributionCategoryStats {
+  attributed_case_count: number;
+  first_level: AttributionCategoryCount[];
+  second_level: AttributionCategoryCount[];
+}
+
 export interface ReviewSummary {
   verdict: "agree" | "override";
   reviewer?: string | null;

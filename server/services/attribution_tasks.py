@@ -25,6 +25,7 @@ from ..models_db import (
 from .case_attribution import generate_case_attribution
 from .case_query import case_row_or_404
 from .attribution_summary import build_task_diagnostic_summary
+from .attribution_taxonomy import documented_optimization_category
 from .judge_models import (
     ensure_attribution_model_reachable,
     get_judge_model_or_404,
@@ -128,6 +129,87 @@ def list_attribution_tasks(session: Session, run_id: int) -> list[dict[str, Any]
         .order_by(AttributionTask.id.desc())
     ))
     return [_task_out(session, task, include_items=False) for task in tasks]
+
+
+def get_run_attribution_category_stats(session: Session, run_id: int) -> dict[str, Any]:
+    """按 Case 的最新成功归因汇总一级、二级 cx-agent 问题分类。
+
+    同一 Case 可能在多次归因任务中出现，也可能有多个扣分项落入同一分类。
+    这里先选择该 Case 最新的成功快照，再用集合按分类去重，避免重试和重复扣分
+    放大图表数量。
+    """
+    rows = session.execute(
+        select(AttributionTaskItem, AttributionTask)
+        .join(AttributionTask, AttributionTask.id == AttributionTaskItem.task_id)
+        .where(
+            AttributionTask.run_id == run_id,
+            AttributionTaskItem.status == "success",
+            AttributionTaskItem.analysis_json.is_not(None),
+        )
+        .order_by(
+            AttributionTask.created_at.desc(),
+            AttributionTask.id.desc(),
+            AttributionTaskItem.id.desc(),
+        )
+    ).all()
+    latest_by_case: dict[str, AttributionTaskItem] = {}
+    for item, _task in rows:
+        snapshot = item.analysis_json if isinstance(item.analysis_json, dict) else {}
+        if (
+            item.sample_id not in latest_by_case
+            and snapshot.get("available") is True
+            and isinstance(snapshot.get("analysis"), dict)
+        ):
+            latest_by_case[item.sample_id] = item
+
+    summary = build_task_diagnostic_summary(
+        (sample_id, item.analysis_json)
+        for sample_id, item in latest_by_case.items()
+    )
+    first_cases: dict[str, set[str]] = {}
+    second_cases: dict[tuple[str, str], set[str]] = {}
+    first_labels: dict[str, str] = {}
+    for cluster in summary.get("clusters") or []:
+        if cluster.get("category") != "cx_agent_issue":
+            continue
+        classification = cluster.get("optimization_classification") or {}
+        primary_key, primary_label, secondary_label = documented_optimization_category(
+            str(classification.get("domain") or ""),
+            str(classification.get("component") or ""),
+        )
+        sample_ids = {str(value) for value in cluster.get("sample_ids") or [] if value}
+        if not sample_ids:
+            continue
+        first_labels[primary_key] = primary_label
+        first_cases.setdefault(primary_key, set()).update(sample_ids)
+        second_cases.setdefault((primary_key, secondary_label), set()).update(sample_ids)
+
+    first_level = [
+        {"key": key, "label": first_labels[key], "case_count": len(sample_ids)}
+        for key, sample_ids in first_cases.items()
+    ]
+    second_level = [
+        {
+            "key": f"{primary_key}:{secondary_label}",
+            "label": secondary_label,
+            "case_count": len(sample_ids),
+            "parent_key": primary_key,
+            "parent_label": first_labels[primary_key],
+        }
+        for (primary_key, secondary_label), sample_ids in second_cases.items()
+    ]
+    order = {key: index for index, key in enumerate((
+        "rag", "engineering", "reasoning", "prompt", "knowledge", "safety"
+    ))}
+    first_level.sort(key=lambda row: (-row["case_count"], order.get(row["key"], 99)))
+    second_level.sort(key=lambda row: (
+        -row["case_count"], order.get(str(row["parent_key"]), 99), str(row["label"])
+    ))
+    return {
+        "attributed_case_count": len(latest_by_case),
+        "first_level": first_level,
+        "second_level": second_level,
+    }
 
 
 def get_attribution_task_or_404(session: Session, run_id: int, task_id: int) -> AttributionTask:
