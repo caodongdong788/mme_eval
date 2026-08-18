@@ -4,5 +4,6 @@
 # 已归档变更（delta 已合并进 openspec/specs/；追溯见 proposal + git log）
 openspec/changes/archive/
 
-# 代码图谱产物（架构问题用 graphify query，勿通读 GRAPH_REPORT.md）
+# 代码图谱产物：只在符合 AGENTS.md 的架构/评分链路变更时增量更新。
+# 架构问题用 graphify query/path/explain 按需取结果；勿通读或重复加载 GRAPH_REPORT.md、graph.json。
 graphify-out/

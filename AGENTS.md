@@ -59,7 +59,11 @@ npm run build
 ## 变更流程
 
 - 项目级 Skill 位于 `.codex/skills/`；只在任务匹配时读取对应 `SKILL.md`，不要加载无关 Skill。
-- 多文件或评分主链路变更应先更新 `graphify-out/`，写明实施计划，并在实现后严格校验。
+- Graphify 不是通用代码检索或普通开发 Skill；仅因用户询问代码、需要搜索文件、修改跨多个文件，均不得自动触发。只有用户明确要求 Graphify，或变更满足下述架构触发条件时才读取并使用 Graphify Skill。
+- 普通提交（包括小修复、单层实现、测试、文案、配置和常规前端改动）**不运行 Graphify**；多文件本身也不是触发条件。
+- 仅当变更影响以下任一项时，才在实现后运行一次增量静态图谱更新：核心层边界（`Schema → Cases → Runner → Judges → Reporter`）、评分主链路（Case 执行 → Agent/Adapter → Judge → 聚合/报告），或关键跨模块调用关系（如队列、限流、后台任务、持久化与其调用方）。在实施计划和交付说明中简要说明触发原因。
+- 本仓库 Graphify 默认处于“静态分析、语义扫描关闭”模式；符合触发条件时唯一允许的日常更新命令是 `graphify update .`，它只做增量 AST/静态分析，不调用 LLM。不得因日常变更执行 `graphify extract`、完整 `/graphify` 流程、`--mode deep`、`label` 或其他 LLM 语义扫描；只有用户明确要求专项架构/文档语义分析时才可例外，并先说明预期 Token 成本。
+- 不安装或启用 Graphify 的 commit hook、watcher、Codex/Cursor/Claude 自动集成；Graphify 不能成为提交、CI 或部署的门禁。查询既有图谱时使用 `graphify query`/`path`/`explain`，按需读取结果，不要通读或重复加载大型 `graphify-out/` 产物。
 - 使用测试驱动覆盖 Schema、Judge、公式和报告边界。
 - 保留用户已有的无关工作区改动，不执行破坏性 Git 操作。
 - 生产发布唯一代码源为 GitLab `git@gitlab.soundws.com:cx/cx-mme.git`：需要提交、推送和部署时只执行 `git push gitlab main`，不得向 GitHub `origin` 推送；生产机跟踪 GitLab。

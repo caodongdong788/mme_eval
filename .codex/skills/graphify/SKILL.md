@@ -1,6 +1,6 @@
 ---
 name: graphify
-description: "any input (code, docs, papers, images, videos) to knowledge graph. Use when user asks any question about a codebase, documents, or project content - especially if graphify-out/ exists, treat the question as a /graphify query."
+description: "Scoped knowledge-graph support for explicit Graphify requests or qualifying MME architecture/scoring-path changes. Do not use for routine code questions, searches, fixes, tests, docs, config, or ordinary multi-file work."
 trigger: /graphify
 ---
 
@@ -45,7 +45,21 @@ Turn any folder of files into a navigable knowledge graph with community detecti
 
 Drop any folder of code, docs, papers, images, or video into graphify and get a queryable knowledge graph. Persistent across sessions, honest audit trail (EXTRACTED/INFERRED/AMBIGUOUS), community detection surfaces cross-document connections you wouldn't think to ask about.
 
+## MME Eval operating policy
+
+This repository deliberately uses Graphify as an occasional architecture aid, not a per-commit task. This section overrides the generic workflow below when the target is `mme_eval`.
+
+- Do not auto-select this skill merely because the user asks a codebase question or the repository already contains `graphify-out/`. Normal inspection uses repository search and direct file reads. Activate Graphify only when the user explicitly requests it or when `AGENTS.md` requires a post-change static update for a qualifying architecture/scoring-path change.
+- Do **not** run Graphify for ordinary fixes, tests, docs, configuration, routine frontend work, or merely because a change spans multiple files.
+- Run it only after a change to a core layer boundary (`Schema → Cases → Runner → Judges → Reporter`), the scoring path (Case execution → Agent/Adapter → Judge → aggregation/report), or a consequential cross-module call path such as queueing, rate limiting, background work, or persistence.
+- For those qualifying changes, run exactly `graphify update .`. In the installed CLI this is incremental AST/static analysis and does not call an LLM. Record briefly why the update was warranted; do not read the generated files wholesale afterward.
+- Daily work must not use `graphify extract`, the full `/graphify` rebuild flow, `--mode deep`, `label`, or any semantic LLM extraction. A full semantic analysis is an explicit, separately requested architecture/document review: state the expected Token cost before it starts.
+- Do not install or start Graphify hooks, watchers, or Codex/Cursor/Claude auto-integrations in this repository. Graphify is neither a CI requirement nor a deployment gate.
+- For a codebase question, prefer `graphify query`, `path`, or `explain` and read only their bounded result. Do not `cat`, paste, or repeatedly load `graphify-out/GRAPH_REPORT.md`, `graph.json`, or other large generated artifacts into agent context.
+
 ## What You Must Do When Invoked
+
+For `mme_eval`, first apply the activation guard in the operating policy above. If neither explicit user intent nor an `AGENTS.md` qualifying-change trigger exists, stop using this skill and continue with normal repository tools. The generic existing-graph fast path below does not override that guard.
 
 If the user invoked `/graphify --help` or `/graphify -h` (with no other arguments), print the contents of the `## Usage` section above verbatim and stop. Do not run any commands, do not detect files, do not default the path to `.`. Just print the Usage block and return.
 
@@ -785,7 +799,13 @@ fi
 
 ## For --update (incremental re-extraction)
 
-Use when you've added or modified files since the last run. Only re-extracts changed files - saves tokens and time.
+For `mme_eval`, use this mode only for a qualifying change in the operating policy above. Prefer the CLI command below; it is the repository's static, no-LLM update path. Do not replace it with the semantic extraction instructions in this generic section for routine work.
+
+```bash
+graphify update .
+```
+
+Outside the MME Eval override, use when you've added or modified files since the last run. Only re-extracts changed files - saves tokens and time.
 
 ```bash
 $(cat graphify-out/.graphify_python) -c "
@@ -1096,6 +1116,8 @@ Supported URL types (auto-detected):
 
 ## For --watch
 
+**MME Eval:** do not start a watcher. Automatic rebuilds defeat the scoped-update policy above.
+
 Start a background watcher that monitors a folder and auto-updates the graph when files change.
 
 ```bash
@@ -1117,6 +1139,8 @@ For agentic workflows: run `--watch` in a background terminal. Code changes from
 
 ## For git commit hook
 
+**MME Eval:** do not install a Graphify commit hook. Graph updates must remain an explicit decision for qualifying architecture changes, not an automatic post-commit action.
+
 Install a post-commit hook that auto-rebuilds the graph after every commit. No background process needed - triggers once per commit, works with any editor.
 
 ```bash
@@ -1132,6 +1156,8 @@ If a post-commit hook already exists, graphify appends to it rather than replaci
 ---
 
 ## For native CLAUDE.md integration
+
+**MME Eval:** do not install an always-on integration. It conflicts with the scoped-update and context-budget policy above.
 
 Run once per project to make graphify always-on in Claude Code sessions:
 

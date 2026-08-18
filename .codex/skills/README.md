@@ -5,7 +5,7 @@
 | Skill | 用途 |
 |---|---|
 | `frontend-design` | 前端页面与组件设计 |
-| `graphify` | 代码图谱、依赖与风险查询 |
+| `graphify` | 关键架构/评分链路的静态增量图谱与依赖查询（非每次提交） |
 | `impeccable` | 前端 UX、视觉与无障碍优化 |
 | `writing-plans` | 多文件或高风险任务的实施计划 |
 | `ponytail` | 优先最小实现，控制复杂度 |

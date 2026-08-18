@@ -1,0 +1,14 @@
+---
+description: MME Graphify scoped activation and no-LLM default
+alwaysApply: true
+---
+
+# Graphify policy
+
+- Do not run or suggest Graphify for ordinary fixes, tests, documentation, configuration, routine frontend work, generic codebase questions, file searches, or merely because a change touches multiple files.
+- Run Graphify only when the user explicitly requests it or after a change affects a core boundary (`Schema → Cases → Runner → Judges → Reporter`), the scoring path, or a consequential cross-module path such as queueing, rate limiting, background work, or persistence.
+- For a qualifying routine update, run exactly `graphify update .` once after implementation. This is incremental static analysis and does not use an LLM.
+- LLM semantic extraction is opt-in and disabled by default. Never run `graphify extract`, a full `/graphify` rebuild, `--mode deep`, `label`, watcher, hook, or automatic editor integration unless the user explicitly requests the corresponding semantic architecture/document analysis. State the expected Token cost first.
+- Graphify must not be a commit, CI, deployment, or review gate. Do not install Graphify Git hooks or watchers.
+- Query existing graph data only through bounded `graphify query`, `path`, or `explain` results. Do not load large `graphify-out/` artifacts wholesale.
+- `AGENTS.md` is the source of truth if this rule and another project instruction differ.
