@@ -12,6 +12,7 @@ import re
 from typing import Any, Iterable
 
 from .attribution_issue_categories import classify_evaluation_issue
+from .attribution_taxonomy import normalize_optimization_classification
 
 
 _SEVERITY_WEIGHT = {"critical": 4, "high": 3, "medium": 2, "low": 1}
@@ -53,6 +54,14 @@ def _unique_recommendations(values: Iterable[Any], limit: int = 8) -> list[dict[
 
 def recommendation_category(item: dict[str, Any]) -> str:
     """按优化目标归类建议，供任务汇总和 Open API 使用。"""
+    scope = str(item.get("scope") or "").lower()
+    if scope == "evaluation":
+        return "evaluation_review"
+    if scope == "evidence":
+        return "insufficient_evidence"
+    if scope == "cx_agent":
+        return "cx_agent_issue"
+    # 仅为旧数据保留文本兜底；新归因结果全部使用结构化 scope。
     text = f"{item.get('target') or ''} {item.get('action') or ''}"
     if re.search(r"benchmark|judge|评测|判分|判据|评分", text, re.IGNORECASE):
         return "evaluation_review"
@@ -62,7 +71,7 @@ def recommendation_category(item: dict[str, Any]) -> str:
 
 
 def _normalized_label(value: Any) -> str:
-    """保留业务根因语义，只消除空白/标点差异，避免不同问题被错误合并。"""
+    """只消除空白和标点差异，不从文本推断责任模块。"""
     return re.sub(r"[\s，,。；;：:]+", " ", str(value or "原因待确认")).strip().lower()
 
 
@@ -102,10 +111,9 @@ def _rag_optimization_category(deduction: dict[str, Any], evaluation_issue_categ
         return "rag_recall_error"
     if code == "rag_threshold_error" or status == "threshold_error":
         return "rag_threshold_error"
-    if code in {"rag_candidate_or_rerank_error", "rag_rerank_error"} or status in {
-        "candidate_or_rerank_error",
-        "rerank_error",
-    }:
+    if code == "rag_candidate_or_rerank_error" or status == "candidate_or_rerank_error":
+        return "rag_candidate_or_rerank_error"
+    if code == "rag_rerank_error" or status == "rerank_error":
         return "rag_rerank_error"
     if code == "rag_not_grounded" or status == "selected_not_used" or answer_usage == "not_used":
         return "rag_not_grounded"
@@ -114,6 +122,8 @@ def _rag_optimization_category(deduction: dict[str, Any], evaluation_issue_categ
         "unsupported_claim",
     }:
         return "rag_misinterpreted"
+    if code == "citation_mismatch" or status == "citation_mismatch":
+        return "citation_mismatch"
     return ""
 
 
@@ -123,7 +133,7 @@ def build_task_diagnostic_summary(
     """按复核结论 + 根因 + 责任模块聚合一批 Case。"""
     health_counts: Counter[str] = Counter()
     validation_counts: Counter[str] = Counter()
-    clusters: dict[tuple[str, str, str, str, str, str, str, str], dict[str, Any]] = {}
+    clusters: dict[tuple[str, ...], dict[str, Any]] = {}
     available_results = 0
 
     for sample_id, stored in items:
@@ -149,6 +159,15 @@ def build_task_diagnostic_summary(
             rag_optimization_category = _rag_optimization_category(
                 deduction, evaluation_issue_category
             )
+            optimization_classification = normalize_optimization_classification(
+                deduction, evaluation_issue_category
+            )
+            # 结构化分类是最终责任边界：评测系统问题不得混入 cx-agent，
+            # 新增但尚未纳入分类表的根因也不得伪装成已确认的 Agent 缺陷。
+            if optimization_classification["domain"] == "evaluation_system":
+                category = "evaluation_review"
+            elif optimization_classification.get("coverage_status") == "unmapped":
+                category = "insufficient_evidence"
             cause = _record(deduction.get("primary_cause"))
             code = str(cause.get("code") or "insufficient_evidence")
             owner = str(cause.get("owner") or "unknown")
@@ -159,11 +178,15 @@ def build_task_diagnostic_summary(
                 category,
                 evaluation_issue_category,
                 code,
+                _normalized_label(cause_label),
                 owner,
                 issue_type,
                 root_cause_stage,
                 rag_optimization_category,
-                _normalized_label(cause_label),
+                optimization_classification["domain"],
+                optimization_classification["component"],
+                optimization_classification["failure_mode"],
+                optimization_classification["action_type"],
             )
             cluster = clusters.setdefault(
                 key,
@@ -175,6 +198,7 @@ def build_task_diagnostic_summary(
                     "owner": owner,
                     "root_cause_stage": root_cause_stage,
                     "rag_optimization_category": rag_optimization_category,
+                    "optimization_classification": optimization_classification,
                     "issue_types": [],
                     "sample_ids": [],
                     "deduction_ids": [],

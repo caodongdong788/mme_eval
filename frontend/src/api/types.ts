@@ -249,6 +249,7 @@ export interface GuidelineScore {
 }
 
 export interface AttributionRecommendation {
+  scope?: "cx_agent" | "evaluation" | "evidence" | string;
   priority: "P0" | "P1" | "P2" | string;
   target: string;
   action: string;
@@ -265,6 +266,15 @@ export interface AttributionCause {
   confidence: number;
   reason?: string;
   evidence_refs?: string[];
+}
+
+export interface AttributionOptimizationClassification {
+  domain: string;
+  component: string;
+  failure_mode: string;
+  action_type: string;
+  evidence_status: "sufficient" | "partial" | "insufficient" | string;
+  coverage_status?: "mapped" | "owner_fallback" | "unmapped" | string;
 }
 
 export interface AttributionDeductionAnalysis {
@@ -303,6 +313,7 @@ export interface AttributionDeductionAnalysis {
     evidence_refs?: string[];
   }>;
   root_cause_stage?: string;
+  optimization_classification?: AttributionOptimizationClassification;
   root_cause_test?: {
     if_fixed?: string;
     would_prevent_issue?: boolean;
@@ -374,6 +385,7 @@ export interface AttributionDiagnosticCluster {
     | string;
   /** 结构化 RAG 优化方向；用于将汇总页与单 Case 归因归入同一分类。 */
   rag_optimization_category?: string;
+  optimization_classification?: AttributionOptimizationClassification;
   cause_code: string;
   cause_label: string;
   owner: string;

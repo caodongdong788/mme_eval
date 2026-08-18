@@ -568,7 +568,7 @@ function DeductionPanel({
           <Progress
             percent={confidencePercent(cause.confidence)}
             size="small"
-            strokeColor="#7357ff"
+            strokeColor="var(--runs-purple)"
           />
         </div>
       </div>
@@ -650,12 +650,14 @@ function DeductionPanel({
 }
 
 function isEvaluationRecommendation(item: AttributionRecommendation) {
+  if (item.scope) return item.scope === "evaluation";
   return /benchmark|judge|评测|判分|判据|评分/i.test(
     `${item.target} ${item.action}`
   );
 }
 
 function isEvidenceRecommendation(item: AttributionRecommendation) {
+  if (item.scope) return item.scope === "evidence";
   return (
     !isEvaluationRecommendation(item) &&
     /证据采集|链路|审计|可观测|trace|observability|candidate_membership|上下文采集/i.test(
@@ -797,6 +799,7 @@ function CxAgentDeductionPriorityGroups({
                   evaluation_issue_category: item.evaluation_issue_category,
                   cause_code: item.primary_cause?.code,
                   rag_diagnosis: item.rag_diagnosis,
+                  optimization_classification: item.optimization_classification,
                   recommendations: item.recommendations,
                 });
                 const actions = cxAgentDeductionOptimizationActions(item, category.key);
@@ -1131,23 +1134,40 @@ type AttributionCluster = NonNullable<
 >["clusters"][number];
 
 function fallbackCxAgentOptimizationAction(categoryKey: string) {
-  const actions: Record<string, string> = {
-    safety_policy: "在安全策略中补充对应风险场景的触发条件和明确处置指引，并在生成回答时强制执行。",
-    prompt: "在系统提示词中补充该场景的必答要点与边界，要求回答逐项覆盖。",
-    rag_not_called: "为该类问题补充 RAG 触发条件，命中时必须发起医学文献检索。",
-    rag_query_error: "优化检索词生成规则，将关键症状、治疗阶段和药物信息一并纳入查询。",
-    rag_recall_error: "补充同义词和关键医学术语召回策略，提高相关文献进入候选集的概率。",
-    rag_threshold_error: "复核相关文献的过滤阈值，避免有效证据在阈值阶段被过早丢弃。",
-    rag_rerank_error: "调整候选文献排序规则，使与当前问题最直接相关的证据优先进入最终上下文。",
-    rag_not_grounded: "在回答生成前加入已选文献覆盖检查，要求关键结论基于已召回证据表达。",
-    rag_misinterpreted: "在回答生成规则中要求先核对文献适用条件，再输出结论，避免误读或过度外推。",
-    rag_corpus_gap: "补齐对应主题的权威文献或说明书，并建立更新维护机制。",
-    rag_missing_reference: "补齐回答结论与已召回文献片段之间的引用映射，确保关键结论可追溯。",
-    context: "在回答前读取并使用与当前问题相关的用户档案、既往事实和检查信息。",
-    orchestration: "调整对话流程，在回答前补齐必要追问或调用相应工具，再给出针对性建议。",
-    generation: "在回答生成规则中增加该场景的关键检查项，避免遗漏核心结论或行动建议。",
+  const [domain, component] = categoryKey.split(":", 2);
+  const componentActions: Record<string, string> = {
+    rag_trigger: "校正 RAG 触发条件，区分无需检索、应检索但未调用和能力开关关闭三类情况。",
+    rag_service: "修复 RAG 服务调用、超时、重试和降级链路，避免把调用失败误判为未触发。",
+    rag_query: "优化检索问题改写，完整保留症状、治疗阶段、药物和用户限制条件。",
+    rag_corpus: "补充或更新对应主题的权威医学文献，并建立版本与失效维护机制。",
+    rag_retrieval: "调整召回策略和医学同义词扩展，使相关证据进入原始候选集。",
+    rag_threshold: "复核过滤阈值，避免有效证据在候选筛选阶段被过早丢弃。",
+    rag_candidate: "补齐候选阶段证据后再定位重排问题；证据不足时不得直接归责重排器。",
+    rag_rerank: "优化候选重排，使最符合当前患者和问题约束的证据优先进入最终上下文。",
+    rag_grounding: "增加回答前证据覆盖检查，要求关键医学结论实际使用已召回证据。",
+    rag_interpretation: "要求先核对文献适用人群、条件和结论边界，再进行医学解释。",
+    citation_binding: "修复回答片段与文献 chunk 的引用绑定，保证关键结论可追溯且引用一致。",
+    tool_registry: "修复工具注册、可见性和描述，使模型在对应场景能够发现所需工具。",
+    tool_selection: "优化工具选择规则，明确何时必须调用、何时不得调用及失败后的替代路径。",
+    tool_arguments: "收紧工具参数 Schema，并补充必填项、枚举与上下文映射规则。",
+    tool_policy: "调整工具权限与调用策略，避免正确工具被策略阻断。",
+    tool_executor: "修复工具执行、超时、重试和错误回传，保留完整调用证据。",
+    output_protocol: "修复终答协议，确保 function call、文本回答和消息分段按约定输出。",
+    a2ui_binding: "修复资源与 A2UI 卡片绑定，避免图片、文献或交互组件丢失。",
+    observability_evidence: "补齐模型、工具、上下文与 RAG 各阶段的输入输出证据后重新归因。",
   };
-  return actions[categoryKey] || "根据该问题的根因，在回答生成流程中补充明确的处理规则和关键检查项。";
+  if (componentActions[component]) return componentActions[component];
+  const domainActions: Record<string, string> = {
+    medical_safety: "在医学安全策略中补充风险触发条件、禁忌边界和明确处置指引，并在生成前强制检查。",
+    prompt_hook: "在静态 Prompt、动态 Hook 或专家配置的正确层级补充规则，避免重复或相互冲突。",
+    context_memory: "修复相关用户档案、病历、Timeline、历史对话或病例夹的读取、注入和实际利用链路。",
+    dialogue_tool_orchestration: "调整意图路由、追问、能力开关和工具编排，在回答前完成必要的信息获取或工具调用。",
+    medical_rag: "按触发、调用、检索、候选、重排、证据利用和引用绑定逐段定位并修复 RAG 最早失败节点。",
+    clinical_reasoning: "修复临床事实提取、时间线、禁忌和风险收益推理，再合成符合当前患者条件的方案。",
+    response_delivery: "调整回答内容、完整性、表达和终答交付协议，避免正确推理在输出阶段丢失。",
+    model_runtime_observability: "增强模型运行时的超时、重试、上下文预算、压缩和证据记录能力。",
+  };
+  return domainActions[domain] || "先补齐最早失败节点的直接证据，再对对应 cx-agent 组件实施可回归的修复。";
 }
 
 function cxAgentOptimizationActions(cluster: AttributionCluster, categoryKey: string) {
@@ -1187,6 +1207,7 @@ function CxAgentClusterPriorityGroups({
                   evaluation_issue_category: cluster.evaluation_issue_category,
                   cause_code: cluster.cause_code,
                   rag_optimization_category: cluster.rag_optimization_category,
+                  optimization_classification: cluster.optimization_classification,
                   recommendations: cluster.recommendations,
                 });
                 const actions = cxAgentOptimizationActions(cluster, category.key);

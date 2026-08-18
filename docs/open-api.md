@@ -349,11 +349,20 @@ curl -sS "$MME_BASE_URL/api/open/v1/attribution-tasks?run_id=35&status=success" 
         "clusters": [
           {
             "cause_label": "召回证据未用于回答",
+            "optimization_classification": {
+              "domain": "medical_rag",
+              "component": "rag_grounding",
+              "failure_mode": "rag_not_grounded",
+              "action_type": "grounding_rule",
+              "evidence_status": "sufficient",
+              "coverage_status": "mapped"
+            },
             "dimensions": ["专业准确性与边界"],
             "case_count": 4,
             "priority": "P1",
             "recommendations": [
               {
+                "scope": "cx_agent",
                 "target": "提示词优化",
                 "action": "生成回答前逐条核对选中文献"
               }
@@ -374,8 +383,16 @@ curl -sS "$MME_BASE_URL/api/open/v1/attribution-tasks?run_id=35&status=success" 
                 "deduction_id": "guideline.g02",
                 "dimension": "professional_accuracy",
                 "finding": "已召回证据但回答没有引用",
+                "optimization_classification": {
+                  "domain": "medical_rag",
+                  "component": "rag_grounding",
+                  "failure_mode": "rag_not_grounded",
+                  "action_type": "grounding_rule",
+                  "evidence_status": "sufficient",
+                  "coverage_status": "mapped"
+                },
                 "primary_cause": {"label": "召回证据未用于回答", "owner": "generator"},
-                "recommendations": [{"target": "提示词优化", "action": "增加文献覆盖检查"}]
+                "recommendations": [{"scope": "cx_agent", "target": "提示词优化", "action": "增加文献覆盖检查"}]
               }
             ],
             "recommendations": []

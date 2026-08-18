@@ -258,7 +258,14 @@ def test_case_attribution_generate_persist_and_mark_stale(
     assert payload["analysis"]["overall"]["primary_cause_code"] == "reasoning_error"
     refs = payload["analysis"]["deduction_analyses"][0]["causal_chain"][0]["evidence_refs"]
     assert refs == ["dimension.professional_accuracy"]
-    assert payload["metadata"]["prompt_version"] == "case-attribution-v8"
+    normalized_item = payload["analysis"]["deduction_analyses"][0]
+    expected_scope = {
+        "supported": "cx_agent",
+        "questionable": "evaluation",
+        "insufficient_evidence": "evidence",
+    }[normalized_item["deduction_validation"]]
+    assert normalized_item["recommendations"][0]["scope"] == expected_scope
+    assert payload["metadata"]["prompt_version"] == "case-attribution-v9"
 
     with session_scope() as session:
         row = session.query(CaseResultRow).filter_by(run_id=run_id, sample_id="bc_002").one()
@@ -477,6 +484,15 @@ def test_medical_safety_timeliness_gap_is_not_misclassified_as_evaluation_review
     assert item["primary_cause"]["code"] == "safety_policy_error"
     assert item["primary_cause"]["owner"] == "safety_policy"
     assert item["recommendations"][0]["target"] == "cx-agent 安全分诊策略"
+    assert item["recommendations"][0]["scope"] == "cx_agent"
+    assert item["optimization_classification"] == {
+        "domain": "medical_safety",
+        "component": "safety_policy",
+        "failure_mode": "safety_policy_error",
+        "action_type": "safety_rule",
+        "evidence_status": "sufficient",
+        "coverage_status": "mapped",
+    }
 
 
 def test_historical_control_requires_same_frozen_case_definition(initialized_db):

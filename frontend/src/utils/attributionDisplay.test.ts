@@ -58,14 +58,43 @@ describe("attributionDisplay", () => {
     const category = (source: Parameters<typeof cxAgentSuggestionCategory>[0]) =>
       cxAgentSuggestionCategory(source).label;
 
-    expect(category({ cause_code: "rag_not_called" })).toBe("未触发 RAG");
-    expect(category({ rag_diagnosis: { query_quality: "wrong" } })).toBe("检索词不完整或错误");
-    expect(category({ cause_code: "rag_recall_error" })).toBe("召回不足");
-    expect(category({ cause_code: "rag_threshold_error" })).toBe("阈值/过滤过严");
-    expect(category({ cause_code: "rag_rerank_error" })).toBe("重排选择错误");
-    expect(category({ cause_code: "rag_not_grounded" })).toBe("召回后未引用");
-    expect(category({ rag_diagnosis: { answer_usage: "misinterpreted" } })).toBe("证据理解错误");
-    expect(category({ cause_code: "rag_corpus_gap" })).toBe("知识库缺失或过期");
-    expect(category({ evaluation_issue_category: "missing_rag_reference" })).toBe("缺少 RAG 引用");
+    expect(category({ cause_code: "rag_not_called" })).toBe("医学文献 RAG · RAG 触发决策");
+    expect(category({ cause_code: "rag_call_failed" })).toBe("医学文献 RAG · RAG 服务调用");
+    expect(category({ rag_diagnosis: { query_quality: "wrong" } })).toBe("医学文献 RAG · 检索问题改写");
+    expect(category({ cause_code: "rag_recall_error" })).toBe("医学文献 RAG · 原始召回");
+    expect(category({ cause_code: "rag_threshold_error" })).toBe("医学文献 RAG · 阈值与过滤");
+    expect(category({ cause_code: "rag_candidate_or_rerank_error" })).toBe("医学文献 RAG · 候选文献生成（证据不足以定位重排）");
+    expect(category({ cause_code: "rag_rerank_error" })).toBe("医学文献 RAG · 候选重排");
+    expect(category({ cause_code: "rag_not_grounded" })).toBe("医学文献 RAG · 召回证据利用");
+    expect(category({ rag_diagnosis: { answer_usage: "misinterpreted" } })).toBe("医学文献 RAG · 医学证据理解");
+    expect(category({ cause_code: "rag_corpus_gap" })).toBe("医学文献 RAG · 医学知识库");
+    expect(category({ cause_code: "citation_mismatch" })).toBe("医学文献 RAG · 引用绑定");
+    expect(category({ evaluation_issue_category: "missing_rag_reference" })).toBe("医学文献 RAG · 引用绑定");
+  });
+
+  it("covers context, tools, reasoning, delivery and runtime without text guessing", () => {
+    const category = (source: Parameters<typeof cxAgentSuggestionCategory>[0]) =>
+      cxAgentSuggestionCategory(source).label;
+
+    expect(category({ cause_code: "context_not_fetched" })).toBe("用户上下文与长期记忆 · 用户结构化档案");
+    expect(category({ cause_code: "context_not_used" })).toBe("用户上下文与长期记忆 · 上下文利用");
+    expect(category({ cause_code: "tool_timeout" })).toBe("对话与工具编排 · 工具执行");
+    expect(category({ cause_code: "risk_benefit_error" })).toBe("临床推理与方案合成 · 风险收益权衡");
+    expect(category({ cause_code: "output_protocol_error" })).toBe("回答生成与交付协议 · 终答输出协议");
+    expect(category({ cause_code: "compaction_error" })).toBe("模型运行时与可观测性 · 上下文压缩");
+  });
+
+  it("prefers validated structured classification over legacy owner fallbacks", () => {
+    expect(cxAgentSuggestionCategory({
+      owner: "generator",
+      cause_code: "response_composition_error",
+      optimization_classification: {
+        domain: "clinical_reasoning",
+        component: "contraindication",
+        failure_mode: "contraindication_error",
+        action_type: "clinical_reasoning",
+        evidence_status: "sufficient",
+      },
+    }).label).toBe("临床推理与方案合成 · 禁忌与相互作用");
   });
 });

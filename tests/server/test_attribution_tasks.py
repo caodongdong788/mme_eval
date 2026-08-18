@@ -346,13 +346,16 @@ def test_task_diagnostic_summary_keeps_structured_rag_optimization_categories():
     summary = build_task_diagnostic_summary(
         [
             ("case_not_called", stored("rag_not_called")),
+            ("case_call_failed", stored("rag_call_failed")),
             ("case_query", stored("rag_query_error")),
             ("case_recall", stored("rag_recall_error")),
             ("case_threshold", stored("rag_threshold_error")),
+            ("case_candidate", stored("rag_candidate_or_rerank_error")),
             ("case_rerank", stored("rag_rerank_error")),
             ("case_unused", stored("rag_not_grounded")),
             ("case_misread", stored("rag_misinterpreted")),
             ("case_corpus", stored("rag_corpus_gap")),
+            ("case_citation", stored("citation_mismatch")),
         ]
     )
 
@@ -362,13 +365,16 @@ def test_task_diagnostic_summary_keeps_structured_rag_optimization_categories():
     }
     assert categories == {
         "case_not_called": "rag_not_called",
+        "case_call_failed": "rag_call_failed",
         "case_query": "rag_query_error",
         "case_recall": "rag_recall_error",
         "case_threshold": "rag_threshold_error",
+        "case_candidate": "rag_candidate_or_rerank_error",
         "case_rerank": "rag_rerank_error",
         "case_unused": "rag_not_grounded",
         "case_misread": "rag_misinterpreted",
         "case_corpus": "rag_corpus_gap",
+        "case_citation": "citation_mismatch",
     }
 
 

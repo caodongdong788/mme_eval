@@ -273,7 +273,7 @@ describe("RunAttributionTab", () => {
       screen.getByText("相关医学风险已经召回，但回答没有采用。")
     );
     expect(screen.getByText("优化建议分类：")).toBeInTheDocument();
-    expect(screen.getByText("召回后未引用")).toBeInTheDocument();
+    expect(screen.getByText("医学文献 RAG · 召回证据利用")).toBeInTheDocument();
     expect(screen.getByText("怎么优化：")).toBeInTheDocument();
     fireEvent.click(screen.getByText("尚未关联维度"));
     expect(screen.getByText("P2 · 一般优先级")).toBeInTheDocument();

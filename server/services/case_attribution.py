@@ -32,11 +32,12 @@ from ..models_db import CaseResultRow, EvalRun, JudgeModelConfig, ScheduledEvalu
 from ..settings import Settings, get_settings
 from .agent_chain_summary import ensure_agent_chain_summary
 from .attribution_issue_categories import classify_evaluation_issue
+from .attribution_taxonomy import normalize_optimization_classification
 from .eval_stack import prepare_run_config
 from .langfuse_trace import sync_conversation_trace
 
 
-PROMPT_VERSION = "case-attribution-v8"
+PROMPT_VERSION = "case-attribution-v9"
 _STORAGE_KEY = "attribution_analysis"
 _MAX_STRING = 1800
 # 归因是后台任务：单次模型请求最多 600 秒，最多发起 3 次完整请求
@@ -74,9 +75,30 @@ _PROMPT = """\
 16. contrastive_controls 是相同 Case 历史通过结果或同类别通过样本，只用于比较执行差异，不能替代当前 Rubric 和当前 Case 事实。
 17. 对 questionable 项必须给出 evaluation_issue_category：Benchmark 自身的触发条件、检查点、扣分规则、参考答案互相矛盾或重复扣分时用 benchmark_criteria_conflict；标注/判分真值与实际 RAG 文献、说明书或召回证据冲突或证据越界时用 annotation_rag_conflict；Benchmark 合同本身一致但判分模型误读上下文、算错档位或错误执行规则时用 judge_logic_issue。AI 助手没有使用已召回证据属于 cx-agent 问题，不属于标注与 RAG 冲突。对 insufficient_evidence：仅当回答需要提供 RAG 来源、但缺少可回链文献原文或引用映射时用 missing_rag_reference；该分类会作为 cx-agent 的 RAG 优化项汇总。其他缺失使用 evidence_gap。Rubric/指南本身不需要 RAG 佐证；supported 使用 none。
 18. 医学安全性中，“未在需要时明确尽早/及时就医，或仍建议等待下次常规复诊”本身是安全分诊与就医时效问题。只要 Rubric 已明确该时效要求、对话能证明回答未满足，就应判为 supported 并归责 cx-agent 的安全策略或回答生成；不能仅因回答没有危险用药、没有诱导自行用药而改判为 questionable。只有 Rubric 未定义时效要求、适用条件不成立，或判据与 Case/RAG 证据冲突时，才进入评测复核。
+19. 每个扣分项必须输出 optimization_classification。domain 是稳定一级领域，component 是 cx-agent 真实代码组件，failure_mode 是最早失败节点，action_type 是应该修改的系统层。不得用“其他回答优化”掩盖可以定位到工具、上下文、协议、运行时或临床推理的问题。
+20. 必须区分：工具没有出现在 active tools、模型没有选择工具、参数错误、工具被策略拦截、工具执行失败、工具超时、工具结果被截断；不得统一写成“流程问题”。必须区分：用户信息未进入上下文、已经进入但未使用、咨询对象归属错误、信息新旧冲突、长期记忆写入失败。
+21. 必须区分临床推理与回答表达：事实提取、时间线、禁忌/相互作用、风险收益和方案合成错误归 clinical_reasoning；信息与结论正确但组织、完整性、表达或格式有问题才归 response_delivery。
+22. `<msg_break />`、A2UI、资源引用、卡片兑现、终答缺失、SSE/前端渲染属于输出协议或交付链路；模型 API、流式超时、部分输出、上下文窗口、compaction、工具结果截断属于模型运行时与可观测性。
 
 【主要归因类型】
-judge_or_benchmark_issue、context_not_fetched、context_not_used、rag_not_needed、rag_not_called、rag_call_failed、rag_query_error、rag_corpus_gap、rag_recall_error、rag_threshold_error、rag_candidate_or_rerank_error、rag_rerank_error、rag_not_grounded、rag_misinterpreted、citation_mismatch、reasoning_error、safety_policy_error、clarification_strategy_error、response_composition_error、insufficient_evidence。
+judge_or_benchmark_issue、prompt_rule_error、hook_rule_error、expert_pack_error、context_not_fetched、context_not_used、context_subject_error、context_stale_or_conflict、memory_write_error、intent_routing_error、clarification_strategy_error、feature_gate_error、tool_not_available、tool_not_called、tool_selection_error、tool_argument_error、tool_blocked、tool_execution_failed、tool_timeout、proactive_or_undercurrent_error、rag_not_needed、rag_not_called、rag_call_failed、rag_query_error、rag_corpus_gap、rag_recall_error、rag_threshold_error、rag_candidate_or_rerank_error、rag_rerank_error、rag_not_grounded、rag_misinterpreted、citation_mismatch、reasoning_error、clinical_fact_extraction_error、temporal_reasoning_error、risk_benefit_error、contraindication_error、safety_policy_error、response_composition_error、response_incomplete、response_style_error、output_protocol_error、a2ui_binding_error、delivery_render_error、model_api_error、model_timeout、model_partial_output、context_window_error、compaction_error、tool_result_truncated、observability_gap、insufficient_evidence。
+
+【optimization_classification 一级领域】
+medical_safety、prompt_hook、context_memory、dialogue_tool_orchestration、medical_rag、clinical_reasoning、response_delivery、model_runtime_observability、evaluation_system。
+
+【component 选择指引】
+- medical_safety：safety_policy。
+- prompt_hook：static_prompt、dynamic_hook、expert_pack。
+- context_memory：structured_profile、medical_record、timeline、chat_history、saved_content、consult_subject、context_usage、context_conflict、memory_write。
+- dialogue_tool_orchestration：intent_routing、clarification、feature_gate、tool_registry、tool_selection、tool_arguments、tool_policy、tool_executor、proactive_undercurrent。
+- medical_rag：rag_trigger、rag_service、rag_query、rag_corpus、rag_retrieval、rag_threshold、rag_candidate、rag_rerank、rag_grounding、rag_interpretation、citation_binding。
+- clinical_reasoning：clinical_fact_extraction、temporal_reasoning、risk_benefit、contraindication、clinical_synthesis。
+- response_delivery：content_composition、response_completeness、response_style、output_protocol、a2ui_binding、delivery_ui。
+- model_runtime_observability：model_provider、model_timeout、partial_output、context_window、compaction、tool_result_budget、observability_evidence。
+- evaluation_system：benchmark、judge。
+
+【action_type】
+safety_rule、prompt_rule、hook_rule、expert_pack、context_injection、memory_pipeline、dialogue_policy、tool_schema、feature_gate、tool_executor、rag_trigger、rag_query、rag_service、rag_corpus、retrieval_config、threshold_config、rerank_config、grounding_rule、citation_binding、clinical_reasoning、response_composition、response_protocol、delivery_ui、model_config、runtime_resilience、observability、evaluation_rule、judge_logic、unknown。
 
 【判定顺序】
 1. 读取 score_health。若为 invalid，所有相关扣分只能归入 questionable，不得归责 cx-agent。
@@ -105,7 +127,7 @@ judge_or_benchmark_issue、context_not_fetched、context_not_used、rag_not_need
     "conclusion_category": "cx_agent_issue | evaluation_review | insufficient_evidence | mixed",
     "primary_cause_code": "归因类型",
     "primary_cause_label": "中文名称",
-    "owner": "benchmark | judge | agent_prompt | orchestration | context_tool | rag_corpus | retriever | threshold | reranker | generator | safety_policy | unknown",
+    "owner": "benchmark | judge | prompt_static | prompt_hook | expert_pack | orchestration | feature_gate | tool_registry | tool_executor | context_profile | context_medical_record | context_timeline | context_chat_history | memory_pipeline | rag_service | rag_corpus | retriever | threshold | reranker | clinical_reasoning | generator | safety_policy | response_protocol | delivery_ui | model_provider | runtime | observability | undercurrent | unknown",
     "confidence": 0.0,
     "summary": "不超过100字的综合结论",
     "affected_deduction_ids": ["deduction_id"]
@@ -135,10 +157,11 @@ judge_or_benchmark_issue、context_not_fetched、context_not_used、rag_not_need
         {"stage": "阶段", "status": "pass | fail | unknown | not_applicable", "finding": "结论", "evidence_refs": ["证据ID"]}
       ],
       "primary_cause": {"code": "归因类型", "label": "中文名称", "owner": "责任模块", "confidence": 0.0, "reason": "主要原因", "evidence_refs": ["证据ID"]},
+      "optimization_classification": {"domain": "一级领域", "component": "具体组件", "failure_mode": "与 primary_cause.code 一致", "action_type": "优化动作类型", "evidence_status": "sufficient | partial | insufficient", "coverage_status": "mapped | owner_fallback | unmapped"},
       "root_cause_test": {"if_fixed": "要修复的具体节点", "would_prevent_issue": true, "reason": "为什么修复它能避免当前扣分"},
       "contributing_causes": [{"code": "归因类型", "label": "中文名称", "confidence": 0.0, "evidence_refs": ["证据ID"]}],
       "rag_diagnosis": {"needed": true, "called": true, "query_quality": "good | incomplete | wrong | unknown", "relevant_information_stage": "all | qualified | candidate | selected | not_found | unknown", "answer_usage": "used | not_used | misinterpreted | unsupported_claim | unknown", "finding": "与RAG的关系"},
-      "recommendations": [{"priority": "P0 | P1 | P2", "target": "优化建议分类", "action": "怎么优化（可执行修改）"}]
+      "recommendations": [{"scope": "cx_agent | evaluation | evidence", "priority": "P0 | P1 | P2", "target": "优化建议分类", "action": "怎么优化（可执行修改）"}]
     }
   ],
   "limitations": ["缺失或无法精确判断的证据"]
@@ -953,6 +976,31 @@ def _conclusion_category(analyses: list[dict[str, Any]]) -> str:
     return "mixed"
 
 
+def _normalize_recommendations(
+    values: Any,
+    *,
+    validation: str,
+    evaluation_issue_category: str,
+) -> list[dict[str, Any]]:
+    """给建议绑定稳定的责任范围，避免前端再从中文关键词猜测。"""
+    if evaluation_issue_category == "missing_rag_reference":
+        scope = "cx_agent"
+    elif validation == "questionable":
+        scope = "evaluation"
+    elif validation == "insufficient_evidence":
+        scope = "evidence"
+    else:
+        scope = "cx_agent"
+    output: list[dict[str, Any]] = []
+    for item in values or []:
+        if not isinstance(item, dict):
+            continue
+        normalized = dict(item)
+        normalized["scope"] = scope
+        output.append(normalized)
+    return output
+
+
 def _normalize_analysis(
     raw: Any,
     deductions: list[dict[str, Any]],
@@ -1039,6 +1087,14 @@ def _normalize_analysis(
         cause["confidence"] = _clamp_confidence(cause.get("confidence"))
         cause["evidence_refs"] = _sanitize_refs(cause.get("evidence_refs"), valid_refs)
         normalized["primary_cause"] = cause
+        normalized["optimization_classification"] = normalize_optimization_classification(
+            normalized, normalized["evaluation_issue_category"]
+        )
+        normalized["recommendations"] = _normalize_recommendations(
+            normalized.get("recommendations"),
+            validation=str(normalized.get("deduction_validation") or ""),
+            evaluation_issue_category=normalized["evaluation_issue_category"],
+        )
         contributing = []
         for extra in normalized.get("contributing_causes") or []:
             if not isinstance(extra, dict):
@@ -1091,6 +1147,14 @@ def _normalize_analysis(
                     "reason": "缺少结构化归因输出",
                     "evidence_refs": [deduction_id],
                 },
+                "optimization_classification": {
+                    "domain": "model_runtime_observability",
+                    "component": "observability_evidence",
+                    "failure_mode": "insufficient_evidence",
+                    "action_type": "observability",
+                    "evidence_status": "insufficient",
+                    "coverage_status": "mapped",
+                },
                 "contributing_causes": [],
                 "root_cause_stage": "",
                 "root_cause_test": {},
@@ -1111,8 +1175,19 @@ def _normalize_analysis(
         "overall": overall,
         "rag_overview": _record(data.get("rag_overview")),
         "deduction_analyses": analyses,
+        # 新版 Prompt 的建议全部挂在扣分项下。若模型额外返回没有责任范围的
+        # 全局建议，保守归为证据待确认，避免误当成 cx-agent 缺陷。
         "global_recommendations": [
-            item for item in data.get("global_recommendations") or [] if isinstance(item, dict)
+            {
+                **item,
+                "scope": (
+                    str(item.get("scope"))
+                    if str(item.get("scope")) in {"cx_agent", "evaluation", "evidence"}
+                    else "evidence"
+                ),
+            }
+            for item in data.get("global_recommendations") or []
+            if isinstance(item, dict)
         ],
         "verification_plan": _record(data.get("verification_plan")),
         "limitations": [str(item) for item in data.get("limitations") or []],

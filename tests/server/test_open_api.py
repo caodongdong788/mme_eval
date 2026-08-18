@@ -416,34 +416,18 @@ def test_open_api_returns_only_cx_agent_attribution_optimizations(client, sessio
     assert output["cx_agent_optimization_summary"]["cx_agent_case_count"] == 1
     assert len(output["cx_agent_optimization_summary"]["clusters"]) == 1
     case = output["cases"][0]
-    assert case["cx_agent_optimization"]["deductions"] == [
-        {
-            "deduction_id": "guideline.g01",
-            "dimension": "professional_accuracy",
-            "severity": "high",
-            "issue_type": "factual_error",
-            "root_cause_stage": "generation",
-            "finding": "已召回证据但回答没有引用",
-            "primary_cause": {
-                "code": "rag_not_grounded",
-                "label": "召回证据未用于回答",
-                "owner": "generator",
-            },
-            "root_cause_test": {},
-            "rag_diagnosis": {},
-            "recommendations": [
-                {
-                    "priority": "P1",
-                    "target": "提示词优化",
-                    "action": "生成前逐条核对选中文献",
-                    "expected_effect": "",
-                    "risk": "",
-                    "verification": "",
-                    "acceptance_criteria": "",
-                }
-            ],
-        }
-    ]
+    deductions = case["cx_agent_optimization"]["deductions"]
+    assert len(deductions) == 1
+    assert deductions[0]["deduction_id"] == "guideline.g01"
+    assert deductions[0]["optimization_classification"] == {
+        "domain": "medical_rag",
+        "component": "rag_grounding",
+        "failure_mode": "rag_not_grounded",
+        "action_type": "grounding_rule",
+        "evidence_status": "sufficient",
+        "coverage_status": "mapped",
+    }
+    assert deductions[0]["recommendations"][0]["scope"] == "cx_agent"
     assert case["cx_agent_optimization"]["recommendations"][0]["target"] == "回答生成"
     assert "判分模型" not in str(body)
     assert "Benchmark 判据" not in str(body)

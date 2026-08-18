@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from ..models_db import AttributionTask, AttributionTaskItem, CaseResultRow, EvalRun
 from .attribution_summary import build_task_diagnostic_summary, recommendation_category
+from .attribution_taxonomy import normalize_optimization_classification
 
 
 def _record(value: Any) -> dict[str, Any]:
@@ -26,7 +27,7 @@ def _analysis(value: Any) -> dict[str, Any]:
 
 def _agent_recommendations(values: Any) -> list[dict[str, Any]]:
     return [
-        dict(value)
+        {**value, "scope": "cx_agent"}
         for value in values or []
         if isinstance(value, dict) and recommendation_category(value) == "cx_agent_issue"
     ]
@@ -47,6 +48,9 @@ def _agent_deductions(analysis: dict[str, Any]) -> list[dict[str, Any]]:
                 "severity": str(deduction.get("severity") or "medium"),
                 "issue_type": str(deduction.get("issue_type") or "other"),
                 "root_cause_stage": str(deduction.get("root_cause_stage") or ""),
+                "optimization_classification": normalize_optimization_classification(
+                    deduction
+                ),
                 "finding": str(deduction.get("finding") or ""),
                 "primary_cause": _record(deduction.get("primary_cause")),
                 "root_cause_test": _record(deduction.get("root_cause_test")),

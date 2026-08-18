@@ -441,6 +441,7 @@ class OpenEvaluationBatchOut(BaseModel):
 
 
 class OpenAttributionRecommendation(BaseModel):
+    scope: str = ""
     priority: str = ""
     target: str = ""
     action: str = ""
@@ -450,12 +451,24 @@ class OpenAttributionRecommendation(BaseModel):
     acceptance_criteria: str = ""
 
 
+class OpenAttributionOptimizationClassification(BaseModel):
+    domain: str = ""
+    component: str = ""
+    failure_mode: str = ""
+    action_type: str = ""
+    evidence_status: str = ""
+    coverage_status: str = ""
+
+
 class OpenAttributionDeduction(BaseModel):
     deduction_id: str
     dimension: str = ""
     severity: str = "medium"
     issue_type: str = "other"
     root_cause_stage: str = ""
+    optimization_classification: OpenAttributionOptimizationClassification = Field(
+        default_factory=OpenAttributionOptimizationClassification
+    )
     finding: str = ""
     primary_cause: dict[str, Any] = Field(default_factory=dict)
     root_cause_test: dict[str, Any] = Field(default_factory=dict)
@@ -489,6 +502,9 @@ class OpenAttributionCluster(BaseModel):
     issue_type: str = "other"
     issue_types: list[str] = Field(default_factory=list)
     root_cause_stage: str = ""
+    optimization_classification: OpenAttributionOptimizationClassification = Field(
+        default_factory=OpenAttributionOptimizationClassification
+    )
     sample_ids: list[str] = Field(default_factory=list)
     deduction_ids: list[str] = Field(default_factory=list)
     dimensions: list[str] = Field(default_factory=list)
