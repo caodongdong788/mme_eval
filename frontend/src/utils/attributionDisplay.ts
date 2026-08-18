@@ -149,6 +149,29 @@ export function humanizeEvidenceRef(value: string, analyses: AttributionDeductio
   }
   const message = value.match(/^message:(\d+)$/);
   if (message) return `对话消息 ${message[1]}`;
+  const caseContext = value.match(
+    /^case:(user_profile|medical_record|timeline|history|definition)(?::(.+))?$/
+  );
+  if (caseContext) {
+    const labels: Record<string, string> = {
+      user_profile: "用户档案",
+      medical_record: "病历与报告",
+      timeline: "Timeline 长期事实",
+      history: "历史事实",
+      definition: "Case 定义",
+    };
+    const suffix = caseContext[2]
+      ? ` · ${caseContext[2].split(":").join(" · ")}`
+      : "";
+    return `${labels[caseContext[1]] || "Case 上下文"}${suffix}`;
+  }
+  const node = value.match(/^node:(.+)$/);
+  if (node) return `AI 助手调用链节点：${node[1]}`;
+  if (value === "run:config") return "评测运行配置";
+  if (value === "trace:agent_chain") return "AI 助手调用链摘要";
+  if (value === "trace:observability") return "RAG 与链路可观测性摘要";
+  const scoreHealth = value.match(/^score_health:(\d+)$/);
+  if (scoreHealth) return `判分健康检查 ${scoreHealth[1]}`;
   return humanizeAttributionText(value, analyses);
 }
 
@@ -217,6 +240,9 @@ function documentedSuggestionCategory(domain: string, component: string): Docume
       return ["engineering", "Timeline 或用户事实未注入"];
     }
     if (component === "context_usage") return ["engineering", "上下文已注入但未使用"];
+    if (component === "consult_subject") return ["engineering", "咨询对象归属错误"];
+    if (component === "context_conflict") return ["engineering", "上下文新旧冲突"];
+    if (component === "memory_write") return ["engineering", "长期记忆写入失败"];
     return ["engineering", "多轮状态丢失"];
   }
   if (domain === "dialogue_tool_orchestration") {
@@ -225,29 +251,41 @@ function documentedSuggestionCategory(domain: string, component: string): Docume
     if (component === "tool_arguments") return ["engineering", "工具参数错误"];
     if (["tool_policy", "tool_executor"].includes(component)) return ["engineering", "工具执行失败"];
     if (component === "clarification") return ["reasoning", "未优先追问关键问题"];
+    if (component === "feature_gate") return ["engineering", "能力开关未启用"];
+    if (component === "proactive_undercurrent") return ["engineering", "主动服务链路异常"];
     return ["engineering", "流程路由错误"];
   }
   if (domain === "prompt_hook") {
-    if (component === "dynamic_hook") return ["prompt", "未说清红旗信号"];
-    if (component === "expert_pack") return ["prompt", "缺少适用条件或解释"];
-    return ["prompt", "未说明适用边界"];
+    if (component === "dynamic_hook") return ["prompt", "动态 Hook 未触发或规则错误"];
+    if (component === "expert_pack") return ["knowledge", "专家规则未正确应用"];
+    return ["prompt", "系统提示词规则缺失或冲突"];
   }
   if (domain === "clinical_reasoning") {
-    if (component === "risk_benefit" || component === "clinical_fact_extraction") {
-      return ["reasoning", "风险识别不足"];
-    }
+    if (component === "clinical_fact_extraction") return ["reasoning", "关键医学事实识别错误"];
+    if (component === "temporal_reasoning") return ["reasoning", "Timeline 时间顺序判断错误"];
+    if (component === "risk_benefit") return ["reasoning", "风险识别不足"];
     if (component === "contraindication") return ["reasoning", "禁忌或相互作用判断不足"];
     return ["reasoning", "错误选择行动路径"];
   }
   if (domain === "response_delivery") {
     if (component === "response_style") return ["prompt", "缺少共情与确认"];
     if (component === "content_composition") return ["prompt", "行动步骤不清晰"];
+    if (component === "response_completeness") return ["prompt", "回答关键信息不完整"];
     if (component === "output_protocol") return ["safety", "未执行终答前检查"];
+    if (["a2ui_binding", "delivery_ui"].includes(component)) return ["engineering", "回答交付或资源绑定失败"];
     return ["prompt", "缺少适用条件或解释"];
   }
   if (domain === "medical_safety") return ["safety", "放出不安全建议"];
-  if (domain === "model_runtime_observability") return ["engineering", "工具执行失败"];
-  if (domain === "evaluation_system") return ["engineering", "流程路由错误"];
+  if (domain === "model_runtime_observability") {
+    if (component === "model_provider") return ["engineering", "模型调用失败"];
+    if (component === "model_timeout") return ["engineering", "模型调用超时"];
+    if (component === "partial_output") return ["engineering", "模型输出不完整"];
+    if (["context_window", "compaction"].includes(component)) return ["engineering", "上下文窗口或压缩异常"];
+    if (component === "tool_result_budget") return ["engineering", "工具结果被截断"];
+    if (component === "observability_evidence") return ["engineering", "调用链证据缺失"];
+    return ["engineering", "模型运行时异常"];
+  }
+  if (domain === "evaluation_system") return ["engineering", "评测链路异常"];
   return ["engineering", "流程路由错误"];
 }
 

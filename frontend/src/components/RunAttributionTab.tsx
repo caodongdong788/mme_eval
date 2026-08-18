@@ -50,6 +50,7 @@ import { AttributionTaskLaunchModal } from "./AttributionTaskLaunchModal";
 import { formatApiError } from "../utils/apiError";
 import { EVALUATION_DIMENSIONS } from "../labels";
 import {
+  type CxAgentSuggestionCategory,
   answerUsageDisplayName,
   attributionDeductionLabel,
   cxAgentSuggestionCategory,
@@ -483,6 +484,47 @@ const REQUIRED_INFORMATION_LABELS: Record<string, string> = {
   safety_policy: "安全策略执行记录",
 };
 
+function AttributionEvidenceContent({
+  item,
+  analyses,
+}: {
+  item: AttributionDeductionAnalysis;
+  analyses: AttributionDeductionAnalysis[];
+}) {
+  const summary = String(item.evidence_summary || "").trim();
+  const excerpts = [...new Set(
+    (item.observed_gap?.direct_evidence || [])
+      .map((value) => String(value || "").trim())
+      .filter((value) => value && value !== summary)
+  )];
+  const refs = [...new Set([
+    ...(item.primary_cause?.evidence_refs || []),
+    ...(item.contributing_causes || []).flatMap((cause) => cause.evidence_refs || []),
+    ...(item.causal_chain || []).flatMap((step) => step.evidence_refs || []),
+  ])];
+  if (!summary && !excerpts.length && !refs.length) {
+    return <>暂无可引用的直接证据</>;
+  }
+  return (
+    <Space direction="vertical" size={4}>
+      {summary ? <span>{humanizeAttributionText(summary, analyses)}</span> : null}
+      {excerpts.map((excerpt) => (
+        <Typography.Text key={excerpt} type="secondary">
+          原文：{humanizeAttributionText(excerpt, analyses)}
+        </Typography.Text>
+      ))}
+      {refs.length ? (
+        <Space size={4} wrap>
+          <Typography.Text type="secondary">来源：</Typography.Text>
+          {refs.map((ref) => (
+            <Tag key={ref}>{humanizeEvidenceRef(ref, analyses)}</Tag>
+          ))}
+        </Space>
+      ) : null}
+    </Space>
+  );
+}
+
 function DeductionPanel({
   item,
   analyses,
@@ -536,11 +578,13 @@ function DeductionPanel({
             )}
           </Descriptions.Item>
           <Descriptions.Item label="直接证据">
-            {item.observed_gap?.direct_evidence?.length
-              ? item.observed_gap.direct_evidence
-                  .map((value) => humanizeAttributionText(value, analyses))
-                  .join("；")
-              : "暂无可引用的直接证据"}
+            <AttributionEvidenceContent item={item} analyses={analyses} />
+          </Descriptions.Item>
+          <Descriptions.Item label="扣分影响">
+            {humanizeAttributionText(
+              item.impact || item.observed_gap?.gap || item.finding,
+              analyses
+            )}
           </Descriptions.Item>
         </Descriptions>
       </div>
@@ -748,10 +792,16 @@ function moduleRecommendations(
 const PRIORITY_ORDER = ["P0", "P1", "P2"] as const;
 
 function priorityForDeduction(item: AttributionDeductionAnalysis) {
-  const recommendationPriority = (item.recommendations || [])
+  const recommendationPriorities = (item.recommendations || [])
     .map((recommendation) => String(recommendation.priority || "").toUpperCase())
-    .find((priority) => PRIORITY_ORDER.includes(priority as (typeof PRIORITY_ORDER)[number]));
-  if (recommendationPriority) return recommendationPriority;
+    .filter((priority) => PRIORITY_ORDER.includes(priority as (typeof PRIORITY_ORDER)[number]));
+  if (recommendationPriorities.length) {
+    return recommendationPriorities.sort(
+      (left, right) =>
+        PRIORITY_ORDER.indexOf(left as (typeof PRIORITY_ORDER)[number]) -
+        PRIORITY_ORDER.indexOf(right as (typeof PRIORITY_ORDER)[number])
+    )[0];
+  }
   if (item.severity === "critical") return "P0";
   if (item.severity === "high") return "P1";
   return "P2";
@@ -815,6 +865,16 @@ function CxAgentDeductionPriorityGroups({
                       <div className="attribution-optimization-field">
                         <strong>问题描述：</strong>
                         {humanizeAttributionText(item.finding || item.primary_cause?.label)}
+                      </div>
+                      <div className="attribution-optimization-field">
+                        <strong>直接证据：</strong>
+                        <AttributionEvidenceContent item={item} analyses={items} />
+                      </div>
+                      <div className="attribution-optimization-field">
+                        <strong>扣分影响：</strong>
+                        {humanizeAttributionText(
+                          item.impact || item.observed_gap?.gap || item.finding
+                        )}
                       </div>
                       <div className="attribution-optimization-field">
                         <strong>怎么优化：</strong>
@@ -1142,19 +1202,36 @@ function fallbackCxAgentOptimizationAction(categoryKey: string) {
     "engineering:工具执行失败": "修复工具或模型执行的超时、重试、错误回传和降级链路。",
     "engineering:Timeline 或用户事实未注入": "把必要的用户档案、病历、Timeline 和历史对话注入当前回合的可见上下文。",
     "engineering:上下文已注入但未使用": "在生成前增加上下文消费约束，要求关键结论显式使用已注入的用户事实。",
+    "engineering:咨询对象归属错误": "在读取档案和 Timeline 前确认当前咨询对象，将本人、家属及其他成员的事实隔离并绑定到正确主体。",
+    "engineering:上下文新旧冲突": "为同一事实增加时间戳与来源优先级，发生冲突时先澄清或使用最新可信记录。",
+    "engineering:长期记忆写入失败": "修复长期记忆的抽取、主体绑定、写入确认和后续读取链路，并记录失败原因。",
     "engineering:多轮状态丢失": "修复会话状态持久化与回合间传递，避免关键事实在多轮对话中丢失。",
     "engineering:流程路由错误": "校正意图识别、流程分流与能力开关，让用例进入正确的处理链路。",
+    "engineering:能力开关未启用": "核对场景能力开关与灰度配置，确保需要的工具或流程在当前账号和环境中可用。",
+    "engineering:主动服务链路异常": "修复主动服务触发、暗流任务状态传递和结果回写，避免后台链路执行但终答未兑现。",
+    "engineering:模型调用失败": "补齐模型供应商错误分类、有限重试与可用模型降级，并保留每次调用的错误详情。",
+    "engineering:模型调用超时": "统一模型超时预算，超时后结束当前请求并按策略重试或降级，避免任务长期占用。",
+    "engineering:模型输出不完整": "校验流式结束标记和结构化结果完整性；出现空输出或截断时只重试当前步骤。",
+    "engineering:上下文窗口或压缩异常": "调整上下文预算与压缩规则，优先保留用户事实、工具结果、RAG 原文和关键指令。",
+    "engineering:工具结果被截断": "提高必要工具结果的保留优先级，并对截断内容提供可继续读取的引用或分页机制。",
+    "engineering:调用链证据缺失": "补齐模型、工具、上下文和 RAG 各阶段的输入输出与关联 ID，再重新归因。",
+    "engineering:回答交付或资源绑定失败": "修复终答、SSE、A2UI 与资源引用的绑定和完成状态，确保生成结果能够完整展示。",
     "reasoning:风险识别不足": "在风险识别策略中补齐当前场景的风险触发条件，并要求先完成风险分层。",
+    "reasoning:关键医学事实识别错误": "在决策前结构化抽取症状、治疗阶段、药物和检查结果，并校验关键事实是否遗漏或归属错误。",
+    "reasoning:Timeline 时间顺序判断错误": "按事件时间重建 Timeline，区分既往、当前和计划事件后再判断因果与就医时效。",
     "reasoning:未优先追问关键问题": "在场景策略中明确追问优先级，信息不足时先补齐关键事实再给建议。",
     "reasoning:错误选择行动路径": "为该类场景补充行动决策规则，明确何时追问、何时建议就医及何时给出方案。",
     "reasoning:禁忌或相互作用判断不足": "将禁忌、相互作用和治疗阶段校验置于方案生成前，阻断不适用建议。",
-    "prompt:未说清红旗信号": "在系统提示词中补充红旗信号、就医时效和明确的升级处置表达。",
-    "prompt:未说明适用边界": "在回答模板中明确适用人群、前提条件与不适用边界。",
+    "prompt:动态 Hook 未触发或规则错误": "核对动态 Hook 的触发条件、注入位置与规则内容，确保场景命中时在生成前生效。",
+    "prompt:系统提示词规则缺失或冲突": "在系统提示词中补齐缺失规则并消除冲突，明确规则优先级、适用条件和行动边界。",
     "prompt:行动步骤不清晰": "按“下一步做什么、何时做、何时升级”的顺序输出可执行步骤。",
+    "prompt:回答关键信息不完整": "在回答模板中增加关键要素清单，生成结束前检查风险、适用条件、下一步和升级时机是否齐全。",
     "prompt:缺少适用条件或解释": "为建议补充适用条件、原因解释及与用户当前情况的关联。",
     "prompt:缺少共情与确认": "在回答中先确认用户感受与核心诉求，再给出有温度的建议。",
+    "knowledge:专家规则未正确应用": "校正专家规则、治疗阶段和业务知识的触发条件，并要求生成前核对当前场景是否命中。",
     "safety:放出不安全建议": "在终答前增加安全守卫，命中风险、禁忌或红旗时阻断不安全建议。",
-    "safety:未执行终答前检查": "在终答前校验关键事实、风险提示和行动建议的一致性。",
+    "safety:未执行终答前检查": "在终答前校验关键事实、风险提示、消息分段和资源引用，并阻断不完整结果直接发送。",
+    "engineering:模型运行时异常": "修复模型超时、空输出、上下文截断或压缩异常，并保留完整运行证据。",
   };
   if (documentedActions[categoryKey]) return documentedActions[categoryKey];
   const [domain, component] = categoryKey.split(":", 2);
@@ -1253,10 +1330,19 @@ function groupedCxAgentClusters(clusters: AttributionCluster[]) {
   }));
 }
 
-function generalizedProblemDescription(descriptions: string[]) {
-  if (descriptions.length <= 1) return descriptions[0] || "同类问题需要进一步确认。";
-  const examples = descriptions.slice(0, 2).join("；");
-  return `同类问题集中表现为：${examples}${descriptions.length > 2 ? "等。" : "。"}`;
+function generalizedProblemDescription(
+  category: CxAgentSuggestionCategory,
+  descriptions: string[]
+) {
+  const examples = [...new Set(descriptions.map((value) => value.trim()).filter(Boolean))];
+  if (!examples.length) {
+    return `共同问题是“${category.label}”，当前还缺少可展示的具体表现。`;
+  }
+  if (examples.length === 1) return examples[0];
+  return (
+    `共同问题是“${category.label}”。代表性表现包括：` +
+    `${examples.slice(0, 3).join("；")}${examples.length > 3 ? "等。" : "。"}`
+  );
 }
 
 function CxAgentClusterPriorityGroups({
@@ -1297,7 +1383,7 @@ function CxAgentClusterPriorityGroups({
                     <div className="attribution-cluster-detail attribution-cluster-detail--optimization">
                       <div className="attribution-optimization-field">
                         <strong>通用问题描述：</strong>
-                        {generalizedProblemDescription(group.descriptions)}
+                        {generalizedProblemDescription(group.category, group.descriptions)}
                       </div>
                       <div className="attribution-optimization-field">
                         <strong>怎么优化：</strong>
@@ -1494,7 +1580,6 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
       </DashPanel>
     );
   }
-  const validation = summary.validation_counts || {};
   const clusters = summary.clusters || [];
   const cxAgentClusters = clusters.filter(
     (cluster) => cluster.category === "cx_agent_issue"
@@ -1523,18 +1608,13 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
   const insufficientClusters = clusters.filter(
     (cluster) => cluster.category === "insufficient_evidence"
   );
-  const missingRagReferenceClusters = cxAgentClusters.filter(
-    (cluster) => cluster.evaluation_issue_category === "missing_rag_reference"
-  );
   const otherEvidenceGapClusters = insufficientClusters;
   const deductionCount = (
     values: NonNullable<AttributionTask["diagnostic_summary"]>["clusters"]
   ) => values.reduce((total, cluster) => total + cluster.deduction_count, 0);
-  const missingRagReferenceCount = deductionCount(missingRagReferenceClusters);
-  const genericEvidenceGapCount = Math.max(
-    0,
-    (validation.insufficient_evidence || 0) - missingRagReferenceCount
-  );
+  const cxAgentIssueCount = deductionCount(cxAgentClusters);
+  const evaluationReviewCount = deductionCount(evaluationClusters);
+  const genericEvidenceGapCount = deductionCount(insufficientClusters);
   const unassignedClusters = cxAgentClusters.filter(
     (cluster) =>
       selectedCxAgentPriorities.includes(
@@ -1560,7 +1640,7 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
             </span>
             <strong>{dimensionDisplayName(dimension)}</strong>
             <span className="attribution-dimension-count">
-              {dimensionClusters.length} 个通用优化点 · {affectedCases.size} 个 Case
+              {groupedCxAgentClusters(dimensionClusters).length} 个通用优化点 · {affectedCases.size} 个 Case
             </span>
           </div>
         ),
@@ -1576,7 +1656,7 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
           <span className="attribution-dimension-index">—</span>
           <strong>尚未关联维度</strong>
           <span className="attribution-dimension-count">
-            {unassignedClusters.length} 个通用优化点
+            {groupedCxAgentClusters(unassignedClusters).length} 个通用优化点
           </span>
         </div>
       ),
@@ -1598,8 +1678,8 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
     >
       <Space size={8} wrap className="attribution-diagnostic-stats">
         <Tag color="blue">已分析 {summary.available_results} 条</Tag>
-        <Tag color="red">cx-agent 问题 {(validation.supported || 0) + missingRagReferenceCount} 项</Tag>
-        <Tag color="orange">判分需复核 {validation.questionable || 0} 项</Tag>
+        <Tag color="red">cx-agent 问题 {cxAgentIssueCount} 项</Tag>
+        <Tag color="orange">判分需复核 {evaluationReviewCount} 项</Tag>
         <Tag>证据不足 {genericEvidenceGapCount} 项</Tag>
       </Space>
       <AttributionTaskProgress task={task} />
@@ -1629,7 +1709,9 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
                 )
               }
             />
-            <Tag color="red">{filteredCxAgentClusters.length} 个通用优化点</Tag>
+            <Tag color="red">
+              {groupedCxAgentClusters(filteredCxAgentClusters).length} 个通用优化点
+            </Tag>
             <Button
               type="link"
               size="small"
@@ -1658,7 +1740,7 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
             </p>
           </div>
           <Space size={6}>
-            <Tag color="orange">需要复核 {validation.questionable || 0}</Tag>
+            <Tag color="orange">需要复核 {evaluationReviewCount}</Tag>
             <Tag>证据不足 {genericEvidenceGapCount}</Tag>
             <Button
               type="link"

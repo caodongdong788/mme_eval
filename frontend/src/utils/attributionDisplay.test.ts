@@ -81,7 +81,10 @@ describe("attributionDisplay", () => {
     expect(category({ cause_code: "tool_timeout" })).toBe("Agent 工程链路 / 工具执行失败");
     expect(category({ cause_code: "risk_benefit_error" })).toBe("Agent 决策与推理策略 / 风险识别不足");
     expect(category({ cause_code: "output_protocol_error" })).toBe("输出校验与安全守卫 / 未执行终答前检查");
-    expect(category({ cause_code: "compaction_error" })).toBe("Agent 工程链路 / 工具执行失败");
+    expect(category({ cause_code: "compaction_error" })).toBe("Agent 工程链路 / 上下文窗口或压缩异常");
+    expect(category({ cause_code: "tool_result_truncated" })).toBe("Agent 工程链路 / 工具结果被截断");
+    expect(category({ cause_code: "context_subject_error" })).toBe("Agent 工程链路 / 咨询对象归属错误");
+    expect(category({ cause_code: "temporal_reasoning_error" })).toBe("Agent 决策与推理策略 / Timeline 时间顺序判断错误");
   });
 
   it("prefers validated structured classification over legacy owner fallbacks", () => {

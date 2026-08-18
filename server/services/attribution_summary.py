@@ -16,6 +16,7 @@ from .attribution_taxonomy import normalize_optimization_classification
 
 
 _SEVERITY_WEIGHT = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+_PRIORITY_WEIGHT = {"P0": 0, "P1": 1, "P2": 2}
 _VALIDATION_CATEGORY = {
     "supported": "cx_agent_issue",
     "questionable": "evaluation_review",
@@ -37,11 +38,15 @@ def _recommendation_key(item: dict[str, Any]) -> tuple[str, str]:
 
 
 def _unique_recommendations(values: Iterable[Any], limit: int = 8) -> list[dict[str, Any]]:
+    ordered = sorted(
+        (value for value in values if isinstance(value, dict)),
+        key=lambda item: _PRIORITY_WEIGHT.get(
+            str(item.get("priority") or "P2").upper(), 2
+        ),
+    )
     output: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
-    for value in values:
-        if not isinstance(value, dict):
-            continue
+    for value in ordered:
         key = _recommendation_key(value)
         if not any(key) or key in seen:
             continue
@@ -75,13 +80,36 @@ def _normalized_label(value: Any) -> str:
     return re.sub(r"[\s，,。；;：:]+", " ", str(value or "原因待确认")).strip().lower()
 
 
-def _priority(case_count: int, severities: list[str], category: str) -> str:
+def _priority(
+    case_count: int,
+    severities: list[str],
+    category: str,
+    recommendations: list[dict[str, Any]],
+) -> str:
+    recommended = [
+        str(item.get("priority") or "").upper()
+        for item in recommendations
+        if str(item.get("priority") or "").upper() in _PRIORITY_WEIGHT
+    ]
     strongest = max((_SEVERITY_WEIGHT.get(value, 2) for value in severities), default=2)
     if category == "cx_agent_issue" and strongest >= 4:
-        return "P0"
-    if case_count >= 3 or strongest >= 3:
-        return "P1"
-    return "P2"
+        inferred = "P0"
+    elif case_count >= 3 or strongest >= 3:
+        inferred = "P1"
+    else:
+        inferred = "P2"
+    return min([inferred, *recommended], key=lambda value: _PRIORITY_WEIGHT[value])
+
+
+def _common_problem_summary(cause_label: str, findings: list[str]) -> str:
+    if not findings:
+        return cause_label or "暂无可展示的根因摘要"
+    if len(findings) == 1:
+        return findings[0]
+    return (
+        f"共同问题为“{cause_label or '同类失败节点'}”。"
+        f"代表性表现：{findings[0]}"
+    )
 
 
 def _rag_optimization_category(deduction: dict[str, Any], evaluation_issue_category: str) -> str:
@@ -174,7 +202,9 @@ def build_task_diagnostic_summary(
             issue_type = str(deduction.get("issue_type") or "other")
             root_cause_stage = str(deduction.get("root_cause_stage") or "unknown")
             cause_label = str(cause.get("label") or "原因待确认")
+            dimension = str(deduction.get("dimension") or "")
             key = (
+                dimension,
                 category,
                 evaluation_issue_category,
                 code,
@@ -202,7 +232,7 @@ def build_task_diagnostic_summary(
                     "issue_types": [],
                     "sample_ids": [],
                     "deduction_ids": [],
-                    "dimensions": [],
+                    "dimensions": [dimension] if dimension else [],
                     "severities": [],
                     "confidences": [],
                     "findings": [],
@@ -217,9 +247,6 @@ def build_task_diagnostic_summary(
             deduction_id = str(deduction.get("deduction_id") or "")
             if deduction_id:
                 cluster["deduction_ids"].append(deduction_id)
-            dimension = str(deduction.get("dimension") or "")
-            if dimension and dimension not in cluster["dimensions"]:
-                cluster["dimensions"].append(dimension)
             cluster["severities"].append(str(deduction.get("severity") or "medium"))
             try:
                 cluster["confidences"].append(float(cause.get("confidence") or 0))
@@ -272,11 +299,15 @@ def build_task_diagnostic_summary(
                 ),
                 "case_count": case_count,
                 "deduction_count": len(cluster["deduction_ids"]),
-                "priority": _priority(case_count, severities, category),
+                "priority": _priority(
+                    case_count, severities, category, recommendations
+                ),
                 "confidence": round(
                     sum(confidence_values) / len(confidence_values), 3
                 ) if confidence_values else 0.0,
-                "summary": findings[0] if findings else "暂无可展示的根因摘要",
+                "summary": _common_problem_summary(
+                    str(cluster.get("cause_label") or ""), findings
+                ),
                 "examples": findings[:3],
                 "recommendations": _unique_recommendations(recommendations),
                 "verification_plan": combined_plan,

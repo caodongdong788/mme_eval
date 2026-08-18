@@ -255,7 +255,7 @@ export interface AttributionRecommendation {
   action: string;
   expected_effect?: string;
   risk?: string;
-  verification: string;
+  verification?: string;
   acceptance_criteria?: string;
 }
 
@@ -306,6 +306,10 @@ export interface AttributionDeductionAnalysis {
   issue_type: string;
   required_information: string[];
   finding: string;
+  /** 可复核的来源位置与关键原文：Timeline、对话、工具、RAG 或提示词规则。 */
+  evidence_summary?: string;
+  /** 该具体遗漏/冲突如何导致当前扣分。 */
+  impact?: string;
   causal_chain: Array<{
     stage: string;
     status: "pass" | "fail" | "unknown" | "not_applicable" | string;

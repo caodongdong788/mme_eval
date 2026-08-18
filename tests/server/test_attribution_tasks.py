@@ -74,7 +74,7 @@ def _seed_failed_cases() -> tuple[int, list[str], int]:
         return run.id, [source.sample_id, *extra_ids], model.id
 
 
-def test_task_diagnostic_summary_clusters_same_root_cause_across_cases():
+def test_task_diagnostic_summary_clusters_same_root_cause_within_dimension():
     def stored(sample: str, dimension: str, severity: str):
         return {
             "available": True,
@@ -128,7 +128,7 @@ def test_task_diagnostic_summary_clusters_same_root_cause_across_cases():
     summary = build_task_diagnostic_summary(
         [
             ("case_1", stored("g01", "professional_accuracy", "high")),
-            ("case_2", stored("g02", "clinical_inquiry", "medium")),
+            ("case_2", stored("g02", "professional_accuracy", "medium")),
         ]
     )
 
@@ -138,9 +138,85 @@ def test_task_diagnostic_summary_clusters_same_root_cause_across_cases():
     cluster = summary["clusters"][0]
     assert cluster["case_count"] == 2
     assert cluster["deduction_count"] == 2
-    assert cluster["dimensions"] == ["professional_accuracy", "clinical_inquiry"]
+    assert cluster["dimensions"] == ["professional_accuracy"]
     assert cluster["verification_plan"]["acceptance_criteria"] == ["目标扣分不再出现"]
     assert all(item["target"] != "判分模型" for item in cluster["recommendations"])
+
+
+def test_task_diagnostic_summary_never_merges_same_cause_across_dimensions():
+    def stored(dimension: str):
+        return {
+            "analysis": {
+                "score_health": {"status": "healthy"},
+                "deduction_analyses": [
+                    {
+                        "deduction_id": f"dimension.{dimension}",
+                        "dimension": dimension,
+                        "severity": "high",
+                        "deduction_validation": "supported",
+                        "finding": f"{dimension} 的回答没有使用已选中的文献证据",
+                        "primary_cause": {
+                            "code": "rag_not_grounded",
+                            "label": "召回证据未用于回答",
+                            "owner": "generator",
+                            "confidence": 0.9,
+                        },
+                        "recommendations": [],
+                    }
+                ],
+            }
+        }
+
+    summary = build_task_diagnostic_summary(
+        [
+            ("case_1", stored("professional_accuracy")),
+            ("case_2", stored("clinical_inquiry")),
+        ]
+    )
+
+    assert len(summary["clusters"]) == 2
+    assert {tuple(cluster["dimensions"]) for cluster in summary["clusters"]} == {
+        ("professional_accuracy",),
+        ("clinical_inquiry",),
+    }
+
+
+def test_task_diagnostic_summary_keeps_highest_recommendation_priority():
+    summary = build_task_diagnostic_summary(
+        [
+            (
+                "case_1",
+                {
+                    "analysis": {
+                        "score_health": {"status": "healthy"},
+                        "deduction_analyses": [
+                            {
+                                "deduction_id": "dimension.professional_accuracy",
+                                "dimension": "professional_accuracy",
+                                "severity": "low",
+                                "deduction_validation": "supported",
+                                "finding": "已注入的药物禁忌信息未用于最终回答",
+                                "primary_cause": {
+                                    "code": "context_not_used",
+                                    "label": "已注入上下文未使用",
+                                    "owner": "context_tool",
+                                    "confidence": 0.9,
+                                },
+                                "recommendations": [
+                                    {"priority": "P2", "target": "回答模板", "action": "补充普通检查"},
+                                    {"priority": "P0", "target": "安全守卫", "action": "阻断禁忌用药建议"},
+                                ],
+                            }
+                        ],
+                    }
+                },
+            )
+        ]
+    )
+
+    cluster = summary["clusters"][0]
+    assert cluster["priority"] == "P0"
+    assert cluster["recommendations"][0]["priority"] == "P0"
 
 
 def test_task_diagnostic_summary_does_not_merge_different_business_causes():

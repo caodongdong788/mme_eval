@@ -13,6 +13,8 @@ from server.db import session_scope
 from server.ingest import ingest_report
 from server.models_db import Benchmark, CaseResultRow, EvalRun
 from server.services.case_attribution import (
+    _atomic_case_sources,
+    build_evidence_pack,
     _compact_rag_calls,
     _configure_attribution_model,
     _contrastive_controls,
@@ -46,6 +48,11 @@ def _seed(settings) -> int:
         for key in failed.dimension_raw_scores
     }
     failed.dimension_scores = dict(failed.dimension_raw_scores)
+    # 这个测试验证归因生成与持久化，不验证重复评测稳定性；固定为稳定失败，
+    # 避免 factory 默认的 flaky 状态把归因正确地改判成“需要复核”。
+    failed.stability = "stable_fail"
+    failed.n_runs = 1
+    failed.per_run_passed = [False]
     failed.trace.agent_chain = {
         "status": "synced",
         "trace_ids": ["trace-1"],
@@ -104,6 +111,9 @@ class _FakeBackend:
         assert "rag_audits" in prompt
         assert "atomic_deductions" in prompt
         assert "score_health" in prompt
+        assert "evidence_summary" in prompt
+        assert "impact" in prompt
+        assert "不得泛化" in prompt
         assert kwargs["request_timeout_s"] == 600.0
         assert max_retries == 2
         assert kwargs["retry_transient_errors"] is True
@@ -132,13 +142,15 @@ class _FakeBackend:
                     "deduction_validation": "supported",
                     "issue_type": "factual_error",
                     "required_information": ["literature", "reasoning"],
-                    "finding": "已获得正确证据但回答推理不足",
+                    "finding": "回答将已选中的 RAG 文献结论泛化为绝对建议，未保留文献中的适用边界。",
+                    "evidence_summary": "RAG 召回文献片段已进入 selected 阶段，但最终回答未引用其中“仅适用于轻度症状”的限制条件。",
+                    "impact": "遗漏适用边界使回答的结论超出证据范围，触发专业准确性与边界扣分。",
                     "causal_chain": [
                         {
                             "stage": "generation",
                             "status": "fail",
                             "finding": "回答未正确利用证据",
-                            "evidence_refs": ["dimension.professional_accuracy", "not-real"],
+                            "evidence_refs": ["rag:1:source:1", "not-real"],
                         }
                     ],
                     "primary_cause": {
@@ -147,7 +159,7 @@ class _FakeBackend:
                         "owner": "generator",
                         "confidence": 0.91,
                         "reason": "证据正确但结论不充分",
-                        "evidence_refs": ["dimension.professional_accuracy"],
+                        "evidence_refs": ["rag:1:source:1"],
                     },
                     "contributing_causes": [],
                     "rag_diagnosis": {
@@ -257,7 +269,7 @@ def test_case_attribution_generate_persist_and_mark_stale(
     assert payload["stale"] is False
     assert payload["analysis"]["overall"]["primary_cause_code"] == "reasoning_error"
     refs = payload["analysis"]["deduction_analyses"][0]["causal_chain"][0]["evidence_refs"]
-    assert refs == ["dimension.professional_accuracy"]
+    assert refs == ["rag:1:source:1"]
     normalized_item = payload["analysis"]["deduction_analyses"][0]
     expected_scope = {
         "supported": "cx_agent",
@@ -265,7 +277,7 @@ def test_case_attribution_generate_persist_and_mark_stale(
         "insufficient_evidence": "evidence",
     }[normalized_item["deduction_validation"]]
     assert normalized_item["recommendations"][0]["scope"] == expected_scope
-    assert payload["metadata"]["prompt_version"] == "case-attribution-v9"
+    assert payload["metadata"]["prompt_version"] == "case-attribution-v11"
 
     with session_scope() as session:
         row = session.query(CaseResultRow).filter_by(run_id=run_id, sample_id="bc_002").one()
@@ -287,6 +299,288 @@ def test_case_attribution_rejects_passed_case(client, settings):
             asyncio.run(generate_case_attribution(session, run, row))
     assert exc.value.status_code == 422
     assert exc.value.detail == "归因分析仅面向不合格用例"
+
+
+def test_supported_attribution_without_specific_evidence_is_not_shown_as_agent_issue():
+    deduction_id = "dimension.professional_accuracy"
+    normalized = _normalize_analysis(
+        {
+            "analysis_status": "complete",
+            "deduction_analyses": [
+                {
+                    "deduction_id": deduction_id,
+                    "deduction_validation": "supported",
+                    "finding": "未使用上下文",
+                    "primary_cause": {
+                        "code": "context_not_used",
+                        "label": "上下文未使用",
+                        "owner": "context_timeline",
+                        "confidence": 0.9,
+                        "reason": "上下文没有被使用",
+                        "evidence_refs": [deduction_id],
+                    },
+                    "causal_chain": [],
+                    "recommendations": [],
+                }
+            ],
+        },
+        [
+            {
+                "deduction_id": deduction_id,
+                "dimension": "professional_accuracy",
+                "severity": "medium",
+                "reason": "回答缺少边界说明",
+                "evidence": [],
+                "rubric_contract": {"expected_behavior": ["说明边界"], "scoring_rule": "缺失扣分"},
+            }
+        ],
+        {deduction_id},
+        {"status": "healthy", "issues": []},
+    )
+
+    item = normalized["deduction_analyses"][0]
+    assert item["deduction_validation"] == "insufficient_evidence"
+    assert item["primary_cause"]["label"] == "归因证据不完整"
+    assert "无法确认" in item["finding"]
+
+
+def _specific_analysis_item(
+    deduction_id: str,
+    *,
+    validation: str = "supported",
+    cause_code: str = "context_not_used",
+    evidence_ref: str = "message:1",
+):
+    return {
+        "deduction_id": deduction_id,
+        "deduction_validation": validation,
+        "finding": "已注入的 Timeline 中“化疗后第 3 天持续腹泻”未被用于判断就医时效。",
+        "evidence_summary": "Timeline 第 3 条记录为“化疗后第 3 天持续腹泻”，最终回答仅建议等待常规复诊。",
+        "impact": "忽略持续腹泻的发生时间与持续状态，导致回答低估就医紧迫性并触发本项扣分。",
+        "observed_gap": {"direct_evidence": ["最终回答仅建议等待常规复诊"]},
+        "primary_cause": {
+            "code": cause_code,
+            "label": "已注入上下文未使用",
+            "owner": "context_timeline",
+            "confidence": 0.9,
+            "reason": "具体 Timeline 事实未进入结论",
+            "evidence_refs": [evidence_ref],
+        },
+        "causal_chain": [],
+        "recommendations": [],
+    }
+
+
+def _analysis_deduction(deduction_id: str, dimension: str = "clinical_inquiry"):
+    return {
+        "deduction_id": deduction_id,
+        "dimension": dimension,
+        "severity": "high",
+        "reason": "回答未结合持续腹泻判断就医时效",
+        "evidence": ["最终回答仅建议等待常规复诊"],
+        "rubric_contract": {
+            "expected_behavior": ["结合持续时间判断就医时效"],
+            "scoring_rule": "遗漏关键时效信息时扣分",
+        },
+    }
+
+
+def test_prompt_conflict_requires_actual_prompt_evidence():
+    deduction_id = "dimension.professional_accuracy"
+    raw_item = _specific_analysis_item(
+        deduction_id,
+        cause_code="prompt_rule_error",
+        evidence_ref="node:ordinary-tool",
+    )
+    raw_item["finding"] = "回答违反系统提示词中“先核对治疗阶段再给建议”的明确规则。"
+    raw_item["evidence_summary"] = (
+        "系统提示词原句为“先核对治疗阶段再给建议”，回答未核对当前化疗阶段即给出方案。"
+    )
+    raw_item["impact"] = "跳过治疗阶段核对使建议适用条件错误，直接导致专业准确性扣分。"
+
+    invalid = _normalize_analysis(
+        {"deduction_analyses": [raw_item]},
+        [_analysis_deduction(deduction_id, "professional_accuracy")],
+        {deduction_id, "node:ordinary-tool"},
+        {"status": "healthy", "issues": []},
+        {
+            deduction_id: {"kind": "deduction", "has_frozen_evidence": True},
+            "node:ordinary-tool": {"kind": "node"},
+        },
+    )
+    assert invalid["deduction_analyses"][0]["deduction_validation"] == "insufficient_evidence"
+
+    valid_item = _specific_analysis_item(
+        deduction_id,
+        cause_code="prompt_rule_error",
+        evidence_ref="node:system-prompt",
+    )
+    valid_item["finding"] = raw_item["finding"]
+    valid_item["evidence_summary"] = raw_item["evidence_summary"]
+    valid_item["impact"] = raw_item["impact"]
+    valid = _normalize_analysis(
+        {"deduction_analyses": [valid_item]},
+        [_analysis_deduction(deduction_id, "professional_accuracy")],
+        {deduction_id, "node:system-prompt"},
+        {"status": "healthy", "issues": []},
+        {
+            deduction_id: {"kind": "deduction", "has_frozen_evidence": True},
+            "node:system-prompt": {"kind": "prompt"},
+        },
+    )
+    assert valid["deduction_analyses"][0]["deduction_validation"] == "supported"
+
+
+def test_overall_is_rebuilt_from_finalized_deductions():
+    supported_id = "dimension.clinical_inquiry"
+    review_id = "dimension.professional_accuracy"
+    review_item = _specific_analysis_item(
+        review_id,
+        validation="questionable",
+        cause_code="judge_or_benchmark_issue",
+        evidence_ref=review_id,
+    )
+    review_item["finding"] = "判分规则要求在信息不足时直接下结论，与本用例的谨慎边界要求互相冲突。"
+    review_item["evidence_summary"] = "冻结判据同时包含“信息不足时回到医生评估”和“必须给出确定结论”两项相反要求。"
+    review_item["impact"] = "相反要求会让同一回答无论谨慎或确定都可能被扣分，因此需要先复核判据。"
+    normalized = _normalize_analysis(
+        {
+            "overall": {
+                "primary_cause_code": "stale_model_conclusion",
+                "summary": "这是模型返回的旧结论",
+            },
+            "deduction_analyses": [
+                _specific_analysis_item(supported_id),
+                review_item,
+            ],
+        },
+        [
+            _analysis_deduction(supported_id),
+            _analysis_deduction(review_id, "professional_accuracy"),
+        ],
+        {supported_id, review_id, "message:1"},
+        {"status": "healthy", "issues": []},
+        {
+            supported_id: {"kind": "deduction", "has_frozen_evidence": True},
+            review_id: {"kind": "deduction", "has_frozen_evidence": True},
+            "message:1": {"kind": "message"},
+        },
+    )
+
+    assert normalized["overall"]["conclusion_category"] == "mixed"
+    assert normalized["overall"]["primary_cause_code"] == "mixed_root_causes"
+    assert "已确认 cx-agent 问题 1 项" in normalized["overall"]["summary"]
+    assert "需要评测复核 1 项" in normalized["overall"]["summary"]
+
+
+def test_case_context_sources_are_atomic_and_keep_unicode_labels():
+    refs: set[str] = set()
+    registry: dict[str, dict] = {}
+    sources = _atomic_case_sources(
+        {
+            "症状": "化疗后第 3 天持续腹泻",
+            "当前用药": ["阿贝西利", "止泻药"],
+        },
+        source_prefix="case:user_profile",
+        path_prefix="case.initial_state.user_profile",
+        label_prefix="用户档案",
+        valid_refs=refs,
+        evidence_registry=registry,
+    )
+
+    assert {item["source_id"] for item in sources} == {
+        "case:user_profile:症状",
+        "case:user_profile:当前用药:1",
+        "case:user_profile:当前用药:2",
+    }
+    assert all(item["source_id"] in registry for item in sources)
+
+
+def test_case_context_source_ids_do_not_collide_after_label_normalization():
+    refs: set[str] = set()
+    registry: dict[str, dict] = {}
+    sources = _atomic_case_sources(
+        {"既往 病史": "A", "既往/病史": "B"},
+        source_prefix="case:user_profile",
+        path_prefix="case.initial_state.user_profile",
+        label_prefix="用户档案",
+        valid_refs=refs,
+        evidence_registry=registry,
+    )
+
+    source_ids = [item["source_id"] for item in sources]
+    assert len(source_ids) == len(set(source_ids)) == 2
+    assert all(source_id in registry for source_id in source_ids)
+
+
+def test_evidence_pack_keeps_top_level_case_source_path_and_trace_refs():
+    detail = {
+        "case": {
+            "sample_id": "case_top_level",
+            "timeline": ["化疗后第 3 天持续腹泻"],
+        },
+        "trace": {
+            "messages": [],
+            "agent_chain": {"status": "synced", "nodes": [], "summary": {}},
+        },
+        "verdicts": [
+            {
+                "name": "dimension.clinical_inquiry",
+                "score": 2,
+                "max_score": 5,
+                "reason": "回答没有结合症状持续时间判断时效",
+                "evidence": ["回答仅建议等待常规复诊"],
+            }
+        ],
+    }
+    session = SimpleNamespace(execute=lambda _query: [])
+    run = SimpleNamespace(
+        id=7,
+        name="test-run",
+        adapter_overrides={},
+        judge_overrides={},
+        config_snapshot={},
+        evaluation_mode="single_turn",
+        adapter_type="test",
+        benchmark_id=1,
+    )
+    row = SimpleNamespace(
+        sample_id="case_top_level",
+        case_type="",
+        scenario="测试",
+        detail_json=detail,
+    )
+
+    pack, valid_refs, registry = build_evidence_pack(session, run, row, detail)
+
+    assert pack["case_context_sources"][0]["path"] == "case.timeline[0]"
+    assert pack["case_context_sources"][0]["source_id"] == "case:timeline:1"
+    assert {"run:config", "trace:agent_chain", "trace:observability"} <= valid_refs
+    assert registry["trace:observability"]["kind"] == "trace"
+
+
+def test_rag_not_called_requires_and_accepts_trace_summary_evidence():
+    deduction_id = "dimension.professional_accuracy"
+    item = _specific_analysis_item(
+        deduction_id,
+        cause_code="rag_not_called",
+        evidence_ref="trace:observability",
+    )
+    item["finding"] = "当前问题涉及药物适用条件，但调用链没有发起医学文献检索。"
+    item["evidence_summary"] = "RAG 与链路可观测性摘要显示 RAG 调用次数为 0，当前回合没有检索节点。"
+    item["impact"] = "未发起检索使回答缺少药物适用条件依据，导致专业准确性扣分。"
+    normalized = _normalize_analysis(
+        {"deduction_analyses": [item]},
+        [_analysis_deduction(deduction_id, "professional_accuracy")],
+        {deduction_id, "trace:observability"},
+        {"status": "healthy", "issues": []},
+        {
+            deduction_id: {"kind": "deduction", "has_frozen_evidence": True},
+            "trace:observability": {"kind": "trace"},
+        },
+    )
+
+    assert normalized["deduction_analyses"][0]["deduction_validation"] == "supported"
 
 
 def test_guideline_and_raw_dimension_gap_are_both_attributed():
@@ -429,6 +723,12 @@ def test_invalid_deduction_validation_falls_back_to_insufficient_evidence():
         [deduction],
         {deduction["deduction_id"]},
         {"status": "healthy", "issues": []},
+        {
+            deduction["deduction_id"]: {
+                "kind": "deduction",
+                "has_frozen_evidence": True,
+            }
+        },
     )
 
     item = normalized["deduction_analyses"][0]
@@ -476,6 +776,12 @@ def test_medical_safety_timeliness_gap_is_not_misclassified_as_evaluation_review
         [deduction],
         {deduction["deduction_id"]},
         {"status": "healthy", "issues": []},
+        {
+            deduction["deduction_id"]: {
+                "kind": "deduction",
+                "has_frozen_evidence": True,
+            }
+        },
     )
 
     item = normalized["deduction_analyses"][0]

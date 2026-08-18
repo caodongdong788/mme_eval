@@ -1,10 +1,10 @@
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { api, type AttributionTask } from "../api/index";
+import { api, type AttributionTask, type CaseAttribution } from "../api/index";
 import { clearConfigLabelMapCache } from "../hooks/useConfigLabelMap";
 import { renderWithProviders } from "../test/renderWithProviders";
-import { RunAttributionTab } from "./RunAttributionTab";
+import { AttributionDetail, RunAttributionTab } from "./RunAttributionTab";
 
 vi.mock("../api/index", () => ({
   api: {
@@ -189,15 +189,23 @@ describe("RunAttributionTab", () => {
       {
         id: 1,
         name: "kimi-k2.6",
+        provider: "openai",
         model: "kimi-k2.6",
+        base_url: "https://example.test/v1",
+        api_version: "",
+        pairwise_concurrency: 4,
         has_api_key: true,
-      } as any,
+      },
       {
         id: 2,
         name: "qwen3.8-max",
+        provider: "openai",
         model: "qwen3.8-max",
+        base_url: "https://example.test/v1",
+        api_version: "",
+        pairwise_concurrency: 4,
         has_api_key: true,
-      } as any,
+      },
     ]);
     mockedApi.listAttributionTasks.mockResolvedValue([{ ...task, items: [] }]);
     mockedApi.getAttributionTask.mockResolvedValue(task);
@@ -219,6 +227,94 @@ describe("RunAttributionTab", () => {
       "href",
       "/runs/26/attribution-tasks/99"
     );
+  });
+
+  it("keeps the highest recommendation priority and shows traceable original evidence", async () => {
+    const attributionResult: CaseAttribution = {
+      available: true,
+      stale: false,
+      metadata: { model: "test-model", generated_at: "2026-08-18T10:00:00Z" },
+      analysis: {
+        analysis_status: "complete",
+        score_health: { status: "healthy", summary: "判分结构完整", issues: [] },
+        overall: {
+          primary_cause_code: "context_not_used",
+          primary_cause_label: "上下文未使用",
+          owner: "context_timeline",
+          confidence: 0.9,
+          summary: "Timeline 事实未进入结论",
+          affected_deduction_ids: ["dimension.professional_accuracy"],
+        },
+        rag_overview: {
+          needed: false,
+          enabled: false,
+          actually_called: false,
+          call_count: 0,
+          diagnosis: "not_needed",
+          summary: "本项不依赖 RAG",
+        },
+        deduction_analyses: [
+          {
+            deduction_id: "dimension.professional_accuracy",
+            dimension: "professional_accuracy",
+            deduction_validation: "supported",
+            severity: "high",
+            issue_type: "missing_information",
+            required_information: ["patient_context"],
+            finding: "已注入 Timeline 中“化疗后第 3 天持续腹泻”未用于判断就医时效。",
+            evidence_summary: "Timeline 第 3 条记录为“化疗后第 3 天持续腹泻”。",
+            impact: "遗漏持续时间使回答低估就医紧迫性并触发扣分。",
+            observed_gap: {
+              expected: "结合持续时间判断时效",
+              actual: "回答仅建议等待下次复诊",
+              gap: "未判断紧迫性",
+              direct_evidence: [
+                "Timeline 第 3 条记录为“化疗后第 3 天持续腹泻”。",
+                "回答原文：可以等下次常规复诊时再咨询医生。",
+              ],
+            },
+            causal_chain: [],
+            primary_cause: {
+              code: "context_not_used",
+              label: "上下文已注入但未使用",
+              owner: "context_timeline",
+              confidence: 0.9,
+              evidence_refs: ["case:timeline:3", "message:2"],
+            },
+            contributing_causes: [],
+            rag_diagnosis: {
+              needed: false,
+              called: false,
+              query_quality: "unknown",
+              relevant_information_stage: "unknown",
+              answer_usage: "unknown",
+              finding: "本项不依赖 RAG",
+            },
+            recommendations: [
+              { priority: "P2", target: "普通检查", action: "增加输出检查" },
+              { priority: "P0", target: "安全策略", action: "持续症状必须先完成就医时效判断" },
+            ],
+          },
+        ],
+        global_recommendations: [],
+        limitations: [],
+      },
+    };
+    renderWithProviders(
+      <MemoryRouter>
+        <AttributionDetail result={attributionResult} />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "cx-agent 优化建议展开" }));
+    fireEvent.click(screen.getByText("专业准确性与边界"));
+    expect(screen.getByText("P0 · 最高优先级")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("问题分类：Agent 工程链路 / 上下文已注入但未使用"));
+    expect(
+      screen.getByText("原文：回答原文：可以等下次常规复诊时再咨询医生。")
+    ).toBeInTheDocument();
+    expect(screen.getByText("Timeline 长期事实 · 3")).toBeInTheDocument();
+    expect(screen.getByText("对话消息 2")).toBeInTheDocument();
   });
 
   it("shows a newly created attribution task immediately without a page refresh", async () => {

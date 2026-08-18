@@ -7,6 +7,7 @@ Case 重试会重建 detail_json，因此旧归因自然失效，链路补同步
 from __future__ import annotations
 
 import asyncio
+from collections import Counter
 from copy import deepcopy
 from datetime import datetime, timezone
 import hashlib
@@ -37,7 +38,7 @@ from .eval_stack import prepare_run_config
 from .langfuse_trace import sync_conversation_trace
 
 
-PROMPT_VERSION = "case-attribution-v9"
+PROMPT_VERSION = "case-attribution-v11"
 _STORAGE_KEY = "attribution_analysis"
 _MAX_STRING = 1800
 # 归因是后台任务：单次模型请求最多 600 秒，最多发起 3 次完整请求
@@ -63,7 +64,7 @@ _PROMPT = """\
 4. 回答出现事实性错误，不代表根因一定是 RAG。必须区分检索决策、查询改写、原始召回、阈值过滤、候选生成、重排选择、证据利用和最终生成。
 5. 不得把“没有明确引用编号”直接判为“没有使用 RAG”。当某项回答应提供 RAG 来源、但缺少可回链文献原文或引用映射时，标记为“缺少 RAG 引用”：这是 cx-agent 的 RAG 优化项。Rubric/指南本身是独立评测真值，不要求使用 RAG 佐证。
 6. 每个扣分项只能给出一个 primary_cause；它必须是因果链中最早一个失败、修复后可避免该问题的节点。其他影响因素放入 contributing_causes。
-7. evidence_refs 必须引用输入中真实存在的 evidence_id、message_id、deduction_id 或 node_id。
+7. evidence_refs 必须引用输入中真实存在的 evidence_id、message_id、deduction_id、source_id 或 node_id。deduction_id 只能证明“存在这个扣分项”，不能单独证明 cx-agent 的具体行为；已确认问题必须同时引用对话、Case 原子事实、RAG 原文、调用链节点或冻结判分证据。
 8. 数据不足时必须输出 unknown 或 insufficient_evidence，并在 limitations 中说明缺少什么证据。
 9. 优化建议必须指向具体系统环节，并只包含优先级、优化建议分类（target）和“怎么优化”（action）。不得输出预期效果、修改风险、如何验证、验收标准或回归计划。
 10. 仅分析输入 atomic_deductions 中的项目，不要把 dimension_summaries 再生成独立问题，也不要扩写通过项。
@@ -79,6 +80,11 @@ _PROMPT = """\
 20. 必须区分：工具没有出现在 active tools、模型没有选择工具、参数错误、工具被策略拦截、工具执行失败、工具超时、工具结果被截断；不得统一写成“流程问题”。必须区分：用户信息未进入上下文、已经进入但未使用、咨询对象归属错误、信息新旧冲突、长期记忆写入失败。
 21. 必须区分临床推理与回答表达：事实提取、时间线、禁忌/相互作用、风险收益和方案合成错误归 clinical_reasoning；信息与结论正确但组织、完整性、表达或格式有问题才归 response_delivery。
 22. `<msg_break />`、A2UI、资源引用、卡片兑现、终答缺失、SSE/前端渲染属于输出协议或交付链路；模型 API、流式超时、部分输出、上下文窗口、compaction、工具结果截断属于模型运行时与可观测性。
+23. 已确认的 cx-agent 问题必须可定位、可复核，禁止输出“未使用上下文”“提示词冲突”“工具有问题”“RAG 不足”等泛化结论。每个 supported 项的 finding、evidence_summary、impact 三个字段都必须完整：
+   - finding 只写具体失误：明确被忽略或错误处理的对象、内容和动作。例如“已注入的 Timeline 中‘化疗后第 3 天持续腹泻’未被用于判断就医时效”，而不是“未使用 Timeline”。
+   - evidence_summary 必须写清来源类型 + 可识别位置 + 原文关键片段，并将对应 evidence_refs 放入 primary_cause 或 causal_chain。来源可为 Case 用户档案、病历/报告、Timeline、历史对话第 N 轮、当前对话第 N 条、工具名称及输入/输出、RAG 查询与文献片段、调用链节点。若判断“与系统提示词冲突”，只有在证据包实际提供该提示词/Hook/专家规则时才可下结论；必须引用冲突的具体原句或规则片段，并引用对应 node_id，未提供原文时只能标记为 insufficient_evidence。
+   - impact 必须说明该遗漏或冲突如何导致当前 atomic_deduction 的实际差距，不得重复扣分标题。
+24. 对所有一级/二级分类执行同一证据粒度：RAG 要写明 Query、相关文献在哪个阶段出现/丢失、回答哪一句未使用或误读；工具编排要写明具体工具、应调用时机、实际调用/参数/返回；上下文与记忆要写明具体事实来源与被忽略内容；临床推理要写明哪个事实、时间顺序、禁忌或风险收益关系被误判；回答生成与安全守卫要写明回答中的具体句子及缺失的红旗/边界；运行时问题要写明发生失败的调用链节点和错误；评测复核要写明判据、标注或判分逻辑与哪条输入证据冲突。
 
 【主要归因类型】
 judge_or_benchmark_issue、prompt_rule_error、hook_rule_error、expert_pack_error、context_not_fetched、context_not_used、context_subject_error、context_stale_or_conflict、memory_write_error、intent_routing_error、clarification_strategy_error、feature_gate_error、tool_not_available、tool_not_called、tool_selection_error、tool_argument_error、tool_blocked、tool_execution_failed、tool_timeout、proactive_or_undercurrent_error、rag_not_needed、rag_not_called、rag_call_failed、rag_query_error、rag_corpus_gap、rag_recall_error、rag_threshold_error、rag_candidate_or_rerank_error、rag_rerank_error、rag_not_grounded、rag_misinterpreted、citation_mismatch、reasoning_error、clinical_fact_extraction_error、temporal_reasoning_error、risk_benefit_error、contraindication_error、safety_policy_error、response_composition_error、response_incomplete、response_style_error、output_protocol_error、a2ui_binding_error、delivery_render_error、model_api_error、model_timeout、model_partial_output、context_window_error、compaction_error、tool_result_truncated、observability_gap、insufficient_evidence。
@@ -152,7 +158,9 @@ safety_rule、prompt_rule、hook_rule、expert_pack、context_injection、memory
       "observed_gap": {"expected": "本项期望", "actual": "实际表现", "gap": "明确差距", "direct_evidence": ["对话原文或事实"]},
       "issue_type": "factual_error | safety | missing_information | personalization | inquiry | executability | communication | other",
       "required_information": ["patient_context | literature | reasoning | clarification | safety_policy"],
-      "finding": "该扣分项发生了什么",
+      "finding": "具体遗漏/冲突的事实、对话、工具或规则；不得泛化",
+      "evidence_summary": "来源类型、位置和关键原文；系统提示词冲突时必须包含具体规则原句",
+      "impact": "该具体问题如何导致本项扣分",
       "causal_chain": [
         {"stage": "阶段", "status": "pass | fail | unknown | not_applicable", "finding": "结论", "evidence_refs": ["证据ID"]}
       ],
@@ -204,6 +212,101 @@ def _compact_value(value: Any, *, depth: int = 0) -> Any:
             if str(key).lower() not in {"authorization", "api_key", "apikey", "token"}
         }
     return value
+
+
+def _source_segment(value: Any) -> str:
+    """把 Case 字段名转换成稳定、可用于 evidence_refs 的片段。"""
+    # Python 的 \w 支持 Unicode。保留中文字段名后，证据引用既不容易发生
+    # `症状` / `用药` 都退化成 item 的碰撞，前端展示时也更容易读懂。
+    segment = re.sub(r"[^\w\-]+", "_", str(value or "item"), flags=re.UNICODE).strip("_")
+    return segment or "item"
+
+
+def _unique_case_source_id(base: str, path: str, valid_refs: set[str]) -> str:
+    """保留可读 ID，同时避免不同字段清洗成同一名称后互相覆盖。"""
+    if base not in valid_refs:
+        return base
+    suffix = hashlib.sha1(path.encode("utf-8")).hexdigest()[:8]
+    return f"{base}:{suffix}"
+
+
+def _atomic_case_sources(
+    value: Any,
+    *,
+    source_prefix: str,
+    path_prefix: str,
+    label_prefix: str,
+    valid_refs: set[str],
+    evidence_registry: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """把用户档案、病历和 Timeline 拆成可精确引用的原子事实。
+
+    内容只保存在原子来源中，Case 主体会移除对应大字段，避免同一证据重复进入
+    Prompt。列表按条目引用，字典按叶子字段引用，确保模型能指出“哪一条事实”。
+    """
+    output: list[dict[str, Any]] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            segment = _source_segment(key)
+            output.extend(
+                _atomic_case_sources(
+                    child,
+                    source_prefix=f"{source_prefix}:{segment}",
+                    path_prefix=f"{path_prefix}.{key}",
+                    label_prefix=f"{label_prefix} · {key}",
+                    valid_refs=valid_refs,
+                    evidence_registry=evidence_registry,
+                )
+            )
+        return output
+    if isinstance(value, list):
+        for index, child in enumerate(value, start=1):
+            path = f"{path_prefix}[{index - 1}]"
+            source_id = _unique_case_source_id(
+                f"{source_prefix}:{index}", path, valid_refs
+            )
+            valid_refs.add(source_id)
+            evidence_registry[source_id] = {
+                "kind": "case",
+                "path": path,
+                "label": f"{label_prefix} · 第 {index} 条",
+            }
+            output.append(
+                {
+                    "source_id": source_id,
+                    "label": f"{label_prefix} · 第 {index} 条",
+                    "path": path,
+                    "content": _compact_value(child),
+                }
+            )
+        return output
+    if value in (None, ""):
+        return output
+    source_id = _unique_case_source_id(source_prefix, path_prefix, valid_refs)
+    valid_refs.add(source_id)
+    evidence_registry[source_id] = {
+        "kind": "case",
+        "path": path_prefix,
+        "label": label_prefix,
+    }
+    output.append(
+        {
+            "source_id": source_id,
+            "label": label_prefix,
+            "path": path_prefix,
+            "content": _compact_value(value),
+        }
+    )
+    return output
+
+
+def _node_evidence_kind(node: dict[str, Any]) -> str:
+    identity = " ".join(
+        str(node.get(key) or "") for key in ("type", "name")
+    )
+    if re.search(r"prompt|system|hook|reminder|expert|专家|提示词", identity, re.IGNORECASE):
+        return "prompt"
+    return "node"
 
 
 def attribution_input_hash(detail: dict[str, Any]) -> str:
@@ -790,7 +893,7 @@ def _contrastive_controls(
 
 def build_evidence_pack(
     session: Session, run: EvalRun, row: CaseResultRow, detail: dict[str, Any]
-) -> tuple[dict[str, Any], set[str]]:
+) -> tuple[dict[str, Any], set[str], dict[str, dict[str, Any]]]:
     hydrated = ensure_agent_chain_summary(detail)
     trace = _record(hydrated.get("trace"))
     chain = _record(trace.get("agent_chain"))
@@ -800,11 +903,35 @@ def build_evidence_pack(
     dimensions = {str(item.get("dimension") or "") for item in deductions}
     messages: list[dict[str, Any]] = []
     valid_refs: set[str] = {item["deduction_id"] for item in deductions}
+    evidence_registry: dict[str, dict[str, Any]] = {
+        item["deduction_id"]: {
+            "kind": "deduction",
+            "has_frozen_evidence": bool(item.get("evidence")),
+        }
+        for item in deductions
+    }
+    for index, issue in enumerate(score_health.get("issues") or [], start=1):
+        if not isinstance(issue, dict):
+            continue
+        source_id = f"score_health:{index}"
+        issue["source_id"] = source_id
+        valid_refs.add(source_id)
+        evidence_registry[source_id] = {
+            "kind": "score_health",
+            "code": str(issue.get("code") or ""),
+            "label": str(issue.get("message") or "判分健康检查异常"),
+        }
     for index, message in enumerate(trace.get("messages") or [], start=1):
         if not isinstance(message, dict):
             continue
         message_id = f"message:{index}"
         valid_refs.add(message_id)
+        role = str(message.get("role") or "").lower()
+        evidence_registry[message_id] = {
+            "kind": "prompt" if role in {"system", "developer"} else "message",
+            "role": role,
+            "index": index,
+        }
         messages.append(
             {
                 "message_id": message_id,
@@ -819,6 +946,11 @@ def build_evidence_pack(
             continue
         node_id = f"node:{node.get('id') or index}"
         valid_refs.add(node_id)
+        evidence_registry[node_id] = {
+            "kind": _node_evidence_kind(node),
+            "type": str(node.get("type") or ""),
+            "name": str(node.get("name") or ""),
+        }
         nodes.append(
             {
                 "node_id": node_id,
@@ -834,14 +966,78 @@ def build_evidence_pack(
 
     rag_calls, rag_refs = _compact_rag_calls(_rag_calls(summary))
     valid_refs.update(rag_refs)
+    for rag_ref in rag_refs:
+        evidence_registry[rag_ref] = {"kind": "rag"}
+    case_data = _record(hydrated.get("case"))
+    compact_case_data = deepcopy(case_data)
+    case_context_sources: list[dict[str, Any]] = []
+    initial_state = _record(case_data.get("initial_state"))
+    for key, label in (
+        ("user_profile", "用户档案"),
+        ("medical_record", "病历与报告"),
+        ("timeline", "Timeline"),
+        ("history", "历史事实"),
+    ):
+        value = initial_state.get(key)
+        source_path = f"case.initial_state.{key}"
+        from_initial_state = value not in (None, "", [], {})
+        if value in (None, "", [], {}):
+            value = case_data.get(key)
+            source_path = f"case.{key}"
+        if value in (None, "", [], {}):
+            continue
+        case_context_sources.extend(
+            _atomic_case_sources(
+                value,
+                source_prefix=f"case:{key}",
+                path_prefix=source_path,
+                label_prefix=label,
+                valid_refs=valid_refs,
+                evidence_registry=evidence_registry,
+            )
+        )
+        if from_initial_state:
+            compact_initial_state = _record(compact_case_data.get("initial_state"))
+            compact_initial_state.pop(key, None)
+        compact_case_data.pop(key, None)
+    if not case_context_sources:
+        valid_refs.add("case:definition")
+        evidence_registry["case:definition"] = {
+            "kind": "case",
+            "path": "case",
+            "label": "Case 定义",
+        }
+        case_context_sources.append(
+            {
+                "source_id": "case:definition",
+                "label": "Case 定义",
+                "content": _compact_value(case_data),
+            }
+        )
     sources = []
     for source in summary.get("sources") or []:
         if not isinstance(source, dict):
             continue
         sources.append({key: _compact_value(value) for key, value in source.items() if key != "rag_audit"})
 
+    # 对“未调用 / 未启用 / 调用失败”一类负向事实，不能要求模型引用一个
+    # 根本不存在的工具或 RAG 节点。把运行配置与链路摘要注册为原子证据，
+    # 让这类判断也能回链，而不是退化为只引用 deduction_id。
+    run_config_ref = "run:config"
+    chain_summary_ref = "trace:agent_chain"
+    observability_ref = "trace:observability"
+    valid_refs.update({run_config_ref, chain_summary_ref, observability_ref})
+    evidence_registry.update(
+        {
+            run_config_ref: {"kind": "config", "label": "评测运行配置"},
+            chain_summary_ref: {"kind": "trace", "label": "AI 助手调用链摘要"},
+            observability_ref: {"kind": "trace", "label": "RAG 与链路可观测性摘要"},
+        }
+    )
+
     pack = {
         "run": {
+            "source_id": run_config_ref,
             "id": run.id,
             "name": run.name,
             "rag_enabled": bool((run.adapter_overrides or {}).get("enable_rag", False)),
@@ -853,13 +1049,15 @@ def build_evidence_pack(
                 "config_snapshot": _compact_value(run.config_snapshot or {}),
             },
         },
-        "case": _compact_value(hydrated.get("case") or {}),
+        "case": _compact_value(compact_case_data),
+        "case_context_sources": case_context_sources,
         "conversation": messages,
         "score_health": score_health,
         "atomic_deductions": deductions,
         "dimension_summaries": _dimension_summaries(hydrated),
         "contrastive_controls": _contrastive_controls(session, run, row, dimensions),
         "agent_chain": {
+            "source_id": chain_summary_ref,
             "status": chain.get("status"),
             "error": chain.get("error"),
             "trace_ids": chain.get("trace_ids") or trace.get("langfuse_trace_ids") or [],
@@ -871,6 +1069,7 @@ def build_evidence_pack(
         "sources": sources,
         "rag_audits": rag_calls,
         "observability": {
+            "source_id": observability_ref,
             "chain_status": chain.get("status") or "missing",
             "chain_error": chain.get("error"),
             "rag_audit_available": bool(rag_calls),
@@ -879,7 +1078,7 @@ def build_evidence_pack(
             ),
         },
     }
-    return pack, valid_refs
+    return pack, valid_refs, evidence_registry
 
 
 def _clamp_confidence(value: Any) -> float:
@@ -946,15 +1145,31 @@ def _apply_safety_timeliness_attribution(
     normalized: dict[str, Any], deduction: dict[str, Any]
 ) -> None:
     """将误判为评测复核的明确就医时效缺口纠正为 cx-agent 安全问题。"""
+    existing_refs = list(_record(normalized.get("primary_cause")).get("evidence_refs") or [])
+    for step in normalized.get("causal_chain") or []:
+        if isinstance(step, dict):
+            existing_refs.extend(step.get("evidence_refs") or [])
     normalized["deduction_validation"] = "supported"
     normalized["evaluation_issue_category"] = "none"
+    observed = _record(normalized.get("observed_gap"))
+    actual = _analysis_text(observed.get("actual") or deduction.get("reason"))
+    normalized["finding"] = (
+        "当前对话未明确给出“尽早/及时就医”或“不宜等待常规复诊”的分诊引导。"
+    )
+    normalized["evidence_summary"] = (
+        f"当前对话与指南扣分依据：{actual or '回答未满足已明确的就医时效要求'}"
+    )
+    normalized["impact"] = (
+        "用户可能将需要尽早处理的症状延后至下次常规复诊，造成医学安全性就医时效缺口。"
+    )
     normalized["primary_cause"] = {
         "code": "safety_policy_error",
         "label": "就医时效引导不足",
         "owner": "safety_policy",
         "confidence": 0.9,
         "reason": "当前用例已明确需要尽早就医或不等待常规复诊，但回答未给出相应的安全分诊引导。",
-        "evidence_refs": [deduction["deduction_id"]],
+        "evidence_refs": list(dict.fromkeys(str(ref) for ref in existing_refs if str(ref)))
+        or [deduction["deduction_id"]],
     }
     normalized["recommendations"] = [
         {
@@ -963,17 +1178,6 @@ def _apply_safety_timeliness_attribution(
             "action": "当症状持续、加重或已明显影响生活时，明确提示尽早联系医生，并说明不宜仅等待下次常规复诊。",
         }
     ]
-
-
-def _conclusion_category(analyses: list[dict[str, Any]]) -> str:
-    values = {str(item.get("deduction_validation") or "") for item in analyses}
-    if values == {"supported"}:
-        return "cx_agent_issue"
-    if values == {"questionable"}:
-        return "evaluation_review"
-    if values == {"insufficient_evidence"}:
-        return "insufficient_evidence"
-    return "mixed"
 
 
 def _normalize_recommendations(
@@ -1001,21 +1205,290 @@ def _normalize_recommendations(
     return output
 
 
+_GENERIC_FINDING = re.compile(
+    r"^(?:未使用上下文|上下文未使用|提示词冲突|工具有问题|RAG 不足|检索有问题|"
+    r"推理不足|回答不完整|流程问题|需要优化|暂无结论)[。；，、 ]*$"
+)
+
+
+def _analysis_text(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def _analysis_evidence_refs(normalized: dict[str, Any]) -> list[str]:
+    refs = list(_record(normalized.get("primary_cause")).get("evidence_refs") or [])
+    for step in normalized.get("causal_chain") or []:
+        if isinstance(step, dict):
+            refs.extend(step.get("evidence_refs") or [])
+    return [str(ref) for ref in refs if str(ref)]
+
+
+_RAW_EVIDENCE_KINDS = {
+    "message", "case", "node", "prompt", "rag", "trace", "config",
+    "score_health",
+}
+_PROMPT_CAUSE_CODES = {"prompt_rule_error", "hook_rule_error", "expert_pack_error"}
+_RAG_CONTENT_CAUSE_CODES = {
+    "rag_query_error",
+    "rag_corpus_gap",
+    "rag_recall_error",
+    "rag_threshold_error",
+    "rag_candidate_or_rerank_error",
+    "rag_rerank_error",
+    "rag_not_grounded",
+    "rag_misinterpreted",
+    "citation_mismatch",
+    "missing_rag_reference",
+}
+_RAG_TRACE_CAUSE_CODES = {
+    "rag_not_called",
+    "rag_call_failed",
+    "rag_query_error",
+    "rag_corpus_gap",
+}
+_REQUIRED_INFORMATION_LABELS = {
+    "patient_context": "用户档案、病历、Timeline 或相关对话原文",
+    "literature": "RAG 检索记录、文献原文及引用映射",
+    "reasoning": "模型推理或回答生成节点的输入输出",
+    "clarification": "追问策略、工具调用和多轮对话记录",
+    "safety_policy": "实际生效的安全提示词、Hook 或专家规则原文",
+}
+
+
+def _specific_analysis_text(value: Any) -> bool:
+    text = _analysis_text(value)
+    return len(text) >= 12 and not _GENERIC_FINDING.match(text)
+
+
+def _evidence_kinds(
+    refs: list[str], evidence_registry: dict[str, dict[str, Any]]
+) -> set[str]:
+    return {
+        str(_record(evidence_registry.get(ref)).get("kind") or "")
+        for ref in refs
+        if ref in evidence_registry
+    }
+
+
+def _has_frozen_deduction_evidence(
+    refs: list[str], evidence_registry: dict[str, dict[str, Any]]
+) -> bool:
+    return any(
+        _record(evidence_registry.get(ref)).get("kind") == "deduction"
+        and bool(_record(evidence_registry.get(ref)).get("has_frozen_evidence"))
+        for ref in refs
+    )
+
+
+def _has_traceable_supported_evidence(
+    normalized: dict[str, Any],
+    refs: list[str],
+    evidence_registry: dict[str, dict[str, Any]],
+) -> bool:
+    cause_code = str(_record(normalized.get("primary_cause")).get("code") or "")
+    kinds = _evidence_kinds(refs, evidence_registry)
+    if cause_code in _PROMPT_CAUSE_CODES:
+        return "prompt" in kinds
+    if cause_code in _RAG_TRACE_CAUSE_CODES:
+        return bool(kinds & {"trace", "node", "config", "rag"})
+    if cause_code in _RAG_CONTENT_CAUSE_CODES:
+        return "rag" in kinds
+    if kinds & _RAW_EVIDENCE_KINDS:
+        return True
+    # 冻结判分证据可以证明回答中的明确缺口，但普通 deduction_id 不能。
+    return _has_frozen_deduction_evidence(refs, evidence_registry)
+
+
+def _missing_evidence_description(normalized: dict[str, Any]) -> str:
+    labels = [
+        _REQUIRED_INFORMATION_LABELS.get(str(value), str(value))
+        for value in normalized.get("required_information") or []
+        if str(value)
+    ]
+    return "、".join(dict.fromkeys(labels)) or "可定位的对话原文、Case 事实或调用链输入输出"
+
+
+def _downgrade_to_insufficient(
+    normalized: dict[str, Any], deduction_id: str, missing: str
+) -> None:
+    normalized["deduction_validation"] = "insufficient_evidence"
+    normalized["evaluation_issue_category"] = "evidence_gap"
+    normalized["finding"] = f"当前缺少{missing}，无法确认该扣分由 cx-agent 的具体行为造成。"
+    normalized["evidence_summary"] = f"证据包中未找到或无法回链到{missing}。"
+    normalized["impact"] = "缺少上述证据会阻断问题定位，因此本项不能进入 cx-agent 或评测工具优化清单。"
+    normalized["primary_cause"] = {
+        "code": "insufficient_evidence",
+        "label": "归因证据不完整",
+        "owner": "observability",
+        "confidence": 0.0,
+        "reason": f"缺少{missing}。",
+        "evidence_refs": [deduction_id],
+    }
+    normalized["recommendations"] = [
+        {
+            "priority": "P1",
+            "target": "归因证据采集",
+            "action": f"补齐{missing}并建立可回链的原子证据引用后，再重新归因。",
+        }
+    ]
+
+
+def _enforce_analysis_evidence_contract(
+    normalized: dict[str, Any],
+    deduction_id: str,
+    evidence_registry: dict[str, dict[str, Any]],
+) -> None:
+    """按最终责任类型执行不同的描述与证据契约。"""
+    validation = str(normalized.get("deduction_validation") or "")
+    finding = _analysis_text(normalized.get("finding"))
+    evidence_summary = _analysis_text(normalized.get("evidence_summary"))
+    impact = _analysis_text(normalized.get("impact"))
+    evidence_refs = _analysis_evidence_refs(normalized)
+    specific_finding = _specific_analysis_text(finding)
+    specific_evidence = _specific_analysis_text(evidence_summary)
+    specific_impact = _specific_analysis_text(impact) and impact not in {finding, evidence_summary}
+
+    if validation == "supported":
+        traceable = _has_traceable_supported_evidence(
+            normalized, evidence_refs, evidence_registry
+        )
+        if not (specific_finding and specific_evidence and specific_impact and traceable):
+            _downgrade_to_insufficient(
+                normalized,
+                deduction_id,
+                _missing_evidence_description(normalized),
+            )
+            return
+        observed_gap = _record(normalized.get("observed_gap"))
+        direct_evidence = [str(value) for value in observed_gap.get("direct_evidence") or []]
+        if evidence_summary not in direct_evidence:
+            direct_evidence.insert(0, evidence_summary)
+        observed_gap["direct_evidence"] = direct_evidence
+        normalized["observed_gap"] = observed_gap
+        return
+
+    if validation == "questionable":
+        category = str(normalized.get("evaluation_issue_category") or "")
+        kinds = _evidence_kinds(evidence_refs, evidence_registry)
+        frozen_deduction = _has_frozen_deduction_evidence(
+            evidence_refs, evidence_registry
+        )
+        traceable = bool(kinds & _RAW_EVIDENCE_KINDS) or frozen_deduction
+        if category == "annotation_rag_conflict":
+            traceable = "rag" in kinds and frozen_deduction
+        elif category == "benchmark_criteria_conflict":
+            traceable = frozen_deduction
+        if not (specific_finding and specific_evidence and specific_impact and traceable):
+            _downgrade_to_insufficient(
+                normalized,
+                deduction_id,
+                "具体判据、冲突证据及其对判分结果的影响说明",
+            )
+        return
+
+    missing = _missing_evidence_description(normalized)
+    if not specific_finding:
+        normalized["finding"] = f"当前缺少{missing}，无法判断问题发生在 cx-agent 还是评测链路。"
+    if not specific_evidence:
+        normalized["evidence_summary"] = f"证据包中未提供或无法回链到{missing}。"
+    if not specific_impact:
+        normalized["impact"] = "缺少上述证据会阻断责任边界判断，本项只能保留为待补证据。"
+
+
+def _analysis_bucket(item: dict[str, Any]) -> str:
+    if classify_evaluation_issue(item) == "missing_rag_reference":
+        return "cx_agent_issue"
+    validation = str(item.get("deduction_validation") or "")
+    if validation == "supported":
+        return "cx_agent_issue"
+    if validation == "questionable":
+        return "evaluation_review"
+    return "insufficient_evidence"
+
+
+def _reconcile_overall(
+    analyses: list[dict[str, Any]], raw_overall: dict[str, Any]
+) -> tuple[dict[str, Any], str]:
+    """以证据闸门后的逐项结论重建 Overall，禁止保留已失效的模型结论。"""
+    buckets = [_analysis_bucket(item) for item in analyses]
+    unique_buckets = set(buckets)
+    if len(unique_buckets) == 1:
+        conclusion = next(iter(unique_buckets), "insufficient_evidence")
+    else:
+        conclusion = "mixed"
+
+    severity_order = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+    bucket_order = {
+        "cx_agent_issue": 3,
+        "evaluation_review": 2,
+        "insufficient_evidence": 1,
+    }
+    ranked = sorted(
+        analyses,
+        key=lambda item: (
+            bucket_order.get(_analysis_bucket(item), 0),
+            severity_order.get(str(item.get("severity") or "medium"), 2),
+            float(_record(item.get("primary_cause")).get("confidence") or 0),
+        ),
+        reverse=True,
+    )
+    counts = Counter(buckets)
+    if conclusion == "mixed":
+        primary = {}
+        cause = {
+            "code": "mixed_root_causes",
+            "label": "存在多类归因结论",
+            "owner": "mixed",
+            "confidence": 0.0,
+        }
+        summary = (
+            f"已确认 cx-agent 问题 {counts['cx_agent_issue']} 项，"
+            f"需要评测复核 {counts['evaluation_review']} 项，"
+            f"证据不足 {counts['insufficient_evidence']} 项。"
+        )
+    else:
+        primary = ranked[0] if ranked else {}
+        cause = _record(primary.get("primary_cause"))
+        summary = _analysis_text(primary.get("finding")) or _analysis_text(
+            raw_overall.get("summary")
+        )
+    affected_ids = [
+        str(item.get("deduction_id") or "")
+        for item in analyses
+        if _analysis_bucket(item) != "insufficient_evidence"
+        and str(item.get("deduction_id") or "")
+    ]
+    overall = {
+        "conclusion_category": conclusion,
+        "primary_cause_code": str(cause.get("code") or "insufficient_evidence"),
+        "primary_cause_label": str(cause.get("label") or "证据不足"),
+        "owner": str(cause.get("owner") or "unknown"),
+        "confidence": _clamp_confidence(cause.get("confidence")),
+        "summary": summary or "当前没有足够证据形成归因结论。",
+        "affected_deduction_ids": list(dict.fromkeys(affected_ids)),
+    }
+    if not analyses or unique_buckets == {"insufficient_evidence"}:
+        status = "insufficient_evidence"
+    elif "insufficient_evidence" in unique_buckets:
+        status = "partial"
+    else:
+        status = "complete"
+    return overall, status
+
+
 def _normalize_analysis(
     raw: Any,
     deductions: list[dict[str, Any]],
     valid_refs: set[str],
     score_health: dict[str, Any],
+    evidence_registry: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     data = _record(raw)
-    allowed_status = {"complete", "partial", "insufficient_evidence"}
-    status = str(data.get("analysis_status") or "partial")
+    evidence_registry = evidence_registry or {
+        ref: {"kind": "deduction", "has_frozen_evidence": False}
+        for ref in valid_refs
+    }
     overall = _record(data.get("overall"))
-    overall["confidence"] = _clamp_confidence(overall.get("confidence"))
-    overall["affected_deduction_ids"] = [
-        item for item in _sanitize_refs(overall.get("affected_deduction_ids"), valid_refs)
-        if item.startswith(("dimension.", "guideline.", "assertion."))
-    ]
 
     expected = {item["deduction_id"]: item for item in deductions}
     health_affected = _health_affected_ids(score_health)
@@ -1064,17 +1537,61 @@ def _normalize_analysis(
                 "evidence_refs": [deduction_id],
             }
         if score_health.get("status") == "invalid" or deduction_id in health_affected:
+            affected_issues = [
+                issue
+                for issue in score_health.get("issues") or []
+                if isinstance(issue, dict)
+                and deduction_id in {
+                    str(value) for value in issue.get("affected_deduction_ids") or []
+                }
+            ]
+            issue_messages = [
+                str(issue.get("message") or "").strip()
+                for issue in affected_issues
+                if str(issue.get("message") or "").strip()
+            ]
+            issue_codes = [
+                str(issue.get("code") or "").strip()
+                for issue in affected_issues
+                if str(issue.get("code") or "").strip()
+            ]
+            issue_summary = "；".join(dict.fromkeys(issue_messages)) or str(
+                score_health.get("summary") or "判分健康检查未通过"
+            )
+            issue_refs = [
+                str(issue.get("source_id") or "")
+                for issue in affected_issues
+                if str(issue.get("source_id") or "")
+            ]
             normalized["deduction_validation"] = "questionable"
-            normalized["finding"] = "当前判分存在异常或证据配置问题，不能据此归责 cx-agent"
+            normalized["finding"] = (
+                f"判分健康检查发现“{issue_summary}”，当前扣分需要先复核，"
+                "不能直接归责 cx-agent。"
+            )
+            normalized["evidence_summary"] = (
+                f"评测结果的 score_health 命中 {', '.join(issue_codes) or '判分健康检查异常'}："
+                f"{issue_summary}"
+            )
+            normalized["impact"] = (
+                "该异常会降低当前扣分的稳定性或可信度；在复核完成前，"
+                "基于此扣分生成的 cx-agent 优化建议可能产生误修。"
+            )
             normalized["primary_cause"] = {
                 "code": "judge_or_benchmark_issue",
                 "label": "评测结果需要复核",
                 "owner": "judge",
                 "confidence": 1.0,
-                "reason": score_health.get("summary") or "判分健康检查未通过",
-                "evidence_refs": [deduction_id],
+                "reason": issue_summary,
+                "evidence_refs": issue_refs or [deduction_id],
             }
             normalized["evaluation_issue_category"] = "judge_logic_issue"
+            normalized["recommendations"] = [
+                {
+                    "priority": "P1",
+                    "target": "评测结果复核",
+                    "action": f"先处理并复核“{issue_summary}”，确认判分稳定后再生成 cx-agent 优化项。",
+                }
+            ]
         # Rubric 已定义的就医时效缺口属于医学安全性本身。除非评分健康检查
         # 已发现真实冲突/异常，否则不能因为没有危险用药而误归为评测复核。
         if (
@@ -1112,7 +1629,25 @@ def _normalize_analysis(
             next_step["evidence_refs"] = _sanitize_refs(next_step.get("evidence_refs"), valid_refs)
             chain.append(next_step)
         normalized["causal_chain"] = chain
-        failed_steps = [step for step in chain if step.get("status") == "fail"]
+        _enforce_analysis_evidence_contract(
+            normalized, deduction_id, evidence_registry
+        )
+        # 证据闸门可能将“已确认问题”降为“证据不足”，必须基于最终结论重新
+        # 绑定责任范围和稳定分类，避免前端仍把它展示为 cx-agent 优化项。
+        normalized["evaluation_issue_category"] = classify_evaluation_issue(normalized)
+        normalized["optimization_classification"] = normalize_optimization_classification(
+            normalized, normalized["evaluation_issue_category"]
+        )
+        normalized["recommendations"] = _normalize_recommendations(
+            normalized.get("recommendations"),
+            validation=str(normalized.get("deduction_validation") or ""),
+            evaluation_issue_category=normalized["evaluation_issue_category"],
+        )
+        failed_steps = (
+            [step for step in normalized.get("causal_chain") or [] if step.get("status") == "fail"]
+            if normalized.get("deduction_validation") != "insufficient_evidence"
+            else []
+        )
         normalized["root_cause_stage"] = (
             str(failed_steps[0].get("stage") or "") if failed_steps else ""
         )
@@ -1138,6 +1673,8 @@ def _normalize_analysis(
                 "issue_type": "other",
                 "required_information": [],
                 "finding": "归因模型未返回该扣分项的有效分析",
+                "evidence_summary": "证据包中缺少该扣分项对应的结构化归因输出。",
+                "impact": "无法确认问题责任与修复位置，本项暂不进入优化清单。",
                 "causal_chain": [],
                 "primary_cause": {
                     "code": "insufficient_evidence",
@@ -1162,15 +1699,9 @@ def _normalize_analysis(
                 "recommendations": [],
             }
         )
-    overall["conclusion_category"] = _conclusion_category(analyses)
-    if not overall.get("affected_deduction_ids"):
-        overall["affected_deduction_ids"] = [
-            item["deduction_id"]
-            for item in analyses
-            if item.get("deduction_validation") == "supported"
-        ]
+    overall, status = _reconcile_overall(analyses, overall)
     return {
-        "analysis_status": status if status in allowed_status else "partial",
+        "analysis_status": status,
         "score_health": score_health,
         "overall": overall,
         "rag_overview": _record(data.get("rag_overview")),
@@ -1195,7 +1726,10 @@ def _normalize_analysis(
 
 
 def _invalid_score_analysis(
-    deductions: list[dict[str, Any]], valid_refs: set[str], score_health: dict[str, Any]
+    deductions: list[dict[str, Any]],
+    valid_refs: set[str],
+    score_health: dict[str, Any],
+    evidence_registry: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     """判分执行失败时直接生成评测复核结论，不再浪费一次归因模型调用。"""
     return _normalize_analysis(
@@ -1216,6 +1750,10 @@ def _invalid_score_analysis(
                     "issue_type": "other",
                     "required_information": [],
                     "finding": "判分结果异常，需要重新判分后再进行归因",
+                    "evidence_summary": (
+                        f"判分健康检查记录：{score_health.get('summary') or '判分调用未返回有效结果'}"
+                    ),
+                    "impact": "当前扣分结果不可靠，若直接归因会把判分调用异常误算为 cx-agent 缺陷。",
                     "causal_chain": [
                         {
                             "stage": "judge_validation",
@@ -1262,6 +1800,7 @@ def _invalid_score_analysis(
         deductions,
         valid_refs,
         score_health,
+        evidence_registry,
     )
 
 
@@ -1371,14 +1910,18 @@ async def generate_case_attribution(
         await sync_conversation_trace(trace, settings)
         detail["trace"] = trace.model_dump(mode="json")
 
-    evidence_pack, valid_refs = build_evidence_pack(session, run, row, detail)
+    evidence_pack, valid_refs, evidence_registry = build_evidence_pack(
+        session, run, row, detail
+    )
     deductions = evidence_pack["atomic_deductions"]
     if not deductions:
         raise HTTPException(status_code=422, detail="该不合格用例没有可归因的结构化扣分项")
 
     score_health = _record(evidence_pack.get("score_health"))
     if score_health.get("status") == "invalid":
-        analysis = _invalid_score_analysis(deductions, valid_refs, score_health)
+        analysis = _invalid_score_analysis(
+            deductions, valid_refs, score_health, evidence_registry
+        )
         generated_at = datetime.now(timezone.utc).isoformat()
         detail[_STORAGE_KEY] = {
             "analysis": analysis,
@@ -1431,7 +1974,9 @@ async def generate_case_attribution(
             status_code=502,
             detail=f"AI 归因生成失败：{type(exc).__name__}：{reason}",
         ) from exc
-    analysis = _normalize_analysis(raw, deductions, valid_refs, score_health)
+    analysis = _normalize_analysis(
+        raw, deductions, valid_refs, score_health, evidence_registry
+    )
     generated_at = datetime.now(timezone.utc).isoformat()
     detail[_STORAGE_KEY] = {
         "analysis": analysis,
