@@ -62,6 +62,7 @@ def reconcile_unqueued_runs(settings: Settings) -> tuple[int, int]:
         active_run_ids = set(
             session.scalars(
                 select(EvaluationJob.run_id).where(
+                    EvaluationJob.kind.in_(RUN_EXECUTION_KINDS),
                     EvaluationJob.status.in_(ACTIVE_STATUSES)
                 )
             )
@@ -90,15 +91,34 @@ def reconcile_unqueued_runs(settings: Settings) -> tuple[int, int]:
                 )
             )
             if has_checkpoint:
+                progress = run.progress if isinstance(run.progress, dict) else {}
+                context = progress.get("context")
+                context = context if isinstance(context, dict) else {}
+                retry_ids: list[str] = []
+                if context.get("kind") == "cases_retry":
+                    retry_ids = [
+                        str(sample_id).strip()
+                        for sample_id in (context.get("sample_ids") or [])
+                        if str(sample_id).strip()
+                    ]
+                elif context.get("kind") == "case_retry" and context.get("sample_id"):
+                    retry_ids = [str(context["sample_id"]).strip()]
+
+                if retry_ids:
+                    job_kind = "cases_retry"
+                    job_payload = {"sample_ids": list(dict.fromkeys(retry_ids))}
+                else:
+                    job_kind = "resume"
+                    job_payload = {
+                        "source_run_id": run.id,
+                        "run_name": run.name,
+                        "in_place": True,
+                    }
                 session.add(
                     EvaluationJob(
                         run_id=run.id,
-                        kind="resume",
-                        payload={
-                            "source_run_id": run.id,
-                            "run_name": run.name,
-                            "in_place": True,
-                        },
+                        kind=job_kind,
+                        payload=job_payload,
                         status="queued",
                     )
                 )
@@ -115,12 +135,20 @@ def reconcile_unqueued_runs(settings: Settings) -> tuple[int, int]:
 
 
 def enqueue_job(run_id: int, kind: str, payload: dict[str, Any]) -> int:
-    """创建持久化任务；同一个 run 同时最多存在一个活跃任务。"""
+    """创建持久化评测任务；同一个 run 同时最多一个执行类任务。
+
+    归因任务不会覆盖评测结果，允许与 Case 重试并行，不能参与这里的幂等
+    去重；否则活跃归因会被误当成已提交的重试任务，留下只有 ``pending``
+    Run、没有可领取执行 Job 的永久等待状态。
+    """
+    if kind not in RUN_EXECUTION_KINDS:
+        raise ValueError(f"enqueue_job 仅接受评测执行类任务，收到: {kind}")
     with session_scope() as session:
         existing = session.scalar(
             select(EvaluationJob)
             .where(
                 EvaluationJob.run_id == run_id,
+                EvaluationJob.kind.in_(RUN_EXECUTION_KINDS),
                 EvaluationJob.status.in_(ACTIVE_STATUSES),
             )
             .order_by(EvaluationJob.id.desc())
@@ -293,11 +321,13 @@ def requeue_job(job_id: int, owner: str) -> bool:
 
 
 def cancel_job(run_id: int) -> bool:
+    """取消评测执行任务，不影响同一 Run 的归因分析。"""
     with session_scope() as session:
         row = session.scalar(
             select(EvaluationJob)
             .where(
                 EvaluationJob.run_id == run_id,
+                EvaluationJob.kind.in_(RUN_EXECUTION_KINDS),
                 EvaluationJob.status.in_(ACTIVE_STATUSES),
             )
             .order_by(EvaluationJob.id.desc())
@@ -323,10 +353,14 @@ def acknowledge_cancel(job_id: int, owner: str) -> bool:
 
 
 def job_is_executing(run_id: int) -> bool:
+    """仅检查会改写评测结果的任务是否仍被 Worker 执行。"""
     with session_scope() as session:
         row = session.scalar(
             select(EvaluationJob)
-            .where(EvaluationJob.run_id == run_id)
+            .where(
+                EvaluationJob.run_id == run_id,
+                EvaluationJob.kind.in_(RUN_EXECUTION_KINDS),
+            )
             .order_by(EvaluationJob.id.desc())
         )
         return bool(row is not None and row.lease_owner)

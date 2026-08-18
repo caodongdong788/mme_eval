@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from factories import make_report
 from medeval import trace_store
 from server.db import session_scope
@@ -11,7 +13,11 @@ from server.eval_job import build_eval_job, build_rejudge_job, build_resume_job,
 from server.ingest import attach_case_results, finalize_run, ingest_report
 from server.models_db import Benchmark, CaseResultRow, EvalRun
 from server.progress import InMemoryProgress
-from server.services.case_retry import IncrementalRetryPersister, _hydrate_frozen_case_images
+from server.services.case_retry import (
+    IncrementalRetryPersister,
+    _hydrate_frozen_case_images,
+    launch_cases_retry,
+)
 from server.services.eval_artifacts import (
     IncrementalRunPersister,
     load_persisted_case_results,
@@ -517,6 +523,59 @@ def test_retry_cases_rejects_when_source_run_has_an_active_durable_job(client, s
         row = session.get(EvalRun, run_id)
         assert row.status == "success"
         assert row.progress == {}
+
+
+def test_retry_cases_restores_run_when_job_submission_fails(initialized_db, settings):
+    source = make_report("retry_cases_submit_failure")
+    out_dir = settings.outputs_dir / source.run_name
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "report.json").write_text(source.model_dump_json(), encoding="utf-8")
+    sample_ids = [result.case.sample_id for result in source.results]
+    with session_scope() as session:
+        benchmark = Benchmark(
+            name="retry-cases-submit-failure-bm",
+            source="uploaded",
+            storage_path="/tmp/none",
+        )
+        session.add(benchmark)
+        session.flush()
+        run = ingest_report(session, source, benchmark_id=benchmark.id)
+        run.progress = {"completed": True}
+        run.error_msg = "原状态"
+        original_finished_at = run.finished_at
+        run_id = run.id
+
+    class FailingRunner:
+        def queue_snapshot(self, _run_id):
+            return None
+
+        async def submit(self, _run_id, _job):
+            raise RuntimeError("queue unavailable")
+
+    def noop_builder(_run_id, *, sample_ids):
+        async def job(_progress):
+            return None
+
+        return job
+
+    with session_scope() as session:
+        with pytest.raises(RuntimeError, match="queue unavailable"):
+            asyncio.run(
+                launch_cases_retry(
+                    session,
+                    run_id,
+                    sample_ids=sample_ids,
+                    job_runner=FailingRunner(),
+                    build_retry_cases_job=noop_builder,
+                )
+            )
+
+    with session_scope() as session:
+        run = session.get(EvalRun, run_id)
+        assert run.status == "success"
+        assert run.error_msg == "原状态"
+        assert run.progress == {"completed": True}
+        assert run.finished_at == original_finished_at
 
 
 def test_cancel_retry_cases_marks_only_unfinished_cases_cancelled(client, settings, monkeypatch):

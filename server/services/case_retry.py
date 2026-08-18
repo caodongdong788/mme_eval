@@ -174,6 +174,33 @@ def _replace_case_row(target: CaseResultRow, result: CaseResult, pricing: dict |
     update_case_row(target, replacement)
 
 
+def _retry_launch_snapshot(run: EvalRun) -> dict:
+    """保存提交重试任务前的 Run 状态，入队失败时原样恢复。"""
+    return {
+        "status": run.status,
+        "error_msg": run.error_msg,
+        "progress": dict(run.progress or {}),
+        "finished_at": run.finished_at,
+    }
+
+
+def _restore_failed_retry_launch(
+    session: Session,
+    run_id: int,
+    snapshot: dict,
+) -> None:
+    """避免任务提交异常后遗留没有队列 Job 的 pending Run。"""
+    session.expire_all()
+    run = session.get(EvalRun, run_id)
+    if run is None:
+        return
+    run.status = snapshot["status"]
+    run.error_msg = snapshot["error_msg"]
+    run.progress = snapshot["progress"]
+    run.finished_at = snapshot["finished_at"]
+    session.commit()
+
+
 def validate_case_retry(
     session: Session, run_id: int, sample_ids: list[str]
 ) -> EvalRun:
@@ -208,12 +235,17 @@ async def launch_case_retry(
     """把当前 run 置为 pending 并提交该 Case 的真实调用任务。"""
     _ensure_retry_queue_is_idle(job_runner, run_id)
     source = validate_case_retry(session, run_id, [sample_id])
+    previous = _retry_launch_snapshot(source)
     source.status = "pending"
     source.error_msg = ""
     source.progress = {"context": {"kind": "case_retry", "sample_id": sample_id}}
     session.commit()
     job = build_retry_case_job(run_id, sample_id=sample_id)
-    await job_runner.submit(run_id, job)
+    try:
+        await job_runner.submit(run_id, job)
+    except BaseException:
+        _restore_failed_retry_launch(session, run_id, previous)
+        raise
     return source
 
 
@@ -229,6 +261,7 @@ async def launch_cases_retry(
     ordered_ids = list(dict.fromkeys(sample_id.strip() for sample_id in sample_ids if sample_id.strip()))
     _ensure_retry_queue_is_idle(job_runner, run_id)
     source = validate_case_retry(session, run_id, ordered_ids)
+    previous = _retry_launch_snapshot(source)
     source.status = "pending"
     source.error_msg = ""
     source.progress = {
@@ -240,7 +273,11 @@ async def launch_cases_retry(
     # 先提交事务，避免后台 job 的 running 状态被当前请求的 pending 覆盖。
     session.commit()
     job = build_retry_cases_job(run_id, sample_ids=ordered_ids)
-    await job_runner.submit(run_id, job)
+    try:
+        await job_runner.submit(run_id, job)
+    except BaseException:
+        _restore_failed_retry_launch(session, run_id, previous)
+        raise
     return source
 
 

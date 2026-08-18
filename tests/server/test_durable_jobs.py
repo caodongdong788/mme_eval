@@ -10,6 +10,7 @@ from server.durable_queue import (
     cancel_job,
     cancel_attribution_job,
     claim_job,
+    enqueue_job,
     enqueue_attribution_job,
     finish_job,
     heartbeat_job,
@@ -204,6 +205,68 @@ def test_attribution_job_is_deduplicated_and_can_be_cancelled(initialized_db):
     assert claim_job("worker-a", 30) is None
 
 
+def test_execution_job_is_not_deduplicated_against_active_attribution(initialized_db):
+    run_id = _new_run()
+    with session_scope() as session:
+        task = AttributionTask(
+            run_id=run_id,
+            judge_model_id=1,
+            judge_model_name="attribution-model",
+            status="queued",
+        )
+        session.add(task)
+        session.flush()
+        task_id = task.id
+
+    attribution_job_id = enqueue_attribution_job(run_id, task_id)
+    retry_job_id = enqueue_job(run_id, "cases_retry", {"sample_ids": ["case_1"]})
+
+    assert retry_job_id != attribution_job_id
+    with session_scope() as session:
+        rows = list(
+            session.query(EvaluationJob)
+            .filter(EvaluationJob.run_id == run_id)
+            .order_by(EvaluationJob.id)
+        )
+        assert [(row.kind, row.status) for row in rows] == [
+            ("attribution", "queued"),
+            ("cases_retry", "queued"),
+        ]
+
+
+def test_cancel_execution_job_does_not_cancel_active_attribution(initialized_db):
+    run_id = _new_run()
+    with session_scope() as session:
+        session.add_all(
+            [
+                EvaluationJob(
+                    run_id=run_id,
+                    kind="evaluation",
+                    payload={},
+                    status="queued",
+                ),
+                EvaluationJob(
+                    run_id=run_id,
+                    kind="attribution",
+                    payload={"attribution_task_id": 99},
+                    status="queued",
+                ),
+            ]
+        )
+
+    assert cancel_job(run_id)
+    with session_scope() as session:
+        rows = list(
+            session.query(EvaluationJob)
+            .filter(EvaluationJob.run_id == run_id)
+            .order_by(EvaluationJob.id)
+        )
+        assert [(row.kind, row.status) for row in rows] == [
+            ("evaluation", "cancelled"),
+            ("attribution", "queued"),
+        ]
+
+
 def test_queue_snapshot_keeps_active_evaluation_visible_when_attribution_exists(initialized_db):
     run_id = _new_run()
     with session_scope() as session:
@@ -254,3 +317,63 @@ def test_startup_reconciles_legacy_run_with_checkpoint(initialized_db):
         assert run.status == "pending"
         assert queued.kind == "resume"
         assert queued.payload["in_place"] is True
+
+
+def test_startup_reconciles_unqueued_case_retry_with_original_scope(initialized_db):
+    settings = initialized_db
+    run_id = _new_run()
+    with session_scope() as session:
+        run = session.get(EvalRun, run_id)
+        run.status = "pending"
+        run.run_slug = "orphaned-case-retry"
+        run.progress = {
+            "context": {
+                "kind": "cases_retry",
+                "sample_ids": ["case_17", "case_18", "case_17"],
+            }
+        }
+    out_dir = settings.outputs_dir / "orphaned-case-retry"
+    out_dir.mkdir(parents=True)
+    (out_dir / "report.json").write_text("{}", encoding="utf-8")
+
+    assert reconcile_unqueued_runs(settings) == (1, 0)
+    with session_scope() as session:
+        queued = session.query(EvaluationJob).one()
+        assert queued.kind == "cases_retry"
+        assert queued.payload == {"sample_ids": ["case_17", "case_18"]}
+
+
+def test_startup_reconciles_retry_even_when_attribution_is_active(initialized_db):
+    settings = initialized_db
+    run_id = _new_run()
+    with session_scope() as session:
+        run = session.get(EvalRun, run_id)
+        run.status = "pending"
+        run.run_slug = "retry-with-active-attribution"
+        run.progress = {
+            "context": {"kind": "cases_retry", "sample_ids": ["case_43"]}
+        }
+        session.add(
+            EvaluationJob(
+                run_id=run_id,
+                kind="attribution",
+                payload={"attribution_task_id": 7},
+                status="running",
+                lease_owner="attribution-worker",
+            )
+        )
+    out_dir = settings.outputs_dir / "retry-with-active-attribution"
+    out_dir.mkdir(parents=True)
+    (out_dir / "report.json").write_text("{}", encoding="utf-8")
+
+    assert reconcile_unqueued_runs(settings) == (1, 0)
+    with session_scope() as session:
+        rows = list(
+            session.query(EvaluationJob)
+            .filter(EvaluationJob.run_id == run_id)
+            .order_by(EvaluationJob.id)
+        )
+        assert [(row.kind, row.status) for row in rows] == [
+            ("attribution", "running"),
+            ("cases_retry", "queued"),
+        ]
