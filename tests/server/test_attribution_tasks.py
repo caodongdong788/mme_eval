@@ -5,6 +5,7 @@ from copy import deepcopy
 from dataclasses import replace
 
 import pytest
+from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 
 from factories import make_report
@@ -487,6 +488,35 @@ def test_batch_attribution_skips_passed_cases(initialized_db, monkeypatch):
         assert task.skipped_count == 1
 
 
+def test_attribution_task_rejects_unreachable_codex_gateway_before_creating_cases(
+    initialized_db, monkeypatch
+):
+    run_id, sample_ids, model_id = _seed_failed_cases()
+    with session_scope() as session:
+        model = session.get(JudgeModelConfig, model_id)
+        assert model is not None
+        model.provider = "codex"
+        model.base_url = "http://codex-gateway.internal:8787/v1"
+
+    monkeypatch.setattr(attribution_tasks, "has_judge_model_api_key", lambda _model: True)
+    monkeypatch.setattr(
+        attribution_tasks,
+        "ensure_attribution_model_reachable",
+        lambda _model: (_ for _ in ()).throw(HTTPException(503, "Codex 网关不可达")),
+    )
+    with session_scope() as session:
+        run = session.get(EvalRun, run_id)
+        with pytest.raises(HTTPException, match="Codex 网关不可达"):
+            attribution_tasks.create_attribution_task(
+                session,
+                run,
+                sample_ids=sample_ids,
+                judge_model_id=model_id,
+                created_by="test",
+            )
+        assert session.query(AttributionTask).filter_by(run_id=run_id).count() == 0
+
+
 def test_database_rejects_two_active_attribution_tasks_for_same_run(
     initialized_db, monkeypatch
 ):
@@ -595,6 +625,41 @@ def test_all_case_failures_mark_whole_task_failed(initialized_db, monkeypatch):
     assert payload["status"] == "failed"
     assert payload["success_count"] == 0
     assert payload["failed_count"] == len(sample_ids)
+
+
+def test_worker_keeps_cases_pending_when_codex_gateway_goes_offline(
+    initialized_db, monkeypatch
+):
+    run_id, sample_ids, model_id = _seed_failed_cases()
+    with session_scope() as session:
+        model = session.get(JudgeModelConfig, model_id)
+        assert model is not None
+        model.provider = "codex"
+        model.base_url = "http://codex-gateway.internal:8787/v1"
+
+    monkeypatch.setattr(attribution_tasks, "has_judge_model_api_key", lambda _model: True)
+    monkeypatch.setattr(attribution_tasks, "ensure_attribution_model_reachable", lambda _model: None)
+    with session_scope() as session:
+        run = session.get(EvalRun, run_id)
+        task = attribution_tasks.create_attribution_task(
+            session, run, sample_ids=sample_ids, judge_model_id=model_id, created_by="test"
+        )
+        task_id = task.id
+
+    monkeypatch.setattr(
+        attribution_tasks,
+        "ensure_attribution_model_reachable",
+        lambda _model: (_ for _ in ()).throw(HTTPException(503, "Codex 网关不可达")),
+    )
+    asyncio.run(attribution_tasks.run_attribution_task(task_id))
+
+    with session_scope() as session:
+        payload = attribution_tasks.get_attribution_task(session, run_id, task_id)
+    assert payload["status"] == "failed"
+    assert payload["completed_count"] == 0
+    assert payload["failed_count"] == 0
+    assert payload["pending_count"] == len(sample_ids)
+    assert "Codex 网关不可达" in payload["error_msg"]
 
 
 def test_each_attribution_task_keeps_its_own_result_snapshot(initialized_db, monkeypatch):

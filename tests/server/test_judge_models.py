@@ -2,10 +2,79 @@
 
 from __future__ import annotations
 
+import json
+from urllib.error import URLError
+
+import pytest
+from fastapi import HTTPException
+
 from server.benchmarks import create_uploaded_benchmark
 from server.db import session_scope
 from server.models_db import EvalRun, JudgeModelConfig
 from server.services.default_judge_model import ensure_default_judge_model
+from server.services.judge_models import ensure_attribution_model_reachable
+
+
+def test_codex_attribution_model_reachability_blocks_offline_gateway(monkeypatch):
+    model = JudgeModelConfig(
+        name="本机 Codex",
+        provider="codex",
+        model="gpt-5.6-sol",
+        base_url="http://10.30.7.77:18787/v1",
+        api_key="test-token",
+    )
+
+    def offline(*_args, **_kwargs):
+        raise URLError("connection refused")
+
+    monkeypatch.setattr("server.services.judge_models.urlopen", offline)
+    with pytest.raises(HTTPException) as exc_info:
+        ensure_attribution_model_reachable(model)
+
+    assert exc_info.value.status_code == 503
+    assert "服务不可达" in str(exc_info.value.detail)
+
+
+def test_non_codex_attribution_model_skips_gateway_probe(monkeypatch):
+    model = JudgeModelConfig(
+        name="DashScope",
+        provider="openai",
+        model="kimi/kimi-k3",
+        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        api_key="test-token",
+    )
+    monkeypatch.setattr(
+        "server.services.judge_models.urlopen",
+        lambda *_args, **_kwargs: pytest.fail("云模型不应额外触发网关探测"),
+    )
+
+    ensure_attribution_model_reachable(model)
+
+
+def test_codex_attribution_model_reachability_requires_ready_cli(monkeypatch):
+    model = JudgeModelConfig(
+        name="本机 Codex",
+        provider="codex",
+        model="gpt-5.6-sol",
+        base_url="http://codex-gateway.internal:8787/v1",
+        api_key="test-token",
+    )
+
+    class GatewayResponse:
+        status = 200
+
+        def read(self):
+            return json.dumps({"ok": True, "codex_available": False}).encode()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+    monkeypatch.setattr("server.services.judge_models.urlopen", lambda *_args, **_kwargs: GatewayResponse())
+    with pytest.raises(HTTPException, match="未检测到 Codex CLI"):
+        ensure_attribution_model_reachable(model)
 
 
 def _seed_benchmark(settings) -> int:

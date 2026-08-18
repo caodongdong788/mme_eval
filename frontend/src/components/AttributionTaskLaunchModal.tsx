@@ -65,7 +65,7 @@ export function AttributionTaskLaunchModal({
             showIcon
             style={{ marginBottom: 20 }}
             message="仅分析不合格用例"
-            description="合格用例会自动跳过；系统同时最多分析 3 条，完成一条就立即展示一条结果。"
+            description="合格用例会自动跳过；开始前会校验 Codex 网关是否可连接。系统同时最多分析 3 条，完成一条就立即展示一条结果。"
           />
         </>
       ) : (

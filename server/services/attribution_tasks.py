@@ -25,7 +25,11 @@ from ..models_db import (
 from .case_attribution import generate_case_attribution
 from .case_query import case_row_or_404
 from .attribution_summary import build_task_diagnostic_summary
-from .judge_models import get_judge_model_or_404, has_judge_model_api_key
+from .judge_models import (
+    ensure_attribution_model_reachable,
+    get_judge_model_or_404,
+    has_judge_model_api_key,
+)
 
 
 log = logging.getLogger(__name__)
@@ -174,6 +178,7 @@ def create_attribution_task(
     model = get_judge_model_or_404(session, judge_model_id)
     if not has_judge_model_api_key(model):
         raise HTTPException(status_code=422, detail=f"归因模型「{model.name}」未配置可用的 API Key")
+    ensure_attribution_model_reachable(model)
     ordered_ids = list(dict.fromkeys(item.strip() for item in sample_ids if item.strip()))
     if not ordered_ids:
         raise HTTPException(status_code=422, detail="请至少选择一个用例")
@@ -228,6 +233,7 @@ def _set_attribution_task_model(
     model = get_judge_model_or_404(session, judge_model_id)
     if not has_judge_model_api_key(model):
         raise HTTPException(status_code=422, detail=f"归因模型「{model.name}」未配置可用的 API Key")
+    ensure_attribution_model_reachable(model)
     task.judge_model_id = model.id
     task.judge_model_name = model.name
 
@@ -376,6 +382,17 @@ def _set_task_running(task_id: int) -> None:
         task.started_at = task.started_at or datetime.utcnow()
 
 
+def _mark_task_model_unavailable(task_id: int, detail: str) -> None:
+    """把网关离线视为任务级故障，不逐条消耗待归因 Case。"""
+    with session_scope() as session:
+        task = session.get(AttributionTask, task_id)
+        if task is None:
+            return
+        task.status = "failed"
+        task.error_msg = detail[:2000]
+        task.finished_at = datetime.utcnow()
+
+
 async def _run_item(task_id: int, item_id: int) -> None:
     try:
         # 先读取模型键再等待并发槽位。同一模型的多个任务共享 3 个槽位；
@@ -441,6 +458,27 @@ async def run_attribution_task(task_id: int, *, recover_interrupted_items: bool 
     # 上一个重判任务的 semaphore，也不会被同时运行的评测任务替换。
     configure_llm_rate_limit(_MAX_CONCURRENCY, 0.0)
     try:
+        model_preflight_error: str | None = None
+        with session_scope() as session:
+            task = session.get(AttributionTask, task_id)
+            if task is None:
+                return
+            model = session.get(JudgeModelConfig, task.judge_model_id)
+            if model is None:
+                model_preflight_error = "归因模型已被删除，请重新选择模型后继续归因"
+            else:
+                try:
+                    ensure_attribution_model_reachable(model)
+                except HTTPException as exc:
+                    model_preflight_error = str(exc.detail)
+
+        if model_preflight_error:
+            # 创建任务到 Worker 领取之间网关可能下线。此时不把所有 pending
+            # Case 依次请求一次再标失败，恢复网关后可直接“继续归因”。
+            _mark_task_model_unavailable(task_id, model_preflight_error)
+            log.warning("attribution task=%s model preflight failed: %s", task_id, model_preflight_error)
+            return
+
         _set_task_running(task_id)
         with session_scope() as session:
             if recover_interrupted_items:
