@@ -36,8 +36,7 @@ describe("RunAttributionCategoryCharts", () => {
 
     expect(screen.getByText("归因一级分类")).toBeInTheDocument();
     expect(screen.getByText("归因二级分类")).toBeInTheDocument();
-    expect(screen.getByText(/每个 Case 仅采用最新一次成功归因/)).toHaveTextContent(
-      "已归因 3 个 Case"
-    );
+    expect(screen.getByText(/每个 Case 仅采用最新一次成功归因/)).toBeInTheDocument();
+    expect(screen.getByText(/已归因/)).toHaveTextContent("已归因 3 个 Case");
   });
 });
