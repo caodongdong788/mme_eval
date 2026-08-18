@@ -31,14 +31,18 @@ from .judge_models import get_judge_model_or_404, has_judge_model_api_key
 log = logging.getLogger(__name__)
 _MAX_CONCURRENCY = 3
 _task_futures: dict[int, asyncio.Task] = {}
-_global_semaphore: asyncio.Semaphore | None = None
+_model_semaphores: dict[int, asyncio.Semaphore] = {}
 
 
-def _semaphore() -> asyncio.Semaphore:
-    global _global_semaphore
-    if _global_semaphore is None:
-        _global_semaphore = asyncio.Semaphore(_MAX_CONCURRENCY)
-    return _global_semaphore
+def _semaphore(judge_model_id: int) -> asyncio.Semaphore:
+    """同一归因模型共享并发上限，不同模型之间互不阻塞。"""
+
+    model_id = int(judge_model_id)
+    semaphore = _model_semaphores.get(model_id)
+    if semaphore is None:
+        semaphore = asyncio.Semaphore(_MAX_CONCURRENCY)
+        _model_semaphores[model_id] = semaphore
+    return semaphore
 
 
 def _task_out(session: Session, task: AttributionTask, *, include_items: bool) -> dict[str, Any]:
@@ -374,7 +378,14 @@ def _set_task_running(task_id: int) -> None:
 
 async def _run_item(task_id: int, item_id: int) -> None:
     try:
-        async with _semaphore():
+        # 先读取模型键再等待并发槽位。同一模型的多个任务共享 3 个槽位；
+        # 不同模型各自执行，避免先启动的慢模型饿死后续模型任务。
+        with session_scope() as session:
+            task = session.get(AttributionTask, task_id)
+            if task is None:
+                return
+            judge_model_id = task.judge_model_id
+        async with _semaphore(judge_model_id):
             # 先用一个短事务落下“分析中”，避免在等待模型响应期间持有 SQLite 写锁。
             with session_scope() as session:
                 item = session.get(AttributionTaskItem, item_id)

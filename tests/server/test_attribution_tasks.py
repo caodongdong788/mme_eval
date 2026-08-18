@@ -413,7 +413,7 @@ def test_batch_attribution_runs_three_cases_concurrently_and_persists_items(
 
     monkeypatch.setattr(attribution_tasks, "has_judge_model_api_key", lambda _model: True)
     monkeypatch.setattr(attribution_tasks, "generate_case_attribution", fake_generate)
-    monkeypatch.setattr(attribution_tasks, "_global_semaphore", None)
+    monkeypatch.setattr(attribution_tasks, "_model_semaphores", {})
 
     with session_scope() as session:
         run = session.get(EvalRun, run_id)
@@ -435,6 +435,40 @@ def test_batch_attribution_runs_three_cases_concurrently_and_persists_items(
     assert payload["completed_count"] == 4
     assert payload["success_count"] == 4
     assert all(item["attribution_available"] for item in payload["items"])
+
+
+def test_attribution_concurrency_is_shared_per_model_and_independent_across_models(
+    monkeypatch,
+):
+    monkeypatch.setattr(attribution_tasks, "_model_semaphores", {})
+
+    async def exercise() -> None:
+        first_model = attribution_tasks._semaphore(101)
+        same_model = attribution_tasks._semaphore(101)
+        other_model = attribution_tasks._semaphore(202)
+
+        assert same_model is first_model
+        assert other_model is not first_model
+
+        for _ in range(attribution_tasks._MAX_CONCURRENCY):
+            await first_model.acquire()
+
+        blocked_same_model = asyncio.create_task(same_model.acquire())
+        await asyncio.sleep(0)
+        assert not blocked_same_model.done()
+
+        # 另一个模型不受第一个模型已经占满的 3 个槽位影响。
+        await asyncio.wait_for(other_model.acquire(), timeout=0.1)
+        other_model.release()
+
+        first_model.release()
+        await asyncio.wait_for(blocked_same_model, timeout=0.1)
+
+        # 归还其余已取得的槽位，避免测试结束时留下等待者。
+        for _ in range(attribution_tasks._MAX_CONCURRENCY):
+            first_model.release()
+
+    asyncio.run(exercise())
 
 
 def test_batch_attribution_skips_passed_cases(initialized_db, monkeypatch):
@@ -752,7 +786,7 @@ def test_resumed_task_executes_only_pending_items(initialized_db, monkeypatch):
         return {"available": True, "stale": False, "analysis": {}, "metadata": {}}
 
     monkeypatch.setattr(attribution_tasks, "generate_case_attribution", fake_generate)
-    monkeypatch.setattr(attribution_tasks, "_global_semaphore", None)
+    monkeypatch.setattr(attribution_tasks, "_model_semaphores", {})
     with session_scope() as session:
         run = session.get(EvalRun, run_id)
         task = attribution_tasks.create_attribution_task(
@@ -806,7 +840,7 @@ def test_database_recovery_enqueues_interrupted_attribution_without_losing_succe
         return {"available": True, "stale": False, "analysis": {"sample": row.sample_id}, "metadata": {}}
 
     monkeypatch.setattr(attribution_tasks, "generate_case_attribution", fake_generate)
-    monkeypatch.setattr(attribution_tasks, "_global_semaphore", None)
+    monkeypatch.setattr(attribution_tasks, "_model_semaphores", {})
     asyncio.run(attribution_tasks.run_attribution_task(task_id, recover_interrupted_items=True))
     with session_scope() as session:
         payload = attribution_tasks.get_attribution_task(session, run_id, task_id)
