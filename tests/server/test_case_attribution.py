@@ -20,6 +20,7 @@ from server.services.case_attribution import (
     _contrastive_controls,
     _deductions,
     _normalize_analysis,
+    _sanitize_business_text,
     _safe_provider_error,
     _score_health,
     generate_case_attribution,
@@ -114,6 +115,8 @@ class _FakeBackend:
         assert "evidence_summary" in prompt
         assert "impact" in prompt
         assert "不得泛化" in prompt
+        assert "不得出现 node UUID" in prompt
+        assert "不要写“终答生成节点 node:xxxx”" in prompt
         assert kwargs["request_timeout_s"] == 600.0
         assert max_retries == 2
         assert kwargs["retry_transient_errors"] is True
@@ -184,6 +187,19 @@ class _FakeBackend:
             "global_recommendations": [],
             "limitations": [],
         }
+
+
+def test_business_text_hides_internal_trace_ids_without_removing_medical_numbers():
+    value = (
+        "对话证据：当前对话第 2 条未追问；调用链证据：终答生成节点 "
+        "node:50641f18-7b32-445e-bf00-66c4b7976418 输出全文未询问；"
+        "用户体温 38.5℃，化疗后第 3 天。\n"
+        "来源：对话消息 2 AI 助手调用链节点：19d78d4c8260fbb0"
+    )
+    assert _sanitize_business_text(value) == (
+        "对话证据：当前对话未追问；调用链证据：输出全文未询问；"
+        "用户体温 38.5℃，化疗后第 3 天。"
+    )
 
 
 class _SlowBackend:
@@ -277,7 +293,7 @@ def test_case_attribution_generate_persist_and_mark_stale(
         "insufficient_evidence": "evidence",
     }[normalized_item["deduction_validation"]]
     assert normalized_item["recommendations"][0]["scope"] == expected_scope
-    assert payload["metadata"]["prompt_version"] == "case-attribution-v11"
+    assert payload["metadata"]["prompt_version"] == "case-attribution-v12"
 
     with session_scope() as session:
         row = session.query(CaseResultRow).filter_by(run_id=run_id, sample_id="bc_002").one()

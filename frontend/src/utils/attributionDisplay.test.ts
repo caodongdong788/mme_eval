@@ -40,7 +40,16 @@ describe("attributionDisplay", () => {
     expect(humanizeAttributionText("initial_state.user_profile由system message提供，generator需要复核guideline.g05", analyses))
       .toBe("用户预置档案由系统上下文消息提供，回答生成环节需要复核指南扣分项 05");
     expect(humanizeAttributionText("rag:1:source:2:chunk:1与message:2是证据", analyses))
-      .toBe("第 1 次 RAG 检索 · 文献 2 · 片段 1与对话消息 2是证据");
+      .toBe("RAG 检索证据与当前对话是证据");
+  });
+
+  it("removes internal node ids and message indexes from business descriptions", () => {
+    expect(humanizeAttributionText(
+      "对话证据：当前对话第 2 条未追问；调用链证据：终答生成节点 node:50641f18-7b32-445e-bf00-66c4b7976418 输出全文无手术类型与麻醉方式追问；系统侧也未禁止该追问。\n来源：对话消息 2 AI 助手调用链节点：19d78d4c8260fbb0",
+      analyses,
+    )).toBe(
+      "对话证据：当前对话未追问；调用链证据：输出全文无手术类型与麻醉方式追问；系统侧也未禁止该追问。",
+    );
   });
 
   it("turns RAG diagnostic enums into user-facing language", () => {

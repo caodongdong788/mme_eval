@@ -502,6 +502,9 @@ function AttributionEvidenceContent({
     ...(item.contributing_causes || []).flatMap((cause) => cause.evidence_refs || []),
     ...(item.causal_chain || []).flatMap((step) => step.evidence_refs || []),
   ])];
+  const readableRefs = [...new Set(
+    refs.map((ref) => humanizeEvidenceRef(ref, analyses)).filter(Boolean)
+  )];
   if (!summary && !excerpts.length && !refs.length) {
     return <>暂无可引用的直接证据</>;
   }
@@ -513,11 +516,11 @@ function AttributionEvidenceContent({
           原文：{humanizeAttributionText(excerpt, analyses)}
         </Typography.Text>
       ))}
-      {refs.length ? (
+      {readableRefs.length ? (
         <Space size={4} wrap>
-          <Typography.Text type="secondary">来源：</Typography.Text>
-          {refs.map((ref) => (
-            <Tag key={ref}>{humanizeEvidenceRef(ref, analyses)}</Tag>
+          <Typography.Text type="secondary">证据范围：</Typography.Text>
+          {readableRefs.map((ref) => (
+            <Tag key={ref}>{ref}</Tag>
           ))}
         </Space>
       ) : null}
@@ -632,9 +635,9 @@ function DeductionPanel({
                 <div>{humanizeAttributionText(step.finding, analyses)}</div>
                 {step.evidence_refs?.length ? (
                   <div className="attribution-evidence">
-                    证据位置：
-                    {step.evidence_refs
-                      .map((ref) => humanizeEvidenceRef(ref, analyses))
+                    证据范围：
+                    {[...new Set(step.evidence_refs
+                      .map((ref) => humanizeEvidenceRef(ref, analyses)))]
                       .join("、")}
                   </div>
                 ) : null}

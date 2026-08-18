@@ -313,8 +313,10 @@ describe("RunAttributionTab", () => {
     expect(
       screen.getByText("原文：回答原文：可以等下次常规复诊时再咨询医生。")
     ).toBeInTheDocument();
-    expect(screen.getByText("Timeline 长期事实 · 3")).toBeInTheDocument();
-    expect(screen.getByText("对话消息 2")).toBeInTheDocument();
+    expect(screen.getByText("Timeline 长期事实")).toBeInTheDocument();
+    expect(screen.getByText("当前对话")).toBeInTheDocument();
+    expect(screen.queryByText(/Timeline 长期事实 · 3/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/对话消息 2/)).not.toBeInTheDocument();
   });
 
   it("shows a newly created attribution task immediately without a page refresh", async () => {

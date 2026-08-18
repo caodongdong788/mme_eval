@@ -104,9 +104,20 @@ export function humanizeAttributionText(
   if (!output) return "—";
 
   output = output
-    .replace(/rag:(\d+):source:(\d+):chunk:(\d+)/gi, "第 $1 次 RAG 检索 · 文献 $2 · 片段 $3")
-    .replace(/rag:(\d+):source:(\d+)/gi, "第 $1 次 RAG 检索 · 文献 $2")
-    .replace(/message:(\d+)/gi, "对话消息 $1");
+    // 节点 UUID、消息序号和检索内部下标只用于系统回链，不应出现在业务描述中。
+    .replace(
+      /(?:终答生成节点|AI\s*助手调用(?:链)?节点|调用链节点)\s*[：:]?\s*(?:node:)?[a-z0-9][a-z0-9_-]{7,}/gi,
+      "最终回答调用链",
+    )
+    .replace(/node:[a-z0-9_-]{8,}/gi, "AI 助手调用链")
+    .replace(/rag:\d+:source:\d+(?::chunk:\d+)?/gi, "RAG 检索证据")
+    .replace(/message:\d+/gi, "当前对话")
+    .replace(/当前对话第\s*\d+\s*(?:条|轮)?/g, "当前对话")
+    .replace(/对话消息\s*\d+/g, "当前对话")
+    .replace(/score_health:\d+/gi, "判分健康检查")
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, "")
+    .replace(/（当前对话）/g, "")
+    .replace(/\(当前对话\)/g, "");
 
   analyses.forEach((item) => {
     output = output.replace(
@@ -139,16 +150,27 @@ export function humanizeAttributionText(
     .replace(/system消息/gi, "系统上下文消息")
     .replace(/agent_chain/gi, "AI 助手调用链")
     .replace(/dimension_criteria/gi, "八维评测要求")
-    .replace(/citation映射/gi, "引用编号映射");
+    .replace(/citation映射/gi, "引用编号映射")
+    .replace(
+      /调用链证据[：:]\s*(?:AI 助手调用链|最终回答调用链)\s*输出全文/g,
+      "调用链证据：输出全文",
+    )
+    .replace(/(?:AI 助手调用链|最终回答调用链)\s*输出全文/g, "调用链证据：输出全文")
+    .replace(/当前对话\s*(助手回答|用户提问|用户消息)/g, "当前对话中，$1")
+    // 原始回链清单已由下方“证据范围”标签承载，不在描述里重复展示。
+    .replace(/(?:^|\n|[；;])\s*来源[：:][^\n]*$/g, "")
+    .replace(/[：:]\s*[；;,，]/g, "：")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 export function humanizeEvidenceRef(value: string, analyses: AttributionDeductionAnalysis[]) {
   const ragChunk = value.match(/^rag:(\d+):source:(\d+)(?::chunk:(\d+))?$/);
   if (ragChunk) {
-    return `第 ${ragChunk[1]} 次 RAG 检索 · 文献 ${ragChunk[2]}${ragChunk[3] ? ` · 片段 ${ragChunk[3]}` : ""}`;
+    return "RAG 检索证据";
   }
   const message = value.match(/^message:(\d+)$/);
-  if (message) return `对话消息 ${message[1]}`;
+  if (message) return "当前对话";
   const caseContext = value.match(
     /^case:(user_profile|medical_record|timeline|history|definition)(?::(.+))?$/
   );
@@ -160,18 +182,15 @@ export function humanizeEvidenceRef(value: string, analyses: AttributionDeductio
       history: "历史事实",
       definition: "Case 定义",
     };
-    const suffix = caseContext[2]
-      ? ` · ${caseContext[2].split(":").join(" · ")}`
-      : "";
-    return `${labels[caseContext[1]] || "Case 上下文"}${suffix}`;
+    return labels[caseContext[1]] || "用例上下文";
   }
   const node = value.match(/^node:(.+)$/);
-  if (node) return `AI 助手调用链节点：${node[1]}`;
+  if (node) return "AI 助手调用链";
   if (value === "run:config") return "评测运行配置";
   if (value === "trace:agent_chain") return "AI 助手调用链摘要";
   if (value === "trace:observability") return "RAG 与链路可观测性摘要";
   const scoreHealth = value.match(/^score_health:(\d+)$/);
-  if (scoreHealth) return `判分健康检查 ${scoreHealth[1]}`;
+  if (scoreHealth) return "判分健康检查";
   return humanizeAttributionText(value, analyses);
 }
 
