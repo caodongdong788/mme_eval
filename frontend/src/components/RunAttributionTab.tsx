@@ -1646,6 +1646,7 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
 export interface RunAttributionTabProps {
   runId: number;
   loading?: boolean;
+  latestTask?: AttributionTask | null;
   mode?: "list" | "detail";
   selectedTaskId?: number;
   onSelectedTaskIdChange?: (taskId: number | undefined) => void;
@@ -1665,6 +1666,7 @@ type AttributionModelSelection =
 export function RunAttributionTab({
   runId,
   loading,
+  latestTask,
   mode = "list",
   selectedTaskId,
   onSelectedTaskIdChange,
@@ -1685,15 +1687,26 @@ export function RunAttributionTab({
   const loadTasks = useCallback(
     async (silent = false) => {
       try {
-        const next = (await api.listAttributionTasks(runId)).map(
+        const fetched = (await api.listAttributionTasks(runId)).map(
           normalizeTaskCounts
         );
+        // 创建接口已经返回、列表接口尚未读到最新事务时，也不能把刚插入的
+        // 任务从界面覆盖掉；一旦列表接口返回该任务，则以后端进度为准。
+        const next =
+          latestTask &&
+          latestTask.run_id === runId &&
+          !fetched.some((item) => item.id === latestTask.id)
+            ? [
+                { ...normalizeTaskCounts(latestTask), items: [] },
+                ...fetched,
+              ]
+            : fetched;
         setTasks(next);
       } catch (error) {
         if (!silent) message.error(formatApiError(error, "加载归因任务失败"));
       }
     },
-    [runId]
+    [latestTask, runId]
   );
 
   const loadTask = useCallback(
@@ -1727,6 +1740,14 @@ export function RunAttributionTab({
   useEffect(() => {
     void loadTasks(false);
   }, [loadTasks]);
+  useEffect(() => {
+    if (!latestTask || latestTask.run_id !== runId) return;
+    const next = normalizeTaskCounts(latestTask);
+    setTasks((current) => [
+      { ...next, items: [] },
+      ...current.filter((item) => item.id !== next.id),
+    ]);
+  }, [latestTask, runId]);
   useEffect(() => {
     if (detailMode) void loadTask(false);
   }, [detailMode, loadTask]);

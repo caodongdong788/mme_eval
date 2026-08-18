@@ -3,6 +3,7 @@ import { Form, Modal, message } from "antd";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   api,
+  AttributionTask,
   Benchmark,
   CaseRow,
   JudgeModel,
@@ -58,6 +59,8 @@ export function useRunDashboard(
   const [attributionLaunchOpen, setAttributionLaunchOpen] = useState(false);
   const [attributionCases, setAttributionCases] = useState<CaseRow[]>([]);
   const [attributionLaunching, setAttributionLaunching] = useState(false);
+  const [latestAttributionTask, setLatestAttributionTask] =
+    useState<AttributionTask | null>(null);
 
   const caseFilters = useRunCaseFilters(
     runId,
@@ -77,6 +80,7 @@ export function useRunDashboard(
   useEffect(() => {
     setRunError(null);
     setProgress(null);
+    setLatestAttributionTask(null);
     api
       .getRun(runId)
       .then((r) => {
@@ -283,6 +287,9 @@ export function useRunDashboard(
         sample_ids: sampleIds,
         judge_model_id: judgeModelId,
       });
+      // 归因 Tab 常驻挂载，单纯切换 Tab 不会触发它重新请求列表。
+      // 将接口刚返回的任务直接同步过去，让列表立即显示并启动后续轮询。
+      setLatestAttributionTask(task);
       setAttributionLaunchOpen(false);
       setActiveTab("attribution");
       message.success(
@@ -297,6 +304,7 @@ export function useRunDashboard(
           (item) => item.status === "queued" || item.status === "running"
         );
         if (activeTask) {
+          setLatestAttributionTask(activeTask);
           setAttributionLaunchOpen(false);
           setActiveTab("attribution");
           message.warning(`已打开进行中的归因任务 #${activeTask.id}`);
@@ -406,6 +414,7 @@ export function useRunDashboard(
     setAttributionLaunchOpen,
     attributionCases,
     attributionLaunching,
+    latestAttributionTask,
     openAttributionLaunch,
     startAttributionTask,
     retrySelectedCases,

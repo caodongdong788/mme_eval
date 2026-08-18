@@ -131,7 +131,13 @@ export default function RunDashboardPage() {
           {
             key: "attribution",
             label: "归因分析",
-            children: <RunAttributionTab runId={id} loading={dash.loading} />,
+            children: (
+              <RunAttributionTab
+                runId={id}
+                loading={dash.loading}
+                latestTask={dash.latestAttributionTask}
+              />
+            ),
           },
           {
             key: "diff",

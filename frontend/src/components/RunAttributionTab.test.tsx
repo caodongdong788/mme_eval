@@ -221,6 +221,34 @@ describe("RunAttributionTab", () => {
     );
   });
 
+  it("shows a newly created attribution task immediately without a page refresh", async () => {
+    const latestTask: AttributionTask = {
+      ...task,
+      id: 100,
+      status: "running",
+      completed_count: 0,
+      success_count: 0,
+      running_count: 1,
+      pending_count: 0,
+      items: [],
+    };
+    const view = renderWithProviders(
+      <MemoryRouter>
+        <RunAttributionTab runId={26} />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("归因任务 #99")).toBeInTheDocument();
+    view.rerender(
+      <MemoryRouter>
+        <RunAttributionTab runId={26} latestTask={latestTask} />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("归因任务 #100")).toBeInTheDocument();
+    expect(screen.getByText("归因任务 #99")).toBeInTheDocument();
+  });
+
   it("shows the task summary and completed case results on the detail page", async () => {
     renderWithProviders(
       <MemoryRouter>

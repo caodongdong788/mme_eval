@@ -71,7 +71,7 @@ class Settings:
     builtin_cases_dir: str = "cases/benchmark"
     # 同时并发执行的评测任务上限。
     max_concurrent_jobs: int = field(
-        default_factory=lambda: int(os.environ.get("MEDEVAL_MAX_CONCURRENT_JOBS", "2"))
+        default_factory=lambda: int(os.environ.get("MEDEVAL_MAX_CONCURRENT_JOBS", "3"))
     )
     # in_process：开发/测试兼容模式；database：API 只入队，由独立 Worker 执行。
     job_runner_mode: str = field(
