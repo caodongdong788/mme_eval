@@ -508,7 +508,7 @@ export interface ProgressInfo {
     case_done?: number;
     case_total?: number;
     /** 当前批量重评中每条 Case 的独立状态。 */
-    case_states?: Record<string, { status: "queued" | "running" | "completed" | "cancelled"; percent?: number }>;
+    case_states?: Record<string, { status: "queued" | "running" | "waiting_for_judge" | "completed" | "cancelled"; percent?: number }>;
     /** 用户主动终止了本次重新评测。 */
     cancelled?: boolean;
     percent?: number;

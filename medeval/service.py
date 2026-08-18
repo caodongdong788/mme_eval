@@ -285,6 +285,9 @@ async def run_traces(
                 user_simulator=build_user_simulator(config),
                 on_case_complete=on_case_complete,
                 on_case_timeout=on_case_timeout,
+                # 保留 Agent/Judge 重叠执行，同时给 Judge 队列施加背压，避免几十条
+                # 已完成对话一次性堆入判分阶段。
+                max_in_flight_cases=max(1, concurrency + config.run.judge_concurrency),
             )
     finally:
         if writer is not None:
@@ -315,7 +318,7 @@ async def judge_traces(
     started_at = started_at or datetime.utcnow()
     n_runs = config.run.repeat
     judge_concurrency = config.run.judge_concurrency
-    from .judges.llm_backend import configure_llm_rate_limit
+    from .judges.llm_backend import configure_llm_rate_limit, reset_llm_rate_limit
 
     configure_llm_rate_limit(judge_concurrency, config.run.llm_min_interval_s)
     if declare_plan:
@@ -344,13 +347,18 @@ async def judge_traces(
         folded_results[idx] = folded
         await _notify_case_completed(progress, folded)
 
-    with span("phase.judge", n_cases=len(cases), n_runs=n_runs):
-        await asyncio.gather(
-            *(
-                _judge_case(i, c, runs)
-                for i, (c, runs) in enumerate(zip(cases, per_case_traces))
+    try:
+        with span("phase.judge", n_cases=len(cases), n_runs=n_runs):
+            await asyncio.gather(
+                *(
+                    _judge_case(i, c, runs)
+                    for i, (c, runs) in enumerate(zip(cases, per_case_traces))
+                )
             )
-        )
+    finally:
+        # Durable Worker 会复用协程上下文执行后续任务，不能把本次重判的限流器
+        # 泄漏给归因或下一次评测。
+        reset_llm_rate_limit()
 
     # 每条用例已在完成时独立折叠；按输入顺序组装最终报告，确保与历史输出稳定一致。
     if any(result is None for result in folded_results):
@@ -388,6 +396,14 @@ async def evaluate(
       ``report.run_name`` 与落盘目录一致）；``resume_dir`` → 断点续跑。
     """
     progress = progress or NullProgress()
+    from .judges.llm_backend import configure_llm_rate_limit, reset_llm_rate_limit
+
+    # evaluate 走 Agent/Judge 流水线，不会再经过 judge_traces；必须在这里为本次
+    # Worker 任务建立独立限流上下文。并行评测互不替换彼此的 semaphore。
+    configure_llm_rate_limit(
+        config.run.judge_concurrency,
+        config.run.llm_min_interval_s,
+    )
     started_at = datetime.utcnow()
     n_runs = config.run.repeat
     case_ids = {case.sample_id for case in cases}
@@ -450,7 +466,10 @@ async def evaluate(
         judge_retry_attempts: dict[str, int] = {}
 
         async def judge_completed_case(
-            index: int, _execution_case: TestCase, traces: list[ConversationTrace]
+            index: int,
+            _execution_case: TestCase,
+            traces: list[ConversationTrace],
+            active_timeout_s: float,
         ) -> bool:
             # single_turn 模式会临时展平动态对话；判分仍必须使用原始 Case 真值。
             case = cases[index]
@@ -458,17 +477,26 @@ async def evaluate(
             # run_traces 复用并重写进最终产物，但无需再次消耗 Judge 配额。
             if case.sample_id in restored_results:
                 return False
-            case_judging = getattr(progress, "case_judging", None)
-            if callable(case_judging):
-                case_judging(case.sample_id)
-            run_results: list[CaseResult] = []
-            for trace in traces:
-                async with judge_sem:
-                    result = await judge_all(case, trace, judges)
-                    apply_grading([result])
-                for judge in judges:
-                    progress.advance(f"judge_{judge.name}")
-                run_results.append(result)
+            case_waiting = getattr(progress, "case_waiting_for_judge", None)
+            if callable(case_waiting):
+                case_waiting(case.sample_id)
+            # Judge 队列等待不属于模型执行时间。只有拿到槽位以后，才启动这次
+            # Case 的剩余 600 秒预算，避免把并发排队误报成模型超时。
+            await judge_sem.acquire()
+            try:
+                case_judging = getattr(progress, "case_judging", None)
+                if callable(case_judging):
+                    case_judging(case.sample_id)
+                async with asyncio.timeout(max(0.001, active_timeout_s)):
+                    run_results: list[CaseResult] = []
+                    for trace in traces:
+                        result = await judge_all(case, trace, judges)
+                        apply_grading([result])
+                        for judge in judges:
+                            progress.advance(f"judge_{judge.name}")
+                        run_results.append(result)
+            finally:
+                judge_sem.release()
             folded = fold_n_runs([run_results])[0]
             folded_results[index] = folded
             # 只在首次出现判分服务异常时要求执行器完整重跑该 Case。这里刻意
@@ -556,6 +584,7 @@ async def evaluate(
 
         return report
     finally:
+        reset_llm_rate_limit()
         # 失败、取消和服务关闭时也必须释放 cx-agent 账号租约，避免依赖租约 TTL 回收。
         await adapter.close()
         # 短命进程收尾 flush，保证缓冲的 trace 不丢；关闭/失败时为 no-op。

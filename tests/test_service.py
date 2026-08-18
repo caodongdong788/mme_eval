@@ -326,6 +326,58 @@ def test_evaluate_records_judge_timeout_after_second_case_attempt():
     asyncio.run(scenario())
 
 
+def test_judge_queue_wait_does_not_consume_case_execution_budget():
+    """并发 Case 等 Judge 槽位的时间不能被误判成单题执行超时。"""
+
+    class CountingAdapter(_StubAdapter):
+        def __init__(self):
+            self.calls = 0
+
+        async def chat(self, req) -> ChatResponse:
+            self.calls += 1
+            return await super().chat(req)
+
+    class SlowHealthyJudge:
+        name = "dimension"
+
+        def __init__(self):
+            self.calls = 0
+
+        def fingerprint(self) -> str:
+            return "test-queue-wait-excluded"
+
+        async def judge(self, case, trace):
+            self.calls += 1
+            await asyncio.sleep(0.04)
+            return [
+                JudgeVerdict(
+                    name=f"dimension.{dimension.value}",
+                    passed=True,
+                    score=5,
+                    max_score=5,
+                )
+                for dimension in EvaluationDimension
+            ]
+
+    async def scenario() -> None:
+        config = _config()
+        config.run.concurrency = 2
+        config.run.judge_concurrency = 1
+        config.run.case_timeout_s = 0.06
+        cases = [
+            _case().model_copy(update={"sample_id": "queue_case_1"}),
+            _case().model_copy(update={"sample_id": "queue_case_2"}),
+        ]
+        adapter = CountingAdapter()
+        judge = SlowHealthyJudge()
+        report = await evaluate(config, cases, adapter, [judge])
+        assert adapter.calls == 2
+        assert judge.calls == 2
+        assert all(not result.judge_error for result in report.results)
+
+    asyncio.run(scenario())
+
+
 # --- resolve_diff_target ---------------------------------------------------
 
 

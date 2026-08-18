@@ -16,6 +16,8 @@ LLMJudge / ScoringPointJudge / SemanticRuleAdjudicator 原先各自复制了一�
 from __future__ import annotations
 
 import asyncio
+from contextvars import ContextVar
+from dataclasses import dataclass
 import json
 import logging
 import time
@@ -32,10 +34,20 @@ _QPM_MIN_BACKOFF_S = 60.0
 # 判分属于后台任务，允许模型完成一次复杂推理；但不能无限等待单个请求。
 JUDGE_REQUEST_TIMEOUT_S = 300.0
 
-_gate: asyncio.Semaphore | None = None
-_min_interval_s: float = 0.0
-_interval_lock: asyncio.Lock | None = None
-_last_call_at: float = 0.0
+@dataclass
+class _RateLimitState:
+    gate: asyncio.Semaphore
+    min_interval_s: float
+    interval_lock: asyncio.Lock
+    last_call_at: float = 0.0
+
+
+# 每个 Durable Worker 任务拥有自己的稳定限流状态。旧实现会在并行任务启动时
+# 替换进程全局 semaphore，导致请求取得旧 semaphore 后却释放新 semaphore，
+# 旧队列永久无法唤醒；归因任务也可能继承上一次离线重判遗留的限流器。
+_rate_limit_state: ContextVar[_RateLimitState | None] = ContextVar(
+    "mme_llm_rate_limit_state", default=None
+)
 
 
 def is_kimi_k3_model(model: str | None) -> bool:
@@ -45,40 +57,39 @@ def is_kimi_k3_model(model: str | None) -> bool:
 
 def configure_llm_rate_limit(max_concurrent: int, min_interval_s: float = 0.0) -> None:
     """评测 judge 阶段启动前调用：全局限流八维与指南 chat_json。"""
-    global _gate, _min_interval_s, _interval_lock, _last_call_at
     max_concurrent = max(1, int(max_concurrent))
-    _gate = asyncio.Semaphore(max_concurrent)
-    _min_interval_s = max(0.0, float(min_interval_s))
-    _interval_lock = asyncio.Lock()
-    _last_call_at = 0.0
+    _rate_limit_state.set(
+        _RateLimitState(
+            gate=asyncio.Semaphore(max_concurrent),
+            min_interval_s=max(0.0, float(min_interval_s)),
+            interval_lock=asyncio.Lock(),
+        )
+    )
 
 
 def reset_llm_rate_limit() -> None:
     """测试辅助：清除全局限流状态。"""
-    global _gate, _min_interval_s, _interval_lock, _last_call_at
-    _gate = None
-    _min_interval_s = 0.0
-    _interval_lock = None
-    _last_call_at = 0.0
+    _rate_limit_state.set(None)
 
 
-async def _acquire_llm_slot() -> None:
-    global _last_call_at
-    if _gate is None:
-        return
-    await _gate.acquire()
-    if _min_interval_s <= 0 or _interval_lock is None:
-        return
-    async with _interval_lock:
-        wait = _min_interval_s - (time.monotonic() - _last_call_at)
+async def _acquire_llm_slot() -> _RateLimitState | None:
+    state = _rate_limit_state.get()
+    if state is None:
+        return None
+    await state.gate.acquire()
+    if state.min_interval_s <= 0:
+        return state
+    async with state.interval_lock:
+        wait = state.min_interval_s - (time.monotonic() - state.last_call_at)
         if wait > 0:
             await asyncio.sleep(wait)
-        _last_call_at = time.monotonic()
+        state.last_call_at = time.monotonic()
+    return state
 
 
-def _release_llm_slot() -> None:
-    if _gate is not None:
-        _gate.release()
+def _release_llm_slot(state: _RateLimitState | None) -> None:
+    if state is not None:
+        state.gate.release()
 
 
 def _is_rate_limit_error(exc: BaseException) -> bool:
@@ -251,7 +262,7 @@ class LLMBackend:
                 " [QPM]" if "qpm" in str(exc).lower() else "",
             )
 
-        await _acquire_llm_slot()
+        rate_limit_state = await _acquire_llm_slot()
         try:
             resp = await retry_async(
                 _create,
@@ -265,7 +276,7 @@ class LLMBackend:
                 delay_for=_delay_for_rate_limit,
             )
         finally:
-            _release_llm_slot()
+            _release_llm_slot(rate_limit_state)
         text = resp.choices[0].message.content or "{}"
         return json.loads(text)
 

@@ -25,7 +25,7 @@ export interface RunCaseResultsCardProps {
     status: string;
     cancelled?: boolean;
     sampleIds: string[];
-    caseStates: Record<string, { status: "queued" | "running" | "completed" | "cancelled"; percent?: number }>;
+    caseStates: Record<string, { status: "queued" | "running" | "waiting_for_judge" | "completed" | "cancelled"; percent?: number }>;
   };
   onOpenYamlEditor: () => void;
   onOpenExport: () => void;
@@ -82,7 +82,9 @@ export function RunCaseResultsCard({
           ? "已完成"
           : state.status === "cancelled"
             ? "已取消"
-            : state.status === "running"
+            : state.status === "waiting_for_judge"
+              ? "等待判分"
+              : state.status === "running"
               ? "评测中"
               : "排队中";
         const percent = state.status === "completed" ? 100 : Math.max(0, state.percent || 0);

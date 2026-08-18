@@ -359,6 +359,7 @@ async def run_cases(
     on_case_start=None,
     on_case_complete=None,
     on_case_timeout=None,
+    max_in_flight_cases: int | None = None,
     retry_backoff_base_s: float = 0.0,
     retry_backoff_max_s: float = 40.0,
     *,
@@ -377,8 +378,10 @@ async def run_cases(
     返回 ``list[list[ConversationTrace]]``——外层顺序与 ``cases`` 一致、
     内层长度恒等于 ``repeat``。``on_progress(case, trace, run_index)`` 在每次
     (case, run) 完成后回调（兼容旧的 2 参数签名：缺省 ``run_index=0``）。
-    ``on_case_complete(index, case, traces)`` 则在一条 Case 的所有重复执行完成后
-    调用，可返回 awaitable，用于立即判分和落库。回调返回 ``True`` 时，执行器会
+    ``on_case_complete(index, case, traces, active_timeout_s)`` 则在一条 Case 的
+    所有重复执行完成后调用，可返回 awaitable，用于立即判分和落库。第四个参数是
+    该次尝试扣除 Agent 实际执行耗时后的剩余执行预算；回调应在取得自己的并发槽后
+    再使用它计时，排队等待不计入预算。旧的三参数回调仍兼容。回调返回 ``True`` 时，执行器会
     不把本轮判分写为终态并把该 Case 完整再跑一次（最多一次），适用于 Judge
     调用异常后的自动恢复；第二次结果仍由回调正常落库，避免无限重试。每次完整
     Case 尝试（对话与 Judge）受 ``case_timeout_s`` 总预算限制；最终超时可通过
@@ -421,6 +424,14 @@ async def run_cases(
         )
 
     sem = asyncio.Semaphore(concurrency)
+    # Agent 通常显著快于 Judge。如果不限制流水线内的 Case 数，全部 Agent 会很快
+    # 完成并堆在 Judge semaphore 前；旧实现又把这段排队算进 600 秒单题预算，最终
+    # 形成大面积“判分异常”。只限制已进入流水线的 Case，不影响尚未开始 Case 的预算。
+    in_flight_sem = (
+        asyncio.Semaphore(max(1, int(max_in_flight_cases)))
+        if max_in_flight_cases is not None
+        else None
+    )
     traces: list[list[ConversationTrace]] = [[] for _ in range(len(cases))]
 
     async def _execute_case_attempt(
@@ -477,7 +488,14 @@ async def run_cases(
                     on_progress(case, tr)
         return attempt_traces
 
-    async def _wrap(i: int, case: TestCase):
+    def _case_complete_accepts_budget(callback) -> bool:
+        try:
+            inspect.signature(callback).bind(0, cases[0] if cases else None, [], 1.0)
+            return True
+        except (TypeError, ValueError):
+            return False
+
+    async def _run_pipeline(i: int, case: TestCase):
         for whole_case_attempt in range(2):
             # 排队等待不计入单题预算：拿到 adapter 并发槽位后才开始计时，避免
             # 大 benchmark 中尚未发出请求的 Case 因排队而超时。
@@ -508,10 +526,24 @@ async def run_cases(
             if timeout_phase is None and on_case_complete:
                 remaining_s = case_timeout_s - (time.monotonic() - attempt_started)
                 try:
-                    pending = on_case_complete(i, case, list(attempt_traces))
+                    accepts_budget = _case_complete_accepts_budget(on_case_complete)
+                    pending = (
+                        on_case_complete(
+                            i,
+                            case,
+                            list(attempt_traces),
+                            max(0.0, remaining_s),
+                        )
+                        if accepts_budget
+                        else on_case_complete(i, case, list(attempt_traces))
+                    )
                     if inspect.isawaitable(pending):
-                        retry_after_judge = await asyncio.wait_for(
-                            pending, timeout=max(0.0, remaining_s)
+                        # 新四参回调会在取得 Judge 槽位后自行应用 active_timeout_s，
+                        # 因此这里不能再用 wait_for 把队列等待误算进执行预算。
+                        retry_after_judge = (
+                            await pending
+                            if accepts_budget
+                            else await asyncio.wait_for(pending, timeout=max(0.0, remaining_s))
                         )
                     else:
                         retry_after_judge = bool(pending)
@@ -542,6 +574,13 @@ async def run_cases(
                 "Judge failed for case %s; rerunning the entire case once",
                 case.sample_id,
             )
+
+    async def _wrap(i: int, case: TestCase):
+        if in_flight_sem is None:
+            await _run_pipeline(i, case)
+            return
+        async with in_flight_sem:
+            await _run_pipeline(i, case)
 
     await asyncio.gather(*(_wrap(i, c) for i, c in enumerate(cases)))
     return traces

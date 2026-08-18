@@ -424,29 +424,35 @@ async def run_attribution_task(task_id: int, *, recover_interrupted_items: bool 
     ``running`` 条目没有机会写入终态；新 Worker 领取到同一个租约任务时把
     它们恢复为 ``pending``，从该 Case 继续，不覆盖已成功的归因快照。
     """
-    _set_task_running(task_id)
-    with session_scope() as session:
-        if recover_interrupted_items:
-            for item in session.scalars(
-                select(AttributionTaskItem).where(
-                    AttributionTaskItem.task_id == task_id,
-                    AttributionTaskItem.status == "running",
-                )
-            ):
-                item.status = "pending"
-                item.error_msg = ""
-                item.started_at = None
-        item_ids = list(session.scalars(
-            select(AttributionTaskItem.id)
-            .where(
-                AttributionTaskItem.task_id == task_id,
-                AttributionTaskItem.status == "pending",
-            )
-            .order_by(AttributionTaskItem.id)
-        ))
+    from medeval.judges.llm_backend import configure_llm_rate_limit, reset_llm_rate_limit
+
+    # 归因本身按 3 条并行；建立任务级稳定限流上下文，既不会继承同一 Worker
+    # 上一个重判任务的 semaphore，也不会被同时运行的评测任务替换。
+    configure_llm_rate_limit(_MAX_CONCURRENCY, 0.0)
     try:
+        _set_task_running(task_id)
+        with session_scope() as session:
+            if recover_interrupted_items:
+                for item in session.scalars(
+                    select(AttributionTaskItem).where(
+                        AttributionTaskItem.task_id == task_id,
+                        AttributionTaskItem.status == "running",
+                    )
+                ):
+                    item.status = "pending"
+                    item.error_msg = ""
+                    item.started_at = None
+            item_ids = list(session.scalars(
+                select(AttributionTaskItem.id)
+                .where(
+                    AttributionTaskItem.task_id == task_id,
+                    AttributionTaskItem.status == "pending",
+                )
+                .order_by(AttributionTaskItem.id)
+            ))
         await asyncio.gather(*(_run_item(task_id, item_id) for item_id in item_ids))
     finally:
+        reset_llm_rate_limit()
         _task_futures.pop(task_id, None)
 
 

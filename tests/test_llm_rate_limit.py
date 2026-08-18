@@ -98,3 +98,42 @@ def test_global_gate_serializes_concurrent_calls():
 
     asyncio.run(run_two())
     assert comp.calls == 2
+
+
+def test_reconfiguring_another_task_does_not_strand_existing_waiters():
+    """并行任务替换自己的限流配置时，不得释放错 semaphore 导致旧队列死锁。"""
+
+    class BlockingCompletions:
+        def __init__(self):
+            self.calls = 0
+            self.started = asyncio.Event()
+            self.release = asyncio.Event()
+
+        async def create(self, **_kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                self.started.set()
+                await self.release.wait()
+            return _Resp('{"ok": true}')
+
+    async def scenario():
+        configure_llm_rate_limit(1, min_interval_s=0.0)
+        backend = LLMBackend(provider="openai", api_key="k")
+        comp = BlockingCompletions()
+        backend._client = type("C", (), {"chat": _FakeChat(comp)})()
+
+        async def first_task_context():
+            await asyncio.gather(
+                backend.chat_json("m", "a", 0.0),
+                backend.chat_json("m", "b", 0.0),
+            )
+
+        pair = asyncio.create_task(first_task_context())
+        await asyncio.wait_for(comp.started.wait(), timeout=0.5)
+        # 当前任务切换到另一份配置；pair 已继承并应继续使用原来的稳定状态。
+        configure_llm_rate_limit(1, min_interval_s=0.0)
+        comp.release.set()
+        await asyncio.wait_for(pair, timeout=0.5)
+        assert comp.calls == 2
+
+    asyncio.run(scenario())

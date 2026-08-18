@@ -98,6 +98,15 @@ class InMemoryProgress:
         if state is not None and state.get("status") != "completed":
             state.update({"status": "running", "percent": max(50, int(state.get("percent", 0)))})
 
+    def case_waiting_for_judge(self, sample_id: str) -> None:
+        """Agent 已完成，正在等待 Judge 并发槽位。"""
+        state = self._case_states.get(sample_id)
+        if state is not None and state.get("status") != "completed":
+            state.update({
+                "status": "waiting_for_judge",
+                "percent": max(50, int(state.get("percent", 0))),
+            })
+
     async def case_completed(self, result: "CaseResult") -> None:
         """在一条用例完成 N 次判分并折叠后通知平台。"""
         if self._case_total:
