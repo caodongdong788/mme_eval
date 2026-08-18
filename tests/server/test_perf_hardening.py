@@ -7,7 +7,7 @@ from sqlalchemy import inspect
 from server.benchmarks import create_uploaded_benchmark, load_benchmark_cases
 from server.db import get_sessionmaker, init_db, init_engine, session_scope
 from server.ingest import ingest_report
-from server.models_db import CaseResultRow
+from server.models_db import CaseResultRow, EvalRun
 
 from factories import make_report
 
@@ -125,3 +125,30 @@ def test_legacy_case_rows_are_backfilled_for_fast_list_columns(settings):
 
     names = {column["name"] for column in inspect(engine).get_columns("case_result")}
     assert {"case_type", "n_turns", "rag_status"} <= names
+
+
+def test_repeated_init_does_not_rescan_case_detail_json(initialized_db, session) -> None:
+    """普通进程重启不能再次执行读取大 JSON 的历史判分回填。"""
+    run = EvalRun(run_slug="already-migrated")
+    session.add(run)
+    session.flush()
+    row = CaseResultRow(
+        run_id=run.id,
+        sample_id="case_large_detail",
+        judge_error=False,
+        detail_json={
+            "verdicts": [{
+                "name": "guideline.legacy",
+                "reason": "指南判分失败：历史内容只允许显式维护时重扫",
+            }],
+            "large_payload": "x" * 10_000,
+        },
+    )
+    session.add(row)
+    session.commit()
+
+    init_db(initialized_db)
+    session.expire_all()
+
+    # judge_error 列早已存在，重复 init_db 应直接返回，不能把历史明细再读写一遍。
+    assert session.get(CaseResultRow, row.id).judge_error is False

@@ -85,8 +85,8 @@
     "semantic_hash": ""
   },
   "frontend/src/api/types.ts": {
-    "mtime": 1787025385.3996878,
-    "ast_hash": "531e169efc33387396d87569ff08c6ab",
+    "mtime": 1787037535.3501935,
+    "ast_hash": "d6cdccbac6a5b4f4f21342cd67701654",
     "semantic_hash": ""
   },
   "frontend/src/auth/AuthContext.tsx": {
@@ -870,8 +870,8 @@
     "semantic_hash": ""
   },
   "server/db.py": {
-    "mtime": 1786951196.7538323,
-    "ast_hash": "1b8066d2b37f598780f34e923532a4b3",
+    "mtime": 1787042854.6917834,
+    "ast_hash": "5180513d59ca27b2a486c3a12478a5de",
     "semantic_hash": ""
   },
   "server/eval_job.py": {
@@ -995,8 +995,8 @@
     "semantic_hash": ""
   },
   "server/schemas.py": {
-    "mtime": 1786936993.4206512,
-    "ast_hash": "9bce9b4af32fdea90cf8a3fb4ea51527",
+    "mtime": 1787037535.3496363,
+    "ast_hash": "b049bcaad77386be23c49afecbd620d2",
     "semantic_hash": ""
   },
   "server/services/__init__.py": {
@@ -1205,8 +1205,8 @@
     "semantic_hash": ""
   },
   "tests/server/test_perf_hardening.py": {
-    "mtime": 1786159306.1596615,
-    "ast_hash": "e1c61fd5c1afd2b6c337f11a1fe0c74a",
+    "mtime": 1787042908.91571,
+    "ast_hash": "023c2aec7e0d5a99e4521002be6744c3",
     "semantic_hash": ""
   },
   "tests/server/test_persist_rejudge_resume.py": {
@@ -1440,8 +1440,8 @@
     "semantic_hash": ""
   },
   "docker-compose.yml": {
-    "mtime": 1786688482.4305093,
-    "ast_hash": "0f2d0e31eb414d83159338a7969be8f7",
+    "mtime": 1787042854.6934392,
+    "ast_hash": "32b25cc7462d03a0a3d62d223f7beb24",
     "semantic_hash": ""
   },
   "docs/superpowers/README.md": {
@@ -4800,13 +4800,13 @@
     "semantic_hash": ""
   },
   "frontend/src/components/RunAttributionTab.test.tsx": {
-    "mtime": 1786973431.9263444,
-    "ast_hash": "793cb68c722867151d439783b6fae0f3",
+    "mtime": 1787037880.3294241,
+    "ast_hash": "7e9c1b60f92b19e3b6d942284483b551",
     "semantic_hash": ""
   },
   "frontend/src/components/RunAttributionTab.tsx": {
-    "mtime": 1786973572.4057605,
-    "ast_hash": "dd283a439f6244c02142e2b373351f9d",
+    "mtime": 1787037816.4063897,
+    "ast_hash": "aaffd8d7affa2c778c7d58a46505b57b",
     "semantic_hash": ""
   },
   "frontend/src/components/RunTriggerTag.tsx": {
@@ -4830,13 +4830,13 @@
     "semantic_hash": ""
   },
   "frontend/src/utils/attributionDisplay.test.ts": {
-    "mtime": 1786969596.1997113,
-    "ast_hash": "3f311d07e10c79e361a4761a8b5dadb4",
+    "mtime": 1787037357.3509767,
+    "ast_hash": "bbec9f7ef19850889c7d75a18048a13e",
     "semantic_hash": ""
   },
   "frontend/src/utils/attributionDisplay.ts": {
-    "mtime": 1786969570.747119,
-    "ast_hash": "1ca30582cf718469eaade04e7d4a1c13",
+    "mtime": 1787037535.3509183,
+    "ast_hash": "b77bc36fb8e137000ca9e5ed41ebc6e7",
     "semantic_hash": ""
   },
   "frontend/src/utils/runFilters.ts": {
@@ -4895,18 +4895,18 @@
     "semantic_hash": ""
   },
   "server/services/attribution_summary.py": {
-    "mtime": 1786971582.7978559,
-    "ast_hash": "521bc719f4df9270776ab577bfdbc8a8",
+    "mtime": 1787038000.6083918,
+    "ast_hash": "4433c7003e6684df0bd400b6f27cf503",
     "semantic_hash": ""
   },
   "server/services/attribution_tasks.py": {
-    "mtime": 1787025452.7931204,
-    "ast_hash": "6dfaeb781a806e825c89d1bf5042654a",
+    "mtime": 1787037810.4087777,
+    "ast_hash": "7584938a656d4c050181b8fd61cbaaf9",
     "semantic_hash": ""
   },
   "server/services/case_attribution.py": {
-    "mtime": 1786971582.7973497,
-    "ast_hash": "9dfbe42ddcbcfdc91a26dff822605cb0",
+    "mtime": 1787037962.2575214,
+    "ast_hash": "70ce8cbf59399d2b525e7b2d7bfd3fe2",
     "semantic_hash": ""
   },
   "server/services/open_api_config.py": {
@@ -4920,18 +4920,18 @@
     "semantic_hash": ""
   },
   "server/worker.py": {
-    "mtime": 1786950424.6219316,
-    "ast_hash": "808decb178a92fb8d656b4e6826f7a76",
+    "mtime": 1787042854.692902,
+    "ast_hash": "6ad6b775ac4b9f1ac37d65007340fd95",
     "semantic_hash": ""
   },
   "tests/server/test_attribution_tasks.py": {
-    "mtime": 1786969596.2008102,
-    "ast_hash": "7f66849540a822453ff1768612e65c3a",
+    "mtime": 1787037840.1755235,
+    "ast_hash": "fc96d7f76a136fd7eb59e1ce3c39c28e",
     "semantic_hash": ""
   },
   "tests/server/test_case_attribution.py": {
-    "mtime": 1786971502.525224,
-    "ast_hash": "818de99a6cecf81263c384831bcda631",
+    "mtime": 1787038045.9288585,
+    "ast_hash": "ee08ee25e3f0169b0d44818e32f9b4e1",
     "semantic_hash": ""
   },
   "tests/server/test_case_export.py": {
@@ -4950,8 +4950,8 @@
     "semantic_hash": ""
   },
   "tests/server/test_open_api.py": {
-    "mtime": 1786781053.9597218,
-    "ast_hash": "4d95f959ab636ac4ca7b7e950361b4a3",
+    "mtime": 1787037546.9912164,
+    "ast_hash": "7a7490e58fda5f395823d910f0a56df0",
     "semantic_hash": ""
   },
   "tests/server/test_open_api_config.py": {
@@ -4985,8 +4985,8 @@
     "semantic_hash": ""
   },
   "docs/open-api.md": {
-    "mtime": 1786781053.9605274,
-    "ast_hash": "523449c9ab73b496aac81972c6e5baac",
+    "mtime": 1787037691.3270252,
+    "ast_hash": "a8bc63215ae190f98dd21224bc0e18dc",
     "semantic_hash": ""
   },
   "graphify-out/memory/query_20260814_062735_\u5f00\u59cb\u6267\u884c_\u4e00\u76f4\u5b9e\u73b0\u5230\u7b2c\u4e8c\u9636\u6bb5.md": {
@@ -5005,8 +5005,8 @@
     "semantic_hash": ""
   },
   "server/services/open_attribution_api.py": {
-    "mtime": 1786781053.9582732,
-    "ast_hash": "4705d6a6ab7e9d2fd4018d151c2b496a",
+    "mtime": 1787037473.763191,
+    "ast_hash": "87f35c7550af3a2a1e444201634e392f",
     "semantic_hash": ""
   },
   "tests/server/test_attribution_legacy_migration.py": {
@@ -5037,6 +5037,21 @@
   "graphify-out/memory/query_20260814_083641_\u5982\u4f55\u4f9d\u6258_benchmark_\u548c_rubrics_\u4f18\u5316_mme_\u7684_agent_\u95ee\u9898\u5f52\u56e0\u4e0e\u4f18\u5316\u65b9\u6848.md": {
     "mtime": 1786696601.8239865,
     "ast_hash": "27d804860b779cc05c72f9d8c4bd6925",
+    "semantic_hash": ""
+  },
+  "server/services/attribution_taxonomy.py": {
+    "mtime": 1787037594.965271,
+    "ast_hash": "22570b975633c6faaf9da7ddea9396ea",
+    "semantic_hash": ""
+  },
+  "tests/server/test_attribution_taxonomy.py": {
+    "mtime": 1787037728.1640959,
+    "ast_hash": "03cf7542e98212bbc4739283c527fd8f",
+    "semantic_hash": ""
+  },
+  "docs/cx-agent-attribution-optimization-guide.md": {
+    "mtime": 1787037672.853212,
+    "ast_hash": "6b36938a4f9c2b220f733500042101f5",
     "semantic_hash": ""
   }
 }

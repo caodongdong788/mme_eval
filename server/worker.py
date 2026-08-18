@@ -10,7 +10,7 @@ import socket
 import uuid
 
 from .constants import EVAL_JOB_USER_ERROR
-from .db import init_db, session_scope
+from .db import init_engine, session_scope
 from .durable_jobs import build_job_from_payload
 from .durable_queue import (
     acknowledge_cancel,
@@ -155,7 +155,11 @@ async def _worker_slot(slot: int, owner_prefix: str) -> None:
 async def run_worker() -> None:
     settings = get_settings()
     settings.check_production_security()
-    init_db(settings)
+    # 数据库建表和历史迁移只由 Web 进程执行。主机重启时 Worker 与 Web 会同时
+    # 自动拉起；若这里也执行 init_db，两边会并发扫描并重写大 JSON，造成 WAL
+    # 写放大和磁盘 I/O 饱和。Worker 只初始化连接并等待 Web 完成建表。
+    init_engine(settings)
+    await _wait_for_schema()
     owner = f"{socket.gethostname()}-{os.getpid()}-{uuid.uuid4().hex[:8]}"
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -174,6 +178,23 @@ async def run_worker() -> None:
         task.cancel()
     await asyncio.gather(*slots, return_exceptions=True)
     logger.info("评测 Worker 已停止；在跑任务已重新排队")
+
+
+async def _wait_for_schema() -> None:
+    """等待 Web 进程完成轻量建表/迁移，避免新环境启动竞态。"""
+    from sqlalchemy import select
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from .models_db import EvaluationJob
+
+    while True:
+        try:
+            with session_scope() as session:
+                session.execute(select(EvaluationJob.id).limit(1)).first()
+            return
+        except SQLAlchemyError:
+            logger.info("等待 Web 服务完成数据库初始化")
+            await asyncio.sleep(2)
 
 
 def main() -> None:

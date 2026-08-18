@@ -50,7 +50,12 @@ def init_engine(settings: Settings | None = None):
 
 
 def init_db(settings: Settings | None = None) -> None:
-    """按当前 ORM 从空数据库建表，并补齐轻量列表所需的兼容列。"""
+    """按当前 ORM 从空数据库建表，并补齐轻量列表所需的兼容列。
+
+    这里会被 Web 进程调用。Worker 不应重复执行历史数据回填，否则主机重启时
+    两个进程会同时全表读取/重写 ``case_result.detail_json``，放大 PostgreSQL
+    数据页和 WAL 写入，严重时会把单机磁盘 I/O 打满。
+    """
     engine = init_engine(settings)
     from . import models_db  # noqa: F401  触发 ORM 表注册
 
@@ -58,8 +63,9 @@ def init_db(settings: Settings | None = None) -> None:
     _migrate_benchmark_updated_at(engine)
     _migrate_legacy_open_api_key(engine)
     _migrate_case_list_display_columns(engine)
-    _backfill_case_rag_status_from_audits(engine)
-    _migrate_case_judge_error(engine)
+    # RAG 历史回填是维护动作，不再放到每次进程启动路径。新增记录会在写入时
+    # 直接保存 rag_status；旧库首次增加列表标量列时也已完成一次回填。
+    _migrate_case_judge_error(engine, backfill_existing=False)
     _migrate_eval_run_trigger_type(engine)
     _migrate_scheduled_evaluation_auto_attribution(engine)
     _migrate_eval_run_scheduled_evaluation_id(engine)
@@ -74,7 +80,8 @@ def _migrate_benchmark_updated_at(engine) -> None:
     if "benchmark" not in inspector.get_table_names():
         return
     columns = {column["name"] for column in inspector.get_columns("benchmark")}
-    if "updated_at" not in columns:
+    column_added = "updated_at" not in columns
+    if column_added:
         # SQLite 不允许 ALTER TABLE 时增加 CURRENT_TIMESTAMP 这类非常量默认值，
         # 因此先增加普通列，再统一回填；新库由 ORM 定义直接带默认值。
         with engine.begin() as connection:
@@ -86,13 +93,15 @@ def _migrate_benchmark_updated_at(engine) -> None:
             connection.exec_driver_sql(
                 f"ALTER TABLE benchmark ADD COLUMN updated_at {column_type}"
             )
-    with engine.begin() as connection:
-        connection.execute(
-            text(
-                "UPDATE benchmark SET updated_at = created_at "
-                "WHERE updated_at IS NULL"
+    # 只在真正增加列时回填。正常重启不能反复触发全表 UPDATE 扫描。
+    if column_added:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE benchmark SET updated_at = created_at "
+                    "WHERE updated_at IS NULL"
+                )
             )
-        )
 
 
 def _migrate_attribution_task_item_analysis(engine) -> None:
@@ -101,11 +110,15 @@ def _migrate_attribution_task_item_analysis(engine) -> None:
     if "attribution_task_item" not in inspector.get_table_names():
         return
     columns = {column["name"] for column in inspector.get_columns("attribution_task_item")}
-    if "analysis_json" not in columns:
+    column_added = "analysis_json" not in columns
+    if column_added:
         with engine.begin() as connection:
             connection.exec_driver_sql(
                 "ALTER TABLE attribution_task_item ADD COLUMN analysis_json JSON"
             )
+    else:
+        # 旧快照回填仅属于加列迁移；重复执行会在每次启动时联表读取大 JSON。
+        return
 
     # 旧版本只在 CaseResultRow 上保存“最新一次归因”。升级时为历史成功任务补一份
     # 可查看快照；此后新任务会直接保存自己的结果，不再互相覆盖。
@@ -220,7 +233,8 @@ def _migrate_eval_run_scheduled_evaluation_id(engine) -> None:
     if not {"eval_run", "scheduled_evaluation"}.issubset(tables):
         return
     columns = {column["name"] for column in inspector.get_columns("eval_run")}
-    if "scheduled_evaluation_id" not in columns:
+    column_added = "scheduled_evaluation_id" not in columns
+    if column_added:
         with engine.begin() as connection:
             connection.exec_driver_sql(
                 "ALTER TABLE eval_run ADD COLUMN scheduled_evaluation_id INTEGER"
@@ -230,6 +244,8 @@ def _migrate_eval_run_scheduled_evaluation_id(engine) -> None:
             "CREATE INDEX IF NOT EXISTS ix_eval_run_scheduled_evaluation_id "
             "ON eval_run (scheduled_evaluation_id)"
         )
+    if not column_added:
+        return
 
     # 早期定时 run 没有外键，但名称固定为“任务名 · [版本] · 定时 时间”。只回填
     # 满足该精确前缀的记录，避免把人工同名评测误归入某个定时任务。
@@ -257,6 +273,7 @@ def _migrate_scheduled_evaluation_auto_attribution(engine) -> None:
     if "scheduled_evaluation" not in inspector.get_table_names():
         return
     columns = {column["name"] for column in inspector.get_columns("scheduled_evaluation")}
+    grades_added = "auto_attribution_grades" not in columns
     with engine.begin() as connection:
         if "auto_attribution_enabled" not in columns:
             connection.exec_driver_sql(
@@ -271,14 +288,15 @@ def _migrate_scheduled_evaluation_auto_attribution(engine) -> None:
             connection.exec_driver_sql(
                 "ALTER TABLE scheduled_evaluation ADD COLUMN auto_attribution_model_id INTEGER"
             )
-        connection.execute(
-            text(
-                "UPDATE scheduled_evaluation "
-                "SET auto_attribution_grades = :grades "
-                "WHERE auto_attribution_grades IS NULL"
-            ),
-            {"grades": '["不合格"]'},
-        )
+        if grades_added:
+            connection.execute(
+                text(
+                    "UPDATE scheduled_evaluation "
+                    "SET auto_attribution_grades = :grades "
+                    "WHERE auto_attribution_grades IS NULL"
+                ),
+                {"grades": '["不合格"]'},
+            )
 
 
 def _migrate_legacy_open_api_key(engine) -> None:
@@ -469,17 +487,25 @@ def _backfill_case_rag_status_from_audits(engine) -> None:
             session.bulk_update_mappings(CaseResultRow, updates)
 
 
-def _migrate_case_judge_error(engine) -> None:
-    """为历史八维/指南调用异常补齐可筛选的判分异常标记。"""
+def _migrate_case_judge_error(engine, *, backfill_existing: bool = True) -> None:
+    """为历史八维/指南调用异常补齐可筛选的判分异常标记。
+
+    ``init_db`` 使用 ``backfill_existing=False``：若列已经存在，说明历史版本已
+    完成过回填，正常启动必须立即返回。显式维护脚本和单元测试仍可使用默认值
+    重新校准历史数据。
+    """
     inspector = inspect(engine)
     if "case_result" not in inspector.get_table_names():
         return
     columns = {column["name"] for column in inspector.get_columns("case_result")}
-    if "judge_error" not in columns:
+    column_added = "judge_error" not in columns
+    if column_added:
         with engine.begin() as connection:
             connection.exec_driver_sql(
                 "ALTER TABLE case_result ADD COLUMN judge_error BOOLEAN DEFAULT FALSE"
             )
+    elif not backfill_existing:
+        return
 
     from .models_db import CaseResultRow, EvalRun
 

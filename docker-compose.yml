@@ -7,10 +7,17 @@
 #
 # 评测任务通过 Postgres 租约队列交给独立 worker；部署 app 不会中断在跑评测。
 
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
 services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    logging: *default-logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-medeval}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-medeval}
@@ -30,6 +37,7 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "${MME_PORT:-8000}:8000"
     env_file:
@@ -51,6 +59,7 @@ services:
   worker:
     image: mme-eval:${MME_IMAGE_TAG:-local}
     restart: unless-stopped
+    logging: *default-logging
     command: ["python", "-m", "server.worker"]
     env_file:
       - .env
