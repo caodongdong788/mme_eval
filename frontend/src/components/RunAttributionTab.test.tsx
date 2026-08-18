@@ -291,18 +291,19 @@ describe("RunAttributionTab", () => {
     expect(
       screen.getByRole("heading", { name: "其他判分复核" })
     ).toBeInTheDocument();
-    // cx-agent 建议按八维、优先级、问题描述、分类和具体动作展开。
+    // cx-agent 建议按八维、优先级、文档中的一级/二级分类和具体动作展开。
     fireEvent.click(screen.getAllByText("医学安全性")[0]);
     expect(screen.getByText("P0 · 最高优先级")).toBeInTheDocument();
     expect(
-      screen.getByText("相关医学风险已经召回，但回答没有采用。")
+      screen.getByText("问题分类：RAG 优化 / 已召回但未使用")
     ).toBeInTheDocument();
     fireEvent.click(
-      screen.getByText("相关医学风险已经召回，但回答没有采用。")
+      screen.getByText("问题分类：RAG 优化 / 已召回但未使用")
     );
-    expect(screen.getByText("优化建议分类：")).toBeInTheDocument();
-    expect(screen.getByText("医学文献 RAG · 召回证据利用")).toBeInTheDocument();
+    expect(screen.getByText("通用问题描述：")).toBeInTheDocument();
+    expect(screen.getByText("相关医学风险已经召回，但回答没有采用。")).toBeInTheDocument();
     expect(screen.getByText("怎么优化：")).toBeInTheDocument();
+    expect(screen.getByText("关联 Case：")).toBeInTheDocument();
     fireEvent.click(screen.getByText("尚未关联维度"));
     expect(screen.getByText("P2 · 一般优先级")).toBeInTheDocument();
     fireEvent.click(
@@ -331,6 +332,49 @@ describe("RunAttributionTab", () => {
       "/runs/26/attribution-tasks/99/cases/case_11"
     );
     expect(mockedApi.getAttributionTaskResult).not.toHaveBeenCalled();
+  });
+
+  it("merges same-dimension, same-secondary-category suggestions and keeps Case links", async () => {
+    const firstCluster = task.diagnostic_summary!.clusters[0];
+    const groupedTask: AttributionTask = {
+      ...task,
+      diagnostic_summary: {
+        ...task.diagnostic_summary!,
+        available_results: 2,
+        clusters: [
+          firstCluster,
+          {
+            ...firstCluster,
+            sample_ids: ["case_12"],
+            deduction_ids: ["guideline.g06"],
+            summary: "高风险证据已经召回，但终答仍未采用。",
+          },
+        ],
+      },
+    };
+    mockedApi.getAttributionTask.mockResolvedValue(groupedTask);
+    mockedApi.listAttributionTasks.mockResolvedValue([{ ...groupedTask, items: [] }]);
+
+    renderWithProviders(
+      <MemoryRouter>
+        <RunAttributionTab runId={26} mode="detail" selectedTaskId={99} />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("归因任务总结");
+    fireEvent.click(screen.getByRole("button", { name: "cx-agent 优化建议展开" }));
+    fireEvent.click(screen.getByText("医学安全性"));
+    expect(screen.getByText("问题分类：RAG 优化 / 已召回但未使用")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("问题分类：RAG 优化 / 已召回但未使用"));
+    expect(screen.getByText("2 个 Case · 2 项问题")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "查看 case_11 归因" })).toHaveAttribute(
+      "href",
+      "/runs/26/attribution-tasks/99/cases/case_11"
+    );
+    expect(screen.getByRole("link", { name: "查看 case_12 归因" })).toHaveAttribute(
+      "href",
+      "/runs/26/attribution-tasks/99/cases/case_12"
+    );
   });
 
   it("reruns selected cases inside the current attribution task", async () => {

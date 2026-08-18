@@ -159,6 +159,8 @@ export function priorityDisplayName(value?: string) {
 export type CxAgentSuggestionCategory = {
   key: string;
   label: string;
+  primaryLabel: string;
+  secondaryLabel: string;
 };
 
 type CxAgentSuggestionSource = {
@@ -175,86 +177,79 @@ type CxAgentSuggestionSource = {
   recommendations?: AttributionRecommendation[];
 };
 
-const CX_AGENT_SUGGESTION_CATEGORY_ORDER = [
-  "medical_safety",
-  "prompt_hook",
-  "context_memory",
-  "dialogue_tool_orchestration",
-  "medical_rag",
-  "clinical_reasoning",
-  "response_delivery",
-  "model_runtime_observability",
-  "evaluation_system",
-];
+/**
+ * 归因展示必须与《CX-Agent 自动化评测归因与优化方法》中的一级、二级
+ * 分类保持一致。内部模块名用于定位代码，不直接暴露给使用者。
+ */
+const DOCUMENT_CATEGORY_LABELS = {
+  rag: "RAG 优化",
+  engineering: "Agent 工程链路",
+  reasoning: "Agent 决策与推理策略",
+  prompt: "提示词与回答生成策略",
+  knowledge: "知识与规则内化",
+  safety: "输出校验与安全守卫",
+} as const;
 
-const CX_AGENT_DOMAIN_LABELS: Record<string, string> = {
-  medical_safety: "医学安全与策略",
-  prompt_hook: "Prompt、Hook 与专家配置",
-  context_memory: "用户上下文与长期记忆",
-  dialogue_tool_orchestration: "对话与工具编排",
-  medical_rag: "医学文献 RAG",
-  clinical_reasoning: "临床推理与方案合成",
-  response_delivery: "回答生成与交付协议",
-  model_runtime_observability: "模型运行时与可观测性",
-  evaluation_system: "评测系统复核",
+type DocumentCategoryKey = keyof typeof DOCUMENT_CATEGORY_LABELS;
+
+type DocumentCategory = [DocumentCategoryKey, string];
+
+const RAG_DOCUMENT_COMPONENTS: Record<string, string> = {
+  rag_trigger: "未触发检索",
+  rag_service: "调用失败",
+  rag_query: "Query 不完整或意图识别偏差",
+  rag_corpus: "召回覆盖不足",
+  rag_retrieval: "召回覆盖不足",
+  rag_threshold: "召回覆盖不足",
+  rag_candidate: "排序或重排不当",
+  rag_rerank: "排序或重排不当",
+  rag_grounding: "已召回但未使用",
+  rag_interpretation: "证据误读",
+  citation_binding: "缺少 RAG 引用",
 };
 
-const CX_AGENT_COMPONENT_LABELS: Record<string, string> = {
-  safety_policy: "医学安全策略",
-  static_prompt: "静态 Prompt",
-  dynamic_hook: "动态 Hook / Reminder",
-  expert_pack: "专家配置",
-  structured_profile: "用户结构化档案",
-  medical_record: "病历与医学指标",
-  timeline: "Timeline 长期事实",
-  chat_history: "历史对话",
-  saved_content: "病例夹与已保存资料",
-  consult_subject: "咨询对象归属",
-  context_usage: "上下文利用",
-  context_conflict: "上下文新旧冲突",
-  memory_write: "长期记忆写入与维护",
-  intent_routing: "意图与流程路由",
-  clarification: "追问与澄清策略",
-  feature_gate: "能力开关",
-  tool_registry: "工具注册与可见性",
-  tool_selection: "工具选择",
-  tool_arguments: "工具参数",
-  tool_policy: "工具调用策略",
-  tool_executor: "工具执行",
-  proactive_undercurrent: "主动服务与暗流 Agent",
-  rag_trigger: "RAG 触发决策",
-  rag_service: "RAG 服务调用",
-  rag_query: "检索问题改写",
-  rag_corpus: "医学知识库",
-  rag_retrieval: "原始召回",
-  rag_threshold: "阈值与过滤",
-  rag_candidate: "候选文献生成（证据不足以定位重排）",
-  rag_rerank: "候选重排",
-  rag_grounding: "召回证据利用",
-  rag_interpretation: "医学证据理解",
-  citation_binding: "引用绑定",
-  clinical_fact_extraction: "临床事实提取",
-  temporal_reasoning: "时间线推理",
-  risk_benefit: "风险收益权衡",
-  contraindication: "禁忌与相互作用",
-  clinical_synthesis: "临床方案合成",
-  content_composition: "回答内容组织",
-  response_completeness: "回答完整性",
-  response_style: "表达与沟通风格",
-  output_protocol: "终答输出协议",
-  a2ui_binding: "A2UI 与资源绑定",
-  delivery_ui: "SSE 与前端交付",
-  model_provider: "模型供应商调用",
-  model_timeout: "模型流式超时",
-  partial_output: "模型部分或空输出",
-  context_window: "上下文窗口",
-  compaction: "上下文压缩",
-  tool_result_budget: "工具结果预算与截断",
-  observability_evidence: "调用链与证据采集",
-  taxonomy_gap: "归因分类待补充",
-  benchmark: "Benchmark 判据",
-  judge: "判分模型",
-};
+function documentedSuggestionCategory(domain: string, component: string): DocumentCategory {
+  if (domain === "medical_rag") {
+    return ["rag", RAG_DOCUMENT_COMPONENTS[component] || "召回覆盖不足"];
+  }
+  if (domain === "context_memory") {
+    if (["timeline", "structured_profile", "medical_record", "chat_history", "saved_content"].includes(component)) {
+      return ["engineering", "Timeline 或用户事实未注入"];
+    }
+    if (component === "context_usage") return ["engineering", "上下文已注入但未使用"];
+    return ["engineering", "多轮状态丢失"];
+  }
+  if (domain === "dialogue_tool_orchestration") {
+    if (component === "tool_registry") return ["engineering", "工具未调用"];
+    if (component === "tool_selection") return ["engineering", "工具选择错误"];
+    if (component === "tool_arguments") return ["engineering", "工具参数错误"];
+    if (["tool_policy", "tool_executor"].includes(component)) return ["engineering", "工具执行失败"];
+    if (component === "clarification") return ["reasoning", "未优先追问关键问题"];
+    return ["engineering", "流程路由错误"];
+  }
+  if (domain === "prompt_hook") {
+    if (component === "dynamic_hook") return ["prompt", "未说清红旗信号"];
+    if (component === "expert_pack") return ["prompt", "缺少适用条件或解释"];
+    return ["prompt", "未说明适用边界"];
+  }
+  if (domain === "clinical_reasoning") {
+    if (component === "risk_benefit" || component === "clinical_fact_extraction") {
+      return ["reasoning", "风险识别不足"];
+    }
+    if (component === "contraindication") return ["reasoning", "禁忌或相互作用判断不足"];
+    return ["reasoning", "错误选择行动路径"];
+  }
+  if (domain === "response_delivery") {
+    if (component === "response_style") return ["prompt", "缺少共情与确认"];
+    if (component === "content_composition") return ["prompt", "行动步骤不清晰"];
+    if (component === "output_protocol") return ["safety", "未执行终答前检查"];
+    return ["prompt", "缺少适用条件或解释"];
+  }
+  if (domain === "medical_safety") return ["safety", "放出不安全建议"];
+  if (domain === "model_runtime_observability") return ["engineering", "工具执行失败"];
+  if (domain === "evaluation_system") return ["engineering", "流程路由错误"];
+  return ["engineering", "流程路由错误"];
+}
 
 const CAUSE_CLASSIFICATION: Record<string, [string, string]> = {
   safety_policy_error: ["medical_safety", "safety_policy"],
@@ -384,15 +379,28 @@ export function cxAgentSuggestionCategory(
   source: CxAgentSuggestionSource,
 ): CxAgentSuggestionCategory {
   const [domain, component] = suggestionClassification(source);
-  const domainLabel = CX_AGENT_DOMAIN_LABELS[domain] || "待确认优化领域";
-  const componentLabel = CX_AGENT_COMPONENT_LABELS[component] || "待确认组件";
-  return { key: `${domain}:${component}`, label: `${domainLabel} · ${componentLabel}` };
+  const [primaryKey, secondaryLabel] = documentedSuggestionCategory(domain, component);
+  const primaryLabel = DOCUMENT_CATEGORY_LABELS[primaryKey];
+  return {
+    key: `${primaryKey}:${secondaryLabel}`,
+    label: `${primaryLabel} / ${secondaryLabel}`,
+    primaryLabel,
+    secondaryLabel,
+  };
 }
 
 export function cxAgentSuggestionCategoryOrder(key: string) {
-  const domain = key.split(":", 1)[0];
-  const index = CX_AGENT_SUGGESTION_CATEGORY_ORDER.indexOf(domain);
-  return index === -1 ? CX_AGENT_SUGGESTION_CATEGORY_ORDER.length : index;
+  const primary = key.split(":", 1)[0];
+  const order: DocumentCategoryKey[] = [
+    "rag",
+    "engineering",
+    "reasoning",
+    "prompt",
+    "knowledge",
+    "safety",
+  ];
+  const index = order.indexOf(primary as DocumentCategoryKey);
+  return index === -1 ? order.length : index;
 }
 
 export function queryQualityDisplayName(value?: string) {

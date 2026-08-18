@@ -219,8 +219,10 @@ describe("AttributionCaseDetailPage", () => {
     // 单 Case 与任务汇总使用同一层级：八维 → P0/P1/P2 → 问题 → 分类 → 怎么优化。
     fireEvent.click(screen.getByText("专业准确性与边界"));
     expect(screen.getByText("P1 · 较高优先级")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("回答在证据不足时给出了确定诊断"));
-    expect(screen.getByText("优化建议分类：")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByText("问题分类：提示词与回答生成策略 / 行动步骤不清晰")
+    );
+    expect(screen.getByText("问题描述：")).toBeInTheDocument();
     expect(screen.getByText("怎么优化：")).toBeInTheDocument();
     expect(screen.queryByText("判分需要复核")).not.toBeInTheDocument();
     expect(screen.queryByText("需要复核的判分")).not.toBeInTheDocument();
