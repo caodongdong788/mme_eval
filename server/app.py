@@ -78,8 +78,13 @@ async def _lifespan(app: FastAPI):
         reconcile_orphaned_attribution_tasks,
         stop_attribution_tasks,
     )
+    from .services.temporary_evaluation_tasks import (
+        start_temporary_evaluation_service,
+        stop_temporary_evaluation_service,
+    )
 
     start_scheduler()
+    start_temporary_evaluation_service()
     n_attribution = reconcile_orphaned_attribution_tasks()
     if n_attribution:
         logger.info("启动完成：回收中断归因任务 %s 条", n_attribution)
@@ -88,6 +93,7 @@ async def _lifespan(app: FastAPI):
     finally:
         await stop_scheduler()
         await stop_attribution_tasks()
+        await stop_temporary_evaluation_service()
         # 数据库模式这里只关闭无状态调度器；评测由独立 Worker 持续执行。
         from .jobs import get_job_runner
 

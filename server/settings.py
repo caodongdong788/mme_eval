@@ -86,6 +86,12 @@ class Settings:
     job_heartbeat_seconds: int = field(
         default_factory=lambda: int(os.environ.get("MEDEVAL_JOB_HEARTBEAT_SECONDS", "10"))
     )
+    # OpenAPI 临时评测请求与结果的保留期；到期后物理删除整条记录。
+    temporary_evaluation_retention_days: int = field(
+        default_factory=lambda: int(
+            os.environ.get("MEDEVAL_TEMPORARY_EVALUATION_RETENTION_DAYS", "7")
+        )
+    )
     # --- 飞书 OAuth2 / 会话（per-user SSO 登录） ---
     # 自建应用凭证；未配置 app_id 时整套登录门禁关闭（dev 兜底，避免本地自锁）。
     feishu_app_id: str = field(

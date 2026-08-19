@@ -608,6 +608,7 @@ export interface EvaluationAccountsConfig {
 export type OpenApiPermission =
   | "benchmarks:read"
   | "judge_models:read"
+  | "temporary_evaluations:create"
   | "evaluations:create"
   | "evaluations:read"
   | "attributions:read";

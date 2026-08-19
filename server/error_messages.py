@@ -23,13 +23,15 @@ _FIELD_LABELS = {
     "guidelines": "指南扣分点",
     "max_score": "最高扣分",
     "dimension": "关联维度",
+    "evaluation_mode": "评测模式",
 }
 
 
 def _location_label(location: Iterable[Any]) -> str:
     parts = [str(part) for part in location if part not in {"body", "query", "path"}]
     dimension = next((DIMENSION_LABELS[p] for p in parts if p in DIMENSION_LABELS), "")
-    field = _FIELD_LABELS.get(parts[-1], parts[-1] if parts else "数据")
+    leaf = parts[-1] if parts else "数据"
+    field = _FIELD_LABELS.get(leaf, leaf)
     return f"{dimension}的“{field}”" if dimension else field
 
 
@@ -63,6 +65,9 @@ def _translate_validation_item(item: Mapping[str, Any]) -> str:
     if error_type in {"less_than_equal", "less_than"}:
         limit = context.get("le", context.get("lt", "规定的最大值"))
         return f"{field}不能大于 {limit}"
+    if error_type == "literal_error":
+        expected = context.get("expected", "接口支持的固定值")
+        return f"{field}只支持 {expected}"
 
     raw = str(item.get("msg") or "").strip()
     raw = re.sub(r"^Value error,\s*", "", raw, flags=re.IGNORECASE)

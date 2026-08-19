@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -315,6 +316,194 @@ class ScheduledEvaluationOut(ScheduledEvaluationCreate):
 
 # ---------------------------------------------------------------------------
 # OpenAPI：第三方自动发起评测
+
+
+class OpenTemporaryPastFact(BaseModel):
+    """临时评测可引用的一条历史事实。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: Optional[str] = Field(default=None, max_length=200)
+    occurred_at: Optional[str] = Field(default=None, max_length=100)
+    label: str = Field(default="历史事实", min_length=1, max_length=200)
+    content: str = Field(..., min_length=1, max_length=20_000)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("label", "content")
+    @classmethod
+    def _text_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("历史事实的 label 和 content 不能为空")
+        return value
+
+
+class OpenTemporaryRagReference(BaseModel):
+    """临时评测可作为事实依据的一条 RAG 引用。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: Optional[str] = Field(default=None, max_length=200)
+    title: str = Field(default="RAG 引用", min_length=1, max_length=500)
+    content: str = Field(..., min_length=1, max_length=20_000)
+    source_url: Optional[str] = Field(default=None, max_length=2_000)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("title", "content")
+    @classmethod
+    def _text_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("RAG 引用的 title 和 content 不能为空")
+        return value
+
+
+class OpenTemporarySavedContent(BaseModel):
+    """病例夹等用户保存内容。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: Optional[str] = Field(default=None, max_length=200)
+    content_type: Literal[
+        "medical_record",
+        "examination_report",
+        "medication",
+        "note",
+        "other",
+    ] = "other"
+    title: str = Field(default="病例夹内容", min_length=1, max_length=500)
+    content: str = Field(..., min_length=1, max_length=20_000)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("title", "content")
+    @classmethod
+    def _text_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("病例夹内容的 title 和 content 不能为空")
+        return value
+
+
+class OpenTemporaryEvaluationCreate(BaseModel):
+    """异步评测一次外部 Q&A，并按 question 自动匹配平台 Case 评分契约。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    external_request_id: Optional[str] = Field(default=None, max_length=200)
+    evaluation_mode: Literal["single_turn"] = "single_turn"
+    question: str = Field(..., min_length=1, max_length=20_000)
+    answer: str = Field(..., min_length=1, max_length=40_000)
+    user_profile: dict[str, Any] = Field(default_factory=dict)
+    past_facts: list[OpenTemporaryPastFact] = Field(default_factory=list, max_length=50)
+    rag_references: list[OpenTemporaryRagReference] = Field(
+        default_factory=list, max_length=20
+    )
+    saved_contents: list[OpenTemporarySavedContent] = Field(
+        default_factory=list, max_length=20
+    )
+    judge_model_id: Optional[int] = Field(default=None, gt=0)
+
+    @field_validator("question", "answer")
+    @classmethod
+    def _conversation_text_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("question 和 answer 不能为空")
+        return value
+
+    @model_validator(mode="after")
+    def _limit_total_payload(self) -> "OpenTemporaryEvaluationCreate":
+        payload_size = len(
+            json.dumps(
+                self.model_dump(mode="json"),
+                ensure_ascii=False,
+                default=str,
+                separators=(",", ":"),
+            )
+        )
+        if payload_size > 200_000:
+            raise ValueError("临时评测请求总内容不能超过 200000 个字符")
+        return self
+
+
+class OpenTemporaryCaseSource(BaseModel):
+    benchmark_id: int
+    benchmark_name: str
+    sample_id: str
+    scenario: str = ""
+    match_type: Literal["normalized_exact_question"] = "normalized_exact_question"
+
+
+class OpenTemporaryDimensionResult(BaseModel):
+    dimension: EvaluationDimension
+    label: str
+    role: Literal["doctor", "nurse", "user"]
+    role_label: str
+    raw_score: float
+    score: float
+    max_score: float = 5.0
+    base_deduction: float
+    guideline_deduction: float
+    deduction: float
+    reason: str = ""
+    evidence: list[str] = Field(default_factory=list)
+    satisfied_points: list[str] = Field(default_factory=list)
+    issue_audits: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class OpenTemporaryGuidelineResult(BaseModel):
+    id: str
+    dimension: EvaluationDimension
+    dimension_label: str
+    trigger: str = ""
+    checkpoints: list[str] = Field(default_factory=list)
+    applicable: bool
+    score: float
+    max_score: float
+    deduction: float
+    reason: str = ""
+    evidence: list[str] = Field(default_factory=list)
+    missed_points: list[str] = Field(default_factory=list)
+    checkpoint_audits: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class OpenTemporaryEvaluationOut(BaseModel):
+    evaluation_id: str
+    external_request_id: Optional[str] = None
+    evaluation_mode: Literal["single_turn"] = "single_turn"
+    judge_model_id: Optional[int] = None
+    judge_model_name: str
+    benchmark_case_matched: bool
+    case_source: Optional[OpenTemporaryCaseSource] = None
+    total_score: float
+    max_total_score: float = 45.0
+    grade: str
+    passed: bool
+    medical_safety_passed: bool
+    end_scores: dict[str, float] = Field(default_factory=dict)
+    dimensions: list[OpenTemporaryDimensionResult]
+    guideline_results: list[OpenTemporaryGuidelineResult] = Field(default_factory=list)
+    deductions: list[str] = Field(default_factory=list)
+
+
+class OpenTemporaryEvaluationCreatedOut(BaseModel):
+    evaluation_id: str
+    external_request_id: Optional[str] = None
+    status: Literal["pending", "running", "success", "failed"]
+    status_url: str
+    expires_at: ApiDateTime
+
+
+class OpenTemporaryEvaluationError(BaseModel):
+    code: str
+    message: str
+    retryable: bool = False
+
+
+class OpenTemporaryEvaluationStatusOut(OpenTemporaryEvaluationCreatedOut):
+    result: Optional[OpenTemporaryEvaluationOut] = None
+    error: Optional[OpenTemporaryEvaluationError] = None
+    retry_after_seconds: Optional[int] = None
 
 
 class OpenEvaluationCreate(BaseModel):
@@ -631,6 +820,7 @@ class RunAttributionCategoryStats(BaseModel):
 OpenApiPermission = Literal[
     "benchmarks:read",
     "judge_models:read",
+    "temporary_evaluations:create",
     "evaluations:create",
     "evaluations:read",
     "attributions:read",

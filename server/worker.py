@@ -24,6 +24,10 @@ from .jobs import _set_status
 from .models_db import EvalRun
 from .progress import InMemoryProgress
 from .settings import get_settings
+from .services.temporary_evaluation_tasks import (
+    claim_temporary_evaluation,
+    execute_claimed_temporary_evaluation,
+)
 
 logger = logging.getLogger("mme.worker")
 
@@ -132,10 +136,38 @@ async def _execute_claimed(row, owner: str) -> None:
 async def _worker_slot(slot: int, owner_prefix: str) -> None:
     settings = get_settings()
     owner = f"{owner_prefix}:{slot}"
+    prefer_temporary = bool(slot % 2)
     while True:
-        row = claim_job(owner, settings.job_lease_seconds)
-        if row is None:
+        row = None
+        temporary = None
+        if prefer_temporary:
+            temporary = claim_temporary_evaluation(owner, settings.job_lease_seconds)
+            if temporary is None:
+                row = claim_job(owner, settings.job_lease_seconds)
+        else:
+            row = claim_job(owner, settings.job_lease_seconds)
+            if row is None:
+                temporary = claim_temporary_evaluation(owner, settings.job_lease_seconds)
+        if row is None and temporary is None:
             await asyncio.sleep(max(0.2, settings.job_poll_seconds))
+            continue
+        prefer_temporary = not prefer_temporary
+        if temporary is not None:
+            logger.info(
+                "领取临时评测 evaluation_id=%s attempt=%s",
+                temporary.evaluation_id,
+                temporary.attempts,
+            )
+            try:
+                await execute_claimed_temporary_evaluation(temporary, owner)
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001 - 单条任务异常不能杀死整个 Worker slot
+                logger.exception(
+                    "Worker slot 临时评测异常 slot=%s evaluation_id=%s",
+                    slot,
+                    temporary.evaluation_id,
+                )
             continue
         logger.info(
             "领取评测任务 job_id=%s run_id=%s kind=%s attempt=%s",
@@ -185,12 +217,13 @@ async def _wait_for_schema() -> None:
     from sqlalchemy import select
     from sqlalchemy.exc import SQLAlchemyError
 
-    from .models_db import EvaluationJob
+    from .models_db import EvaluationJob, TemporaryEvaluation
 
     while True:
         try:
             with session_scope() as session:
                 session.execute(select(EvaluationJob.id).limit(1)).first()
+                session.execute(select(TemporaryEvaluation.id).limit(1)).first()
             return
         except SQLAlchemyError:
             logger.info("等待 Web 服务完成数据库初始化")

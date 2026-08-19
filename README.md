@@ -158,7 +158,7 @@ cd frontend && npm run build
 
 在平台的「参数配置 → Open API」中创建 API Key，并为每把 Key 勾选所需权限。平台支持
 多把 Key 独立管理、随时复制、轮换和删除；对外请求以 `X-MME-API-Key` 传入完整 Key。
-接口提供可用评测集、可用判分模型、创建评测和按 ID 查询任务状态；任务查询会一并返回
+接口提供可用评测集、可用判分模型、临时 Q&A 异步八维评测、创建正式评测和按 ID 查询任务状态；任务查询会一并返回
 总览页所需的综合分、通过率、稳定性、延迟、TTFT、Token、失败标签及类别/层级统计，
 不包含任何 Case、对话或调用链明细，也不接受明文模型密钥。详细请求/响应结构可在运行
 服务的 `/docs` 中查看。
@@ -167,6 +167,16 @@ cd frontend && npm run build
 # 先查询可用资源
 curl -H "X-MME-API-Key: <key>" http://localhost:8000/api/open/v1/benchmarks
 curl -H "X-MME-API-Key: <key>" http://localhost:8000/api/open/v1/judge-models
+
+# 临时单轮评测：POST 返回 status_url；请求与结果保留 7 天，到期物理删除
+curl -X POST http://localhost:8000/api/open/v1/temporary-evaluations \
+  -H "Content-Type: application/json" \
+  -H "X-MME-API-Key: <key>" \
+  -d '{"question":"化疗后发热怎么办？","answer":"请立即联系治疗团队并尽快急诊评估。","user_profile":{"treatment_stage":"化疗后第7天"},"past_facts":[],"rag_references":[],"saved_contents":[]}'
+
+# 使用 POST 响应中的 evaluation_id/status_url 查询临时评测结果
+curl -H "X-MME-API-Key: <key>" \
+  http://localhost:8000/api/open/v1/temporary-evaluations/temporary_xxx
 
 # 创建评测：levels 为空表示评全部 Level；judge_model_id 为空使用平台默认判分模型
 curl -X POST http://localhost:8000/api/open/v1/evaluations \

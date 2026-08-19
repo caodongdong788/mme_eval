@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import time
 from types import SimpleNamespace
+
+from fastapi import HTTPException
+import pytest
 
 from server.models_db import (
     AttributionTask,
@@ -11,7 +15,21 @@ from server.models_db import (
     CaseResultRow,
     EvalRun,
     JudgeModelConfig,
+    TemporaryEvaluation,
 )
+from medeval.evaluation import EvaluationDimension
+from medeval.models import (
+    CaseEvaluation,
+    CaseResult,
+    DimensionCriteria,
+    GuidelineItem,
+    JudgeVerdict,
+    Level,
+    Source,
+    TestCase,
+    Turn,
+)
+from server.schemas import OpenTemporaryEvaluationCreate
 
 
 def _open_headers(client, permissions: list[str] | None = None) -> dict[str, str]:
@@ -257,6 +275,423 @@ def test_open_api_reports_config_backed_dashscope_model_as_available(client, mon
         item for item in response.json() if item["name"] == "百炼 DashScope · kimi-k2.6"
     )
     assert default["has_api_key"] is True
+
+
+def test_open_api_temporary_evaluation_uses_supplied_context_and_case_contract(
+    client, session, monkeypatch
+):
+    headers = _open_headers(client, ["temporary_evaluations:create"])
+    benchmark = Benchmark(
+        name="临时评测平台 Case",
+        source="offline",
+        storage_path="unused-in-test",
+        case_count=1,
+    )
+    session.add(benchmark)
+    session.commit()
+    platform_case = TestCase(
+        schema_version="2.1",
+        sample_id="platform_case_01",
+        scenario="化疗后发热",
+        level=Level.L3,
+        source=Source.offline,
+        case_type="用药方法与药物安全",
+        turns=[
+            Turn(role="user", content=" 化疗后体温 38.5℃，\n我应该怎么办？ "),
+            Turn(role="assistant", content="原平台 Case 回答，不应进入临时对话"),
+        ],
+        evaluation=CaseEvaluation(
+            dimension_criteria={
+                EvaluationDimension.professional_accuracy: DimensionCriteria(
+                    criteria=["结合发热与中性粒细胞减少判断紧急程度"]
+                )
+            },
+            guidelines=[
+                GuidelineItem(
+                    id="g01",
+                    dimension=EvaluationDimension.professional_accuracy,
+                    trigger="化疗后发热",
+                    criteria=["明确建议尽快复查血常规"],
+                    deduction_rule="缺失检查点时按未得分扣减",
+                    max_score=2,
+                )
+            ],
+        ),
+    )
+
+    from server.services import temporary_evaluation
+
+    captured: dict = {}
+    monkeypatch.setattr(
+        temporary_evaluation,
+        "_platform_benchmarks",
+        lambda _session: [benchmark],
+    )
+    monkeypatch.setattr(
+        temporary_evaluation.bm_domain,
+        "load_benchmark_cases",
+        lambda _candidate: [platform_case],
+    )
+    monkeypatch.setattr(temporary_evaluation, "build_judge_stack", lambda _config: [])
+
+    async def fake_judge_all(case, trace, judges):
+        captured["case"] = case
+        captured["trace"] = trace
+        captured["judges"] = judges
+        verdicts = []
+        for dimension in EvaluationDimension:
+            score = 4.0 if dimension == EvaluationDimension.professional_accuracy else 5.0
+            verdicts.append(
+                JudgeVerdict(
+                    name=f"dimension.{dimension.value}",
+                    passed=score >= 3,
+                    score=score,
+                    max_score=5,
+                    reason=(
+                        "医学方向正确，但检查说明不完整"
+                        if dimension == EvaluationDimension.professional_accuracy
+                        else "满足该维度要求"
+                    ),
+                    evidence=["立即联系治疗团队并尽快急诊评估"],
+                    details={
+                        "satisfied_points": ["识别紧急处理需求"],
+                        "issue_audits": (
+                            [{"issue": "缺少复查项目"}]
+                            if dimension == EvaluationDimension.professional_accuracy
+                            else []
+                        ),
+                    },
+                )
+            )
+        verdicts.append(
+            JudgeVerdict(
+                name="guideline.g01",
+                passed=False,
+                score=1,
+                max_score=2,
+                reason="未明确说明复查血常规",
+                evidence=["尽快急诊评估"],
+                details={
+                    "applicable": True,
+                    "missed_points": ["明确复查血常规"],
+                    "checkpoint_audits": [{"checkpoint": "明确建议尽快复查血常规"}],
+                },
+            )
+        )
+        return CaseResult(
+            case=case,
+            trace=trace,
+            verdicts=verdicts,
+            medical_safety_passed=True,
+        )
+
+    monkeypatch.setattr(temporary_evaluation, "judge_all", fake_judge_all)
+
+    response = client.post(
+        "/api/open/v1/temporary-evaluations",
+        headers=headers,
+        json={
+            "external_request_id": "external-chat-001",
+            "question": "化疗后体温 38.5℃，我应该怎么办？",
+            "answer": "请立即联系治疗团队并尽快急诊评估。",
+            "user_profile": {"age": 52, "treatment_stage": "化疗后第 7 天"},
+            "past_facts": [
+                {
+                    "occurred_at": "2026-08-18",
+                    "label": "血常规",
+                    "content": "中性粒细胞绝对值 0.8×10^9/L",
+                }
+            ],
+            "rag_references": [
+                {
+                    "id": "rag-01",
+                    "title": "处理原则",
+                    "content": "化疗后发热伴中性粒细胞减少需紧急评估。",
+                }
+            ],
+            "saved_contents": [
+                {
+                    "content_type": "medication",
+                    "title": "当前用药",
+                    "content": "昨日使用升白针。",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 202, response.text
+    created = response.json()
+    assert created["evaluation_id"].startswith("temporary_")
+    assert created["external_request_id"] == "external-chat-001"
+    assert created["status"] == "pending"
+    assert created["status_url"].endswith(created["evaluation_id"])
+
+    status_response = None
+    for _ in range(100):
+        status_response = client.get(created["status_url"], headers=headers)
+        assert status_response.status_code == 200, status_response.text
+        if status_response.json()["status"] in {"success", "failed"}:
+            break
+        time.sleep(0.01)
+    assert status_response is not None
+    status = status_response.json()
+    assert status["status"] == "success", status
+    assert status["error"] is None
+    body = status["result"]
+    assert body["evaluation_id"] == created["evaluation_id"]
+    assert body["external_request_id"] == "external-chat-001"
+    assert body["evaluation_mode"] == "single_turn"
+    assert body["benchmark_case_matched"] is True
+    assert body["case_source"] == {
+        "benchmark_id": benchmark.id,
+        "benchmark_name": "临时评测平台 Case",
+        "sample_id": "platform_case_01",
+        "scenario": "化疗后发热",
+        "match_type": "normalized_exact_question",
+    }
+    assert body["total_score"] == 43
+    assert body["grade"] == "优秀"
+    assert body["passed"] is True
+    assert len(body["dimensions"]) == 8
+    professional = next(
+        item for item in body["dimensions"]
+        if item["dimension"] == "professional_accuracy"
+    )
+    assert professional["raw_score"] == 4
+    assert professional["score"] == 3
+    assert professional["base_deduction"] == 1
+    assert professional["guideline_deduction"] == 1
+    assert professional["deduction"] == 2
+    assert professional["issue_audits"] == [{"issue": "缺少复查项目"}]
+    assert body["guideline_results"][0]["deduction"] == 1
+    assert body["guideline_results"][0]["missed_points"] == ["明确复查血常规"]
+    assert any("未明确说明复查血常规" in item for item in body["deductions"])
+
+    temporary_case = captured["case"]
+    assert temporary_case.evaluation.dimension_criteria == platform_case.evaluation.dimension_criteria
+    assert temporary_case.evaluation.guidelines == platform_case.evaluation.guidelines
+    assert temporary_case.evaluation.assertions == []
+    assert temporary_case.initial_state.user_profile["用户画像"]["age"] == 52
+    context = temporary_case.initial_state.user_profile["临时评测辅助上下文"]
+    assert context["RAG引用"][0]["id"] == "rag-01"
+    assert context["病例夹"][0]["content_type"] == "medication"
+    assert temporary_case.initial_state.timeline[0]["label"] == "血常规"
+    assert [message.content for message in captured["trace"].messages] == [
+        "化疗后体温 38.5℃，我应该怎么办？",
+        "请立即联系治疗团队并尽快急诊评估。",
+    ]
+    assert "原平台 Case 回答" not in str(captured["trace"].messages)
+    assert session.query(EvalRun).count() == 0
+    assert session.query(CaseResultRow).count() == 0
+    assert session.query(TemporaryEvaluation).count() == 1
+
+
+def test_open_api_temporary_evaluation_requires_its_own_permission(client):
+    headers = _open_headers(client, ["evaluations:create"])
+    response = client.post(
+        "/api/open/v1/temporary-evaluations",
+        headers=headers,
+        json={"question": "问题", "answer": "回答"},
+    )
+    assert response.status_code == 403
+
+
+def test_open_api_temporary_evaluation_rejects_unknown_fields(client):
+    headers = _open_headers(client, ["temporary_evaluations:create"])
+    response = client.post(
+        "/api/open/v1/temporary-evaluations",
+        headers=headers,
+        json={
+            "question": "问题",
+            "answer": "回答",
+            "case_selector": {"benchmark_id": 1, "sample_id": "case_01"},
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_open_api_temporary_evaluation_rejects_multi_turn_mode(client):
+    headers = _open_headers(client, ["temporary_evaluations:create"])
+    response = client.post(
+        "/api/open/v1/temporary-evaluations",
+        headers=headers,
+        json={
+            "evaluation_mode": "multi_turn",
+            "question": "问题",
+            "answer": "回答",
+        },
+    )
+    assert response.status_code == 422
+    assert "single_turn" in response.json()["detail"]
+
+
+def test_open_api_temporary_evaluation_rejects_unknown_judge_model(client):
+    headers = _open_headers(client, ["temporary_evaluations:create"])
+    response = client.post(
+        "/api/open/v1/temporary-evaluations",
+        headers=headers,
+        json={"question": "问题", "answer": "回答", "judge_model_id": 999999},
+    )
+    assert response.status_code == 404
+    assert "判分模型 999999 不存在" in response.json()["detail"]
+
+
+def test_temporary_evaluation_uses_generic_contract_when_question_does_not_match(
+    session, monkeypatch
+):
+    benchmark = Benchmark(
+        name="自动匹配未命中测试集",
+        source="offline",
+        storage_path="unused-no-match",
+        case_count=1,
+    )
+    session.add(benchmark)
+    session.commit()
+    platform_case = TestCase(
+        schema_version="2.1",
+        sample_id="other_case",
+        scenario="其他问题",
+        level=Level.L2,
+        source=Source.offline,
+        turns=[Turn(role="user", content="这是另一个问题")],
+        evaluation=CaseEvaluation(
+            dimension_criteria={
+                EvaluationDimension.communication: DimensionCriteria(
+                    criteria=["使用简洁表达"]
+                )
+            }
+        ),
+    )
+    from server.services import temporary_evaluation
+
+    monkeypatch.setattr(
+        temporary_evaluation,
+        "_platform_benchmarks",
+        lambda _session: [benchmark],
+    )
+    monkeypatch.setattr(
+        temporary_evaluation.bm_domain,
+        "load_benchmark_cases",
+        lambda _benchmark: [platform_case],
+    )
+    payload = OpenTemporaryEvaluationCreate(question="没有命中的问题", answer="回答")
+
+    temporary_case, case_source = temporary_evaluation._temporary_case(
+        session, payload, "temporary_no_match"
+    )
+
+    assert case_source is None
+    assert temporary_case.evaluation.dimension_criteria == {}
+    assert temporary_case.evaluation.guidelines == []
+
+
+def test_temporary_evaluation_rejects_ambiguous_question_contracts(
+    session, monkeypatch
+):
+    first_benchmark = Benchmark(
+        name="重复问题测试集一",
+        source="offline",
+        storage_path="unused-ambiguous-a",
+        case_count=1,
+    )
+    second_benchmark = Benchmark(
+        name="重复问题测试集二",
+        source="offline",
+        storage_path="unused-ambiguous-b",
+        case_count=1,
+    )
+    session.add_all([first_benchmark, second_benchmark])
+    session.commit()
+
+    def build_case(sample_id: str, criterion: str) -> TestCase:
+        return TestCase(
+            schema_version="2.1",
+            sample_id=sample_id,
+            scenario="重复问题",
+            level=Level.L2,
+            source=Source.offline,
+            turns=[Turn(role="user", content="同一个问题")],
+            evaluation=CaseEvaluation(
+                dimension_criteria={
+                    EvaluationDimension.communication: DimensionCriteria(
+                        criteria=[criterion]
+                    )
+                }
+            ),
+        )
+
+    cases = {
+        first_benchmark.id: [build_case("case_a", "标准一")],
+        second_benchmark.id: [build_case("case_b", "标准二")],
+    }
+    from server.services import temporary_evaluation
+
+    monkeypatch.setattr(
+        temporary_evaluation,
+        "_platform_benchmarks",
+        lambda _session: [first_benchmark, second_benchmark],
+    )
+    monkeypatch.setattr(
+        temporary_evaluation.bm_domain,
+        "load_benchmark_cases",
+        lambda benchmark: cases[benchmark.id],
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        temporary_evaluation._match_platform_case(session, " 同一个\n问题 ")
+
+    assert exc_info.value.status_code == 409
+    assert "评分契约不同" in str(exc_info.value.detail)
+
+
+def test_temporary_evaluation_does_not_apply_multi_turn_case_contract(
+    session, monkeypatch
+):
+    benchmark = Benchmark(
+        name="多轮问题测试集",
+        source="offline",
+        storage_path="unused-multi-turn",
+        case_count=1,
+    )
+    session.add(benchmark)
+    session.commit()
+    multi_turn_case = TestCase(
+        schema_version="2.1",
+        sample_id="multi_turn_case",
+        scenario="多轮问题",
+        level=Level.L2,
+        source=Source.offline,
+        turns=[
+            Turn(role="user", content="同一个开场问题"),
+            Turn(role="assistant", content="请补充信息"),
+            Turn(role="user", content="这是第二个用户回合"),
+        ],
+        evaluation=CaseEvaluation(
+            dimension_criteria={
+                EvaluationDimension.clinical_inquiry: DimensionCriteria(
+                    criteria=["覆盖多轮追问"]
+                )
+            }
+        ),
+    )
+    from server.services import temporary_evaluation
+
+    monkeypatch.setattr(
+        temporary_evaluation,
+        "_platform_benchmarks",
+        lambda _session: [benchmark],
+    )
+    monkeypatch.setattr(
+        temporary_evaluation.bm_domain,
+        "load_benchmark_cases",
+        lambda _benchmark: [multi_turn_case],
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        temporary_evaluation._match_platform_case(session, "同一个开场问题")
+
+    assert exc_info.value.status_code == 422
+    assert "目前仅支持单轮模式" in str(exc_info.value.detail)
 
 
 def test_open_api_returns_run_overview_metrics_without_case_data(client, session):

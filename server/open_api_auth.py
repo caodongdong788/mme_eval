@@ -9,6 +9,7 @@ from fastapi.security import APIKeyHeader
 from sqlalchemy.orm import Session
 
 from .db import get_session
+from .models_db import OpenApiAccessKey
 from .services.open_api_config import authorize_open_api_key
 
 
@@ -25,7 +26,7 @@ def require_open_api_permission(permission: str):
     def checker(
         supplied_key: Annotated[str | None, Security(open_api_key_header)],
         session: Session = Depends(get_session),
-    ) -> None:
-        authorize_open_api_key(session, supplied_key, permission)
+    ) -> OpenApiAccessKey:
+        return authorize_open_api_key(session, supplied_key, permission)
 
     return checker

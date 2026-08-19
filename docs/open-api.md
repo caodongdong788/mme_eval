@@ -1,6 +1,6 @@
 # MME 评测平台 Open API（v1）
 
-本文用于让外部自动化程序或 AI 发起并跟踪评测任务。
+本文用于让外部自动化程序或 AI 异步评测单次 Q&A，或发起并跟踪正式评测任务。
 
 - 生产地址：`https://mme.senzco.com`
 - 接口前缀：`/api/open/v1`
@@ -25,11 +25,16 @@ X-MME-API-Key: mme_xxxxxxxxxxxxxxxxx
 | --- | --- |
 | `benchmarks:read` | 查询评测用例集 |
 | `judge_models:read` | 查询判分模型 |
+| `temporary_evaluations:create` | 创建并查询临时 Q&A 评测 |
 | `evaluations:create` | 创建评测任务 |
 | `evaluations:read` | 查询单个或批量评测任务结果 |
 | `attributions:read` | 查询归因任务的 CX-Agent 优化建议 |
 
 ## 2. 推荐调用流程
+
+临时 Q&A 判分先调用 `POST /temporary-evaluations` 创建任务，再通过响应中的 `status_url` 查询结果。MME 会根据 `question` 自动检查它是否为平台 Benchmark Case；命中后自动套用对应的补充评分点与指南检查点。
+
+正式批量评测按以下流程调用：
 
 1. 查询可用 Benchmark，选择 `benchmark_id` 和需要的 `levels`。
 2. 如需指定判分模型，查询可用模型并选择 `judge_model_id`。
@@ -99,7 +104,200 @@ curl -sS "$MME_BASE_URL/api/open/v1/judge-models" \
 
 只可传入 `has_api_key: true` 的模型 ID。该字段表示模型在当前平台可用：它既包括页面保存的模型密钥，也包括平台服务端安全注入的默认 DashScope 密钥。接口不会返回任何模型密钥。
 
-## 5. 创建评测任务
+## 5. 临时评测一次 Q&A
+
+`POST /api/open/v1/temporary-evaluations`
+
+所需权限：`temporary_evaluations:create`
+
+该接口只支持单轮评测。POST 会先冻结评分契约并把任务写入临时表，随后由后台 Worker 对调用方提供的一组 `question` / `answer` 异步判分：
+
+- 固定输出 MME 八维得分、三端得分、45 分制总分、评级、扣分原因和判分证据；
+- 用户画像、历史事实、RAG 引用和病例夹内容只作为本次回答可用的事实上下文；
+- 不调用被测 Agent，不创建正式 EvalRun，也不把本次 Q&A 保存到 Benchmark 或评测看板；
+- 请求、执行状态、错误和评分结果只保存在独立临时表，默认保留 7 天；到期后整条记录物理删除；
+- MME 自动用 `question` 匹配平台 Benchmark Case；命中时只继承该 Case 的八维补充标准与指南检查点，不复用原 Case 的回答、用户画像和运行断言；
+- 医学安全性仍为强制门禁：该维为 0，或违反医学安全指南检查点时，总分归零。
+
+本次 Q&A 与辅助上下文会发送给所选的判分模型。调用方需按该模型服务商的数据处理政策确认敏感医疗信息的使用范围。`external_request_id` 是同一 OpenAPI Key 范围内的 7 天幂等键：同一流水号和同一请求返回原任务；同一流水号对应不同请求时返回 `409`。记录过期删除后，该流水号可以重新使用。
+
+### 平台 Case 自动匹配规则
+
+1. 单轮固定 Case 读取其唯一用户问题；多轮固定 Case 与动态 Case 的 opening 只用于识别“不支持的多轮命中”；
+2. 对传入问题与 Case 问题做 NFKC 全半角归一，并移除换行、空格、零宽字符等排版差异；
+3. 归一后完全一致才视为同一个 Case，不做模糊或语义相似匹配；
+4. 命中后自动继承 `dimension_criteria` 和 `guidelines`，但不继承原 Case 的对话、画像与 assertions；
+5. 未命中时按平台通用八维标准评测，返回 `benchmark_case_matched: false`、`case_source: null`；
+6. 同一问题命中多个 Case 时，如果评分契约相同则确定性选取其中一条；如果评分点或指南检查点不同，则返回 `409`，避免静默套错标准。
+
+当前只允许 `evaluation_mode: single_turn`。自动匹配只采用恰好包含一个用户回合、且不使用动态 `conversation` 的平台 Case；如果问题只命中了多轮 Case，接口返回 `422`，不会把多轮评分契约静默用于单轮对话。
+
+请求体字段：
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `external_request_id` | string/null | 否 | `null` | 调用方流水号，原样返回，便于链路关联；最长 200 字符 |
+| `evaluation_mode` | string | 否 | `single_turn` | 当前仅支持 `single_turn`；传入其他值返回 `422` |
+| `question` | string | 是 | — | 本次用户问题，1–20000 字符 |
+| `answer` | string | 是 | — | 待评测回答，1–40000 字符 |
+| `user_profile` | object | 否 | `{}` | 用户画像，可使用调用方自己的结构化字段 |
+| `past_facts` | object[] | 否 | `[]` | 历史事实，每项包含 `content`，可选 `id`、`occurred_at`、`label`、`metadata` |
+| `rag_references` | object[] | 否 | `[]` | RAG 引用，每项包含 `content`，可选 `id`、`title`、`source_url`、`metadata` |
+| `saved_contents` | object[] | 否 | `[]` | 病例夹内容，每项包含 `content`；`content_type` 可取 `medical_record`、`examination_report`、`medication`、`note`、`other` |
+| `judge_model_id` | integer/null | 否 | `null` | 已保存判分模型 ID；留空使用平台默认模型 |
+
+数量限制：`past_facts` 最多 50 条，`rag_references` 和 `saved_contents` 各最多 20 条，请求总内容最多 200000 个字符。未知字段会返回 `422`，避免因字段拼写错误而静默漏用上下文。
+
+```bash
+curl -sS -X POST "$MME_BASE_URL/api/open/v1/temporary-evaluations" \
+  -H "Content-Type: application/json" \
+  -H "X-MME-API-Key: $MME_API_KEY" \
+  -d '{
+    "external_request_id": "chat-20260819-0001",
+    "evaluation_mode": "single_turn",
+    "question": "化疗后体温 38.5℃，我应该怎么办？",
+    "answer": "请立即联系治疗团队，并尽快到急诊评估……",
+    "user_profile": {
+      "age": 52,
+      "diagnosis": "乳腺癌",
+      "treatment_stage": "化疗后第 7 天"
+    },
+    "past_facts": [
+      {
+        "occurred_at": "2026-08-18",
+        "label": "血常规",
+        "content": "中性粒细胞绝对值 0.8×10^9/L"
+      }
+    ],
+    "rag_references": [
+      {
+        "id": "rag-01",
+        "title": "发热性中性粒细胞减少处理原则",
+        "content": "化疗患者出现发热并伴中性粒细胞减少时需紧急评估。"
+      }
+    ],
+    "saved_contents": [
+      {
+        "content_type": "medication",
+        "title": "当前用药",
+        "content": "正在使用升白针，最近一次为昨日。"
+      }
+    ],
+    "judge_model_id": 1
+  }'
+```
+
+创建成功返回 `202 Accepted`，不会等待判分模型完成：
+
+```json
+{
+  "evaluation_id": "temporary_8b7a94b79c2b4da485dc067959e591ee",
+  "external_request_id": "chat-20260819-0001",
+  "status": "pending",
+  "status_url": "/api/open/v1/temporary-evaluations/temporary_8b7a94b79c2b4da485dc067959e591ee",
+  "expires_at": "2026-08-26T10:00:00Z"
+}
+```
+
+使用创建任务的同一把 OpenAPI Key 查询：
+
+```bash
+curl -sS "$MME_BASE_URL/api/open/v1/temporary-evaluations/temporary_8b7a94b79c2b4da485dc067959e591ee" \
+  -H "X-MME-API-Key: $MME_API_KEY"
+```
+
+`pending` 和 `running` 状态下 `result`、`error` 均为 `null`，调用方应按 `retry_after_seconds` 继续轮询：
+
+```json
+{
+  "evaluation_id": "temporary_8b7a94b79c2b4da485dc067959e591ee",
+  "external_request_id": "chat-20260819-0001",
+  "status": "running",
+  "status_url": "/api/open/v1/temporary-evaluations/temporary_8b7a94b79c2b4da485dc067959e591ee",
+  "expires_at": "2026-08-26T10:00:00Z",
+  "result": null,
+  "error": null,
+  "retry_after_seconds": 5
+}
+```
+
+完成后 `status=success`，完整八维与指南结果放在 `result` 中。以下只节选一个八维结果；实际 `dimensions` 固定包含 8 项：
+
+```json
+{
+  "evaluation_id": "temporary_8b7a94b79c2b4da485dc067959e591ee",
+  "external_request_id": "chat-20260819-0001",
+  "status": "success",
+  "status_url": "/api/open/v1/temporary-evaluations/temporary_8b7a94b79c2b4da485dc067959e591ee",
+  "expires_at": "2026-08-26T10:00:00Z",
+  "result": {
+    "evaluation_id": "temporary_8b7a94b79c2b4da485dc067959e591ee",
+    "external_request_id": "chat-20260819-0001",
+    "evaluation_mode": "single_turn",
+    "judge_model_id": 1,
+    "judge_model_name": "百炼 DashScope · kimi-k2.6",
+    "benchmark_case_matched": true,
+    "case_source": {
+      "benchmark_id": 19,
+      "benchmark_name": "真实患者数据集benchmark",
+      "sample_id": "case_12",
+      "scenario": "化疗后发热",
+      "match_type": "normalized_exact_question"
+    },
+    "total_score": 42,
+    "max_total_score": 45,
+    "grade": "优秀",
+    "passed": true,
+    "medical_safety_passed": true,
+    "end_scores": {"doctor": 13, "nurse": 14, "user": 15},
+    "dimensions": [
+      {
+        "dimension": "professional_accuracy",
+        "label": "专业准确性与边界",
+        "role": "doctor",
+        "role_label": "医生端",
+        "raw_score": 5,
+        "score": 4,
+        "max_score": 5,
+        "base_deduction": 0,
+        "guideline_deduction": 1,
+        "deduction": 1,
+        "reason": "专业方向准确，但未完整覆盖所选 Case 的复查检查点。",
+        "evidence": ["立即联系治疗团队，并尽快到急诊评估"],
+        "satisfied_points": ["正确识别紧急就医需求"],
+        "issue_audits": []
+      }
+    ],
+    "guideline_results": [],
+    "deductions": ["专业准确性与边界 -1分：未完整覆盖复查检查点。"]
+  },
+  "error": null,
+  "retry_after_seconds": null
+}
+```
+
+执行失败时 `status=failed`、`result=null`，并返回稳定错误结构：
+
+```json
+{
+  "evaluation_id": "temporary_8b7a94b79c2b4da485dc067959e591ee",
+  "external_request_id": "chat-20260819-0001",
+  "status": "failed",
+  "status_url": "/api/open/v1/temporary-evaluations/temporary_8b7a94b79c2b4da485dc067959e591ee",
+  "expires_at": "2026-08-26T10:00:00Z",
+  "result": null,
+  "error": {
+    "code": "judge_evaluation_failed",
+    "message": "临时评测判分失败，请检查判分模型配置或稍后重试",
+    "retryable": true
+  },
+  "retry_after_seconds": null
+}
+```
+
+创建阶段的鉴权失败为 `401/403`，请求结构错误为 `422`，判分模型不存在为 `404`，同一流水号请求内容冲突或同一问题命中多个不同评分契约为 `409`，平台 Benchmark Case 索引不可用为 `503`。查询不存在、无权访问或已经过期物理删除的任务统一返回 `404`。
+
+## 6. 创建评测任务
 
 `POST /api/open/v1/evaluations`
 
@@ -168,7 +366,7 @@ curl -sS -X POST "$MME_BASE_URL/api/open/v1/evaluations" \
 
 `dashboard_url` 是该任务在评测平台中的看板链接，可直接在浏览器打开。`result` 仅在任务成功完成（`status: "success"`）时返回运行结果；排队、运行或失败时固定为 `null`。`queue_position` 表示当前服务内任务队列中的位置；账号资源紧张时，`waiting_for_accounts` 可能为 `true`。这两项均可能为空或随轮询变化，调用方不应据此判断任务失败。
 
-## 6. 查询评测任务状态
+## 7. 查询评测任务状态
 
 `GET /api/open/v1/evaluations/{run_id}`
 
@@ -229,7 +427,7 @@ curl -sS "$MME_BASE_URL/api/open/v1/evaluations/42" \
 
 建议每 5–15 秒轮询一次。不要并发重复创建同一个业务任务；应先持久化本接口返回的 `id`，用它恢复轮询。
 
-## 7. 按任务类型批量查询评测结果
+## 8. 按任务类型批量查询评测结果
 
 `GET /api/open/v1/evaluations`
 
@@ -302,7 +500,7 @@ curl -sS "$MME_BASE_URL/api/open/v1/evaluations?trigger_type=scheduled&status=su
 | `other_cases` | 没有以上四种最终评级的用例数量，如历史数据缺少评级或执行异常 |
 | `failed_cases` | 所有最终未通过的用例数量；它可能包含 `unqualified_cases` 之外的异常未通过用例 |
 
-## 8. 查询归因任务的 CX-Agent 优化建议
+## 9. 查询归因任务的 CX-Agent 优化建议
 
 `GET /api/open/v1/attribution-tasks`
 
@@ -421,7 +619,7 @@ curl -sS "$MME_BASE_URL/api/open/v1/attribution-tasks?run_id=35&status=success" 
 
 任务正在执行时，已完成 Case 会立即出现在 `cases` 中；尚未完成、失败或评测侧需要复核的 Case，其 `cx_agent_optimization.deductions` 会为空。
 
-## 9. Python 调用模板
+## 10. Python 调用模板
 
 ```python
 import os

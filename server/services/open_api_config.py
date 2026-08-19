@@ -17,6 +17,7 @@ from ..models_db import OpenApiAccessKey
 OPEN_API_PERMISSIONS: dict[str, str] = {
     "benchmarks:read": "读取评测用例集",
     "judge_models:read": "读取判分模型",
+    "temporary_evaluations:create": "创建并查询临时单轮评测",
     "evaluations:create": "创建评测任务",
     "evaluations:read": "查询评测任务状态",
     "attributions:read": "查询归因任务与 CX-Agent 优化建议",
@@ -124,7 +125,7 @@ def delete_open_api_key(session: Session, key_id: int) -> None:
 
 def authorize_open_api_key(
     session: Session, supplied_key: str | None, required_permission: str
-) -> None:
+) -> OpenApiAccessKey:
     if not session.execute(select(OpenApiAccessKey.id).limit(1)).first():
         raise HTTPException(status_code=503, detail="OpenAPI 尚未启用，请先创建 API Key")
     if not supplied_key:
@@ -137,3 +138,4 @@ def authorize_open_api_key(
     if required_permission not in (row.permissions or []):
         raise HTTPException(status_code=403, detail="该 OpenAPI Key 没有此接口权限")
     row.last_used_at = datetime.utcnow()
+    return row

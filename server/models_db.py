@@ -229,6 +229,65 @@ class EvaluationJob(Base):
     )
 
 
+class TemporaryEvaluation(Base):
+    """OpenAPI 临时单轮评测：请求、租约状态与结果默认保留七天。"""
+
+    __tablename__ = "temporary_evaluation"
+    __table_args__ = (
+        UniqueConstraint(
+            "api_key_id",
+            "external_request_id",
+            name="uq_temporary_evaluation_caller_external_request",
+        ),
+        Index(
+            "ix_temporary_evaluation_claim",
+            "status",
+            "lease_expires_at",
+            "id",
+        ),
+        Index("ix_temporary_evaluation_expires", "expires_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    evaluation_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    # 幂等与查询权限均按创建任务的 OpenAPI Key 隔离；Key 删除不应级联污染任务表。
+    api_key_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    external_request_id: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+    # 创建任务时即冻结自动匹配到的评分契约，避免排队期间 Benchmark 更新导致口径漂移。
+    case_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    case_source: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    benchmark_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    benchmark_version: Mapped[str] = mapped_column(String(50), default="")
+    sample_id: Mapped[str] = mapped_column(String(200), default="")
+    contract_fingerprint: Mapped[str] = mapped_column(String(64), default="")
+    judge_model_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    judge_model_name: Mapped[str] = mapped_column(String(200), default="")
+
+    # pending | running | success | failed
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    result_payload: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    error_code: Mapped[str] = mapped_column(String(80), default="")
+    error_message: Mapped[str] = mapped_column(Text, default="")
+    retryable: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    lease_owner: Mapped[Optional[str]] = mapped_column(String(160), nullable=True, index=True)
+    lease_expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True, index=True
+    )
+    heartbeat_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
+
+
 class ScheduledEvaluation(Base):
     """用户配置的周期性评测任务。
 

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_session
 from ..jobs import get_job_runner
-from ..models_db import CaseResultRow, EvalRun
+from ..models_db import CaseResultRow, EvalRun, OpenApiAccessKey
 from ..open_api_auth import require_open_api_permission
 from ..settings import get_settings
 from medeval.evaluation_account_limiter import account_queue_snapshot
@@ -24,12 +24,16 @@ from ..schemas import (
     OpenEvaluationResult,
     OpenAttributionTaskBatchOut,
     OpenJudgeModelOut,
+    OpenTemporaryEvaluationCreate,
+    OpenTemporaryEvaluationCreatedOut,
+    OpenTemporaryEvaluationStatusOut,
     RunCreate,
 )
 from ..services import benchmark_catalog as benchmark_svc
 from ..services import judge_models as judge_models_svc
 from ..services import open_attribution_api as open_attribution_api_svc
 from ..services import runs as runs_svc
+from ..services import temporary_evaluation_tasks as temporary_evaluation_tasks_svc
 from .runs import build_eval_job
 
 
@@ -171,6 +175,58 @@ def list_open_judge_models(session: Session = Depends(get_session)) -> list[Open
         )
         for row in judge_models_svc.list_judge_models(session)
     ]
+
+
+@router.post(
+    "/temporary-evaluations",
+    response_model=OpenTemporaryEvaluationCreatedOut,
+    status_code=202,
+    summary="创建临时单轮评测任务",
+    responses={
+        401: {"description": "未提供 OpenAPI Key"},
+        403: {"description": "OpenAPI Key 无效或缺少临时评测权限"},
+        404: {"description": "判分模型不存在"},
+        409: {"description": "幂等流水号冲突，或同一问题命中多个不同评分契约"},
+        503: {"description": "平台 Benchmark Case 索引不可用"},
+    },
+)
+async def create_temporary_evaluation(
+    payload: OpenTemporaryEvaluationCreate,
+    session: Session = Depends(get_session),
+    access_key: OpenApiAccessKey = Depends(
+        require_open_api_permission("temporary_evaluations:create")
+    ),
+) -> OpenTemporaryEvaluationCreatedOut:
+    created, is_new = temporary_evaluation_tasks_svc.create_temporary_evaluation(
+        session,
+        payload,
+        api_key_id=access_key.id,
+    )
+    if is_new:
+        temporary_evaluation_tasks_svc.schedule_temporary_evaluation(
+            created.evaluation_id
+        )
+    return created
+
+
+@router.get(
+    "/temporary-evaluations/{evaluation_id}",
+    response_model=OpenTemporaryEvaluationStatusOut,
+    summary="查询临时单轮评测结果",
+    responses={404: {"description": "临时评测不存在、无权访问或已过期删除"}},
+)
+def get_temporary_evaluation(
+    evaluation_id: str,
+    session: Session = Depends(get_session),
+    access_key: OpenApiAccessKey = Depends(
+        require_open_api_permission("temporary_evaluations:create")
+    ),
+) -> OpenTemporaryEvaluationStatusOut:
+    return temporary_evaluation_tasks_svc.get_temporary_evaluation(
+        session,
+        evaluation_id,
+        api_key_id=access_key.id,
+    )
 
 
 @router.post(
