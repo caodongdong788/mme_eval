@@ -334,6 +334,173 @@ def test_open_api_returns_only_cx_agent_attribution_optimizations(client, sessio
             sample_id="case_1",
             scenario="潮热用药",
             case_type="用药安全",
+            detail_json={
+                "case": {
+                    "schema_version": "2.0",
+                    "sample_id": "case_1",
+                    "scenario": "潮热用药",
+                    "case_type": "用药安全",
+                    "level": "L2",
+                    "initial_state": {
+                        "user_profile": {
+                            "年龄": 45,
+                            "肿瘤状态": "HER2 3+、ER 弱阳性",
+                        },
+                        "timeline": [
+                            {"日期": "2026-08-01", "事件": "开始服用内分泌药物"}
+                        ],
+                        "long_term_memories": ["曾因潮热影响夜间睡眠"],
+                    },
+                },
+                "trace": {
+                    "messages": [
+                        {"role": "user", "content": "最近潮热很明显，怎么办？"},
+                        {
+                            "role": "assistant",
+                            "content": "先记录频次，并联系医生评估当前用药。",
+                        },
+                    ],
+                    "duration_ms": 1234,
+                    "evaluation_identity": {
+                        "login_account": "+8610000000101",
+                        "fixed_verification_code": "731904",
+                        "test_user_id": "secret-user-id",
+                    },
+                    "cx_literature_audit_fetched": True,
+                    "cx_literature_audits": [
+                        {
+                            "id": "audit-1",
+                            "query": "乳腺癌 内分泌治疗 潮热",
+                            "mode": "general",
+                            "rawHitCount": 25,
+                            "scorePassedCount": 8,
+                            "candidateSourceCount": 5,
+                            "selectedSourceCount": 1,
+                            "scoreThreshold": 0.65,
+                            "hits": [
+                                {
+                                    "rank": 1,
+                                    "passedScore": True,
+                                    "selected": True,
+                                    "raw": {
+                                        "title": "乳腺癌内分泌治疗相关症状管理指南",
+                                        "score": 0.92,
+                                        "content": "应结合症状频次和严重程度选择处理方式。",
+                                    },
+                                }
+                            ],
+                        }
+                    ],
+                    "agent_chain": {
+                        "status": "synced",
+                        "summary": {
+                            "steps": [
+                                {
+                                    "title": "Agent 接收请求",
+                                    "type": "AGENT",
+                                    "duration_ms": 1234,
+                                },
+                                {
+                                    "title": "医学文献 RAG",
+                                    "type": "TOOL",
+                                    "duration_ms": 260,
+                                },
+                            ],
+                            "sources": [
+                                {
+                                    "key": "literature_rag",
+                                    "label": "医学文献 RAG",
+                                    "status": "hit",
+                                    "calls": 1,
+                                    "count": 1,
+                                }
+                            ],
+                            "quality": {
+                                "model_calls": 1,
+                                "tool_calls": 1,
+                                "total_tokens": 1200,
+                            },
+                            "risks": [],
+                            "actions": [],
+                        },
+                    },
+                },
+                "verdicts": [
+                    {
+                        "name": f"dimension.{dimension}",
+                        "passed": True,
+                        "score": 5,
+                        "max_score": 5,
+                        "reason": f"{dimension} 维度判定理由",
+                        "evidence": ["回答中的对应证据"],
+                    }
+                    for dimension in (
+                        "medical_safety",
+                        "professional_accuracy",
+                        "clinical_inquiry",
+                        "personalization",
+                        "plan_feasibility",
+                        "empathy",
+                        "executability",
+                        "communication",
+                    )
+                ],
+                "medical_safety_passed": True,
+                "release_passed": True,
+                "judge_error": False,
+                "dimension_raw_scores": {
+                    "medical_safety": 5,
+                    "professional_accuracy": 5,
+                    "clinical_inquiry": 5,
+                    "personalization": 5,
+                    "plan_feasibility": 5,
+                    "empathy": 5,
+                    "executability": 5,
+                    "communication": 5,
+                },
+                "dimension_scores": {
+                    "medical_safety": 5,
+                    "professional_accuracy": 4,
+                    "clinical_inquiry": 5,
+                    "personalization": 5,
+                    "plan_feasibility": 5,
+                    "empathy": 5,
+                    "executability": 5,
+                    "communication": 5,
+                },
+                "dimension_max": {
+                    "medical_safety": 5,
+                    "professional_accuracy": 5,
+                    "clinical_inquiry": 5,
+                    "personalization": 5,
+                    "plan_feasibility": 5,
+                    "empathy": 5,
+                    "executability": 5,
+                    "communication": 5,
+                },
+                "guideline_scores": [
+                    {
+                        "id": "g01",
+                        "dimension": "professional_accuracy",
+                        "criterion": "说明潮热处理需结合频次和严重程度",
+                        "checkpoints": ["询问潮热频次", "询问是否影响睡眠"],
+                        "deduction_rule": "每缺少一个检查点扣 1 分，最多扣 2 分",
+                        "applicable": True,
+                        "score": 1,
+                        "max_score": 2,
+                        "deduction": 1,
+                        "missed_points": ["未询问是否影响睡眠"],
+                        "reason": "只覆盖了频次记录",
+                        "evidence": ["先记录频次"],
+                    }
+                ],
+                "composite_score": 44,
+                "grade": "优秀",
+                "score_deductions": [
+                    "professional_accuracy 指南 g01 -1分：只覆盖了频次记录"
+                ],
+                "stability": "stable_pass",
+            },
         )
     )
     session.add(
@@ -447,6 +614,28 @@ def test_open_api_returns_only_cx_agent_attribution_optimizations(client, sessio
     assert case["case_report_url"] == (
         f"{settings.frontend_url}/runs/{run.id}/attribution-tasks/{task.id}/cases/case_1"
     )
+    assert case["case_evaluation_url"] == (
+        f"{settings.frontend_url}/runs/{run.id}/cases/case_1"
+    )
+    evaluation_markdown = case["evaluation_markdown"]
+    assert "# 原评测明细 · case_1" in evaluation_markdown
+    assert "## 对话明细" in evaluation_markdown
+    assert "最近潮热很明显，怎么办？" in evaluation_markdown
+    assert "## 用户画像" in evaluation_markdown
+    assert "HER2 3+、ER 弱阳性" in evaluation_markdown
+    assert "## Timeline 与过往事实" in evaluation_markdown
+    assert "开始服用内分泌药物" in evaluation_markdown
+    assert "## Agent 调用链" in evaluation_markdown
+    assert "Agent 接收请求" in evaluation_markdown
+    assert "## 医学文献 RAG" in evaluation_markdown
+    assert "乳腺癌内分泌治疗相关症状管理指南" in evaluation_markdown
+    assert "## 八维评分" in evaluation_markdown
+    assert "专业准确性与边界 | 5/5 | -1 | 4/5" in evaluation_markdown
+    assert "## 指南评分与扣分逻辑" in evaluation_markdown
+    assert "每缺少一个检查点扣 1 分" in evaluation_markdown
+    assert "+8610000000101" not in evaluation_markdown
+    assert "731904" not in evaluation_markdown
+    assert "secret-user-id" not in evaluation_markdown
     deductions = case["cx_agent_optimization"]["deductions"]
     assert len(deductions) == 2
     assert deductions[0]["deduction_id"] == "guideline.g01"

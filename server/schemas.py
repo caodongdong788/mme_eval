@@ -486,6 +486,8 @@ class OpenAttributionCaseOptimization(BaseModel):
 class OpenAttributionCaseOut(BaseModel):
     sample_id: str
     case_report_url: str
+    case_evaluation_url: str
+    evaluation_markdown: str = ""
     scenario: str = ""
     case_type: str = ""
     status: str

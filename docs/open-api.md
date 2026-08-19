@@ -374,6 +374,8 @@ curl -sS "$MME_BASE_URL/api/open/v1/attribution-tasks?run_id=35&status=success" 
         {
           "sample_id": "case_12",
           "case_report_url": "https://mme.senzco.com/runs/35/attribution-tasks/5/cases/case_12",
+          "case_evaluation_url": "https://mme.senzco.com/runs/35/cases/case_12",
+          "evaluation_markdown": "# 原评测明细 · case_12\n\n- **场景**：升白片用药\n...\n\n## 对话明细\n...\n\n## 用户画像\n...\n\n## Timeline 与过往事实\n...\n\n## Agent 调用链\n...\n\n## 医学文献 RAG\n...\n\n## 八维评分\n...\n\n## 指南评分与扣分逻辑\n...",
           "scenario": "升白片用药",
           "case_type": "用药方法与药物安全",
           "status": "success",
@@ -406,7 +408,18 @@ curl -sS "$MME_BASE_URL/api/open/v1/attribution-tasks?run_id=35&status=success" 
 }
 ```
 
-`report_url` 可直接打开该归因任务的详情页；每条 `cases[]` 的 `case_report_url` 可直接定位到对应 Case 的归因明细页。`cx_agent_optimization.markdown` 是“归因结论与优化建议”的 Markdown，可直接作为修复模型的输入；它仅包含已确认的 CX-Agent 问题，以及需要补齐可回链 RAG 证据的工程项，不会混入 Benchmark、判分复核或其他证据不足内容。任务正在执行时，已完成 Case 会立即出现在 `cases` 中；尚未完成、失败或评测侧需要复核的 Case，其 `cx_agent_optimization.deductions` 会为空。
+`report_url` 可直接打开该归因任务的详情页；每条 `cases[]` 同时提供两种 Case 深链和两份互相独立的 Markdown：
+
+| 字段 | 说明 |
+| --- | --- |
+| `case_report_url` | 该 Case 的归因明细页，可查看归因结论与优化建议 |
+| `case_evaluation_url` | 该 Case 当时的原评测明细页 |
+| `cx_agent_optimization.markdown` | 归因修复 Markdown；按八维、P0/P1/P2、问题分类组织，只包含确认属于 CX-Agent 的优化项，以及需要补齐可回链 RAG 证据的工程项 |
+| `evaluation_markdown` | 原评测的冻结证据 Markdown，包含对话、用户画像、Timeline/长期记忆、Agent 调用链摘要、医学文献 RAG、八维评分，以及指南评分和扣分逻辑 |
+
+`evaluation_markdown` 读取的是评测完成时保存的快照，不会在查询接口时重新请求 CX-Agent、Langfuse 或 RAG；登录账号、验证码、用户 ID 和内部系统提示词不会输出。调用方可将 `evaluation_markdown` 与 `cx_agent_optimization.markdown` 一起交给修复模型：前者提供完整评测证据，后者提供已确认的修复方向。
+
+任务正在执行时，已完成 Case 会立即出现在 `cases` 中；尚未完成、失败或评测侧需要复核的 Case，其 `cx_agent_optimization.deductions` 会为空。
 
 ## 9. Python 调用模板
 

@@ -22,6 +22,7 @@ from .attribution_taxonomy import (
     documented_optimization_category,
     normalize_optimization_classification,
 )
+from .case_evaluation_markdown import build_case_evaluation_markdown
 
 
 _DIMENSION_ORDER = [dimension.value for dimension in EvaluationDimension]
@@ -341,6 +342,15 @@ def list_open_attribution_tasks(
                     "case_report_url": (
                         f"{base_url}/runs/{task.run_id}/attribution-tasks/{task.id}/cases/"
                         f"{quote(item.sample_id, safe='')}"
+                    ),
+                    "case_evaluation_url": (
+                        f"{base_url}/runs/{task.run_id}/cases/"
+                        f"{quote(item.sample_id, safe='')}"
+                    ),
+                    "evaluation_markdown": (
+                        build_case_evaluation_markdown(case_row.detail_json)
+                        if case_row is not None
+                        else ""
                     ),
                     "scenario": case_row.scenario if case_row is not None else "",
                     "case_type": case_row.case_type if case_row is not None else "",
