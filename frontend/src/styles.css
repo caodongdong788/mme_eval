@@ -3692,6 +3692,9 @@ a.ant-typography-secondary:hover {
   font-size: 13px;
   line-height: 1.55;
 }
+.judge-verdict-table .ant-table-cell {
+  vertical-align: top;
+}
 .judge-audit-reason {
   display: grid;
   gap: 8px;

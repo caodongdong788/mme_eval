@@ -1,7 +1,10 @@
 import { screen } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../test/renderWithProviders";
-import { RunAttributionCategoryCharts } from "./RunAttributionCategoryCharts";
+import {
+  filterSecondLevelCategories,
+  RunAttributionCategoryCharts,
+} from "./RunAttributionCategoryCharts";
 
 describe("RunAttributionCategoryCharts", () => {
   beforeAll(() => {
@@ -38,5 +41,16 @@ describe("RunAttributionCategoryCharts", () => {
     expect(screen.getByText("归因二级分类")).toBeInTheDocument();
     expect(screen.getByText(/每个 Case 仅采用最新一次成功归因/)).toBeInTheDocument();
     expect(screen.getByText(/已归因/)).toHaveTextContent("已归因 3 个 Case");
+    expect(screen.getByText(/点击柱形筛选右侧二级分类/)).toBeInTheDocument();
+  });
+
+  it("filters second-level categories by their selected parent", () => {
+    const rows = [
+      { key: "rag:missing", label: "缺少 RAG 引用", case_count: 2, parent_key: "rag" },
+      { key: "prompt:boundary", label: "未说明适用边界", case_count: 1, parent_key: "prompt" },
+    ];
+
+    expect(filterSecondLevelCategories(rows, "rag")).toEqual([rows[0]]);
+    expect(filterSecondLevelCategories(rows, null)).toEqual(rows);
   });
 });

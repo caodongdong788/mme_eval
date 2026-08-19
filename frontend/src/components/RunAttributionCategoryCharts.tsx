@@ -1,8 +1,10 @@
 import { Spin } from "antd";
+import { useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   LabelList,
   ResponsiveContainer,
   Tooltip as RTooltip,
@@ -22,10 +24,14 @@ function CategoryBarChart({
   data,
   color,
   showParent,
+  selectedKey,
+  onSelect,
 }: {
   data: AttributionCategoryCount[];
   color: string;
   showParent?: boolean;
+  selectedKey?: string | null;
+  onSelect?: (key: string) => void;
 }) {
   return (
     <div className="runs-attribution-chart-canvas">
@@ -68,6 +74,14 @@ function CategoryBarChart({
             radius={[0, 5, 5, 0]}
             maxBarSize={20}
           >
+            {data.map((row) => (
+              <Cell
+                key={row.key}
+                fill={!selectedKey || selectedKey === row.key ? color : D.border}
+                cursor={onSelect ? "pointer" : undefined}
+                onClick={onSelect ? () => onSelect(row.key) : undefined}
+              />
+            ))}
             <LabelList
               dataKey="case_count"
               position="right"
@@ -79,6 +93,13 @@ function CategoryBarChart({
       </ResponsiveContainer>
     </div>
   );
+}
+
+export function filterSecondLevelCategories(
+  rows: AttributionCategoryCount[],
+  parentKey: string | null,
+): AttributionCategoryCount[] {
+  return parentKey ? rows.filter((row) => row.parent_key === parentKey) : rows;
 }
 
 function CategoryChartCard({
@@ -114,8 +135,22 @@ export function RunAttributionCategoryCharts({
   stats: RunAttributionCategoryStats | null;
   loading: boolean;
 }) {
+  const [selectedFirstLevel, setSelectedFirstLevel] = useState<string | null>(null);
   const firstLevel = stats?.first_level || [];
   const secondLevel = stats?.second_level || [];
+  const effectiveSelectedKey = firstLevel.some((row) => row.key === selectedFirstLevel)
+    ? selectedFirstLevel
+    : null;
+  const selectedFirstLevelLabel = firstLevel.find(
+    (row) => row.key === effectiveSelectedKey,
+  )?.label;
+  const visibleSecondLevel = useMemo(
+    () => filterSecondLevelCategories(secondLevel, effectiveSelectedKey),
+    [secondLevel, effectiveSelectedKey],
+  );
+  const toggleFirstLevel = (key: string) => {
+    setSelectedFirstLevel((current) => current === key ? null : key);
+  };
 
   if (loading) {
     return (
@@ -144,17 +179,24 @@ export function RunAttributionCategoryCharts({
       <div className="runs-attribution-category-grid">
         <CategoryChartCard
           title="归因一级分类"
-          description="问题所属的核心优化方向"
+          description="点击柱形筛选右侧二级分类，再次点击可取消"
           empty={firstLevel.length === 0}
         >
-          <CategoryBarChart data={firstLevel} color={D.purple} />
+          <CategoryBarChart
+            data={firstLevel}
+            color={D.purple}
+            selectedKey={effectiveSelectedKey}
+            onSelect={toggleFirstLevel}
+          />
         </CategoryChartCard>
         <CategoryChartCard
           title="归因二级分类"
-          description="可直接定位和处理的具体问题"
-          empty={secondLevel.length === 0}
+          description={selectedFirstLevelLabel
+            ? `仅展示“${selectedFirstLevelLabel}”下的具体问题`
+            : "可直接定位和处理的具体问题"}
+          empty={visibleSecondLevel.length === 0}
         >
-          <CategoryBarChart data={secondLevel} color={D.teal} showParent />
+          <CategoryBarChart data={visibleSecondLevel} color={D.teal} showParent />
         </CategoryChartCard>
       </div>
     </section>

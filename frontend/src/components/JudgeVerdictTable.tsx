@@ -233,7 +233,7 @@ export function JudgeVerdictTable({
   return (
     <DashPanel title="维度评分" bodyClassName="dash-panel__body--flush">
       <Table
-        className="dash-table"
+        className="dash-table judge-verdict-table"
         rowKey="name"
         size="small"
         columns={columns}

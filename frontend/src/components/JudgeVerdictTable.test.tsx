@@ -66,6 +66,7 @@ describe("JudgeVerdictTable", () => {
     expect(screen.getByText("指南 warm_response -1分：缺少针对性情绪承接")).toBeInTheDocument();
     expect(screen.getByText("维度评分")).toBeInTheDocument();
     expect(screen.getByText("维度")).toBeInTheDocument();
+    expect(screen.getByRole("table").closest(".judge-verdict-table")).toBeInTheDocument();
     expect(screen.queryByText("guideline.seek_care")).not.toBeInTheDocument();
     expect(screen.queryByText("1/3")).not.toBeInTheDocument();
     await waitFor(() => expect(mockedApi.getJudgeVerdictLabels).toHaveBeenCalled());
