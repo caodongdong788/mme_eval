@@ -96,9 +96,13 @@ describe("JudgeVerdictTable", () => {
       />,
     );
 
-    expect(screen.getByText("已做到")).toBeInTheDocument();
+    expect(screen.getByText("已做到").parentElement).toHaveClass(
+      "judge-audit-reason__satisfied",
+    );
     expect(screen.getByText("表达清晰，并提出整理沟通卡片。")).toBeInTheDocument();
-    expect(screen.getByText("扣分原因")).toBeInTheDocument();
+    expect(screen.getByText("扣分原因").parentElement).toHaveClass(
+      "judge-audit-reason__issues",
+    );
     expect(screen.getByText(/回答里应建议用户复诊时携带或提前获取完整病理报告和免疫组化结果/)).toBeInTheDocument();
     expect(screen.getByText(/对应原文：/).parentElement).toHaveTextContent("我可以帮你整理一张沟通卡片");
     expect(screen.queryByText("旧版模型总评")).not.toBeInTheDocument();

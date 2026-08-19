@@ -3705,19 +3705,32 @@ a.ant-typography-secondary:hover {
   font-size: 12px;
 }
 .judge-audit-reason__satisfied {
-  display: flex;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: start;
+  column-gap: 8px;
+}
+.judge-audit-reason__satisfied > strong,
+.judge-audit-reason__satisfied > span,
+.judge-audit-reason__issues > strong,
+.judge-audit-reason__issues > ol {
+  line-height: 1.55;
+}
+.judge-audit-reason__issues {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: start;
+  column-gap: 8px;
 }
 .judge-audit-reason__issues > strong {
-  display: block;
-  margin-bottom: 4px;
+  margin: 0;
   color: var(--runs-red);
 }
 .judge-audit-reason__issues ol {
   display: grid;
   gap: 7px;
   margin: 0;
-  padding-inline-start: 20px;
+  padding-inline-start: 18px;
 }
 .judge-audit-reason__evidence {
   margin-top: 2px;
