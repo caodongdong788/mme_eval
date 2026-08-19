@@ -165,6 +165,14 @@ def test_prompt_uses_shared_dimension_standards() -> None:
         assert standard["full_score"] in captured
 
 
+def test_communication_standard_rejects_repeated_risk_and_care_advice() -> None:
+    standard = DIMENSION_STANDARDS[EvaluationDimension.communication]
+
+    assert "不得围绕同一风险和就医建议反复铺陈" in standard["description"]
+    assert "核心行动被遮蔽" in standard["zero_score"]
+    assert "重点突出" in standard["full_score"]
+
+
 def test_low_score_requires_audited_issue_with_bot_evidence() -> None:
     judge = EightDimensionJudge(enabled=False)
     judge.enabled = True
