@@ -6,6 +6,9 @@ import logging
 import re
 
 from ..evaluation import (
+    CROSS_DIMENSION_DEDUCTION_RULE,
+    DIMENSION_LABELS,
+    DIMENSION_OWNERSHIP,
     DIMENSION_STANDARDS,
     SCORE_ANCHORS,
     EvaluationDimension,
@@ -62,6 +65,10 @@ _PROMPT = """\
 22. 证据句中的修饰语必须按原句主语、宾语和就近修饰对象理解，不得把对体温/无症状的“好消息”扩大成对异常检查值的评价。
 23. 判定回答缺失卡片字段、就诊信息、行动建议或情绪铺垫前，必须扫描全部 bot 回复，不得只检查收尾句、卡片提议句或紧邻段落。
 24. 一条补充关注点包含多个独立要求时，必须拆分出每个真实未满足点，分别判定 partial/missing/contradicted；未写测量方式只能判为信息不完整，不得自动升格为阈值错误。总体降档必须与经证据审计通过的独立问题数量和严重度一致。
+25. 专业准确性与边界可对“使用用户难以理解的英文专业词汇表达关键信息，且未作必要中文解释”酌情扣分；必须指出具体词汇及其造成的理解障碍。行业通用符号、标准单位及常用缩写在上下文中不影响理解时可直接保留，不得仅因出现英文、缩写或单位机械扣分。
+26. {cross_dimension_rule}
+27. 每个 issue 必须先确定唯一的 owner_dimension。医学事实不能放进共情；是否/何时紧急就医及停药改药只能归医学安全性；是否使用已知事实归个性化；方案是否适合归方案可行性；时间、数量、准备和操作步骤归可执行性；情绪承接才归共情。当前维度不是主责维度时，不得在当前维度输出 issue。
+28. 如果同一个根因可能影响多个维度，必须用相同的 root_cause_key 标识，并只在主责维度扣分。只有确有不同回答原文和独立后果时，才可使用不同 root_cause_key 分别扣分，并在 independent_effect 写明独立后果；同一句证据、同一遗漏或同一风险换一种说法不算独立问题。
 
 【角色与职责边界】
 - 医生只评医学安全性、专业准确性与边界、临床追问充分性和必要性。可以认可正确、明确且有用的医学解释和建议；只要未替患者作最终诊疗决定，并说明个体化决定需由主管医生结合完整病情作出，不能仅因给出医学建议判为越权。
@@ -70,6 +77,9 @@ _PROMPT = """\
 
 【八维评分细则】
 {dimensions}
+
+【唯一主责维度】
+{ownership}
 
 【通用评分锚点】
 除医学安全性外：0=完全不满足或严重问题；1=只有极少相关内容；2=部分满足但遗漏影响使用；3=核心方向正确但有明显遗漏；4=基本完整仅轻微缺陷；5=完整满足且无实质缺陷。
@@ -86,10 +96,10 @@ _PROMPT = """\
 - 0～4 分：必须在 audits 中同时写明已做到的部分（若确实没有则写“未做到”）和所有经过核验的具体未满足点；不得只写表扬或不可定位的套话。
 - 5 分：必须写明完全达标的具体点与对话证据，不能只写“很好/不错”。
 - audits 必须给出全部 8 个维度。低于 5 分时 issues 至少一项；5 分时 issues 必须为空。
-- issue.type 只能是 partial、missing、contradicted、hallucination、other；requirement 必须逐字摘录当前维度评分细则或本题补充关注点中的对应要求，不能自行发明判据；evidence 只能放 bot 原文；context_evidence 只能放用户原话或 Case 已知事实。
+- issue.type 只能是 partial、missing、contradicted、hallucination、other；requirement 必须逐字摘录当前维度评分细则或本题补充关注点中的对应要求，不能自行发明判据；evidence 只能放 bot 原文；context_evidence 只能放用户原话或 Case 已知事实。owner_dimension 必须是唯一主责维度 key；root_cause_key 使用简短稳定的英文标识表示原子根因；independent_effect 仅在确有不同证据和独立后果时填写，否则留空。
 - missing 的 searched_terms 必填、evidence 可放最相关原文；hallucination 的 searched_terms 必填，用于核对用户对话和 Case 已知事实。
 - 仅输出 JSON，不要 Markdown，不要额外解释：
-{{"scores": {{"medical_safety": 0, "professional_accuracy": 0, "clinical_inquiry": 0, "personalization": 0, "plan_feasibility": 0, "empathy": 0, "executability": 0, "communication": 0}}, "reasons": {{"dimension_key": "理由"}}, "audits": {{"dimension_key": {{"satisfied_points": ["已满足点"], "issues": [{{"type": "partial", "requirement": "对应要求", "reason": "具体问题", "evidence": ["bot原文"], "context_evidence": ["触发该要求的用户原话"], "searched_terms": ["实际检索词"]}}]}}}}}}
+{{"scores": {{"medical_safety": 0, "professional_accuracy": 0, "clinical_inquiry": 0, "personalization": 0, "plan_feasibility": 0, "empathy": 0, "executability": 0, "communication": 0}}, "reasons": {{"dimension_key": "理由"}}, "audits": {{"dimension_key": {{"satisfied_points": ["已满足点"], "issues": [{{"type": "partial", "requirement": "对应要求", "reason": "具体问题", "owner_dimension": "dimension_key", "root_cause_key": "atomic_root_cause", "independent_effect": "", "evidence": ["bot原文"], "context_evidence": ["触发该要求的用户原话"], "searched_terms": ["实际检索词"]}}]}}}}}}
 """
 
 
@@ -187,6 +197,13 @@ def _dimension_text() -> str:
     )
 
 
+def _ownership_text() -> str:
+    return "\n".join(
+        f"- {dimension.value}（{DIMENSION_LABELS[dimension]}）：{DIMENSION_OWNERSHIP[dimension]}"
+        for dimension in EvaluationDimension
+    )
+
+
 def _criteria_text(case: TestCase) -> str:
     lines: list[str] = []
     for dimension, details in case.evaluation.dimension_criteria.items():
@@ -238,6 +255,8 @@ class EightDimensionJudge(BaseJudge):
             {
                 "prompt": _PROMPT,
                 "standards": DIMENSION_STANDARDS,
+                "ownership": DIMENSION_OWNERSHIP,
+                "cross_dimension_rule": CROSS_DIMENSION_DEDUCTION_RULE,
                 "anchors": SCORE_ANCHORS,
                 "provider": self.provider,
                 "model": self.model,
@@ -254,6 +273,8 @@ class EightDimensionJudge(BaseJudge):
             conversation=format_conversation(trace),
             initial_state=initial_state,
             dimensions=_dimension_text(),
+            ownership=_ownership_text(),
+            cross_dimension_rule=CROSS_DIMENSION_DEDUCTION_RULE,
             criteria=_criteria_text(case),
         )
         try:
@@ -268,6 +289,17 @@ class EightDimensionJudge(BaseJudge):
             log.exception("EightDimensionJudge failed: %s", exc)
             return self._zero_verdicts(f"八维判分失败：{exc}")
 
+        cleaned_audits: dict[EvaluationDimension, dict[str, object]] = {}
+        for dimension in EvaluationDimension:
+            cleaned_audits[dimension] = self._validate_audit(
+                audits.get(dimension.value, {}),
+                dimension=dimension,
+                trace=trace,
+                initial_state=initial_state,
+                requirement_sources=self._requirement_sources(case, dimension),
+            )
+        self._suppress_cross_dimension_duplicates(cleaned_audits)
+
         verdicts: list[JudgeVerdict] = []
         for dimension in EvaluationDimension:
             raw = scores.get(dimension.value)
@@ -278,13 +310,7 @@ class EightDimensionJudge(BaseJudge):
             model_score = raw
             reason = str(reasons.get(dimension.value, ""))
             model_reason = reason
-            audit = audits.get(dimension.value, {})
-            cleaned_audit = self._validate_audit(
-                audit,
-                trace=trace,
-                initial_state=initial_state,
-                requirement_sources=self._requirement_sources(case, dimension),
-            )
+            cleaned_audit = cleaned_audits[dimension]
             if not valid:
                 reason = f"模型返回非法分数 {raw!r}，保守记 0 分"
                 score_rejected = False
@@ -328,6 +354,7 @@ class EightDimensionJudge(BaseJudge):
     def _validate_audit(
         raw: object,
         *,
+        dimension: EvaluationDimension,
         trace: ConversationTrace,
         initial_state: str,
         requirement_sources: list[str],
@@ -344,6 +371,7 @@ class EightDimensionJudge(BaseJudge):
         rejected: list[dict[str, object]] = []
         evidence: list[str] = []
 
+        valid_dimensions = {value.value for value in EvaluationDimension}
         for raw_issue in issues:
             if not isinstance(raw_issue, dict):
                 continue
@@ -351,6 +379,9 @@ class EightDimensionJudge(BaseJudge):
             requirement = str(raw_issue.get("requirement", "")).strip()
             reason = str(raw_issue.get("reason", "")).strip()
             terms = normalize_terms(raw_issue.get("searched_terms", []))
+            owner_dimension = str(raw_issue.get("owner_dimension") or dimension.value).strip()
+            root_cause_key = str(raw_issue.get("root_cause_key") or "").strip()
+            independent_effect = str(raw_issue.get("independent_effect") or "").strip()
             quotes, rejected_quotes = sanitize_assistant_evidence(
                 raw_issue.get("evidence", []), trace
             )
@@ -379,6 +410,13 @@ class EightDimensionJudge(BaseJudge):
             reject_reason = ""
             if issue_type not in {"partial", "missing", "contradicted", "hallucination", "other"}:
                 reject_reason = "未知问题类型"
+            elif owner_dimension not in valid_dimensions:
+                reject_reason = "主责维度无效"
+            elif owner_dimension != dimension.value:
+                reject_reason = (
+                    f"该问题应由{DIMENSION_LABELS[EvaluationDimension(owner_dimension)]}主责，"
+                    f"不在{DIMENSION_LABELS[dimension]}重复扣分"
+                )
             elif not requirement or not reason:
                 reject_reason = "缺少对应评分要求或问题说明"
             elif not text_occurs(requirement, requirement_sources):
@@ -401,6 +439,9 @@ class EightDimensionJudge(BaseJudge):
                 "type": issue_type,
                 "requirement": requirement,
                 "reason": reason,
+                "owner_dimension": owner_dimension,
+                "root_cause_key": root_cause_key,
+                "independent_effect": independent_effect,
                 "evidence": quotes,
                 "context_evidence": context_evidence,
                 "rejected_context_evidence": rejected_context_evidence,
@@ -424,6 +465,84 @@ class EightDimensionJudge(BaseJudge):
             "rejected_issues": rejected,
             "evidence": evidence,
         }
+
+    @staticmethod
+    def _suppress_cross_dimension_duplicates(
+        audits: dict[EvaluationDimension, dict[str, object]],
+    ) -> None:
+        """兜底拦截模型跨维度重复输出的同一原子缺陷。
+
+        首选模型给出的 ``root_cause_key``。旧模型未返回该字段时，只有两条问题
+        使用同一 bot 证据且检索词相交才判为重复，避免仅凭相似文案误合并真正
+        独立的问题。不同证据且明确写出独立影响的项仍允许分别扣分。
+        """
+
+        kept: list[tuple[EvaluationDimension, dict[str, object]]] = []
+        for dimension in EvaluationDimension:
+            audit = audits[dimension]
+            supported = list(audit.get("supported_issues", []))
+            retained: list[dict[str, object]] = []
+            for issue in supported:
+                duplicate: tuple[EvaluationDimension, dict[str, object]] | None = None
+                issue_root = str(issue.get("root_cause_key") or "").strip().lower()
+                issue_evidence = {
+                    str(value).strip()
+                    for value in issue.get("evidence", [])
+                    if str(value).strip()
+                }
+                issue_terms = {
+                    str(value).strip().lower()
+                    for value in issue.get("searched_terms", [])
+                    if str(value).strip()
+                }
+                issue_effect = str(issue.get("independent_effect") or "").strip()
+                for kept_dimension, kept_issue in kept:
+                    kept_root = str(kept_issue.get("root_cause_key") or "").strip().lower()
+                    kept_evidence = {
+                        str(value).strip()
+                        for value in kept_issue.get("evidence", [])
+                        if str(value).strip()
+                    }
+                    kept_terms = {
+                        str(value).strip().lower()
+                        for value in kept_issue.get("searched_terms", [])
+                        if str(value).strip()
+                    }
+                    same_root = bool(issue_root and kept_root and issue_root == kept_root)
+                    same_atomic_evidence = bool(
+                        issue_evidence
+                        and kept_evidence
+                        and issue_evidence.intersection(kept_evidence)
+                        and issue_terms.intersection(kept_terms)
+                    )
+                    independent = bool(
+                        issue_effect
+                        and str(kept_issue.get("independent_effect") or "").strip()
+                        and issue_evidence.isdisjoint(kept_evidence)
+                    )
+                    if (same_root or same_atomic_evidence) and not independent:
+                        duplicate = (kept_dimension, kept_issue)
+                        break
+                if duplicate is None:
+                    retained.append(issue)
+                    kept.append((dimension, issue))
+                    continue
+                owner, original = duplicate
+                rejected = dict(issue)
+                rejected["rejected_reason"] = (
+                    f"与{DIMENSION_LABELS[owner]}中的同一实质缺陷重复，"
+                    "已由主责维度处理，本维度不重复扣分"
+                )
+                rejected["duplicate_of_dimension"] = owner.value
+                rejected["duplicate_of_root_cause_key"] = original.get("root_cause_key", "")
+                audit.setdefault("rejected_issues", []).append(rejected)
+            audit["supported_issues"] = retained
+            audit["evidence"] = list(dict.fromkeys(
+                quote
+                for issue in retained
+                for quote in issue.get("evidence", [])
+                if str(quote).strip()
+            ))
 
     @staticmethod
     def _requirement_sources(case: TestCase, dimension: EvaluationDimension) -> list[str]:

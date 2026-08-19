@@ -91,4 +91,32 @@ describe("BenchmarkCaseEditorDrawer criteria variant", () => {
     expect(roleGroups[2]).toHaveTextContent("患者检查点二");
     expect(roleGroups[2].querySelectorAll(".case-editor-guideline-dimension-group")).toHaveLength(1);
   });
+
+  it("shows a non-blocking warning for cross-dimension ownership risks", () => {
+    renderWithProviders(
+      <BenchmarkCaseEditorDrawer
+        open
+        loading={false}
+        saving={false}
+        source="uploaded"
+        caseFile="cases.yaml"
+        value={{
+          ...testCase,
+          evaluation: {
+            ...testCase.evaluation,
+            guidelines: [{
+              id: "g01",
+              dimension: "empathy",
+              criteria: ["应明确提示出现呼吸困难时立即急诊就医"],
+            }],
+          },
+        }}
+        onChange={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("发现 1 处跨维度归属或重复扣分风险")).toBeInTheDocument();
+    expect(screen.getByText(/主责更接近医学安全性/)).toBeInTheDocument();
+  });
 });

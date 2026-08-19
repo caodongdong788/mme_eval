@@ -1,4 +1,5 @@
 import {
+  Alert,
   Button,
   Card,
   Collapse,
@@ -14,10 +15,11 @@ import {
   Typography,
 } from "antd";
 import { CodeOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { DIM_LABEL, EVALUATION_DIMENSION_ROLE, EVALUATION_DIMENSIONS, EVALUATION_ROLE_LABEL, EVALUATION_ROLE_ORDER } from "../labels";
+import { reviewCrossDimensionCriteria } from "../utils/criteriaOwnership";
 
 type CaseData = Record<string, any>;
 type Pair = [string, unknown];
@@ -311,6 +313,10 @@ export function BenchmarkCaseEditorDrawer({
   const update = (patch: CaseData) => value && onChange({ ...value, ...patch });
   const initialState = (value?.initial_state || {}) as CaseData;
   const evaluation = (value?.evaluation || {}) as CaseData;
+  const ownershipWarnings = useMemo(
+    () => value ? reviewCrossDimensionCriteria(value) : [],
+    [value],
+  );
   const criteria = (evaluation.dimension_criteria || {}) as CaseData;
   const dimensionDetails = (dimension: string): CaseData => {
     const item = criteria[dimension];
@@ -456,6 +462,21 @@ export function BenchmarkCaseEditorDrawer({
           {benchmarkLabel ? <Typography.Paragraph type="secondary">当前 benchmark：<Typography.Text strong>{benchmarkLabel}</Typography.Text></Typography.Paragraph> : null}
           {headerContent ? <div style={{ marginBottom: 16 }}>{headerContent}</div> : null}
           {source === "builtin" && <Typography.Text type="warning">内置用例可查看，但不建议直接修改；生产镜像重建后修改可能丢失。</Typography.Text>}
+          {ownershipWarnings.length > 0 ? (
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 16 }}
+              message={`发现 ${ownershipWarnings.length} 处跨维度归属或重复扣分风险`}
+              description={(
+                <ol className="case-editor-ownership-warnings">
+                  {ownershipWarnings.slice(0, 8).map((warning) => (
+                    <li key={warning.message}>{warning.message}</li>
+                  ))}
+                </ol>
+              )}
+            />
+          ) : null}
           <div className="case-editor-meta"><span>用例编号 <strong>{value.sample_id}</strong></span><span>来源文件 <strong>{caseFile || "—"}</strong></span><span>{saveHint || "保存后将同步更新源 YAML"}</span></div>
           <Tabs className="case-editor-tabs" defaultActiveKey="basic" items={tabItems} />
         </div>

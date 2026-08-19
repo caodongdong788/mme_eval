@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import asyncio
 
-from medeval.evaluation import DIMENSION_STANDARDS, EvaluationDimension
+from medeval.evaluation import (
+    CROSS_DIMENSION_DEDUCTION_RULE,
+    DIMENSION_OWNERSHIP,
+    DIMENSION_STANDARDS,
+    EvaluationDimension,
+)
 from medeval.judges.eight_dimension import EightDimensionJudge
 from medeval.models import ChatMessage, ConversationTrace, TestCase
 from tests.test_v2_case_schema import raw_case
@@ -165,6 +170,172 @@ def test_prompt_uses_shared_dimension_standards() -> None:
         assert standard["full_score"] in captured
 
 
+def test_prompt_includes_unique_dimension_ownership_contract() -> None:
+    judge = EightDimensionJudge(enabled=False)
+    judge.enabled = True
+    captured = ""
+
+    async def fake_call(prompt: str):
+        nonlocal captured
+        captured = prompt
+        scores = {dimension.value: 5 for dimension in EvaluationDimension}
+        return scores, {key: "stub" for key in scores}
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    asyncio.run(judge.judge(case(), trace()))
+
+    assert CROSS_DIMENSION_DEDUCTION_RULE in captured
+    assert "每个 issue 必须先确定唯一的 owner_dimension" in captured
+    assert "同一句证据、同一遗漏或同一风险换一种说法不算独立问题" in captured
+    for dimension in EvaluationDimension:
+        assert DIMENSION_OWNERSHIP[dimension] in captured
+
+
+def test_issue_owned_by_another_dimension_is_rejected() -> None:
+    judge = EightDimensionJudge(enabled=False)
+    judge.enabled = True
+    scores = {dimension.value: 5 for dimension in EvaluationDimension}
+    scores["empathy"] = 2
+    empathy_requirement = DIMENSION_STANDARDS[EvaluationDimension.empathy]["full_score"]
+
+    async def fake_call(prompt: str):
+        return (
+            scores,
+            {key: "stub" for key in scores},
+            {
+                "empathy": {
+                    "satisfied_points": [],
+                    "issues": [{
+                        "type": "partial",
+                        "requirement": empathy_requirement,
+                        "reason": "没有说明何时需要立即就医",
+                        "owner_dimension": "medical_safety",
+                        "root_cause_key": "missing_urgent_care_timing",
+                        "independent_effect": "",
+                        "evidence": ["建议就医"],
+                        "searched_terms": ["立即就医"],
+                    }],
+                }
+            },
+        )
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdicts = asyncio.run(judge.judge(case(), trace()))
+    empathy = next(v for v in verdicts if v.name == "dimension.empathy")
+
+    assert empathy.score == 5
+    assert empathy.details["score_rejected"] is True
+    assert empathy.details["rejected_issue_audits"][0]["rejected_reason"].startswith(
+        "该问题应由医学安全性主责"
+    )
+
+
+def test_same_root_cause_is_not_deducted_twice_across_dimensions() -> None:
+    judge = EightDimensionJudge(enabled=False)
+    judge.enabled = True
+    scores = {dimension.value: 5 for dimension in EvaluationDimension}
+    scores["professional_accuracy"] = 3
+    scores["communication"] = 2
+    shared_evidence = "建议尽快去医院处理"
+
+    def issue(dimension: EvaluationDimension, requirement: str) -> dict[str, object]:
+        return {
+            "type": "partial",
+            "requirement": requirement,
+            "reason": "同一个就医建议缺少明确时效",
+            "owner_dimension": dimension.value,
+            "root_cause_key": "missing_urgent_care_timing",
+            "independent_effect": "",
+            "evidence": [shared_evidence],
+            "searched_terms": ["尽快", "医院"],
+        }
+
+    async def fake_call(prompt: str):
+        return (
+            scores,
+            {key: "stub" for key in scores},
+            {
+                "professional_accuracy": {
+                    "issues": [issue(
+                        EvaluationDimension.professional_accuracy,
+                        DIMENSION_STANDARDS[EvaluationDimension.professional_accuracy]["full_score"],
+                    )],
+                },
+                "communication": {
+                    "issues": [issue(
+                        EvaluationDimension.communication,
+                        DIMENSION_STANDARDS[EvaluationDimension.communication]["full_score"],
+                    )],
+                },
+            },
+        )
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdicts = asyncio.run(judge.judge(
+        case(),
+        ConversationTrace(messages=[ChatMessage(role="assistant", content=shared_evidence)]),
+    ))
+    accuracy = next(v for v in verdicts if v.name == "dimension.professional_accuracy")
+    communication = next(v for v in verdicts if v.name == "dimension.communication")
+
+    assert accuracy.score == 3
+    assert communication.score == 5
+    assert communication.details["score_rejected"] is True
+    assert communication.details["rejected_issue_audits"][0][
+        "duplicate_of_dimension"
+    ] == "professional_accuracy"
+
+
+def test_distinct_evidence_and_effects_can_remain_in_two_dimensions() -> None:
+    judge = EightDimensionJudge(enabled=False)
+    judge.enabled = True
+    scores = {dimension.value: 5 for dimension in EvaluationDimension}
+    scores["professional_accuracy"] = 4
+    scores["communication"] = 4
+    answer = "医学解释缺少依据。随后又围绕同一建议反复铺陈。"
+
+    async def fake_call(prompt: str):
+        return (
+            scores,
+            {key: "stub" for key in scores},
+            {
+                "professional_accuracy": {"issues": [{
+                    "type": "partial",
+                    "requirement": DIMENSION_STANDARDS[
+                        EvaluationDimension.professional_accuracy
+                    ]["full_score"],
+                    "reason": "医学解释缺少依据",
+                    "owner_dimension": "professional_accuracy",
+                    "root_cause_key": "shared_topic",
+                    "independent_effect": "用户可能误解医学事实",
+                    "evidence": ["医学解释缺少依据"],
+                    "searched_terms": ["依据"],
+                }]},
+                "communication": {"issues": [{
+                    "type": "partial",
+                    "requirement": DIMENSION_STANDARDS[
+                        EvaluationDimension.communication
+                    ]["full_score"],
+                    "reason": "围绕同一建议反复铺陈",
+                    "owner_dimension": "communication",
+                    "root_cause_key": "shared_topic",
+                    "independent_effect": "重点被重复内容遮蔽",
+                    "evidence": ["围绕同一建议反复铺陈"],
+                    "searched_terms": ["反复铺陈"],
+                }]},
+            },
+        )
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdicts = asyncio.run(judge.judge(
+        case(),
+        ConversationTrace(messages=[ChatMessage(role="assistant", content=answer)]),
+    ))
+
+    assert next(v for v in verdicts if v.name == "dimension.professional_accuracy").score == 4
+    assert next(v for v in verdicts if v.name == "dimension.communication").score == 4
+
+
 def test_communication_standard_rejects_repeated_risk_and_care_advice() -> None:
     standard = DIMENSION_STANDARDS[EvaluationDimension.communication]
 
@@ -179,6 +350,32 @@ def test_empathy_standard_rejects_fear_amplifying_language() -> None:
     assert "放大用户紧张、恐慌情绪" in standard["description"]
     assert "灾难化、威吓性措辞" in standard["zero_score"]
     assert "不制造额外的紧张或恐慌" in standard["full_score"]
+
+
+def test_professional_accuracy_standard_requires_understandable_terminology() -> None:
+    standard = DIMENSION_STANDARDS[EvaluationDimension.professional_accuracy]
+
+    assert "用户难以理解的英文专业词汇" in standard["description"]
+    assert "行业通用符号、标准单位及常用缩写" in standard["description"]
+    assert "必要的英文术语或缩写配有中文解释" in standard["full_score"]
+
+
+def test_prompt_does_not_mechanically_penalize_common_abbreviations() -> None:
+    judge = EightDimensionJudge(enabled=False)
+    judge.enabled = True
+    captured = ""
+
+    async def fake_call(prompt: str):
+        nonlocal captured
+        captured = prompt
+        scores = {dimension.value: 5 for dimension in EvaluationDimension}
+        return scores, {key: "stub" for key in scores}
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    asyncio.run(judge.judge(case(), trace()))
+
+    assert "必须指出具体词汇及其造成的理解障碍" in captured
+    assert "不得仅因出现英文、缩写或单位机械扣分" in captured
 
 
 def test_prompt_does_not_treat_necessary_risk_communication_as_fear_amplification() -> None:
