@@ -3692,6 +3692,39 @@ a.ant-typography-secondary:hover {
   font-size: 13px;
   line-height: 1.55;
 }
+.judge-audit-reason {
+  display: grid;
+  gap: 8px;
+}
+.judge-audit-reason strong {
+  flex: 0 0 auto;
+  color: var(--runs-text);
+  font-size: 12px;
+}
+.judge-audit-reason__satisfied {
+  display: flex;
+  gap: 8px;
+}
+.judge-audit-reason__issues > strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--runs-red);
+}
+.judge-audit-reason__issues ol {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-inline-start: 20px;
+}
+.judge-audit-reason__evidence {
+  margin-top: 2px;
+  color: var(--runs-text-muted);
+  font-size: 12px;
+}
+.judge-audit-reason__evidence span {
+  color: var(--runs-text-secondary);
+  font-weight: 600;
+}
 .judge-reason__deductions {
   margin-top: 8px;
   padding: 8px 10px;

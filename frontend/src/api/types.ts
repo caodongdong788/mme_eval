@@ -91,6 +91,8 @@ export interface CaseScores {
     score?: number | null;
     max_score?: number | null;
     reason?: string | null;
+    evidence?: string[];
+    details?: Record<string, any>;
   }>;
 }
 

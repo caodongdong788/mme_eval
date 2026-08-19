@@ -24,6 +24,84 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function sentence(value: string | undefined): string {
+  const text = String(value || "").trim().replace(/[。；;，,]+$/, "");
+  return text ? `${text}。` : "";
+}
+
+function plainRequirement(value: string | undefined): string {
+  return String(value || "")
+    .trim()
+    .replace(/^(满分要求|评分要求)[：:]\s*/, "")
+    .replace(/[。；;，,]+$/, "");
+}
+
+type DimensionAuditIssue = {
+  type?: string;
+  requirement?: string;
+  reason?: string;
+  evidence?: string[];
+};
+
+function readableAuditIssue(issue: DimensionAuditIssue): string {
+  const type = String(issue?.type || "").toLowerCase();
+  const requirement = plainRequirement(issue?.requirement);
+  const observed = String(issue?.reason || "").trim().replace(/[。；;，,]+$/, "");
+  if (type === "missing") {
+    if (/^回答(?:里)?(?:应|需|必须|务必)/.test(observed)) return sentence(observed);
+    const expected = /^(应|需|必须|务必)/.test(requirement)
+      ? `回答里${requirement}`
+      : /^(建议|提示|说明|提醒|询问|引导|邀请|提供|列出|明确|告知|帮助)/.test(requirement)
+        ? `回答里应${requirement}`
+        : `回答里应满足以下要求：${requirement}`;
+    const current = observed && !/^(回答|当前回答)/.test(observed) ? `当前回答${observed}` : observed;
+    return sentence(current ? `${expected}；${current}` : expected);
+  }
+  if (type === "partial") {
+    return sentence(requirement && observed ? `回答只部分满足“${requirement}”：${observed}` : observed || requirement);
+  }
+  if (type === "contradicted") {
+    return sentence(requirement && observed ? `回答违反“${requirement}”：${observed}` : observed || requirement);
+  }
+  if (type === "hallucination") {
+    return sentence(observed ? `回答包含无来源事实：${observed}` : requirement);
+  }
+  return sentence(observed || requirement);
+}
+
+function StructuredDimensionReason({ verdict }: { verdict: CaseVerdict }) {
+  const satisfied = (verdict.details?.satisfied_points || []).filter(Boolean);
+  const issues = (verdict.details?.issue_audits || []).filter(
+    (issue) => issue && (issue.reason || issue.requirement),
+  );
+  if (!issues.length) return <span>{verdict.reason || "—"}</span>;
+  return (
+    <div className="judge-audit-reason">
+      {satisfied.length ? (
+        <div className="judge-audit-reason__satisfied">
+          <strong>已做到</strong>
+          <span>{satisfied.map((item) => sentence(item)).join(" ")}</span>
+        </div>
+      ) : null}
+      <div className="judge-audit-reason__issues">
+        <strong>扣分原因</strong>
+        <ol>
+          {issues.map((issue, index) => (
+            <li key={`${issue.requirement || "issue"}-${index}`}>
+              <div>{readableAuditIssue(issue)}</div>
+              {issue.evidence?.length ? (
+                <div className="judge-audit-reason__evidence">
+                  <span>对应原文：</span>{issue.evidence.join("；")}
+                </div>
+              ) : null}
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
+  );
+}
+
 export function JudgeVerdictTable({
   verdicts,
   tagLabel,
@@ -129,10 +207,10 @@ export function JudgeVerdictTable({
         const deductions = deductionsFor(verdict.name);
         return (
           <div className="judge-reason">
-            <span>{reason || "—"}</span>
+            <StructuredDimensionReason verdict={{ ...verdict, reason }} />
             {deductions.length ? (
               <div className="judge-reason__deductions">
-                <strong>扣分原因</strong>
+                <strong>指南追加扣分</strong>
                 {deductions.map((item, index) => <div key={`${item}-${index}`}>{item}</div>)}
               </div>
             ) : null}

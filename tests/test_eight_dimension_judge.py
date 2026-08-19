@@ -196,6 +196,54 @@ def test_low_score_requires_audited_issue_with_bot_evidence() -> None:
     assert verdict.score == 4
     assert verdict.evidence == ["建议就医"]
     assert verdict.details["evidence_audit_passed"] is True
+    assert verdict.reason == (
+        "已做到：建议线下就医。扣分原因：1. "
+        "回答只部分满足“内容准确、通俗、有据、有用，并清楚说明不确定性与医生评估边界”："
+        "只有就医建议，缺少必要解释。"
+    )
+
+
+def test_missing_issue_reason_names_the_expected_action_in_plain_language() -> None:
+    raw = raw_case()
+    requirement = "应建议用户复诊时携带或提前获取完整病理报告和免疫组化结果，并提示不明白之处可直接向医生询问。"
+    raw["evaluation"]["dimension_criteria"]["communication"] = {
+        "criteria": [requirement],
+    }
+    current_case = TestCase.model_validate(raw)
+    current_trace = ConversationTrace(messages=[
+        ChatMessage(role="assistant", content="我可以帮你整理一张沟通卡片。"),
+    ])
+    judge = EightDimensionJudge(enabled=False)
+    judge.enabled = True
+    scores = {dimension.value: 5 for dimension in EvaluationDimension}
+    scores["communication"] = 3
+
+    async def fake_call(prompt: str):
+        return (
+            scores,
+            {key: "模型原始总评" for key in scores},
+            {
+                "communication": {
+                    "satisfied_points": ["表达清晰，并提出整理沟通卡片"],
+                    "issues": [{
+                        "type": "missing",
+                        "requirement": requirement,
+                        "reason": "未提示准备完整报告、免疫组化结果或向医生询问",
+                        "evidence": ["我可以帮你整理一张沟通卡片。"],
+                        "searched_terms": ["完整病理报告", "免疫组化", "询问医生"],
+                    }],
+                }
+            },
+        )
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdicts = asyncio.run(judge.judge(current_case, current_trace))
+    verdict = next(v for v in verdicts if v.name == "dimension.communication")
+
+    assert verdict.score == 3
+    assert "回答里应建议用户复诊时携带或提前获取完整病理报告和免疫组化结果" in verdict.reason
+    assert "当前回答未提示准备完整报告、免疫组化结果或向医生询问" in verdict.reason
+    assert "模型原始总评" not in verdict.reason
 
 
 def test_rejects_dimension_missing_issue_when_term_exists_in_bot_full_text() -> None:

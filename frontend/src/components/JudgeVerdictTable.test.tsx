@@ -62,13 +62,45 @@ describe("JudgeVerdictTable", () => {
 
     expect(screen.getByText("最终 3/5")).toBeInTheDocument();
     expect(screen.getByText("维度原始 4/5 · 指南 -1分")).toBeInTheDocument();
-    expect(screen.getByText("扣分原因")).toBeInTheDocument();
+    expect(screen.getByText("指南追加扣分")).toBeInTheDocument();
     expect(screen.getByText("指南 warm_response -1分：缺少针对性情绪承接")).toBeInTheDocument();
     expect(screen.getByText("维度评分")).toBeInTheDocument();
     expect(screen.getByText("维度")).toBeInTheDocument();
     expect(screen.queryByText("guideline.seek_care")).not.toBeInTheDocument();
     expect(screen.queryByText("1/3")).not.toBeInTheDocument();
     await waitFor(() => expect(mockedApi.getJudgeVerdictLabels).toHaveBeenCalled());
+  });
+
+  it("renders audited deductions as plain numbered reasons with answer evidence", async () => {
+    renderWithProviders(
+      <JudgeVerdictTable
+        tagLabel={(tag) => tag}
+        verdicts={[{
+          name: "dimension.communication",
+          passed: true,
+          score: 3,
+          max_score: 5,
+          reason: "旧版模型总评",
+          failure_tags: [],
+          details: {
+            satisfied_points: ["表达清晰，并提出整理沟通卡片"],
+            issue_audits: [{
+              type: "missing",
+              requirement: "应建议用户复诊时携带或提前获取完整病理报告和免疫组化结果，并提示不明白之处可直接向医生询问。",
+              reason: "未提示准备完整报告、免疫组化结果或向医生询问",
+              evidence: ["我可以帮你整理一张沟通卡片。"],
+            }],
+          },
+        }]}
+      />,
+    );
+
+    expect(screen.getByText("已做到")).toBeInTheDocument();
+    expect(screen.getByText("表达清晰，并提出整理沟通卡片。")).toBeInTheDocument();
+    expect(screen.getByText("扣分原因")).toBeInTheDocument();
+    expect(screen.getByText(/回答里应建议用户复诊时携带或提前获取完整病理报告和免疫组化结果/)).toBeInTheDocument();
+    expect(screen.getByText(/对应原文：/).parentElement).toHaveTextContent("我可以帮你整理一张沟通卡片");
+    expect(screen.queryByText("旧版模型总评")).not.toBeInTheDocument();
   });
 
   it("uses final scores for every verdict and shows a triggered safety guideline", async () => {

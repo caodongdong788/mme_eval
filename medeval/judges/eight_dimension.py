@@ -79,8 +79,11 @@ _PROMPT = """\
 
 【输出要求】
 - 必须给出全部 8 个 dimension_key，不能漏项、不能新增 key。
-- 每个理由不超过 120 字，且须与分数一致。
-- 0～4 分：必须同时写明已做到的部分（若确实没有则写“未做到”）和一个具体未满足点/扣分依据；不得只写表扬或“较为泛化”等不可定位套话。
+- reasons 只作为模型原始总评留痕；平台会根据 audits 中通过证据核验的内容重新生成面向用户的判定理由。因此 reasons 不得增加 audits 中不存在的扣分点。
+- 每个 issue.reason 必须使用业务人员能直接理解的完整句子，明确写出“回答具体做了什么或没做什么”。不得使用“行动颗粒度不足”“沟通入口缺失”“表达较为泛化”“边界不充分”等脱离具体内容的内部评测术语。
+- requirement 负责记录“回答应做到什么”，issue.reason 只描述当前回答的实际表现，避免重复判据。missing 的 reason 使用“没有……”结构；partial 使用“提到了……，但没有完整说明……”结构；contradicted 使用“说……，与要求相反”结构；hallucination 使用“把……说成……，但用户对话和 Case 已知事实均没有提供该信息”结构。
+- 如果一项要求同时包含准备资料、询问医生、复诊时机等多个动作，reason 必须逐项写明缺少的具体动作，不能笼统概括为“资料准备不足”或“继续交流不足”。
+- 0～4 分：必须在 audits 中同时写明已做到的部分（若确实没有则写“未做到”）和所有经过核验的具体未满足点；不得只写表扬或不可定位的套话。
 - 5 分：必须写明完全达标的具体点与对话证据，不能只写“很好/不错”。
 - audits 必须给出全部 8 个维度。低于 5 分时 issues 至少一项；5 分时 issues 必须为空。
 - issue.type 只能是 partial、missing、contradicted、hallucination、other；requirement 必须逐字摘录当前维度评分细则或本题补充关注点中的对应要求，不能自行发明判据；evidence 只能放 bot 原文；context_evidence 只能放用户原话或 Case 已知事实。
@@ -93,6 +96,88 @@ _PROMPT = """\
 _USER_CONDITIONAL_REQUIREMENT_RE = re.compile(
     r"(?:若|如果|当|一旦)用户.{0,100}?(?:表达|询问|提到|说明|担心|焦虑|希望|要求)"
 )
+
+
+def _sentence(value: object) -> str:
+    text = str(value or "").strip().rstrip("。；;，,")
+    return f"{text}。" if text else ""
+
+
+def _plain_requirement(value: object) -> str:
+    """把判据原文整理成可以直接接在“回答”之后的业务表达。"""
+
+    text = str(value or "").strip()
+    text = re.sub(r"^(?:满分要求|评分要求)[：:]\s*", "", text)
+    return text.rstrip("。；;，,")
+
+
+def _human_issue_reason(issue: dict[str, object]) -> str:
+    """将通过证据审计的扣分项转成稳定、可读的说明。
+
+    模型的 ``reason`` 负责说明当前回答的具体表现，``requirement`` 是唯一合法
+    判据。两者一起展示，避免总评只剩“颗粒度不足”一类内部术语。
+    """
+
+    issue_type = str(issue.get("type") or "").lower()
+    requirement = _plain_requirement(issue.get("requirement"))
+    observed = str(issue.get("reason") or "").strip().rstrip("。；;，,")
+    if issue_type == "missing":
+        # 兼容历史结果：旧 Prompt 可能已经输出了完整的“回答里应……但……”句子，
+        # 这种情况下不再重复拼接 requirement。
+        if re.match(r"^回答(?:里)?(?:应|需|必须|务必)", observed):
+            return _sentence(observed)
+        expected = (
+            f"回答里{requirement}"
+            if requirement.startswith(("应", "需", "必须", "务必"))
+            else f"回答里应{requirement}"
+            if requirement.startswith(
+                ("建议", "提示", "说明", "提醒", "询问", "引导", "邀请", "提供", "列出", "明确", "告知", "帮助")
+            )
+            else f"回答里应满足以下要求：{requirement}"
+        )
+        current = observed
+        if current and not current.startswith(("回答", "当前回答")):
+            current = f"当前回答{current}"
+        return _sentence(f"{expected}；{current}" if current else expected)
+    if issue_type == "partial":
+        return _sentence(
+            f"回答只部分满足“{requirement}”：{observed}"
+            if requirement and observed
+            else observed or requirement
+        )
+    if issue_type == "contradicted":
+        return _sentence(
+            f"回答违反“{requirement}”：{observed}"
+            if requirement and observed
+            else observed or requirement
+        )
+    if issue_type == "hallucination":
+        return _sentence(f"回答包含无来源事实：{observed}" if observed else requirement)
+    return _sentence(observed or requirement)
+
+
+def _compose_human_reason(
+    *,
+    score: int,
+    model_reason: str,
+    satisfied_points: list[str],
+    issues: list[dict[str, object]],
+) -> str:
+    """生成所有报告和 API 共用的、可追溯的八维判定理由。"""
+
+    if score == 5 or not issues:
+        return _sentence(model_reason) or "本维度未发现需要扣分的问题。"
+    sections: list[str] = []
+    if satisfied_points:
+        sections.append("已做到：" + "；".join(_sentence(item).rstrip("。") for item in satisfied_points))
+    issue_reasons = [_human_issue_reason(issue) for issue in issues]
+    issue_reasons = [reason for reason in issue_reasons if reason]
+    if issue_reasons:
+        sections.append(
+            "扣分原因："
+            + " ".join(f"{index}. {reason}" for index, reason in enumerate(issue_reasons, start=1))
+        )
+    return "。".join(section.rstrip("。") for section in sections if section) + "。"
 
 
 def _dimension_text() -> str:
@@ -210,6 +295,12 @@ class EightDimensionJudge(BaseJudge):
                 score_rejected = True
             else:
                 score_rejected = False
+                reason = _compose_human_reason(
+                    score=score,
+                    model_reason=model_reason,
+                    satisfied_points=cleaned_audit["satisfied_points"],
+                    issues=cleaned_audit["supported_issues"],
+                )
             verdicts.append(
                 JudgeVerdict(
                     name=f"dimension.{dimension.value}",

@@ -319,6 +319,8 @@ def case_scores(d: dict[str, Any]) -> CaseScores:
                 "score": v.get("score"),
                 "max_score": v.get("max_score"),
                 "reason": v.get("reason"),
+                "evidence": v.get("evidence") or [],
+                "details": v.get("details") or {},
             }
             for v in (d.get("verdicts") or [])
         ],
