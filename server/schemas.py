@@ -480,10 +480,12 @@ class OpenAttributionCaseOptimization(BaseModel):
     summary: str = ""
     deductions: list[OpenAttributionDeduction] = Field(default_factory=list)
     recommendations: list[OpenAttributionRecommendation] = Field(default_factory=list)
+    markdown: str = ""
 
 
 class OpenAttributionCaseOut(BaseModel):
     sample_id: str
+    case_report_url: str
     scenario: str = ""
     case_type: str = ""
     status: str

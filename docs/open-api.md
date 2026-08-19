@@ -373,6 +373,7 @@ curl -sS "$MME_BASE_URL/api/open/v1/attribution-tasks?run_id=35&status=success" 
       "cases": [
         {
           "sample_id": "case_12",
+          "case_report_url": "https://mme.senzco.com/runs/35/attribution-tasks/5/cases/case_12",
           "scenario": "升白片用药",
           "case_type": "用药方法与药物安全",
           "status": "success",
@@ -395,7 +396,8 @@ curl -sS "$MME_BASE_URL/api/open/v1/attribution-tasks?run_id=35&status=success" 
                 "recommendations": [{"scope": "cx_agent", "target": "提示词优化", "action": "增加文献覆盖检查"}]
               }
             ],
-            "recommendations": []
+            "recommendations": [],
+            "markdown": "# CX-Agent 归因结论与优化建议\\n\\n仅展示存在优化点的维度；每个维度内按 P0/P1/P2 和一级/二级问题分类展示。\\n\\n## 02 专业准确性与边界\\n\\n### P1 · 较高优先级（1 个问题）\\n\\n#### 问题分类：RAG 优化 / 已召回但未使用\\n- 问题描述：回答未使用已召回的关键风险证据\\n- 直接证据：\\n  - RAG 已召回相关风险信息，但最终回答没有使用。\\n- 导致问题：关键风险提示缺失\\n- 怎么优化：\\n  1. 增加文献覆盖检查"
           }
         }
       ]
@@ -404,7 +406,7 @@ curl -sS "$MME_BASE_URL/api/open/v1/attribution-tasks?run_id=35&status=success" 
 }
 ```
 
-`report_url` 可直接打开该归因任务的详情页。任务正在执行时，已完成 Case 会立即出现在 `cases` 中；尚未完成、失败或评测侧需要复核的 Case，其 `cx_agent_optimization.deductions` 会为空。
+`report_url` 可直接打开该归因任务的详情页；每条 `cases[]` 的 `case_report_url` 可直接定位到对应 Case 的归因明细页。`cx_agent_optimization.markdown` 是“归因结论与优化建议”的 Markdown，可直接作为修复模型的输入；它仅包含已确认的 CX-Agent 问题，以及需要补齐可回链 RAG 证据的工程项，不会混入 Benchmark、判分复核或其他证据不足内容。任务正在执行时，已完成 Case 会立即出现在 `cases` 中；尚未完成、失败或评测侧需要复核的 Case，其 `cx_agent_optimization.deductions` 会为空。
 
 ## 9. Python 调用模板
 

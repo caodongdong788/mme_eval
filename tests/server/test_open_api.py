@@ -354,6 +354,12 @@ def test_open_api_returns_only_cx_agent_attribution_optimizations(client, sessio
                             "issue_type": "factual_error",
                             "root_cause_stage": "generation",
                             "finding": "已召回证据但回答没有引用",
+                            "evidence_summary": "RAG 已召回药物禁忌信息，但最终回答没有使用。",
+                            "observed_gap": {
+                                "direct_evidence": ["最终回答未提及已召回的禁忌条件"],
+                                "gap": "关键禁忌信息没有进入最终建议。",
+                            },
+                            "impact": "用户可能无法获得与当前用药相关的安全提醒。",
                             "primary_cause": {
                                 "code": "rag_not_grounded",
                                 "label": "召回证据未用于回答",
@@ -382,6 +388,28 @@ def test_open_api_returns_only_cx_agent_attribution_optimizations(client, sessio
                                     "priority": "P0",
                                     "target": "判分模型",
                                     "action": "修正判分上下文读取",
+                                }
+                            ],
+                        },
+                        {
+                            "deduction_id": "guideline.g03",
+                            "dimension": "professional_accuracy",
+                            "deduction_validation": "insufficient_evidence",
+                            "evaluation_issue_category": "missing_rag_reference",
+                            "severity": "medium",
+                            "issue_type": "missing_citation",
+                            "root_cause_stage": "rag",
+                            "finding": "医学结论缺少可回链的 RAG 原文",
+                            "primary_cause": {
+                                "code": "missing_rag_reference",
+                                "label": "RAG 引用未绑定到回答",
+                                "owner": "rag",
+                            },
+                            "recommendations": [
+                                {
+                                    "priority": "P1",
+                                    "target": "引用绑定",
+                                    "action": "将选中文献与回答结论建立可回链绑定",
                                 }
                             ],
                         },
@@ -414,10 +442,13 @@ def test_open_api_returns_only_cx_agent_attribution_optimizations(client, sessio
         f"{settings.frontend_url}/runs/{run.id}/attribution-tasks/{task.id}"
     )
     assert output["cx_agent_optimization_summary"]["cx_agent_case_count"] == 1
-    assert len(output["cx_agent_optimization_summary"]["clusters"]) == 1
+    assert len(output["cx_agent_optimization_summary"]["clusters"]) == 2
     case = output["cases"][0]
+    assert case["case_report_url"] == (
+        f"{settings.frontend_url}/runs/{run.id}/attribution-tasks/{task.id}/cases/case_1"
+    )
     deductions = case["cx_agent_optimization"]["deductions"]
-    assert len(deductions) == 1
+    assert len(deductions) == 2
     assert deductions[0]["deduction_id"] == "guideline.g01"
     assert deductions[0]["optimization_classification"] == {
         "domain": "medical_rag",
@@ -428,7 +459,21 @@ def test_open_api_returns_only_cx_agent_attribution_optimizations(client, sessio
         "coverage_status": "mapped",
     }
     assert deductions[0]["recommendations"][0]["scope"] == "cx_agent"
+    assert deductions[1]["deduction_id"] == "guideline.g03"
+    assert deductions[1]["optimization_classification"]["component"] == "citation_binding"
     assert case["cx_agent_optimization"]["recommendations"][0]["target"] == "回答生成"
+    markdown = case["cx_agent_optimization"]["markdown"]
+    assert "# CX-Agent 归因结论与优化建议" in markdown
+    assert "已召回证据但回答没有引用" in markdown
+    assert "生成前逐条核对选中文献" in markdown
+    assert "医学结论缺少可回链的 RAG 原文" in markdown
+    assert "## 02 专业准确性与边界" in markdown
+    assert "### P1 · 较高优先级" in markdown
+    assert "#### 问题分类：RAG 优化 / 已召回但未使用" in markdown
+    assert "- 直接证据：" in markdown
+    assert "- 导致问题：用户可能无法获得与当前用药相关的安全提醒。" in markdown
+    assert "判分模型" not in markdown
+    assert "Benchmark 判据" not in markdown
     assert "判分模型" not in str(body)
     assert "Benchmark 判据" not in str(body)
 
