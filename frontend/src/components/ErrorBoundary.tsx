@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Button, Result } from "antd";
+import { humanizeErrorText } from "../utils/apiError";
 
 interface Props {
   children: ReactNode;
@@ -17,7 +18,10 @@ export class ErrorBoundary extends Component<Props, State> {
   static getDerivedStateFromError(error: unknown): State {
     return {
       hasError: true,
-      message: error instanceof Error ? error.message : String(error),
+      message: humanizeErrorText(
+        error instanceof Error ? error.message : error,
+        "页面显示时发生异常，请刷新页面重试。",
+      ),
     };
   }
 

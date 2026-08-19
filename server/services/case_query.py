@@ -331,7 +331,10 @@ def override_from_yaml(yaml_text: str, sample_id: str) -> dict[str, Any]:
     try:
         docs = yaml.safe_load(yaml_text)
     except yaml.YAMLError as exc:
-        raise HTTPException(status_code=422, detail=f"YAML 解析失败：{exc}") from exc
+        raise HTTPException(
+            status_code=422,
+            detail="YAML 解析失败，请检查缩进、冒号和列表格式",
+        ) from exc
     items = docs if isinstance(docs, list) else [docs]
     for it in items:
         if isinstance(it, dict) and it.get("sample_id") == sample_id:

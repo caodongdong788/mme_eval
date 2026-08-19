@@ -318,7 +318,21 @@ export function BenchmarkCaseEditorDrawer({
   };
   const updateDimension = (dimension: string, patch: CaseData) => {
     const current = dimensionDetails(dimension);
-    updateEvaluation({ dimension_criteria: { ...criteria, [dimension]: { ...current, ...patch } } });
+    const nextDetails = { ...current, ...patch };
+    const requirements = Array.isArray(nextDetails.criteria) ? nextDetails.criteria : [];
+    const references = Array.isArray(nextDetails.reference_answers) ? nextDetails.reference_answers : [];
+    if (requirements.length === 0 && references.length === 0) {
+      const nextCriteria = { ...criteria };
+      delete nextCriteria[dimension];
+      updateEvaluation({ dimension_criteria: nextCriteria });
+      return;
+    }
+    updateEvaluation({ dimension_criteria: { ...criteria, [dimension]: nextDetails } });
+  };
+  const clearDimension = (dimension: string) => {
+    const nextCriteria = { ...criteria };
+    delete nextCriteria[dimension];
+    updateEvaluation({ dimension_criteria: nextCriteria });
   };
   const updateInitialState = (patch: CaseData) => update({ initial_state: { ...initialState, ...patch } });
   const updateEvaluation = (patch: CaseData) => update({ evaluation: { ...evaluation, ...patch } });
@@ -390,7 +404,7 @@ export function BenchmarkCaseEditorDrawer({
           return {
             key: dimension,
             label: <span className="case-editor-dimension-title"><em>{String(index + 1).padStart(2, "0")}</em><span><strong>{DIM_LABEL[dimension]}</strong><small>{requirementCount ? `${requirementCount} 条要求` : "尚未配置要求"}{referenceCount ? ` · ${referenceCount} 条好答案` : ""}</small></span></span>,
-            children: <div className="case-editor-dimension-content"><Typography.Text className="case-editor-field-label">评测要求</Typography.Text><RequirementList value={details.criteria} onChange={(requirements) => updateDimension(dimension, { criteria: requirements })} placeholder="请输入该维度的要求" addText="新增评测要求" /><Typography.Text className="case-editor-field-label">好答案（可选）</Typography.Text><Typography.Paragraph className="case-editor-section-hint">作为理想回答参考，评测时不会要求 bot 逐字复述。</Typography.Paragraph><RequirementList value={details.reference_answers} onChange={(reference_answers) => updateDimension(dimension, { reference_answers })} placeholder="请输入好答案" addText="新增好答案" /></div>,
+            children: <div className="case-editor-dimension-content"><div className="case-editor-field-heading"><Typography.Text className="case-editor-field-label">评测要求</Typography.Text>{Object.prototype.hasOwnProperty.call(criteria, dimension) ? <Popconfirm title={`清空${DIM_LABEL[dimension]}的补充评测要求和好答案？`} okText="确认清空" cancelText="取消" onConfirm={() => clearDimension(dimension)}><Button type="link" danger size="small">清空该维度</Button></Popconfirm> : null}</div><RequirementList value={details.criteria} onChange={(requirements) => updateDimension(dimension, { criteria: requirements })} placeholder="请输入该维度的要求" addText="新增评测要求" /><Typography.Text className="case-editor-field-label">好答案（可选）</Typography.Text><Typography.Paragraph className="case-editor-section-hint">作为理想回答参考，评测时不会要求 bot 逐字复述。</Typography.Paragraph><RequirementList value={details.reference_answers} onChange={(reference_answers) => updateDimension(dimension, { reference_answers })} placeholder="请输入好答案" addText="新增好答案" /></div>,
           };
         })} />
       </Card>,

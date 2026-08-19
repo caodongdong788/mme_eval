@@ -173,6 +173,33 @@ def test_communication_standard_rejects_repeated_risk_and_care_advice() -> None:
     assert "重点突出" in standard["full_score"]
 
 
+def test_empathy_standard_rejects_fear_amplifying_language() -> None:
+    standard = DIMENSION_STANDARDS[EvaluationDimension.empathy]
+
+    assert "放大用户紧张、恐慌情绪" in standard["description"]
+    assert "灾难化、威吓性措辞" in standard["zero_score"]
+    assert "不制造额外的紧张或恐慌" in standard["full_score"]
+
+
+def test_prompt_does_not_treat_necessary_risk_communication_as_fear_amplification() -> None:
+    judge = EightDimensionJudge(enabled=False)
+    judge.enabled = True
+    captured = ""
+
+    async def fake_call(prompt: str):
+        nonlocal captured
+        captured = prompt
+        scores = {dimension.value: 5 for dimension in EvaluationDimension}
+        return scores, {key: "stub" for key in scores}
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    asyncio.run(judge.judge(case(), trace()))
+
+    assert "无依据渲染最坏后果" in captured
+    assert "必要的红旗提示" in captured
+    assert "不属于放大恐慌" in captured
+
+
 def test_low_score_requires_audited_issue_with_bot_evidence() -> None:
     judge = EightDimensionJudge(enabled=False)
     judge.enabled = True

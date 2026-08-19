@@ -25,6 +25,7 @@ from medeval.loader import load_cases
 from medeval.models import TestCase
 
 from . import feishu_base, feishu_sheet
+from .error_messages import format_validation_exception
 from .models_db import Benchmark
 from .settings import Settings, get_settings
 
@@ -391,8 +392,12 @@ def _normalise_default_evaluation_mode(value: str | None) -> str:
 def _validate_yaml_path(path: Path, settings: Settings) -> list[TestCase]:
     try:
         cases = load_cases(include=[str(path)], base_dir=settings.project_root)
+    except ValidationError as exc:
+        raise BenchmarkValidationError(
+            format_validation_exception(exc, prefix="用例校验失败")
+        ) from exc
     except Exception as exc:  # noqa: BLE001 —— loader 校验失败统一转领域错误
-        raise BenchmarkValidationError(f"用例校验失败：{exc}") from exc
+        raise BenchmarkValidationError("用例校验失败，请检查用例内容和字段格式") from exc
     if not cases:
         raise BenchmarkValidationError("用例集为空或不含合法用例")
     return cases
@@ -403,7 +408,7 @@ def _validate_yaml_bytes(content: bytes, settings: Settings) -> tuple[Path, list
     try:
         text = content.decode("utf-8")
     except UnicodeDecodeError as exc:
-        raise BenchmarkValidationError(f"文件不是合法 UTF-8 文本：{exc}") from exc
+        raise BenchmarkValidationError("文件编码不正确，请将文件保存为 UTF-8 编码后重试") from exc
 
     staging = settings.uploads_dir / "_staging"
     staging.mkdir(parents=True, exist_ok=True)
@@ -1067,7 +1072,9 @@ def _apply_case_overrides(
         try:
             by_id[sid] = TestCase.model_validate(data)
         except ValidationError as exc:
-            raise BenchmarkValidationError(f"用例 {sid} 判据非法：{exc}") from exc
+            raise BenchmarkValidationError(
+                format_validation_exception(exc, prefix=f"用例 {sid} 判据校验失败")
+            ) from exc
         matched += 1
     if case_overrides and matched == 0:
         raise BenchmarkValidationError(
@@ -1125,7 +1132,7 @@ def _yaml_to_case_overrides(yaml_text: str) -> list[dict[str, Any]]:
     try:
         data = yaml.safe_load(yaml_text)
     except yaml.YAMLError as exc:
-        raise BenchmarkValidationError(f"YAML 解析失败：{exc}") from exc
+        raise BenchmarkValidationError("YAML 解析失败，请检查缩进、冒号和列表格式") from exc
     if not isinstance(data, list):
         raise BenchmarkValidationError("YAML 顶层须为用例列表")
 
@@ -1364,7 +1371,7 @@ def _parse_single_case_yaml(yaml_text: str, *, expected_sample_id: str) -> dict[
     try:
         data = yaml.safe_load(yaml_text)
     except yaml.YAMLError as exc:
-        raise BenchmarkValidationError(f"YAML 解析失败：{exc}") from exc
+        raise BenchmarkValidationError("YAML 解析失败，请检查缩进、冒号和列表格式") from exc
     if not isinstance(data, list) or len(data) != 1:
         raise BenchmarkValidationError("YAML 须为仅含一条用例的列表")
     item = data[0]
@@ -1385,8 +1392,12 @@ def _validate_case_dict(
     tmp.write_text(yaml.safe_dump([item], allow_unicode=True, sort_keys=False), encoding="utf-8")
     try:
         cases = load_cases(include=[str(tmp)], base_dir=settings.project_root)
+    except ValidationError as exc:
+        raise BenchmarkValidationError(
+            format_validation_exception(exc, prefix="用例校验失败")
+        ) from exc
     except Exception as exc:  # noqa: BLE001
-        raise BenchmarkValidationError(f"用例校验失败：{exc}") from exc
+        raise BenchmarkValidationError("用例校验失败，请检查用例内容和字段格式") from exc
     finally:
         tmp.unlink(missing_ok=True)
     if len(cases) != 1:

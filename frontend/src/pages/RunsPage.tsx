@@ -18,6 +18,7 @@ import { RunsListOverview } from "../components/RunsListOverview";
 import { FeishuMention } from "../components/FeishuMention";
 import { RunTriggerTag } from "../components/RunTriggerTag";
 import { CaseFilterBuilder } from "../components/CaseFilterBuilder";
+import { humanizeErrorText } from "../utils/apiError";
 import { useRunsList } from "../hooks/useRunsList";
 import {
   filterRunsByPeriod,
@@ -173,7 +174,7 @@ export default function RunsPage() {
         }
         if (s === "failed") {
           return (
-            <Tooltip title={r.error_msg}>
+            <Tooltip title={humanizeErrorText(r.error_msg, "评测执行失败，请查看详情或重新评测")}>
               <RunStatusTag status={s} />
             </Tooltip>
           );

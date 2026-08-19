@@ -4,6 +4,7 @@ import { PairwiseCaseTable } from "../components/PairwiseCaseTable";
 import { PairwiseDetailRunningCard } from "../components/PairwiseDetailRunningCard";
 import { PairwiseDetailSummaryCard } from "../components/PairwiseDetailSummaryCard";
 import { usePairwiseDetail } from "../hooks/usePairwiseDetail";
+import { humanizeErrorText } from "../utils/apiError";
 
 export default function PairwiseDetailPage() {
   const { comparisonId } = useParams();
@@ -46,7 +47,7 @@ export default function PairwiseDetailPage() {
         />
       )}
       {detail.status === "failed" && (
-        <Alert type="error" showIcon message="对比失败" description={detail.error_msg} />
+        <Alert type="error" showIcon message="对比失败" description={humanizeErrorText(detail.error_msg, "对比执行失败，请稍后重试")} />
       )}
 
       {detail.status === "done" && (

@@ -6,6 +6,7 @@ import { formatApiError } from "../utils/apiError";
 import { useAsyncData } from "./useAsyncData";
 import { useEditModal } from "./useEditModal";
 import { shortCaseId } from "../components/BenchmarkCaseColumns";
+import { DIM_LABEL } from "../labels";
 import {
   buildBenchmarkCaseFilterValueOptions,
   type CaseFilterCondition,
@@ -191,6 +192,24 @@ export function useBenchmarksPage() {
 
   const saveCaseYaml = async () => {
     if (!casesBenchmark || !caseYamlMeta || !caseContent) return;
+    const dimensionCriteria = caseContent.case?.evaluation?.dimension_criteria;
+    if (dimensionCriteria && typeof dimensionCriteria === "object") {
+      for (const [dimension, rawDetails] of Object.entries(dimensionCriteria)) {
+        const details = Array.isArray(rawDetails)
+          ? { criteria: rawDetails, reference_answers: [] }
+          : (rawDetails || {}) as Record<string, unknown>;
+        const requirements = Array.isArray(details.criteria)
+          ? details.criteria.map(String).filter((item) => item.trim())
+          : [];
+        if (requirements.length === 0) {
+          message.error(
+            `${DIM_LABEL[dimension] || dimension}的“评测要求”至少需要保留 1 条；` +
+              "如果该维度没有补充要求，请删除整个空维度",
+          );
+          return;
+        }
+      }
+    }
     setCaseYamlSaving(true);
     try {
       const res = await api.saveBenchmarkCaseContent(

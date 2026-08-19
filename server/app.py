@@ -11,10 +11,13 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .db import init_db, session_scope
+from .error_messages import format_validation_errors, humanize_error_text
 from .settings import get_settings
 from .spa_static import install_frontend_spa
 
@@ -108,16 +111,39 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    @app.exception_handler(RequestValidationError)
+    async def _request_validation_error(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        logger.info("请求参数校验失败 %s %s: %s", request.method, request.url.path, exc)
+        return JSONResponse(
+            status_code=422,
+            content={
+                "detail": format_validation_errors(
+                    exc.errors(), prefix="请求参数校验失败"
+                )
+            },
+        )
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+        detail = exc.detail
+        if isinstance(detail, str):
+            detail = humanize_error_text(detail, fallback="请求处理失败，请检查后重试")
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": detail},
+            headers=exc.headers,
+        )
+
     # 全局异常兜底：未被各路由捕获的异常统一记录并返回 500（生产隐藏堆栈细节）。
     @app.exception_handler(Exception)
     async def _unhandled_exc(request: Request, exc: Exception) -> JSONResponse:
         logger.exception("未处理异常 %s %s", request.method, request.url.path)
-        detail = (
-            "服务器内部错误，请稍后重试"
-            if get_settings().is_production
-            else f"{type(exc).__name__}: {exc}"
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "服务器处理请求时发生异常，请稍后重试；如持续出现，请联系管理员"},
         )
-        return JSONResponse(status_code=500, content={"detail": detail})
 
     # 强制登录守卫：仅当配置了飞书应用密钥（auth_required）时生效；未配则放行（dev 兜底）。
     @app.middleware("http")

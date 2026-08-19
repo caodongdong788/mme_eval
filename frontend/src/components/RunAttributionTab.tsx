@@ -47,7 +47,7 @@ import {
   type JudgeModel,
 } from "../api";
 import { AttributionTaskLaunchModal } from "./AttributionTaskLaunchModal";
-import { formatApiError } from "../utils/apiError";
+import { formatApiError, humanizeErrorText } from "../utils/apiError";
 import { EVALUATION_DIMENSIONS } from "../labels";
 import {
   answerUsageDisplayName,
@@ -2377,7 +2377,7 @@ export function RunAttributionTab({
                 type="error"
                 showIcon
                 message="任务异常"
-                description={task.error_msg}
+                description={humanizeErrorText(task.error_msg, "归因任务执行失败，请稍后重试")}
                 style={{ marginTop: 16 }}
               />
             ) : null}
@@ -2426,9 +2426,9 @@ export function RunAttributionTab({
               />
             )}
             <div className="attribution-failure-raw">
-              <Typography.Text type="secondary">原始错误</Typography.Text>
-              <Typography.Paragraph copyable>
-                {failureItem.error_msg}
+              <Typography.Text type="secondary">失败说明</Typography.Text>
+              <Typography.Paragraph>
+                {humanizeErrorText(failureItem.error_msg, "模型未能完成归因，请检查模型配置或稍后重试")}
               </Typography.Paragraph>
             </div>
           </Space>

@@ -1635,6 +1635,13 @@ a.ant-typography-secondary:hover {
   margin: 12px 0 8px;
   color: var(--muted);
 }
+
+.case-editor-field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
 .case-editor-input-field {
   display: grid;
   gap: 5px;

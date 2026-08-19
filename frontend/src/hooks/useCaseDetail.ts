@@ -8,7 +8,7 @@ import {
   RunDetail,
   api,
 } from "../api/index";
-import { formatApiError } from "../utils/apiError";
+import { formatApiError, humanizeErrorText } from "../utils/apiError";
 import { isActiveCaseRetry } from "../utils/caseRetryProgress";
 
 export function useCaseDetail(runId: number, sampleId: string | undefined) {
@@ -234,7 +234,7 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
           const next = await api.getRun(runId);
           if (alive) {
             setRun(next);
-            message.error(next.error_msg || "Case 重试失败");
+            message.error(humanizeErrorText(next.error_msg, "用例重新评测失败，请稍后重试"));
           }
         } catch {
           if (alive) message.error("Case 重试失败");
