@@ -214,6 +214,7 @@ type CxAgentSuggestionSource = {
   rag_diagnosis?: {
     diagnosis?: string;
     query_quality?: string;
+    relevant_information_stage?: string;
     answer_usage?: string;
   };
   recommendations?: AttributionRecommendation[];
@@ -378,20 +379,36 @@ const RAG_DIAGNOSIS_CLASSIFICATION: Record<string, [string, string]> = {
 };
 
 function suggestionClassification(source: CxAgentSuggestionSource): [string, string] {
+  if (source.evaluation_issue_category === "missing_rag_reference") {
+    return CAUSE_CLASSIFICATION.missing_rag_reference;
+  }
+  // 历史归因可能同时保存了泛化的回答分类和更具体的 RAG 阶段诊断。
+  // 仅在诊断明确指出失败阶段时让 RAG 优先；unknown/healthy 不参与纠偏。
+  const diagnosis = String(source.rag_diagnosis?.diagnosis || "").toLowerCase();
+  if (RAG_DIAGNOSIS_CLASSIFICATION[diagnosis]) {
+    return RAG_DIAGNOSIS_CLASSIFICATION[diagnosis];
+  }
+  const informationStage = String(
+    source.rag_diagnosis?.relevant_information_stage || "",
+  ).toLowerCase();
+  const answerUsage = String(source.rag_diagnosis?.answer_usage || "").toLowerCase();
+  if (informationStage === "selected" && answerUsage === "not_used") {
+    return ["medical_rag", "rag_grounding"];
+  }
+  if (
+    informationStage === "selected"
+    && ["misinterpreted", "unsupported_claim"].includes(answerUsage)
+  ) {
+    return ["medical_rag", "rag_interpretation"];
+  }
   const structured = source.optimization_classification;
   if (structured?.domain && structured?.component) {
     return [structured.domain, structured.component];
   }
-  if (source.evaluation_issue_category === "missing_rag_reference") {
-    return CAUSE_CLASSIFICATION.missing_rag_reference;
-  }
   const causeCode = String(source.cause_code || source.rag_optimization_category || "").toLowerCase();
   if (CAUSE_CLASSIFICATION[causeCode]) return CAUSE_CLASSIFICATION[causeCode];
-  const diagnosis = String(source.rag_diagnosis?.diagnosis || "").toLowerCase();
-  if (RAG_DIAGNOSIS_CLASSIFICATION[diagnosis]) return RAG_DIAGNOSIS_CLASSIFICATION[diagnosis];
   const queryQuality = String(source.rag_diagnosis?.query_quality || "").toLowerCase();
   if (["incomplete", "wrong"].includes(queryQuality)) return ["medical_rag", "rag_query"];
-  const answerUsage = String(source.rag_diagnosis?.answer_usage || "").toLowerCase();
   if (answerUsage === "not_used") return ["medical_rag", "rag_grounding"];
   if (["misinterpreted", "unsupported_claim"].includes(answerUsage)) {
     return ["medical_rag", "rag_interpretation"];

@@ -5021,6 +5021,25 @@ a.ant-typography-secondary:hover {
 .attribution-optimization-actions {
   display: grid;
   gap: 6px;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.attribution-numbered-points {
+  display: grid;
+  flex: 1;
+  gap: 8px;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.attribution-numbered-points li {
+  padding-left: 3px;
+}
+
+.attribution-numbered-points li::marker {
+  color: var(--runs-primary);
+  font-weight: 700;
 }
 
 .attribution-result-page--loading {

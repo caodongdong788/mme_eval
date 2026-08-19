@@ -308,7 +308,7 @@ export interface AttributionDeductionAnalysis {
   finding: string;
   /** 可复核的来源位置与关键原文：Timeline、对话、工具、RAG 或提示词规则。 */
   evidence_summary?: string;
-  /** 该具体遗漏/冲突如何导致当前扣分。 */
+  /** 该具体遗漏/冲突造成的信息缺口、判断偏差、决策风险或用户影响。 */
   impact?: string;
   causal_chain: Array<{
     stage: string;

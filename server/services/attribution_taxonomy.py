@@ -325,6 +325,28 @@ _CAUSE_CLASSIFICATION: dict[str, tuple[str, str, str]] = {
     "insufficient_evidence": ("model_runtime_observability", "observability_evidence", "observability"),
 }
 
+_RAG_DIAGNOSIS_CLASSIFICATION: dict[str, tuple[str, str, str, str]] = {
+    "not_called": ("rag_not_called", "medical_rag", "rag_trigger", "rag_trigger"),
+    "failed": ("rag_call_failed", "medical_rag", "rag_service", "rag_service"),
+    "query_error": ("rag_query_error", "medical_rag", "rag_query", "rag_query"),
+    "corpus_gap": ("rag_corpus_gap", "medical_rag", "rag_corpus", "rag_corpus"),
+    "recall_error": ("rag_recall_error", "medical_rag", "rag_retrieval", "retrieval_config"),
+    "threshold_error": ("rag_threshold_error", "medical_rag", "rag_threshold", "threshold_config"),
+    "candidate_or_rerank_error": (
+        "rag_candidate_or_rerank_error", "medical_rag", "rag_candidate", "rerank_config"
+    ),
+    "rerank_error": ("rag_rerank_error", "medical_rag", "rag_rerank", "rerank_config"),
+    "selected_not_used": (
+        "rag_not_grounded", "medical_rag", "rag_grounding", "grounding_rule"
+    ),
+    "selected_misinterpreted": (
+        "rag_misinterpreted", "medical_rag", "rag_interpretation", "grounding_rule"
+    ),
+    "citation_mismatch": (
+        "citation_mismatch", "medical_rag", "citation_binding", "citation_binding"
+    ),
+}
+
 SUPPORTED_CAUSE_CODES = frozenset(_CAUSE_CLASSIFICATION)
 
 _OWNER_COMPONENT = {
@@ -388,7 +410,36 @@ def normalize_optimization_classification(
     if evaluation_issue_category == "missing_rag_reference":
         code = "missing_rag_reference"
 
-    if code in _CAUSE_CLASSIFICATION:
+    # RAG 阶段诊断比模型给出的泛化回答分类更接近因果链的最早失败节点。
+    # 只有结构化诊断明确指出失败阶段时才纠偏；healthy/unknown/not_needed
+    # 不会覆盖 primary_cause，避免仅凭“检索结果里出现过”就武断归责 RAG。
+    rag_diagnosis = _record(deduction.get("rag_diagnosis"))
+    diagnosis = str(rag_diagnosis.get("diagnosis") or "").lower()
+    rag_fallback = _RAG_DIAGNOSIS_CLASSIFICATION.get(diagnosis)
+    if not rag_fallback:
+        information_stage = str(
+            rag_diagnosis.get("relevant_information_stage") or ""
+        ).lower()
+        answer_usage = str(rag_diagnosis.get("answer_usage") or "").lower()
+        if information_stage == "selected" and answer_usage == "not_used":
+            rag_fallback = _RAG_DIAGNOSIS_CLASSIFICATION["selected_not_used"]
+        elif information_stage == "selected" and answer_usage in {
+            "misinterpreted", "unsupported_claim"
+        }:
+            rag_fallback = _RAG_DIAGNOSIS_CLASSIFICATION["selected_misinterpreted"]
+    if evaluation_issue_category == "none" and rag_fallback:
+        code, rag_domain, rag_component, rag_action = rag_fallback
+        supplied = {
+            **supplied,
+            "domain": rag_domain,
+            "component": rag_component,
+            "action_type": rag_action,
+        }
+
+    if rag_fallback and evaluation_issue_category == "none":
+        fallback = rag_fallback[1:]
+        coverage_status = "mapped"
+    elif code in _CAUSE_CLASSIFICATION:
         fallback = _CAUSE_CLASSIFICATION[code]
         coverage_status = "mapped"
     elif owner in _OWNER_COMPONENT:

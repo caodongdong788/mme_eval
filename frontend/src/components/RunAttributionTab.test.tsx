@@ -348,7 +348,7 @@ describe("RunAttributionTab", () => {
   });
 
   it("shows the task summary and completed case results on the detail page", async () => {
-    renderWithProviders(
+    const { container } = renderWithProviders(
       <MemoryRouter>
         <RunAttributionTab
           runId={26}
@@ -374,9 +374,17 @@ describe("RunAttributionTab", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "cx-agent 优化建议展开" })
     );
-    expect(screen.getByRole("combobox", {
+    const priorityFilter = screen.getByRole("combobox", {
       name: "按问题等级筛选 cx-agent 优化点",
-    })).toBeInTheDocument();
+    });
+    fireEvent.mouseDown(priorityFilter);
+    expect(screen.getByRole("option", { name: "P0" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "P1" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "P2" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /最高优先级/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /较高优先级/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /一般优先级/ })).not.toBeInTheDocument();
+    fireEvent.keyDown(priorityFilter, { key: "Escape" });
     fireEvent.click(
       screen.getByRole("button", { name: "评测工具优化建议展开" })
     );
@@ -402,6 +410,12 @@ describe("RunAttributionTab", () => {
     expect(screen.getByText("相关医学风险已经召回，但回答没有采用。")).toBeInTheDocument();
     expect(screen.getByText("怎么优化：")).toBeInTheDocument();
     expect(screen.getByText("关联 Case：")).toBeInTheDocument();
+    const numberedPoints = container.querySelectorAll(
+      ".attribution-numbered-points"
+    );
+    expect(numberedPoints).toHaveLength(2);
+    expect(numberedPoints[0].tagName).toBe("OL");
+    expect(numberedPoints[1].tagName).toBe("OL");
     fireEvent.click(screen.getByText("尚未关联维度"));
     expect(screen.getByText("P2 · 一般优先级")).toBeInTheDocument();
     fireEvent.click(
@@ -430,6 +444,43 @@ describe("RunAttributionTab", () => {
       "/runs/26/attribution-tasks/99/cases/case_11"
     );
     expect(mockedApi.getAttributionTaskResult).not.toHaveBeenCalled();
+  });
+
+  it("hides empty evaluation-tool categories from the task summary", async () => {
+    const summaryWithoutRagConflict: AttributionTask = {
+      ...task,
+      diagnostic_summary: {
+        ...task.diagnostic_summary!,
+        clusters: task.diagnostic_summary!.clusters.filter(
+          (cluster) =>
+            cluster.evaluation_issue_category !== "annotation_rag_conflict"
+        ),
+      },
+    };
+    mockedApi.getAttributionTask.mockResolvedValue(summaryWithoutRagConflict);
+    mockedApi.listAttributionTasks.mockResolvedValue([
+      { ...summaryWithoutRagConflict, items: [] },
+    ]);
+
+    renderWithProviders(
+      <MemoryRouter>
+        <RunAttributionTab runId={26} mode="detail" selectedTaskId={99} />
+      </MemoryRouter>
+    );
+
+    await screen.findByText("归因任务总结");
+    fireEvent.click(
+      screen.getByRole("button", { name: "评测工具优化建议展开" })
+    );
+    expect(
+      screen.getByRole("heading", { name: "Benchmark 判据冲突" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "其他判分复核" })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "判分点与 RAG 证据冲突" })
+    ).not.toBeInTheDocument();
   });
 
   it("merges same-dimension, same-secondary-category suggestions and keeps Case links", async () => {

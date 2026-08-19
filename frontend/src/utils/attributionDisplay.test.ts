@@ -109,4 +109,22 @@ describe("attributionDisplay", () => {
       },
     }).label).toBe("Agent 决策与推理策略 / 禁忌或相互作用判断不足");
   });
+
+  it("prefers a decisive RAG stage over a generic response classification", () => {
+    expect(cxAgentSuggestionCategory({
+      cause_code: "response_composition_error",
+      optimization_classification: {
+        domain: "response_delivery",
+        component: "content_composition",
+        failure_mode: "response_composition_error",
+        action_type: "response_composition",
+        evidence_status: "sufficient",
+      },
+      rag_diagnosis: {
+        diagnosis: "selected_not_used",
+        relevant_information_stage: "selected",
+        answer_usage: "not_used",
+      },
+    }).label).toBe("RAG 优化 / 已召回但未使用");
+  });
 });

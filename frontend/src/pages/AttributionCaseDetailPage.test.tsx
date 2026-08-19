@@ -96,6 +96,7 @@ const result: CaseAttribution = {
         issue_type: "factual_error",
         required_information: ["reasoning"],
         finding: "回答在证据不足时给出了确定诊断",
+        impact: "用户可能把尚未确认的判断当作最终诊断，延误进一步检查。",
         causal_chain: [
           {
             stage: "generation",
@@ -126,7 +127,18 @@ const result: CaseAttribution = {
           answer_usage: "used",
           finding: "本项不是 RAG 问题",
         },
-        recommendations: [],
+        recommendations: [
+          {
+            priority: "P1",
+            target: "回答生成",
+            action: "在生成确定性医学结论前检查证据是否足以支持诊断。",
+          },
+          {
+            priority: "P1",
+            target: "回答生成",
+            action: "证据不足时明确说明判断边界并引导进一步检查。",
+          },
+        ],
       },
     ],
     global_recommendations: [
@@ -207,14 +219,12 @@ describe("AttributionCaseDetailPage", () => {
     expect(screen.queryByText("医学知识检索（RAG）")).not.toBeInTheDocument();
     expect(screen.queryByText("医学安全性专项分析")).not.toBeInTheDocument();
     expect(screen.getByText("cx-agent 优化建议")).toBeInTheDocument();
+    expect(screen.queryByText("评测工具优化建议")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "cx-agent 优化建议展开" })
     ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "cx-agent 优化建议展开" })
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "证据不足，暂不归责展开" })
     );
     // 单 Case 与任务汇总使用同一层级：八维 → P0/P1/P2 → 问题 → 分类 → 怎么优化。
     fireEvent.click(screen.getByText("专业准确性与边界"));
@@ -223,12 +233,65 @@ describe("AttributionCaseDetailPage", () => {
       screen.getByText("问题分类：提示词与回答生成策略 / 行动步骤不清晰")
     );
     expect(screen.getByText("问题描述：")).toBeInTheDocument();
+    expect(screen.getByText("导致问题：")).toBeInTheDocument();
+    expect(
+      screen.getByText("用户可能把尚未确认的判断当作最终诊断，延误进一步检查。")
+    ).toBeInTheDocument();
     expect(screen.getByText("怎么优化：")).toBeInTheDocument();
+    const optimizationList = screen.getByText("怎么优化：").parentElement?.querySelector("ol");
+    expect(optimizationList).not.toBeNull();
+    expect(optimizationList?.querySelectorAll("li")).toHaveLength(2);
+    expect(optimizationList?.textContent).toContain(
+      "在生成确定性医学结论前检查证据是否足以支持诊断。"
+    );
+    expect(optimizationList?.textContent).toContain(
+      "证据不足时明确说明判断边界并引导进一步检查。"
+    );
     expect(screen.queryByText("判分需要复核")).not.toBeInTheDocument();
     expect(screen.queryByText("需要复核的判分")).not.toBeInTheDocument();
-    expect(screen.getByText("证据不足，暂不归责")).toBeInTheDocument();
+    expect(screen.queryByText("待补充证据")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("link", { name: "← 返回归因任务" }));
     expect(await screen.findByText("归因任务明细页")).toBeInTheDocument();
+  });
+
+  it("shows pending evidence only when attribution evidence is actually missing", async () => {
+    const baseDeduction = result.analysis!.deduction_analyses[0];
+    mockedApi.getAttributionTaskResult.mockResolvedValue({
+      ...result,
+      analysis: {
+        ...result.analysis!,
+        deduction_analyses: [{
+          ...baseDeduction,
+          deduction_validation: "insufficient_evidence",
+          evaluation_issue_category: "evidence_gap",
+          finding: "缺少最终生成上下文，无法确认相关文献是否提供给回答模型。",
+          recommendations: [],
+        }],
+        global_recommendations: [],
+        limitations: ["需要补充最终选中文献与最终生成上下文的映射记录。"],
+      },
+    });
+
+    renderWithProviders(
+      <MemoryRouter
+        initialEntries={["/runs/26/attribution-tasks/28/cases/case_23"]}
+      >
+        <Routes>
+          <Route
+            path="/runs/:runId/attribution-tasks/:taskId/cases/:sampleId"
+            element={<AttributionCaseDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("待补充证据")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "待补充证据展开" }));
+    expect(screen.getByText("需要补充的证据")).toBeInTheDocument();
+    expect(screen.getByText("缺少的证据")).toBeInTheDocument();
+    expect(
+      screen.getByText("需要补充最终选中文献与最终生成上下文的映射记录。")
+    ).toBeInTheDocument();
   });
 
   it("shows evaluation-tool optimization for questionable deductions", async () => {

@@ -99,6 +99,53 @@ def test_rejects_cross_domain_model_classification():
     assert result["action_type"] == "tool_executor"
 
 
+def test_decisive_rag_stage_overrides_generic_response_classification():
+    result = normalize_optimization_classification(
+        {
+            "deduction_validation": "supported",
+            "primary_cause": {
+                "code": "response_composition_error",
+                "owner": "generator",
+            },
+            "optimization_classification": {
+                "domain": "response_delivery",
+                "component": "content_composition",
+                "action_type": "response_composition",
+            },
+            "rag_diagnosis": {
+                "diagnosis": "selected_not_used",
+                "relevant_information_stage": "selected",
+                "answer_usage": "not_used",
+            },
+        }
+    )
+
+    assert result["domain"] == "medical_rag"
+    assert result["component"] == "rag_grounding"
+    assert result["failure_mode"] == "rag_not_grounded"
+    assert result["action_type"] == "grounding_rule"
+
+
+def test_non_decisive_rag_observation_does_not_override_primary_cause():
+    result = normalize_optimization_classification(
+        {
+            "deduction_validation": "supported",
+            "primary_cause": {
+                "code": "response_incomplete",
+                "owner": "generator",
+            },
+            "rag_diagnosis": {
+                "diagnosis": "unknown",
+                "relevant_information_stage": "candidate",
+                "answer_usage": "unknown",
+            },
+        }
+    )
+
+    assert result["domain"] == "response_delivery"
+    assert result["component"] == "response_completeness"
+
+
 def test_unknown_cause_is_visible_as_taxonomy_gap_instead_of_generic_other():
     result = normalize_optimization_classification(
         {

@@ -114,6 +114,10 @@ class _FakeBackend:
         assert "score_health" in prompt
         assert "evidence_summary" in prompt
         assert "impact" in prompt
+        assert "问题描述 → 直接证据 → 导致问题 → 怎么优化" in prompt
+        assert "用户档案已明确记录做过前哨淋巴结活检" in prompt
+        assert "每个 recommendation 只能包含一个可以独立执行的优化动作" in prompt
+        assert "页面会统一编号" in prompt
         assert "不得泛化" in prompt
         assert "不得出现 node UUID" in prompt
         assert "不要写“终答生成节点 node:xxxx”" in prompt
@@ -298,7 +302,7 @@ def test_case_attribution_generate_persist_and_mark_stale(
         "insufficient_evidence": "evidence",
     }[normalized_item["deduction_validation"]]
     assert normalized_item["recommendations"][0]["scope"] == expected_scope
-    assert payload["metadata"]["prompt_version"] == "case-attribution-v15"
+    assert payload["metadata"]["prompt_version"] == "case-attribution-v17"
 
     with session_scope() as session:
         row = session.query(CaseResultRow).filter_by(run_id=run_id, sample_id="bc_002").one()

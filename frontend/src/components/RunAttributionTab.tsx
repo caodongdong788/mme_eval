@@ -50,7 +50,6 @@ import { AttributionTaskLaunchModal } from "./AttributionTaskLaunchModal";
 import { formatApiError } from "../utils/apiError";
 import { EVALUATION_DIMENSIONS } from "../labels";
 import {
-  type CxAgentSuggestionCategory,
   answerUsageDisplayName,
   attributionDeductionLabel,
   cxAgentSuggestionCategory,
@@ -583,7 +582,7 @@ function DeductionPanel({
           <Descriptions.Item label="直接证据">
             <AttributionEvidenceContent item={item} analyses={analyses} />
           </Descriptions.Item>
-          <Descriptions.Item label="扣分影响">
+          <Descriptions.Item label="导致问题">
             {humanizeAttributionText(
               item.impact || item.observed_gap?.gap || item.finding,
               analyses
@@ -874,18 +873,18 @@ function CxAgentDeductionPriorityGroups({
                         <AttributionEvidenceContent item={item} analyses={items} />
                       </div>
                       <div className="attribution-optimization-field">
-                        <strong>扣分影响：</strong>
+                        <strong>导致问题：</strong>
                         {humanizeAttributionText(
                           item.impact || item.observed_gap?.gap || item.finding
                         )}
                       </div>
                       <div className="attribution-optimization-field">
                         <strong>怎么优化：</strong>
-                        <div className="attribution-optimization-actions">
+                        <ol className="attribution-optimization-actions">
                           {actions.map((action) => (
-                            <div key={action}>{humanizeAttributionText(action)}</div>
+                            <li key={action}>{humanizeAttributionText(action)}</li>
                           ))}
-                        </div>
+                        </ol>
                       </div>
                     </div>
                   ),
@@ -945,7 +944,7 @@ function AttributionAnalysisModule({
     items: items.filter(
       (item) => questionableReviewGroup(item) === group.key
     ),
-  }));
+  })).filter((group) => group.items.length > 0);
   const deductionItems = (values: AttributionDeductionAnalysis[]) =>
     values.map((item, index) => ({
       key: item.deduction_id,
@@ -1004,6 +1003,8 @@ function AttributionAnalysisModule({
       ),
     });
   }
+  // 空分类不占页面空间；证据不足模块只有存在具体扣分项或全局缺失说明时才展示。
+  if (!items.length && !(kind === "insufficient" && limitations.length)) return null;
   return (
     <section className={`attribution-module attribution-module--${kind}`}>
       <div className="attribution-module__header">
@@ -1078,7 +1079,7 @@ function AttributionAnalysisModule({
             <Alert
               type="warning"
               showIcon
-              message="当前缺失信息"
+              message="缺少的证据"
               description={limitations
                 .map((item) => humanizeAttributionText(item, allItems))
                 .join("；")}
@@ -1145,8 +1146,8 @@ export function AttributionDetail({ result }: { result: CaseAttribution }) {
       />
       <AttributionAnalysisModule
         kind="insufficient"
-        title="证据不足，暂不归责"
-        description="当前证据不足以确认责任；其中需要核对 RAG 但缺少引用的项目会单独标记为“缺少 RAG 引用”。"
+        title="待补充证据"
+        description="仅在当前证据无法确认责任时展示，说明缺少的调用链、用户上下文或 RAG 阶段证据，以及需要补充的采集内容。"
         items={insufficient}
         allItems={deductions}
         globalRecommendations={analysis.global_recommendations || []}
@@ -1319,8 +1320,15 @@ function groupedCxAgentClusters(clusters: AttributionCluster[]) {
     group.clusters.push(cluster);
     group.sampleIds.push(...cluster.sample_ids);
     group.deductionCount += cluster.deduction_count;
-    const description = humanizeAttributionText(cluster.summary || cluster.cause_label);
-    if (!group.descriptions.includes(description)) group.descriptions.push(description);
+    const descriptionCandidates = cluster.examples?.length
+      ? cluster.examples
+      : [cluster.summary || cluster.cause_label];
+    descriptionCandidates.forEach((value) => {
+      const description = humanizeAttributionText(value);
+      if (description && !group.descriptions.includes(description)) {
+        group.descriptions.push(description);
+      }
+    });
     cxAgentOptimizationActions(cluster, category.key).forEach((action) => {
       const readable = humanizeAttributionText(action);
       if (!group.actions.includes(readable)) group.actions.push(readable);
@@ -1333,18 +1341,21 @@ function groupedCxAgentClusters(clusters: AttributionCluster[]) {
   }));
 }
 
-function generalizedProblemDescription(
-  category: CxAgentSuggestionCategory,
-  descriptions: string[]
-) {
-  const examples = [...new Set(descriptions.map((value) => value.trim()).filter(Boolean))];
-  if (!examples.length) {
-    return `共同问题是“${category.label}”，当前还缺少可展示的具体表现。`;
-  }
-  if (examples.length === 1) return examples[0];
+function NumberedAttributionPoints({
+  items,
+  emptyText,
+}: {
+  items: string[];
+  emptyText: string;
+}) {
+  const values = [...new Set(items.map((value) => value.trim()).filter(Boolean))];
+  if (!values.length) return <span>{emptyText}</span>;
   return (
-    `共同问题是“${category.label}”。代表性表现包括：` +
-    `${examples.slice(0, 3).join("；")}${examples.length > 3 ? "等。" : "。"}`
+    <ol className="attribution-numbered-points">
+      {values.map((value) => (
+        <li key={value}>{value}</li>
+      ))}
+    </ol>
   );
 }
 
@@ -1386,15 +1397,19 @@ function CxAgentClusterPriorityGroups({
                     <div className="attribution-cluster-detail attribution-cluster-detail--optimization">
                       <div className="attribution-optimization-field">
                         <strong>通用问题描述：</strong>
-                        {generalizedProblemDescription(group.category, group.descriptions)}
+                        <NumberedAttributionPoints
+                          items={group.descriptions}
+                          emptyText={`共同问题是“${group.category.label}”，当前还缺少可展示的具体表现。`}
+                        />
                       </div>
                       <div className="attribution-optimization-field">
                         <strong>怎么优化：</strong>
-                        <div className="attribution-optimization-actions">
-                          {group.actions.map((action) => (
-                            <div key={action}>{humanizeAttributionText(action)}</div>
-                          ))}
-                        </div>
+                        <NumberedAttributionPoints
+                          items={group.actions.map((action) =>
+                            humanizeAttributionText(action)
+                          )}
+                          emptyText="暂无可执行的优化建议"
+                        />
                       </div>
                       <div className="attribution-optimization-field">
                         <strong>关联 Case：</strong>
@@ -1489,6 +1504,7 @@ function EvaluationConflictGroup({
   emptyDescription: string;
 }) {
   const [expanded, setExpanded] = useState(false);
+  if (!clusters.length) return null;
   return (
     <section className="attribution-evaluation-group">
       <div className="attribution-evaluation-group__head">
@@ -1618,6 +1634,8 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
   const cxAgentIssueCount = deductionCount(cxAgentClusters);
   const evaluationReviewCount = deductionCount(evaluationClusters);
   const genericEvidenceGapCount = deductionCount(insufficientClusters);
+  const hasEvaluationToolSuggestions =
+    evaluationReviewCount > 0 || genericEvidenceGapCount > 0;
   const unassignedClusters = cxAgentClusters.filter(
     (cluster) =>
       selectedCxAgentPriorities.includes(
@@ -1699,9 +1717,10 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
             <Select
               aria-label="按问题等级筛选 cx-agent 优化点"
               mode="multiple"
+              virtual={false}
               value={selectedCxAgentPriorities}
               options={PRIORITY_ORDER.map((priority) => ({
-                label: `${priority} · ${priorityDisplayName(priority)}`,
+                label: priority,
                 value: priority,
               }))}
               maxTagCount="responsive"
@@ -1734,7 +1753,8 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
         ) : null}
       </section>
 
-      <section className="attribution-summary-section attribution-summary-section--evaluation">
+      {hasEvaluationToolSuggestions ? (
+        <section className="attribution-summary-section attribution-summary-section--evaluation">
         <div className="attribution-summary-section__head">
           <div>
             <h4>评测工具优化建议</h4>
@@ -1795,7 +1815,8 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
             />
           </div>
         ) : null}
-      </section>
+        </section>
+      ) : null}
     </DashPanel>
   );
 }
