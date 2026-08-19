@@ -202,6 +202,10 @@ def test_task_diagnostic_summary_keeps_highest_recommendation_priority():
                                     "owner": "context_tool",
                                     "confidence": 0.9,
                                 },
+                                "optimization_classification": {
+                                    "category_primary": "Agent 工程链路",
+                                    "category_secondary": "上下文已注入但未使用",
+                                },
                                 "recommendations": [
                                     {"priority": "P2", "target": "回答模板", "action": "补充普通检查"},
                                     {"priority": "P0", "target": "安全守卫", "action": "阻断禁忌用药建议"},
@@ -399,8 +403,8 @@ def test_task_diagnostic_summary_keeps_missing_rag_reference_separate_from_other
     assert generic_evidence_gap["clusters"][0]["evaluation_issue_category"] == "evidence_gap"
 
 
-def test_task_diagnostic_summary_keeps_structured_rag_optimization_categories():
-    def stored(code: str, diagnosis: str = ""):
+def test_task_diagnostic_summary_keeps_model_supplied_current_categories():
+    def stored(code: str, category_secondary: str):
         return {
             "analysis": {
                 "deduction_analyses": [
@@ -414,7 +418,15 @@ def test_task_diagnostic_summary_keeps_structured_rag_optimization_categories():
                             "owner": "rag",
                             "confidence": 0.8,
                         },
-                        "rag_diagnosis": {"diagnosis": diagnosis},
+                        "optimization_classification": {
+                            "category_primary": "RAG 优化",
+                            "category_secondary": category_secondary,
+                            "domain": "medical_rag",
+                            "component": "rag_trigger",
+                            "failure_mode": code,
+                            "action_type": "rag_trigger",
+                            "evidence_status": "sufficient",
+                        },
                     }
                 ]
             }
@@ -422,36 +434,18 @@ def test_task_diagnostic_summary_keeps_structured_rag_optimization_categories():
 
     summary = build_task_diagnostic_summary(
         [
-            ("case_not_called", stored("rag_not_called")),
-            ("case_call_failed", stored("rag_call_failed")),
-            ("case_query", stored("rag_query_error")),
-            ("case_recall", stored("rag_recall_error")),
-            ("case_threshold", stored("rag_threshold_error")),
-            ("case_candidate", stored("rag_candidate_or_rerank_error")),
-            ("case_rerank", stored("rag_rerank_error")),
-            ("case_unused", stored("rag_not_grounded")),
-            ("case_misread", stored("rag_misinterpreted")),
-            ("case_corpus", stored("rag_corpus_gap")),
-            ("case_citation", stored("citation_mismatch")),
+            ("case_not_called", stored("rag_not_called", "未触发检索")),
+            ("case_failed", stored("rag_call_failed", "调用失败")),
         ]
     )
 
     categories = {
-        cluster["sample_ids"][0]: cluster["rag_optimization_category"]
+        cluster["sample_ids"][0]: cluster["optimization_classification"]["category_secondary"]
         for cluster in summary["clusters"]
     }
     assert categories == {
-        "case_not_called": "rag_not_called",
-        "case_call_failed": "rag_call_failed",
-        "case_query": "rag_query_error",
-        "case_recall": "rag_recall_error",
-        "case_threshold": "rag_threshold_error",
-        "case_candidate": "rag_candidate_or_rerank_error",
-        "case_rerank": "rag_rerank_error",
-        "case_unused": "rag_not_grounded",
-        "case_misread": "rag_misinterpreted",
-        "case_corpus": "rag_corpus_gap",
-        "case_citation": "citation_mismatch",
+        "case_not_called": "未触发检索",
+        "case_failed": "调用失败",
     }
 
 
@@ -801,7 +795,14 @@ def test_each_attribution_task_keeps_its_own_result_snapshot(initialized_db, mon
 def test_run_attribution_category_stats_uses_latest_case_and_deduplicates(initialized_db):
     run_id, sample_ids, model_id = _seed_failed_cases()
 
-    def deduction(code: str, domain: str, component: str, suffix: str) -> dict:
+    def deduction(
+        code: str,
+        domain: str,
+        component: str,
+        suffix: str,
+        category_primary: str,
+        category_secondary: str,
+    ) -> dict:
         return {
             "deduction_id": f"guideline.{suffix}",
             "dimension": "professional_accuracy",
@@ -816,6 +817,8 @@ def test_run_attribution_category_stats_uses_latest_case_and_deduplicates(initia
                 "confidence": 0.9,
             },
             "optimization_classification": {
+                "category_primary": category_primary,
+                "category_secondary": category_secondary,
                 "domain": domain,
                 "component": component,
                 "failure_mode": code,
@@ -859,7 +862,8 @@ def test_run_attribution_category_stats_uses_latest_case_and_deduplicates(initia
             sample_id=sample_ids[0],
             status="success",
             analysis_json=snapshot(deduction(
-                "rag_not_called", "medical_rag", "rag_trigger", "old"
+                "rag_not_called", "medical_rag", "rag_trigger", "old",
+                "RAG 优化", "未触发检索",
             )),
         ))
 
@@ -882,8 +886,8 @@ def test_run_attribution_category_stats_uses_latest_case_and_deduplicates(initia
                 status="success",
                 # 同一 Case 的两个扣分项落在同一分类，只能计一次。
                 analysis_json=snapshot(
-                    deduction("risk_benefit_error", "clinical_reasoning", "risk_benefit", "a"),
-                    deduction("risk_benefit_error", "clinical_reasoning", "risk_benefit", "b"),
+                    deduction("risk_benefit_error", "clinical_reasoning", "risk_benefit", "a", "Agent 决策与推理策略", "风险识别不足"),
+                    deduction("risk_benefit_error", "clinical_reasoning", "risk_benefit", "b", "Agent 决策与推理策略", "风险识别不足"),
                 ),
             ),
             AttributionTaskItem(
@@ -891,8 +895,8 @@ def test_run_attribution_category_stats_uses_latest_case_and_deduplicates(initia
                 sample_id=sample_ids[1],
                 status="success",
                 analysis_json=snapshot(
-                    deduction("risk_benefit_error", "clinical_reasoning", "risk_benefit", "c"),
-                    deduction("response_style_error", "response_delivery", "response_style", "d"),
+                    deduction("risk_benefit_error", "clinical_reasoning", "risk_benefit", "c", "Agent 决策与推理策略", "风险识别不足"),
+                    deduction("response_style_error", "response_delivery", "response_style", "d", "提示词与回答生成策略", "缺少共情与确认"),
                 ),
             ),
         ])

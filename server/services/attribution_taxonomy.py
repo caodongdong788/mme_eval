@@ -166,108 +166,83 @@ DOMAIN_ACTION_TYPES = {
 }
 
 
-# 面向产品展示的一级、二级分类。它与归因详情页使用的分类口径一致，
-# 内部 domain/component 仍用于代码定位，不直接暴露给业务用户。
-DOCUMENT_CATEGORY_LABELS = {
-    "rag": "RAG 优化",
-    "engineering": "Agent 工程链路",
-    "reasoning": "Agent 决策与推理策略",
-    "prompt": "提示词与回答生成策略",
-    "knowledge": "知识与规则内化",
-    "safety": "输出校验与安全守卫",
+# 产品展示只接受归因模型直接输出的现行分类，不再根据内部 domain/component
+# 推断中文分类，避免代码责任模块与业务问题类别互相污染。
+CURRENT_OPTIMIZATION_CATEGORIES: dict[str, tuple[str, ...]] = {
+    "RAG 优化": (
+        "未触发检索",
+        "调用失败",
+        "排序或重排不当",
+        "已召回但未使用",
+        "证据误读",
+        "缺少 RAG 引用",
+    ),
+    "Agent 工程链路": (
+        "工具未调用",
+        "工具选择错误",
+        "工具参数错误",
+        "工具执行失败",
+        "Timeline 或用户事实未注入",
+        "上下文已注入但未使用",
+        "多轮状态丢失",
+        "流程路由错误",
+        "模型超时",
+        "结果截断",
+    ),
+    "Agent 决策与推理策略": (
+        "风险识别不足",
+        "未优先追问关键问题",
+        "错误分流",
+        "错误选择行动路径",
+        "禁忌或相互作用判断不足",
+        "医学事实识别错误",
+        "Timeline 时间顺序错误",
+    ),
+    "提示词与回答生成策略": (
+        "未说清红旗信号",
+        "未说明适用边界",
+        "行动步骤不清晰",
+        "缺少适用条件或解释",
+        "缺少共情与确认",
+        "系统提示词冲突",
+        "动态 Hook 异常",
+        "回答信息不完整",
+    ),
+    "知识与规则内化": (
+        "场景知识理解错误",
+        "用药禁忌应用错误",
+        "治疗阶段判断错误",
+        "业务规则应用错误",
+        "规则冲突未消解",
+    ),
+    "输出校验与安全守卫": (
+        "关键事实前后矛盾",
+        "遗漏风险提示",
+        "放出不安全建议",
+        "未执行终答前检查",
+        "未触发兜底分流",
+    ),
 }
 
-_RAG_DOCUMENT_COMPONENTS = {
-    "rag_trigger": "未触发检索",
-    "rag_service": "调用失败",
-    "rag_query": "Query 不完整或意图识别偏差",
-    "rag_corpus": "召回覆盖不足",
-    "rag_retrieval": "召回覆盖不足",
-    "rag_threshold": "召回覆盖不足",
-    "rag_candidate": "排序或重排不当",
-    "rag_rerank": "排序或重排不当",
-    "rag_grounding": "已召回但未使用",
-    "rag_interpretation": "证据误读",
-    "citation_binding": "缺少 RAG 引用",
+_CURRENT_CATEGORY_KEYS = {
+    "RAG 优化": "rag",
+    "Agent 工程链路": "engineering",
+    "Agent 决策与推理策略": "reasoning",
+    "提示词与回答生成策略": "prompt",
+    "知识与规则内化": "knowledge",
+    "输出校验与安全守卫": "safety",
 }
 
 
-def documented_optimization_category(domain: str, component: str) -> tuple[str, str, str]:
-    """把内部归因位置映射为文档约定的一级、二级业务分类。"""
-    if domain == "medical_rag":
-        primary = "rag"
-        secondary = _RAG_DOCUMENT_COMPONENTS.get(component, "召回覆盖不足")
-    elif domain == "context_memory":
-        primary = "engineering"
-        if component in {"timeline", "structured_profile", "medical_record", "chat_history", "saved_content"}:
-            secondary = "Timeline 或用户事实未注入"
-        else:
-            secondary = {
-                "context_usage": "上下文已注入但未使用",
-                "consult_subject": "咨询对象归属错误",
-                "context_conflict": "上下文新旧冲突",
-                "memory_write": "长期记忆写入失败",
-            }.get(component, "多轮状态丢失")
-    elif domain == "dialogue_tool_orchestration":
-        if component == "clarification":
-            primary, secondary = "reasoning", "未优先追问关键问题"
-        else:
-            primary = "engineering"
-            secondary = {
-                "tool_registry": "工具未调用",
-                "tool_selection": "工具选择错误",
-                "tool_arguments": "工具参数错误",
-                "tool_policy": "工具执行失败",
-                "tool_executor": "工具执行失败",
-                "feature_gate": "能力开关未启用",
-                "proactive_undercurrent": "主动服务链路异常",
-            }.get(component, "流程路由错误")
-    elif domain == "prompt_hook":
-        if component == "expert_pack":
-            primary, secondary = "knowledge", "专家规则未正确应用"
-        else:
-            primary = "prompt"
-            secondary = (
-                "动态 Hook 未触发或规则错误"
-                if component == "dynamic_hook"
-                else "系统提示词规则缺失或冲突"
-            )
-    elif domain == "clinical_reasoning":
-        primary = "reasoning"
-        secondary = {
-            "clinical_fact_extraction": "关键医学事实识别错误",
-            "temporal_reasoning": "Timeline 时间顺序判断错误",
-            "risk_benefit": "风险识别不足",
-            "contraindication": "禁忌或相互作用判断不足",
-        }.get(component, "错误选择行动路径")
-    elif domain == "response_delivery":
-        if component in {"output_protocol"}:
-            primary, secondary = "safety", "未执行终答前检查"
-        elif component in {"a2ui_binding", "delivery_ui"}:
-            primary, secondary = "engineering", "回答交付或资源绑定失败"
-        else:
-            primary = "prompt"
-            secondary = {
-                "response_style": "缺少共情与确认",
-                "content_composition": "行动步骤不清晰",
-                "response_completeness": "回答关键信息不完整",
-            }.get(component, "缺少适用条件或解释")
-    elif domain == "medical_safety":
-        primary, secondary = "safety", "放出不安全建议"
-    elif domain == "model_runtime_observability":
-        primary = "engineering"
-        secondary = {
-            "model_provider": "模型调用失败",
-            "model_timeout": "模型调用超时",
-            "partial_output": "模型输出不完整",
-            "context_window": "上下文窗口或压缩异常",
-            "compaction": "上下文窗口或压缩异常",
-            "tool_result_budget": "工具结果被截断",
-            "observability_evidence": "调用链证据缺失",
-        }.get(component, "模型运行时异常")
-    else:
-        primary, secondary = "engineering", "流程路由错误"
-    return primary, DOCUMENT_CATEGORY_LABELS[primary], secondary
+def current_optimization_category(
+    classification: dict[str, Any],
+) -> tuple[str, str, str]:
+    """读取模型直出的现行分类；非法或缺失值不做旧字段回推。"""
+    primary = str(classification.get("category_primary") or "").strip()
+    secondary = str(classification.get("category_secondary") or "").strip()
+    if secondary in CURRENT_OPTIMIZATION_CATEGORIES.get(primary, ()):
+        return _CURRENT_CATEGORY_KEYS[primary], primary, secondary
+    return "unclassified", "未分类", "待确认"
 
 _CAUSE_CLASSIFICATION: dict[str, tuple[str, str, str]] = {
     "judge_or_benchmark_issue": ("evaluation_system", "judge", "judge_logic"),
@@ -386,7 +361,7 @@ def _record(value: Any) -> dict[str, Any]:
 def normalize_optimization_classification(
     deduction: dict[str, Any], evaluation_issue_category: str = "none"
 ) -> dict[str, str]:
-    """返回完整且稳定的优化分类，旧结果缺字段时也能确定性补齐。"""
+    """规范代码责任字段，并保留模型直接给出的现行产品分类。"""
     validation = str(deduction.get("deduction_validation") or "insufficient_evidence")
     cause = _record(deduction.get("primary_cause"))
     code = str(cause.get("code") or "insufficient_evidence").lower()
@@ -399,6 +374,8 @@ def normalize_optimization_classification(
         } else "judge"
         action_type = "evaluation_rule" if component == "benchmark" else "judge_logic"
         return {
+            "category_primary": "",
+            "category_secondary": "",
             "domain": "evaluation_system",
             "component": component,
             "failure_mode": evaluation_issue_category,
@@ -409,6 +386,11 @@ def normalize_optimization_classification(
 
     if evaluation_issue_category == "missing_rag_reference":
         code = "missing_rag_reference"
+        supplied = {
+            **supplied,
+            "category_primary": "RAG 优化",
+            "category_secondary": "缺少 RAG 引用",
+        }
 
     # RAG 阶段诊断比模型给出的泛化回答分类更接近因果链的最早失败节点。
     # 只有结构化诊断明确指出失败阶段时才纠偏；healthy/unknown/not_needed
@@ -467,7 +449,19 @@ def normalize_optimization_classification(
     )
     if validation == "supported" and str(supplied.get("evidence_status")) == "partial":
         evidence_status = "partial"
+    category_primary = str(supplied.get("category_primary") or "").strip()
+    category_secondary = str(supplied.get("category_secondary") or "").strip()
+    if validation != "supported" and evaluation_issue_category != "missing_rag_reference":
+        category_primary = ""
+        category_secondary = ""
+    if category_secondary not in CURRENT_OPTIMIZATION_CATEGORIES.get(category_primary, ()):
+        category_primary = ""
+        category_secondary = ""
+        if validation == "supported":
+            coverage_status = "unmapped"
     return {
+        "category_primary": category_primary,
+        "category_secondary": category_secondary,
         "domain": domain,
         "component": component,
         "failure_mode": code,

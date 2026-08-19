@@ -25,7 +25,7 @@ from ..models_db import (
 from .case_attribution import generate_case_attribution
 from .case_query import case_row_or_404
 from .attribution_summary import build_task_diagnostic_summary
-from .attribution_taxonomy import documented_optimization_category
+from .attribution_taxonomy import current_optimization_category
 from .judge_models import (
     ensure_attribution_model_reachable,
     get_judge_model_or_404,
@@ -173,9 +173,8 @@ def get_run_attribution_category_stats(session: Session, run_id: int) -> dict[st
         if cluster.get("category") != "cx_agent_issue":
             continue
         classification = cluster.get("optimization_classification") or {}
-        primary_key, primary_label, secondary_label = documented_optimization_category(
-            str(classification.get("domain") or ""),
-            str(classification.get("component") or ""),
+        primary_key, primary_label, secondary_label = current_optimization_category(
+            classification
         )
         sample_ids = {str(value) for value in cluster.get("sample_ids") or [] if value}
         if not sample_ids:

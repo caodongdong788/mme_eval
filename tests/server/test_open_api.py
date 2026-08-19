@@ -962,11 +962,15 @@ def test_open_api_returns_only_cx_agent_attribution_optimizations(client, sessio
                                 "gap": "关键禁忌信息没有进入最终建议。",
                             },
                             "impact": "用户可能无法获得与当前用药相关的安全提醒。",
-                            "primary_cause": {
-                                "code": "rag_not_grounded",
-                                "label": "召回证据未用于回答",
-                                "owner": "generator",
-                            },
+                                "primary_cause": {
+                                    "code": "rag_not_grounded",
+                                    "label": "召回证据未用于回答",
+                                    "owner": "generator",
+                                },
+                                "optimization_classification": {
+                                    "category_primary": "RAG 优化",
+                                    "category_secondary": "已召回但未使用",
+                                },
                             "recommendations": [
                                 {
                                     "priority": "P1",
@@ -1075,6 +1079,8 @@ def test_open_api_returns_only_cx_agent_attribution_optimizations(client, sessio
     assert len(deductions) == 2
     assert deductions[0]["deduction_id"] == "guideline.g01"
     assert deductions[0]["optimization_classification"] == {
+        "category_primary": "RAG 优化",
+        "category_secondary": "已召回但未使用",
         "domain": "medical_rag",
         "component": "rag_grounding",
         "failure_mode": "rag_not_grounded",

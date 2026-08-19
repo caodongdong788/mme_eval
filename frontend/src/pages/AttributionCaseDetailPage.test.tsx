@@ -113,6 +113,16 @@ const result: CaseAttribution = {
           reason: "生成阶段把可能性写成了确定结论",
           evidence_refs: ["message:2"],
         },
+        optimization_classification: {
+          category_primary: "提示词与回答生成策略",
+          category_secondary: "行动步骤不清晰",
+          domain: "response_delivery",
+          component: "content_composition",
+          failure_mode: "response_composition_error",
+          action_type: "response_composition",
+          evidence_status: "sufficient",
+          coverage_status: "mapped",
+        },
         root_cause_test: {
           if_fixed: "在生成阶段强制输出证据边界",
           would_prevent_issue: true,

@@ -641,6 +641,8 @@ class OpenAttributionRecommendation(BaseModel):
 
 
 class OpenAttributionOptimizationClassification(BaseModel):
+    category_primary: str = ""
+    category_secondary: str = ""
     domain: str = ""
     component: str = ""
     failure_mode: str = ""

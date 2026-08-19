@@ -548,6 +548,8 @@ curl -sS "$MME_BASE_URL/api/open/v1/attribution-tasks?run_id=35&status=success" 
           {
             "cause_label": "召回证据未用于回答",
             "optimization_classification": {
+              "category_primary": "RAG 优化",
+              "category_secondary": "已召回但未使用",
               "domain": "medical_rag",
               "component": "rag_grounding",
               "failure_mode": "rag_not_grounded",
@@ -585,6 +587,8 @@ curl -sS "$MME_BASE_URL/api/open/v1/attribution-tasks?run_id=35&status=success" 
                 "dimension": "professional_accuracy",
                 "finding": "已召回证据但回答没有引用",
                 "optimization_classification": {
+                  "category_primary": "RAG 优化",
+                  "category_secondary": "已召回但未使用",
                   "domain": "medical_rag",
                   "component": "rag_grounding",
                   "failure_mode": "rag_not_grounded",

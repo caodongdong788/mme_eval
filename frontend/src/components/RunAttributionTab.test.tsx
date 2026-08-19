@@ -49,6 +49,16 @@ const task: AttributionTask = {
         cause_code: "rag_not_grounded",
         cause_label: "召回证据未用于回答",
         owner: "generator",
+        optimization_classification: {
+          category_primary: "RAG 优化",
+          category_secondary: "已召回但未使用",
+          domain: "medical_rag",
+          component: "rag_grounding",
+          failure_mode: "rag_not_grounded",
+          action_type: "grounding_rule",
+          evidence_status: "sufficient",
+          coverage_status: "mapped",
+        },
         sample_ids: ["case_11"],
         deduction_ids: ["guideline.g01"],
         dimensions: ["medical_safety"],
@@ -149,6 +159,16 @@ const task: AttributionTask = {
         cause_code: "trace_missing",
         cause_label: "调用链证据缺失",
         owner: "unknown",
+        optimization_classification: {
+          category_primary: "RAG 优化",
+          category_secondary: "缺少 RAG 引用",
+          domain: "medical_rag",
+          component: "citation_binding",
+          failure_mode: "missing_rag_reference",
+          action_type: "citation_binding",
+          evidence_status: "insufficient",
+          coverage_status: "mapped",
+        },
         sample_ids: ["case_11"],
         deduction_ids: ["guideline.g03"],
         dimensions: [],
@@ -280,6 +300,16 @@ describe("RunAttributionTab", () => {
               owner: "context_timeline",
               confidence: 0.9,
               evidence_refs: ["case:timeline:3", "message:2"],
+            },
+            optimization_classification: {
+              category_primary: "Agent 工程链路",
+              category_secondary: "上下文已注入但未使用",
+              domain: "context_memory",
+              component: "context_usage",
+              failure_mode: "context_not_used",
+              action_type: "context_injection",
+              evidence_status: "sufficient",
+              coverage_status: "mapped",
             },
             contributing_causes: [],
             rag_diagnosis: {
@@ -659,7 +689,7 @@ describe("RunAttributionTab", () => {
       screen.getByText(/当前已按 Kimi K3 默认要求启用思考模式/)
     ).toBeInTheDocument();
     expect(
-      screen.getByText("HTTPException: 502: AI 归因生成失败：BadRequestError")
+      screen.getByText("模型服务拒绝了本次请求，请检查模型参数与输入长度后重试")
     ).toBeInTheDocument();
   });
 

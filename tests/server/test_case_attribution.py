@@ -302,7 +302,7 @@ def test_case_attribution_generate_persist_and_mark_stale(
         "insufficient_evidence": "evidence",
     }[normalized_item["deduction_validation"]]
     assert normalized_item["recommendations"][0]["scope"] == expected_scope
-    assert payload["metadata"]["prompt_version"] == "case-attribution-v17"
+    assert payload["metadata"]["prompt_version"] == "case-attribution-v18"
 
     with session_scope() as session:
         row = session.query(CaseResultRow).filter_by(run_id=run_id, sample_id="bc_002").one()
@@ -443,6 +443,14 @@ def test_prompt_conflict_requires_actual_prompt_evidence():
     valid_item["finding"] = raw_item["finding"]
     valid_item["evidence_summary"] = raw_item["evidence_summary"]
     valid_item["impact"] = raw_item["impact"]
+    valid_item["optimization_classification"] = {
+        "category_primary": "提示词与回答生成策略",
+        "category_secondary": "系统提示词冲突",
+        "domain": "prompt_hook",
+        "component": "static_prompt",
+        "action_type": "prompt_rule",
+        "evidence_status": "sufficient",
+    }
     valid = _normalize_analysis(
         {"deduction_analyses": [valid_item]},
         [_analysis_deduction(deduction_id, "professional_accuracy")],
@@ -450,10 +458,32 @@ def test_prompt_conflict_requires_actual_prompt_evidence():
         {"status": "healthy", "issues": []},
         {
             deduction_id: {"kind": "deduction", "has_frozen_evidence": True},
-            "node:system-prompt": {"kind": "prompt"},
+            "node:system-prompt": {
+                "kind": "prompt",
+                "content": "回答前必须先核对治疗阶段再给建议，并说明适用边界。",
+            },
         },
     )
     assert valid["deduction_analyses"][0]["deduction_validation"] == "supported"
+
+    hallucinated_quote = dict(valid_item)
+    hallucinated_quote["evidence_summary"] = (
+        "系统提示词原句为“必须直接给出确定治疗方案”，回答没有遵守该规则。"
+    )
+    invalid_quote = _normalize_analysis(
+        {"deduction_analyses": [hallucinated_quote]},
+        [_analysis_deduction(deduction_id, "professional_accuracy")],
+        {deduction_id, "node:system-prompt"},
+        {"status": "healthy", "issues": []},
+        {
+            deduction_id: {"kind": "deduction", "has_frozen_evidence": True},
+            "node:system-prompt": {
+                "kind": "prompt",
+                "content": "回答前必须先核对治疗阶段再给建议，并说明适用边界。",
+            },
+        },
+    )
+    assert invalid_quote["deduction_analyses"][0]["deduction_validation"] == "insufficient_evidence"
 
 
 def test_overall_is_rebuilt_from_finalized_deductions():
@@ -823,6 +853,8 @@ def test_medical_safety_timeliness_gap_is_not_misclassified_as_evaluation_review
         "action_type": "safety_rule",
         "evidence_status": "sufficient",
         "coverage_status": "mapped",
+        "category_primary": "输出校验与安全守卫",
+        "category_secondary": "遗漏风险提示",
     }
 
 

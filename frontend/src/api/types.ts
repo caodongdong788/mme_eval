@@ -271,6 +271,8 @@ export interface AttributionCause {
 }
 
 export interface AttributionOptimizationClassification {
+  category_primary?: string;
+  category_secondary?: string;
   domain: string;
   component: string;
   failure_mode: string;
@@ -390,7 +392,6 @@ export interface AttributionDiagnosticCluster {
     | "evidence_gap"
     | string;
   /** 结构化 RAG 优化方向；用于将汇总页与单 Case 归因归入同一分类。 */
-  rag_optimization_category?: string;
   optimization_classification?: AttributionOptimizationClassification;
   cause_code: string;
   cause_label: string;

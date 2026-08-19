@@ -35,14 +35,48 @@ def test_normalizes_every_cx_agent_layer(code, domain, component, action_type):
         }
     )
 
-    assert result == {
-        "domain": domain,
-        "component": component,
-        "failure_mode": code,
-        "action_type": action_type,
-        "evidence_status": "sufficient",
-        "coverage_status": "mapped",
-    }
+    assert result["domain"] == domain
+    assert result["component"] == component
+    assert result["failure_mode"] == code
+    assert result["action_type"] == action_type
+    assert result["category_primary"] == ""
+    assert result["category_secondary"] == ""
+
+
+def test_preserves_current_product_category_without_legacy_mapping():
+    result = normalize_optimization_classification(
+        {
+            "deduction_validation": "supported",
+            "primary_cause": {"code": "prompt_rule_error", "owner": "agent_prompt"},
+            "optimization_classification": {
+                "category_primary": "提示词与回答生成策略",
+                "category_secondary": "系统提示词冲突",
+                "domain": "prompt_hook",
+                "component": "static_prompt",
+                "action_type": "prompt_rule",
+            },
+        }
+    )
+
+    assert result["category_primary"] == "提示词与回答生成策略"
+    assert result["category_secondary"] == "系统提示词冲突"
+
+
+def test_rejects_removed_or_invented_product_category():
+    result = normalize_optimization_classification(
+        {
+            "deduction_validation": "supported",
+            "primary_cause": {"code": "prompt_rule_error", "owner": "agent_prompt"},
+            "optimization_classification": {
+                "category_primary": "提示词与回答生成策略",
+                "category_secondary": "系统提示词规则缺失或冲突",
+            },
+        }
+    )
+
+    assert result["category_primary"] == ""
+    assert result["category_secondary"] == ""
+    assert result["coverage_status"] == "unmapped"
 
 
 def test_all_eight_cx_agent_domains_have_components():

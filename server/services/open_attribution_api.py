@@ -19,7 +19,7 @@ from ..models_db import AttributionTask, AttributionTaskItem, CaseResultRow, Eva
 from .attribution_issue_categories import classify_evaluation_issue
 from .attribution_summary import build_task_diagnostic_summary, recommendation_category
 from .attribution_taxonomy import (
-    documented_optimization_category,
+    current_optimization_category,
     normalize_optimization_classification,
 )
 from .case_evaluation_markdown import build_case_evaluation_markdown
@@ -147,10 +147,7 @@ def _priority_for_deduction(deduction: dict[str, Any]) -> str:
 
 def _deduction_category_label(deduction: dict[str, Any]) -> str:
     classification = _record(deduction.get("optimization_classification"))
-    _, primary_label, secondary_label = documented_optimization_category(
-        str(classification.get("domain") or ""),
-        str(classification.get("component") or ""),
-    )
+    _, primary_label, secondary_label = current_optimization_category(classification)
     return f"{primary_label} / {secondary_label}"
 
 

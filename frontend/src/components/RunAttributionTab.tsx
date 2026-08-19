@@ -1191,11 +1191,9 @@ type AttributionCluster = NonNullable<
 >["clusters"][number];
 
 function fallbackCxAgentOptimizationAction(categoryKey: string) {
-  const documentedActions: Record<string, string> = {
+  const actions: Record<string, string> = {
     "rag:未触发检索": "补齐 RAG 触发条件：当问题涉及医学事实、药物或个体化风险时，先检索再生成回答。",
     "rag:调用失败": "修复 RAG 调用、超时、重试与降级链路，并将调用失败与未触发检索区分记录。",
-    "rag:Query 不完整或意图识别偏差": "改写检索问题时完整保留症状、治疗阶段、药物、时间和用户限制条件。",
-    "rag:召回覆盖不足": "调整召回策略、同义词扩展或知识库覆盖，使关键证据进入候选集。",
     "rag:排序或重排不当": "调整候选重排，使最符合当前患者条件与问题约束的证据优先进入上下文。",
     "rag:已召回但未使用": "增加回答前证据覆盖检查，要求关键医学结论实际使用已召回的证据。",
     "rag:证据误读": "要求先核对文献的适用人群、前提条件和结论边界，再进行医学解释。",
@@ -1206,72 +1204,37 @@ function fallbackCxAgentOptimizationAction(categoryKey: string) {
     "engineering:工具执行失败": "修复工具或模型执行的超时、重试、错误回传和降级链路。",
     "engineering:Timeline 或用户事实未注入": "把必要的用户档案、病历、Timeline 和历史对话注入当前回合的可见上下文。",
     "engineering:上下文已注入但未使用": "在生成前增加上下文消费约束，要求关键结论显式使用已注入的用户事实。",
-    "engineering:咨询对象归属错误": "在读取档案和 Timeline 前确认当前咨询对象，将本人、家属及其他成员的事实隔离并绑定到正确主体。",
-    "engineering:上下文新旧冲突": "为同一事实增加时间戳与来源优先级，发生冲突时先澄清或使用最新可信记录。",
-    "engineering:长期记忆写入失败": "修复长期记忆的抽取、主体绑定、写入确认和后续读取链路，并记录失败原因。",
     "engineering:多轮状态丢失": "修复会话状态持久化与回合间传递，避免关键事实在多轮对话中丢失。",
     "engineering:流程路由错误": "校正意图识别、流程分流与能力开关，让用例进入正确的处理链路。",
-    "engineering:能力开关未启用": "核对场景能力开关与灰度配置，确保需要的工具或流程在当前账号和环境中可用。",
-    "engineering:主动服务链路异常": "修复主动服务触发、暗流任务状态传递和结果回写，避免后台链路执行但终答未兑现。",
-    "engineering:模型调用失败": "补齐模型供应商错误分类、有限重试与可用模型降级，并保留每次调用的错误详情。",
-    "engineering:模型调用超时": "统一模型超时预算，超时后结束当前请求并按策略重试或降级，避免任务长期占用。",
-    "engineering:模型输出不完整": "校验流式结束标记和结构化结果完整性；出现空输出或截断时只重试当前步骤。",
-    "engineering:上下文窗口或压缩异常": "调整上下文预算与压缩规则，优先保留用户事实、工具结果、RAG 原文和关键指令。",
-    "engineering:工具结果被截断": "提高必要工具结果的保留优先级，并对截断内容提供可继续读取的引用或分页机制。",
-    "engineering:调用链证据缺失": "补齐模型、工具、上下文和 RAG 各阶段的输入输出与关联 ID，再重新归因。",
-    "engineering:回答交付或资源绑定失败": "修复终答、SSE、A2UI 与资源引用的绑定和完成状态，确保生成结果能够完整展示。",
+    "engineering:模型超时": "统一模型调用超时预算，超时后结束当前步骤并按策略重试或降级。",
+    "engineering:结果截断": "校验流式结束标记和结构化结果完整性，发生截断时仅重试失败步骤。",
     "reasoning:风险识别不足": "在风险识别策略中补齐当前场景的风险触发条件，并要求先完成风险分层。",
-    "reasoning:关键医学事实识别错误": "在决策前结构化抽取症状、治疗阶段、药物和检查结果，并校验关键事实是否遗漏或归属错误。",
-    "reasoning:Timeline 时间顺序判断错误": "按事件时间重建 Timeline，区分既往、当前和计划事件后再判断因果与就医时效。",
     "reasoning:未优先追问关键问题": "在场景策略中明确追问优先级，信息不足时先补齐关键事实再给建议。",
+    "reasoning:错误分流": "校正意图和风险分流规则，使当前问题进入正确的咨询与处置路径。",
     "reasoning:错误选择行动路径": "为该类场景补充行动决策规则，明确何时追问、何时建议就医及何时给出方案。",
     "reasoning:禁忌或相互作用判断不足": "将禁忌、相互作用和治疗阶段校验置于方案生成前，阻断不适用建议。",
-    "prompt:动态 Hook 未触发或规则错误": "核对动态 Hook 的触发条件、注入位置与规则内容，确保场景命中时在生成前生效。",
-    "prompt:系统提示词规则缺失或冲突": "在系统提示词中补齐缺失规则并消除冲突，明确规则优先级、适用条件和行动边界。",
+    "reasoning:医学事实识别错误": "在决策前结构化抽取症状、治疗阶段、药物和检查结果，并校验关键事实。",
+    "reasoning:Timeline 时间顺序错误": "按事件时间重建 Timeline，区分既往、当前和计划事件后再判断。",
+    "prompt:未说清红旗信号": "在回答中明确列出与当前问题相关的红旗信号及对应升级处置。",
+    "prompt:未说明适用边界": "补充建议的适用人群、前提条件和不可替代医生决策的边界。",
+    "prompt:系统提示词冲突": "消除系统提示词中的冲突规则，明确规则优先级、适用条件和行动边界。",
     "prompt:行动步骤不清晰": "按“下一步做什么、何时做、何时升级”的顺序输出可执行步骤。",
-    "prompt:回答关键信息不完整": "在回答模板中增加关键要素清单，生成结束前检查风险、适用条件、下一步和升级时机是否齐全。",
     "prompt:缺少适用条件或解释": "为建议补充适用条件、原因解释及与用户当前情况的关联。",
     "prompt:缺少共情与确认": "在回答中先确认用户感受与核心诉求，再给出有温度的建议。",
-    "knowledge:专家规则未正确应用": "校正专家规则、治疗阶段和业务知识的触发条件，并要求生成前核对当前场景是否命中。",
+    "prompt:动态 Hook 异常": "核对动态 Hook 的触发条件、注入位置与规则内容，确保命中时在生成前生效。",
+    "prompt:回答信息不完整": "增加回答关键要素清单，并在生成结束前完成完整性检查。",
+    "knowledge:场景知识理解错误": "校正该场景的医学知识与业务语义，并在决策前核对适用条件。",
+    "knowledge:用药禁忌应用错误": "修正用药禁忌与相互作用规则，并结合患者条件进行匹配。",
+    "knowledge:治疗阶段判断错误": "统一治疗阶段识别规则，使用当前方案和 Timeline 共同确认阶段。",
+    "knowledge:业务规则应用错误": "修正规则触发条件和优先级，确保规则只在适用场景生效。",
+    "knowledge:规则冲突未消解": "为冲突规则建立明确优先级和适用边界，禁止同时生成矛盾结论。",
+    "safety:关键事实前后矛盾": "在终答前核对关键事实与结论，阻断前后矛盾的内容发送。",
+    "safety:遗漏风险提示": "在终答前检查当前场景所需的风险和红旗提示是否完整。",
     "safety:放出不安全建议": "在终答前增加安全守卫，命中风险、禁忌或红旗时阻断不安全建议。",
     "safety:未执行终答前检查": "在终答前校验关键事实、风险提示、消息分段和资源引用，并阻断不完整结果直接发送。",
-    "engineering:模型运行时异常": "修复模型超时、空输出、上下文截断或压缩异常，并保留完整运行证据。",
+    "safety:未触发兜底分流": "补齐异常或高风险场景的兜底分流条件，并确保命中后切换到安全路径。",
   };
-  if (documentedActions[categoryKey]) return documentedActions[categoryKey];
-  const [domain, component] = categoryKey.split(":", 2);
-  const componentActions: Record<string, string> = {
-    rag_trigger: "校正 RAG 触发条件，区分无需检索、应检索但未调用和能力开关关闭三类情况。",
-    rag_service: "修复 RAG 服务调用、超时、重试和降级链路，避免把调用失败误判为未触发。",
-    rag_query: "优化检索问题改写，完整保留症状、治疗阶段、药物和用户限制条件。",
-    rag_corpus: "补充或更新对应主题的权威医学文献，并建立版本与失效维护机制。",
-    rag_retrieval: "调整召回策略和医学同义词扩展，使相关证据进入原始候选集。",
-    rag_threshold: "复核过滤阈值，避免有效证据在候选筛选阶段被过早丢弃。",
-    rag_candidate: "补齐候选阶段证据后再定位重排问题；证据不足时不得直接归责重排器。",
-    rag_rerank: "优化候选重排，使最符合当前患者和问题约束的证据优先进入最终上下文。",
-    rag_grounding: "增加回答前证据覆盖检查，要求关键医学结论实际使用已召回证据。",
-    rag_interpretation: "要求先核对文献适用人群、条件和结论边界，再进行医学解释。",
-    citation_binding: "修复回答片段与文献 chunk 的引用绑定，保证关键结论可追溯且引用一致。",
-    tool_registry: "修复工具注册、可见性和描述，使模型在对应场景能够发现所需工具。",
-    tool_selection: "优化工具选择规则，明确何时必须调用、何时不得调用及失败后的替代路径。",
-    tool_arguments: "收紧工具参数 Schema，并补充必填项、枚举与上下文映射规则。",
-    tool_policy: "调整工具权限与调用策略，避免正确工具被策略阻断。",
-    tool_executor: "修复工具执行、超时、重试和错误回传，保留完整调用证据。",
-    output_protocol: "修复终答协议，确保 function call、文本回答和消息分段按约定输出。",
-    a2ui_binding: "修复资源与 A2UI 卡片绑定，避免图片、文献或交互组件丢失。",
-    observability_evidence: "补齐模型、工具、上下文与 RAG 各阶段的输入输出证据后重新归因。",
-  };
-  if (componentActions[component]) return componentActions[component];
-  const domainActions: Record<string, string> = {
-    medical_safety: "在医学安全策略中补充风险触发条件、禁忌边界和明确处置指引，并在生成前强制检查。",
-    prompt_hook: "在静态 Prompt、动态 Hook 或专家配置的正确层级补充规则，避免重复或相互冲突。",
-    context_memory: "修复相关用户档案、病历、Timeline、历史对话或病例夹的读取、注入和实际利用链路。",
-    dialogue_tool_orchestration: "调整意图路由、追问、能力开关和工具编排，在回答前完成必要的信息获取或工具调用。",
-    medical_rag: "按触发、调用、检索、候选、重排、证据利用和引用绑定逐段定位并修复 RAG 最早失败节点。",
-    clinical_reasoning: "修复临床事实提取、时间线、禁忌和风险收益推理，再合成符合当前患者条件的方案。",
-    response_delivery: "调整回答内容、完整性、表达和终答交付协议，避免正确推理在输出阶段丢失。",
-    model_runtime_observability: "增强模型运行时的超时、重试、上下文预算、压缩和证据记录能力。",
-  };
-  return domainActions[domain] || "先补齐最早失败节点的直接证据，再对对应 cx-agent 组件实施可回归的修复。";
+  return actions[categoryKey] || "根据问题描述和直接证据修复对应环节。";
 }
 
 function cxAgentOptimizationActions(cluster: AttributionCluster, categoryKey: string) {
@@ -1300,7 +1263,6 @@ function groupedCxAgentClusters(clusters: AttributionCluster[]) {
       owner: cluster.owner,
       evaluation_issue_category: cluster.evaluation_issue_category,
       cause_code: cluster.cause_code,
-      rag_optimization_category: cluster.rag_optimization_category,
       optimization_classification: cluster.optimization_classification,
       recommendations: cluster.recommendations,
     });
