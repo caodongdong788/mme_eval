@@ -1,8 +1,11 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import select
+
 from server.models_db import (
     AttributionTask,
+    AttributionTaskItem,
     Benchmark,
     CaseResultRow,
     EvalRun,
@@ -125,7 +128,7 @@ def test_failed_due_schedule_is_retried_after_backoff(session, monkeypatch):
     assert refreshed.next_run_at <= datetime.utcnow() + timedelta(minutes=5, seconds=10)
 
 
-def test_scheduled_auto_attribution_uses_selected_grades(session, monkeypatch):
+def test_scheduled_auto_attribution_only_uses_failed_grade(session, monkeypatch):
     from server.services import attribution_tasks, scheduled_evaluations as service
 
     benchmark = Benchmark(name="自动归因范围测试集", source="offline")
@@ -138,6 +141,7 @@ def test_scheduled_auto_attribution_uses_selected_grades(session, monkeypatch):
         name="自动归因定时任务",
         benchmark_id=benchmark.id,
         enable_judge=True,
+        judge_model_id=model.id,
         auto_attribution_enabled=True,
         auto_attribution_grades=["良好", "不合格"],
         auto_attribution_model_id=model.id,
@@ -165,16 +169,122 @@ def test_scheduled_auto_attribution_uses_selected_grades(session, monkeypatch):
     started: list[int] = []
     monkeypatch.setattr(attribution_tasks, "start_attribution_task", lambda task_id: started.append(task_id))
 
+    assert service.prepare_configured_streaming_attribution(run_id) is None
     task_id = asyncio.run(service.start_configured_attribution(run_id))
 
     assert task_id is not None
     session.expire_all()
     task = session.get(AttributionTask, task_id)
     assert task is not None
-    assert task.requested_count == 2
-    assert task.total_count == 2
+    assert task.requested_count == 1
+    assert task.total_count == 1
     assert task.skipped_count == 0
     assert started == [task_id]
+
+
+def test_scheduled_streaming_attribution_appends_each_failed_case(session, monkeypatch):
+    from server.services import attribution_tasks, scheduled_evaluations as service
+
+    benchmark = Benchmark(name="流水线归因测试集", source="offline")
+    judge_model = JudgeModelConfig(
+        name="判分模型", provider="openai", model="judge", api_key="judge-key"
+    )
+    attribution_model = JudgeModelConfig(
+        name="归因模型", provider="openai", model="attribution", api_key="attribution-key"
+    )
+    session.add_all([benchmark, judge_model, attribution_model])
+    session.flush()
+    schedule = ScheduledEvaluation(
+        name="流水线归因定时任务",
+        benchmark_id=benchmark.id,
+        enable_judge=True,
+        judge_model_id=judge_model.id,
+        auto_attribution_enabled=True,
+        auto_attribution_grades=["优秀", "不合格"],
+        auto_attribution_model_id=attribution_model.id,
+    )
+    session.add(schedule)
+    session.flush()
+    run = EvalRun(
+        run_slug="streaming-attribution-run",
+        name="流水线归因 run",
+        status="running",
+        trigger_type="scheduled",
+        benchmark_id=benchmark.id,
+        scheduled_evaluation_id=schedule.id,
+    )
+    session.add(run)
+    session.commit()
+
+    task_id = service.prepare_configured_streaming_attribution(run.id)
+    assert task_id is not None
+    task = session.get(AttributionTask, task_id)
+    assert task is not None
+    assert task.is_streaming is True
+    assert task.intake_open is True
+    assert task.total_count == 0
+
+    session.add_all([
+        CaseResultRow(
+            run_id=run.id,
+            sample_id="pass",
+            scenario="x",
+            grade="合格",
+            release_passed=True,
+        ),
+        CaseResultRow(
+            run_id=run.id,
+            sample_id="failed",
+            scenario="x",
+            grade="不合格",
+            release_passed=False,
+        ),
+    ])
+    session.commit()
+    started: list[int] = []
+    monkeypatch.setattr(
+        attribution_tasks, "start_attribution_task", lambda value: started.append(value)
+    )
+
+    assert asyncio.run(
+        service.append_configured_streaming_attribution_case(run.id, "pass")
+    ) is False
+    assert asyncio.run(
+        service.append_configured_streaming_attribution_case(run.id, "failed")
+    ) is True
+    session.expire_all()
+    task = session.get(AttributionTask, task_id)
+    assert task is not None
+    assert task.requested_count == 1
+    assert task.total_count == 1
+    assert started == [task_id]
+
+    # 重复完成回调必须幂等，不能重复增加同一 Case。
+    assert asyncio.run(
+        service.append_configured_streaming_attribution_case(run.id, "failed")
+    ) is False
+    session.expire_all()
+    task = session.get(AttributionTask, task_id)
+    assert task is not None and task.total_count == 1
+
+    item = session.scalar(
+        select(AttributionTaskItem).where(AttributionTaskItem.task_id == task_id)
+    )
+    assert item is not None
+    item.status = "success"
+    task.status = "running"
+    attribution_tasks._refresh_task_counts(session, task)
+    session.commit()
+    assert task.status == "running", "接收口未关闭时不能提前完成整批归因任务"
+
+    run.status = "success"
+    session.commit()
+    assert asyncio.run(service.start_configured_attribution(run.id)) == task_id
+    session.expire_all()
+    task = session.get(AttributionTask, task_id)
+    assert task is not None
+    assert task.intake_open is False
+    assert task.status == "success"
 
 
 def test_fetches_latest_active_deeptrace_version_name(settings):

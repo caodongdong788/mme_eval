@@ -54,6 +54,13 @@ async def _execute_claimed(row, owner: str) -> None:
         from .services.attribution_tasks import mark_attribution_task_worker_failed
 
         mark_attribution_task_worker_failed(task_id, error)
+
+    def _abort_streaming_attribution(error: str) -> None:
+        if is_attribution:
+            return
+        from .services.scheduled_evaluations import abort_configured_streaming_attribution
+
+        abort_configured_streaming_attribution(row.run_id, error)
     if not is_attribution and (int(row.attempts or 0) > 1 or row.kind == "resume"):
         _restore_progress_floor(progress, row.run_id)
     if not is_attribution:
@@ -65,6 +72,7 @@ async def _execute_claimed(row, owner: str) -> None:
         finish_job(row.id, owner, "failed", error=EVAL_JOB_USER_ERROR)
         _mark_attribution_failure("无法恢复持久化归因任务")
         if not is_attribution:
+            _abort_streaming_attribution("定时评测任务无法恢复")
             _set_status(row.run_id, "failed", error=EVAL_JOB_USER_ERROR)
         return
     task = asyncio.create_task(job(progress), name=f"evaluation-job-{row.id}")
@@ -94,6 +102,7 @@ async def _execute_claimed(row, owner: str) -> None:
             except (asyncio.CancelledError, Exception):  # noqa: BLE001
                 pass
             if job_status(row.id) == "cancelled":
+                _abort_streaming_attribution("定时评测已终止")
                 acknowledge_cancel(row.id, owner)
             return
         await task
@@ -109,6 +118,7 @@ async def _execute_claimed(row, owner: str) -> None:
         if current_status == "running":
             requeue_job(row.id, owner)
         elif current_status == "cancelled":
+            _abort_streaming_attribution("定时评测已终止")
             acknowledge_cancel(row.id, owner)
         if externally_cancelled:
             raise
@@ -121,6 +131,7 @@ async def _execute_claimed(row, owner: str) -> None:
         finish_job(row.id, owner, "failed", error=EVAL_JOB_USER_ERROR)
         _mark_attribution_failure("Worker 执行异常")
         if not is_attribution:
+            _abort_streaming_attribution("定时评测执行失败")
             _set_status(
                 row.run_id,
                 "failed",

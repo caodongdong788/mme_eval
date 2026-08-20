@@ -72,6 +72,8 @@ def _task_out(session: Session, task: AttributionTask, *, include_items: bool) -
         "completed_count": task.completed_count,
         "success_count": task.success_count,
         "failed_count": task.failed_count,
+        "is_streaming": bool(task.is_streaming),
+        "intake_open": bool(task.intake_open),
         "running_count": running_count,
         "pending_count": pending_count,
         "error_msg": task.error_msg,
@@ -307,6 +309,111 @@ def create_attribution_task(
     return task
 
 
+def create_streaming_attribution_task(
+    session: Session,
+    run: EvalRun,
+    *,
+    judge_model_id: int,
+    created_by: str | None,
+) -> AttributionTask:
+    """为定时评测预建一个持续接收不合格 Case 的归因任务。"""
+    active = session.scalar(
+        select(AttributionTask.id).where(
+            AttributionTask.run_id == run.id,
+            AttributionTask.status.in_(("queued", "running")),
+        )
+    )
+    if active is not None:
+        raise HTTPException(status_code=409, detail="该评测已有进行中的归因任务")
+    model = get_judge_model_or_404(session, judge_model_id)
+    if not has_judge_model_api_key(model):
+        raise HTTPException(status_code=422, detail=f"归因模型「{model.name}」未配置可用的 API Key")
+    task = AttributionTask(
+        run_id=run.id,
+        judge_model_id=model.id,
+        judge_model_name=model.name,
+        status="queued",
+        requested_count=0,
+        total_count=0,
+        skipped_count=0,
+        is_streaming=True,
+        intake_open=True,
+        created_by=created_by,
+    )
+    session.add(task)
+    try:
+        session.flush()
+    except IntegrityError as exc:
+        session.rollback()
+        raise HTTPException(status_code=409, detail="该评测已有进行中的归因任务") from exc
+    return task
+
+
+def append_streaming_attribution_item(
+    session: Session,
+    task: AttributionTask,
+    *,
+    sample_id: str,
+) -> bool:
+    """幂等追加一个已完成的不合格 Case；返回是否真的新增。"""
+    if not task.is_streaming or not task.intake_open:
+        return False
+    exists = session.scalar(
+        select(AttributionTaskItem.id).where(
+            AttributionTaskItem.task_id == task.id,
+            AttributionTaskItem.sample_id == sample_id,
+        )
+    )
+    if exists is not None:
+        return False
+    session.add(AttributionTaskItem(task_id=task.id, sample_id=sample_id))
+    task.requested_count = int(task.requested_count or 0) + 1
+    task.total_count = int(task.total_count or 0) + 1
+    session.flush()
+    return True
+
+
+def close_streaming_attribution_task(
+    session: Session, task: AttributionTask
+) -> AttributionTask:
+    """关闭持续接收口，并在已无待处理项时立即收敛任务终态。"""
+    task.intake_open = False
+    _refresh_task_counts(session, task)
+    return task
+
+
+def restore_streaming_attribution_snapshots(
+    session: Session, task: AttributionTask
+) -> int:
+    """整批结果最终落库后，恢复已提前完成的 Case 归因快照。"""
+    restored = 0
+    rows = session.execute(
+        select(AttributionTaskItem, CaseResultRow)
+        .join(
+            CaseResultRow,
+            (CaseResultRow.run_id == task.run_id)
+            & (CaseResultRow.sample_id == AttributionTaskItem.sample_id),
+        )
+        .where(
+            AttributionTaskItem.task_id == task.id,
+            AttributionTaskItem.status == "success",
+            AttributionTaskItem.analysis_json.is_not(None),
+        )
+    ).all()
+    for item, case_row in rows:
+        snapshot = item.analysis_json if isinstance(item.analysis_json, dict) else {}
+        if not snapshot.get("available") or not isinstance(snapshot.get("analysis"), dict):
+            continue
+        detail = dict(case_row.detail_json or {})
+        detail["attribution_analysis"] = {
+            "analysis": snapshot["analysis"],
+            "metadata": dict(snapshot.get("metadata") or {}),
+        }
+        case_row.detail_json = detail
+        restored += 1
+    return restored
+
+
 def _set_attribution_task_model(
     session: Session, task: AttributionTask, judge_model_id: int
 ) -> None:
@@ -443,6 +550,9 @@ def _refresh_task_counts(session: Session, task: AttributionTask) -> None:
     task.success_count = int(counts.get("success", 0))
     task.failed_count = int(counts.get("failed", 0))
     task.completed_count = task.success_count + task.failed_count
+    # 流水线仍在接收评测结果时，即使当前批次已经消费完也不能提前结束任务。
+    if task.is_streaming and task.intake_open:
+        return
     if task.completed_count < task.total_count:
         return
     task.finished_at = datetime.utcnow()
@@ -561,26 +671,40 @@ async def run_attribution_task(task_id: int, *, recover_interrupted_items: bool 
             return
 
         _set_task_running(task_id)
-        with session_scope() as session:
-            if recover_interrupted_items:
-                for item in session.scalars(
-                    select(AttributionTaskItem).where(
+        recovered = False
+        while True:
+            with session_scope() as session:
+                task = session.get(AttributionTask, task_id)
+                if task is None:
+                    return
+                if recover_interrupted_items and not recovered:
+                    for item in session.scalars(
+                        select(AttributionTaskItem).where(
+                            AttributionTaskItem.task_id == task_id,
+                            AttributionTaskItem.status == "running",
+                        )
+                    ):
+                        item.status = "pending"
+                        item.error_msg = ""
+                        item.started_at = None
+                    recovered = True
+                item_ids = list(session.scalars(
+                    select(AttributionTaskItem.id)
+                    .where(
                         AttributionTaskItem.task_id == task_id,
-                        AttributionTaskItem.status == "running",
+                        AttributionTaskItem.status == "pending",
                     )
-                ):
-                    item.status = "pending"
-                    item.error_msg = ""
-                    item.started_at = None
-            item_ids = list(session.scalars(
-                select(AttributionTaskItem.id)
-                .where(
-                    AttributionTaskItem.task_id == task_id,
-                    AttributionTaskItem.status == "pending",
-                )
-                .order_by(AttributionTaskItem.id)
-            ))
-        await asyncio.gather(*(_run_item(task_id, item_id) for item_id in item_ids))
+                    .order_by(AttributionTaskItem.id)
+                ))
+                intake_open = bool(task.is_streaming and task.intake_open)
+                if not item_ids and not intake_open:
+                    _refresh_task_counts(session, task)
+                    return
+            if item_ids:
+                await asyncio.gather(*(_run_item(task_id, item_id) for item_id in item_ids))
+                continue
+            # 评测尚未完成：保持同一个 Worker Job，等待下一个不合格 Case 追加。
+            await asyncio.sleep(0.5)
     finally:
         reset_llm_rate_limit()
         _task_futures.pop(task_id, None)
@@ -601,6 +725,9 @@ def start_attribution_task(task_id: int) -> None:
         run_id = task.run_id
     if get_settings().job_runner_mode == "database":
         enqueue_attribution_job(run_id, task_id)
+        return
+    active = _task_futures.get(task_id)
+    if active is not None and not active.done():
         return
     _task_futures[task_id] = asyncio.create_task(
         run_attribution_task(task_id), name=f"mme-attribution-{task_id}"

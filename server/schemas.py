@@ -271,14 +271,15 @@ class ScheduledEvaluationCreate(BaseModel):
             self.weekdays = []
         if not self.enable_judge and self.judge_model_id is not None:
             raise ValueError("未启用判分模型时不能选择打分模型")
-        self.auto_attribution_grades = list(dict.fromkeys(self.auto_attribution_grades))
         if self.auto_attribution_enabled:
             if not self.enable_judge:
                 raise ValueError("自动归因需要启用 LLM 判分")
             if not self.auto_attribution_model_id:
                 raise ValueError("自动归因需要选择归因模型")
-            if not self.auto_attribution_grades:
-                raise ValueError("请至少选择一个自动归因的综合评价范围")
+            # 自动归因只面向最终综合评价为“不合格”的 Case；其它等级不进入归因。
+            self.auto_attribution_grades = ["不合格"]
+        else:
+            self.auto_attribution_grades = []
         return self
 
 
@@ -793,6 +794,8 @@ class AttributionTaskOut(BaseModel):
     completed_count: int
     success_count: int
     failed_count: int
+    is_streaming: bool = False
+    intake_open: bool = False
     running_count: int = 0
     pending_count: int = 0
     error_msg: str = ""

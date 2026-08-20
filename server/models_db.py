@@ -313,7 +313,7 @@ class ScheduledEvaluation(Base):
     enable_judge: Mapped[bool] = mapped_column(Boolean, default=True)
     judge_model_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     user_simulator_model_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    # 评测完成后按综合评价范围自动创建归因任务；默认关闭，历史任务行为不变。
+    # 自动归因仅面向不合格 Case；模型不同时可在定时评测期间逐条流水线执行。
     auto_attribution_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     auto_attribution_grades: Mapped[list[str]] = mapped_column(JSON, default=list)
     auto_attribution_model_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -407,6 +407,10 @@ class AttributionTask(Base):
     completed_count: Mapped[int] = mapped_column(Integer, default=0)
     success_count: Mapped[int] = mapped_column(Integer, default=0)
     failed_count: Mapped[int] = mapped_column(Integer, default=0)
+    # 定时评测的流水线归因任务会在评测执行期间持续接收新完成的不合格 Case。
+    # intake_open 关闭后，Worker 才能把 0 条或全部已完成的任务收敛为终态。
+    is_streaming: Mapped[bool] = mapped_column(Boolean, default=False)
+    intake_open: Mapped[bool] = mapped_column(Boolean, default=False)
     error_msg: Mapped[str] = mapped_column(Text, default="")
     created_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

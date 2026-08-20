@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Iterable
+from collections.abc import Awaitable, Callable, Iterable
 from copy import deepcopy
 from datetime import datetime
 import json
@@ -104,6 +104,7 @@ class IncrementalRunPersister:
         n_runs: int,
         sample_order: list[str],
         initial_results: Iterable[CaseResult] = (),
+        on_case_persisted: Callable[[CaseResult], Awaitable[None]] | None = None,
     ) -> None:
         self.run_id = run_id
         self.run_name = run_name
@@ -121,6 +122,7 @@ class IncrementalRunPersister:
         }
         self._started_at = datetime.utcnow()
         self._lock = asyncio.Lock()
+        self._on_case_persisted = on_case_persisted
 
     async def __call__(self, result: CaseResult) -> None:
         async with self._lock:
@@ -141,6 +143,10 @@ class IncrementalRunPersister:
                 n_runs=self.n_runs,
             )
             persist_incremental_report(self.run_id, partial)
+        # 必须在阶段性结果提交后通知后续流水线，确保归因读取到完整冻结明细；
+        # 通知放在持久化锁外，避免归因入队短暂波动阻塞其他 Case 落库。
+        if self._on_case_persisted is not None:
+            await self._on_case_persisted(result)
 
 
 def write_run_plan(out_dir: Path, cases: list[Any], n_runs: int) -> None:

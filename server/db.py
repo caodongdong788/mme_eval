@@ -71,6 +71,7 @@ def init_db(settings: Settings | None = None) -> None:
     _migrate_eval_run_scheduled_evaluation_id(engine)
     _migrate_attribution_task_item_attempt_count(engine)
     _migrate_attribution_task_item_analysis(engine)
+    _migrate_attribution_task_streaming(engine)
     _migrate_attribution_task_active_index(engine)
 
 
@@ -162,6 +163,25 @@ def _migrate_attribution_task_item_attempt_count(engine) -> None:
             "ALTER TABLE attribution_task_item "
             "ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0"
         )
+
+
+def _migrate_attribution_task_streaming(engine) -> None:
+    """为定时评测的逐 Case 流水线归因补充接收状态。"""
+    inspector = inspect(engine)
+    if "attribution_task" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("attribution_task")}
+    with engine.begin() as connection:
+        if "is_streaming" not in columns:
+            connection.exec_driver_sql(
+                "ALTER TABLE attribution_task "
+                "ADD COLUMN is_streaming BOOLEAN NOT NULL DEFAULT FALSE"
+            )
+        if "intake_open" not in columns:
+            connection.exec_driver_sql(
+                "ALTER TABLE attribution_task "
+                "ADD COLUMN intake_open BOOLEAN NOT NULL DEFAULT FALSE"
+            )
 
 
 def _migrate_attribution_task_active_index(engine) -> None:

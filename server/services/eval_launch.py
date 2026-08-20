@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 import hashlib
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,7 @@ from medeval.assertions import refresh_result_assertions
 from medeval.reporter.aggregator import refresh_report
 
 from ..db import session_scope
+from ..ingest import upsert_case_result
 from ..job_specs import attach_job_spec, without_api_keys
 from ..models_db import Benchmark, EvalRun
 from ..progress import InMemoryProgress
@@ -25,8 +27,19 @@ from .eval_artifacts import (
     write_run_plan,
 )
 from .eval_stack import build_eval_adapter, build_judge_stack, prepare_run_config
-from .langfuse_trace import enrich_report_agent_chains, schedule_run_agent_chain_backfill
-from .scheduled_evaluations import start_configured_attribution
+from .langfuse_trace import (
+    enrich_report_agent_chains,
+    schedule_run_agent_chain_backfill,
+    sync_conversation_trace,
+)
+from .scheduled_evaluations import (
+    append_configured_streaming_attribution_case,
+    get_open_streaming_attribution_task_id,
+    start_configured_attribution,
+)
+
+
+logger = logging.getLogger(__name__)
 
 
 def build_eval_job(
@@ -114,6 +127,33 @@ def build_eval_job(
             run_row.config_snapshot = partial_config
             run_row.description = config.run.description
             run_row.n_runs = config.run.repeat or 1
+        streaming_attribution_task_id = get_open_streaming_attribution_task_id(run_id)
+
+        async def on_case_persisted(result) -> None:
+            if streaming_attribution_task_id is None or result.grade != "不合格":
+                return
+            # 归因需要使用该 Case 当次真实调用链与 RAG 快照。先同步并回写冻结明细，
+            # 再提交归因，避免为了追求并行而把“链路尚未写入”误判成 Agent 缺陷。
+            try:
+                await sync_conversation_trace(result.trace, settings)
+                with session_scope() as session:
+                    upsert_case_result(
+                        session,
+                        run_id,
+                        result,
+                        (partial_config or {}).get("cost"),
+                    )
+            except Exception:  # noqa: BLE001 - 观测同步失败不应阻断评测或自动归因
+                logger.warning(
+                    "run %s Case %s 自动归因前同步调用链失败，将使用当前快照",
+                    run_id,
+                    result.case.sample_id,
+                    exc_info=True,
+                )
+            await append_configured_streaming_attribution_case(
+                run_id, result.case.sample_id
+            )
+
         progress.set_case_complete_callback(
             IncrementalRunPersister(
                 run_id,
@@ -123,6 +163,7 @@ def build_eval_job(
                 description=config.run.description,
                 n_runs=config.run.repeat or 1,
                 sample_order=[case.sample_id for case in cases],
+                on_case_persisted=on_case_persisted,
             )
         )
 

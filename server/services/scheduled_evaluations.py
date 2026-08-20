@@ -15,7 +15,15 @@ from sqlalchemy.orm import Session
 
 from ..db import session_scope
 from ..jobs import get_job_runner
-from ..models_db import Benchmark, CaseResultRow, EvalRun, JudgeModelConfig, ScheduledEvaluation
+from ..models_db import (
+    AttributionTask,
+    AttributionTaskItem,
+    Benchmark,
+    CaseResultRow,
+    EvalRun,
+    JudgeModelConfig,
+    ScheduledEvaluation,
+)
 from ..schemas import AdapterOverride, JudgeOverride, RunCreate, ScheduledEvaluationCreate, ScheduledEvaluationUpdate
 from ..settings import Settings, get_settings
 from . import runs as runs_svc
@@ -24,6 +32,7 @@ logger = logging.getLogger("mme.scheduled-evaluations")
 _SHANGHAI = ZoneInfo("Asia/Shanghai")
 _SCHEDULE_RETRY_DELAY = timedelta(minutes=5)
 _scheduler_task: asyncio.Task | None = None
+_AUTO_ATTRIBUTION_GRADE = "不合格"
 
 
 def _version_items(payload: object) -> list[dict]:
@@ -260,6 +269,10 @@ async def launch_scheduled_evaluation(
         task.last_run_at = triggered_at
         task.last_error = ""
 
+    # 判分与归因使用不同模型时，预先创建一个空的流水线归因任务。后续每完成
+    # 一个不合格 Case 就立即追加；模型相同时仍在整批评测结束后归因，避免争抢。
+    prepare_configured_streaming_attribution(plan.run.id)
+
     from ..routers.runs import build_eval_job
 
     job = build_eval_job(
@@ -284,15 +297,137 @@ async def launch_scheduled_evaluation(
             if failed_run is not None:
                 failed_run.status = "failed"
                 failed_run.error_msg = f"定时任务提交执行队列失败：{exc}"[:2000]
+        abort_configured_streaming_attribution(plan.run.id, "定时评测未能提交执行队列")
         raise
     return plan
+
+
+def _uses_distinct_attribution_model(schedule: ScheduledEvaluation) -> bool:
+    return bool(
+        schedule.auto_attribution_enabled
+        and schedule.enable_judge
+        and schedule.judge_model_id
+        and schedule.auto_attribution_model_id
+        and schedule.judge_model_id != schedule.auto_attribution_model_id
+    )
+
+
+def prepare_configured_streaming_attribution(run_id: int) -> int | None:
+    """为满足条件的定时评测预建唯一的、不合格 Case 流水线归因任务。"""
+    from . import attribution_tasks
+
+    try:
+        with session_scope() as session:
+            run = session.get(EvalRun, run_id)
+            if run is None or run.trigger_type != "scheduled" or not run.scheduled_evaluation_id:
+                return None
+            schedule = session.get(ScheduledEvaluation, run.scheduled_evaluation_id)
+            if schedule is None or not _uses_distinct_attribution_model(schedule):
+                return None
+            existing = session.scalar(
+                select(AttributionTask).where(
+                    AttributionTask.run_id == run.id,
+                    AttributionTask.is_streaming.is_(True),
+                ).order_by(AttributionTask.id.desc())
+            )
+            if existing is not None:
+                return existing.id
+            task = attribution_tasks.create_streaming_attribution_task(
+                session,
+                run,
+                judge_model_id=int(schedule.auto_attribution_model_id),
+                created_by=schedule.created_by or "定时任务自动归因",
+            )
+            return task.id
+    except Exception:  # noqa: BLE001 - 归因预建失败不应阻断定时评测
+        logger.exception("run #%s 预创建流水线归因任务失败，将在评测完成后补偿", run_id)
+        return None
+
+
+def get_open_streaming_attribution_task_id(run_id: int) -> int | None:
+    """返回仍在接收 Case 的流水线归因任务，供评测断点恢复后继续追加。"""
+    with session_scope() as session:
+        return session.scalar(
+            select(AttributionTask.id)
+            .where(
+                AttributionTask.run_id == run_id,
+                AttributionTask.is_streaming.is_(True),
+                AttributionTask.intake_open.is_(True),
+            )
+            .order_by(AttributionTask.id.desc())
+        )
+
+
+async def append_configured_streaming_attribution_case(run_id: int, sample_id: str) -> bool:
+    """评测完成一条后，仅把最终综合评价为“不合格”的 Case 追加进归因任务。"""
+    from . import attribution_tasks
+
+    task_id: int | None = None
+    try:
+        with session_scope() as session:
+            row = session.scalar(
+                select(CaseResultRow).where(
+                    CaseResultRow.run_id == run_id,
+                    CaseResultRow.sample_id == sample_id,
+                )
+            )
+            if row is None or row.grade != _AUTO_ATTRIBUTION_GRADE:
+                return False
+            task = session.scalar(
+                select(AttributionTask)
+                .where(
+                    AttributionTask.run_id == run_id,
+                    AttributionTask.is_streaming.is_(True),
+                    AttributionTask.intake_open.is_(True),
+                )
+                .order_by(AttributionTask.id.desc())
+            )
+            if task is None:
+                return False
+            if not attribution_tasks.append_streaming_attribution_item(
+                session, task, sample_id=sample_id
+            ):
+                return False
+            task_id = task.id
+    except Exception:  # noqa: BLE001 - 单条归因入队失败不能影响评测结果
+        logger.exception("run #%s Case %s 追加流水线归因失败", run_id, sample_id)
+        return False
+
+    if task_id is not None:
+        try:
+            attribution_tasks.start_attribution_task(task_id)
+        except Exception:  # noqa: BLE001 - 保留 pending 明细，整批完成时会补提交
+            logger.exception("run #%s 流水线归因任务 #%s 启动失败", run_id, task_id)
+            return False
+    return True
+
+
+def abort_configured_streaming_attribution(run_id: int, reason: str) -> None:
+    """评测不可恢复地失败时关闭仍在等待新 Case 的归因任务。"""
+    with session_scope() as session:
+        task = session.scalar(
+            select(AttributionTask)
+            .where(
+                AttributionTask.run_id == run_id,
+                AttributionTask.is_streaming.is_(True),
+                AttributionTask.intake_open.is_(True),
+            )
+            .order_by(AttributionTask.id.desc())
+        )
+        if task is None:
+            return
+        task.intake_open = False
+        if task.status in {"queued", "running"} and task.completed_count >= task.total_count:
+            task.status = "failed"
+            task.error_msg = reason[:2000]
+            task.finished_at = datetime.utcnow()
 
 
 async def start_configured_attribution(run_id: int) -> int | None:
     """按定时任务配置为本次已完成评测自动创建归因任务。
 
-    归因范围仅由 Case 的综合评价 ``grade`` 决定；人工创建归因任务仍保持原有的
-    “仅不合格 Case”行为。创建和提交归因 worker 分开事务，避免后台任务读到未提交数据。
+    自动归因只处理综合评价为“不合格”的 Case。不同模型的定时任务在评测期间
+    已逐条追加，此处负责关闭接收并补提交；相同模型则在整批完成后一次性创建。
     """
     from . import attribution_tasks
 
@@ -306,32 +441,55 @@ async def start_configured_attribution(run_id: int) -> int | None:
             if schedule is None or not schedule.auto_attribution_enabled:
                 return None
 
-            grades = list(dict.fromkeys(schedule.auto_attribution_grades or []))
-            if not grades or not schedule.auto_attribution_model_id:
+            if not schedule.auto_attribution_model_id:
                 logger.warning("定时任务 #%s 自动归因配置无效，已跳过", schedule.id)
                 return None
-            sample_ids = list(session.scalars(
-                select(CaseResultRow.sample_id)
+            streaming = session.scalar(
+                select(AttributionTask)
                 .where(
-                    CaseResultRow.run_id == run.id,
-                    CaseResultRow.grade.in_(grades),
+                    AttributionTask.run_id == run.id,
+                    AttributionTask.is_streaming.is_(True),
                 )
-                .order_by(CaseResultRow.sample_id)
-            ))
-            if not sample_ids:
-                logger.info("定时任务 #%s 本次无命中自动归因范围的 Case", schedule.id)
-                return None
-            task = attribution_tasks.create_attribution_task(
-                session,
-                run,
-                sample_ids=sample_ids,
-                judge_model_id=schedule.auto_attribution_model_id,
-                created_by=schedule.created_by or "定时任务自动归因",
-                include_passed=True,
+                .order_by(AttributionTask.id.desc())
             )
-            attribution_task_id = task.id
+            if streaming is not None:
+                # 最终 report 会再次 upsert Case 明细；把流水线阶段已经完成的归因
+                # 快照恢复回 CaseResult，保证旧的单 Case 归因读取接口仍然可用。
+                attribution_tasks.restore_streaming_attribution_snapshots(session, streaming)
+                attribution_tasks.close_streaming_attribution_task(session, streaming)
+                attribution_task_id = streaming.id
+                should_start = bool(session.scalar(
+                    select(AttributionTaskItem.id).where(
+                        AttributionTaskItem.task_id == streaming.id,
+                        AttributionTaskItem.status == "pending",
+                    ).limit(1)
+                ))
+                if not should_start:
+                    return attribution_task_id
+            else:
+                sample_ids = list(session.scalars(
+                    select(CaseResultRow.sample_id)
+                    .where(
+                        CaseResultRow.run_id == run.id,
+                        CaseResultRow.grade == _AUTO_ATTRIBUTION_GRADE,
+                    )
+                    .order_by(CaseResultRow.sample_id)
+                ))
+                if not sample_ids:
+                    logger.info("定时任务 #%s 本次无不合格 Case，已跳过自动归因", schedule.id)
+                    return None
+                task = attribution_tasks.create_attribution_task(
+                    session,
+                    run,
+                    sample_ids=sample_ids,
+                    judge_model_id=schedule.auto_attribution_model_id,
+                    created_by=schedule.created_by or "定时任务自动归因",
+                    include_passed=False,
+                )
+                attribution_task_id = task.id
     except Exception:  # noqa: BLE001 - 自动归因不得将已成功评测标为失败
         logger.exception("run #%s 自动创建归因任务失败", run_id)
+        abort_configured_streaming_attribution(run_id, "定时评测完成，但自动归因收尾失败")
         return None
 
     if attribution_task_id is not None:
