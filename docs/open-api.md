@@ -31,12 +31,10 @@ X-MME-API-Key: mme_xxxxxxxxxxxxxxxxx
 | `judge_models:read` | 查询判分模型 |
 | `temporary_evaluations:create` | 创建并查询临时 Q&A 评测 |
 | `evaluations:create` | 创建评测任务 |
-| `evaluations:read` | 查询单个或批量评测任务结果 |
-| `evaluations:read_all` | 管理员集成查询所有调用方及人工/定时评测结果 |
-| `attributions:read` | 查询归因任务的 CX-Agent 优化建议 |
-| `attributions:read_all` | 管理员集成查询所有评测的归因建议 |
+| `evaluations:read` | 查询平台全部单个或批量评测任务结果 |
+| `attributions:read` | 查询平台全部归因任务的 CX-Agent 优化建议 |
 
-`evaluations:read` 和 `attributions:read` 默认只返回由当前这把 Key 创建的评测及其归因，其他 Key 的任务表现为不存在。`*_all` 是高权限能力，只应授予平台管理员集成。
+评测任务与归因任务按平台共享：拥有对应查询权限的 Key 可读取全部来源（人工、定时和 Open API）的任务。创建来源会保留在记录中用于审计，但不影响查询结果。
 
 ## 2. 推荐调用流程
 

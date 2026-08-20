@@ -20,10 +20,11 @@ OPEN_API_PERMISSIONS: dict[str, str] = {
     "judge_models:read": "读取判分模型",
     "temporary_evaluations:create": "创建并查询临时单轮评测",
     "evaluations:create": "创建评测任务",
-    "evaluations:read": "查询评测任务状态",
-    "evaluations:read_all": "查询全部来源的评测任务（管理员集成）",
-    "attributions:read": "查询归因任务与 CX-Agent 优化建议",
-    "attributions:read_all": "查询全部调用方的归因任务（管理员集成）",
+    "evaluations:read": "查询全部评测任务状态",
+    "attributions:read": "查询全部归因任务与 CX-Agent 优化建议",
+    # 兼容既有 Key；查询接口已不再区分创建来源，新建 Key 不展示这两个历史权限。
+    "evaluations:read_all": "历史兼容：查询全部评测任务",
+    "attributions:read_all": "历史兼容：查询全部归因任务",
 }
 _LAST_USED_WRITE_INTERVAL = timedelta(minutes=1)
 

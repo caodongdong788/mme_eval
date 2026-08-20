@@ -200,7 +200,7 @@ def test_open_api_rejects_model_when_judge_is_disabled(client, session):
 
 
 def test_open_api_lists_results_by_trigger_type_with_dashboard_links(client, session, settings):
-    headers = _open_headers(client, ["evaluations:read_all"])
+    headers = _open_headers(client, ["evaluations:read"])
     scheduled = EvalRun(
         run_slug="scheduled-result",
         name="定时回归",
@@ -266,7 +266,7 @@ def test_open_api_rejects_invalid_key(client):
     assert response.status_code == 403
 
 
-def test_open_api_read_permissions_are_isolated_by_access_key(client, session):
+def test_open_api_read_permissions_can_query_all_platform_tasks(client, session):
     def create_key(name: str) -> tuple[int, dict[str, str]]:
         response = client.post(
             "/api/config/open-api-keys",
@@ -318,24 +318,21 @@ def test_open_api_read_permissions_are_isolated_by_access_key(client, session):
     session.commit()
 
     first_list = client.get("/api/open/v1/evaluations", headers=first_headers).json()
-    assert first_list["total"] == 1
-    assert first_list["items"][0]["id"] == first_run.id
-    assert (
-        client.get(
-            f"/api/open/v1/evaluation-summaries/{second_run.id}",
-            headers=first_headers,
-        ).status_code
-        == 404
-    )
+    assert first_list["total"] == 2
+    assert {item["id"] for item in first_list["items"]} == {first_run.id, second_run.id}
+    assert client.get(
+        f"/api/open/v1/evaluation-summaries/{second_run.id}",
+        headers=first_headers,
+    ).status_code == 200
     first_attributions = client.get(
         "/api/open/v1/attribution-tasks", headers=first_headers
     ).json()
-    assert first_attributions["total"] == 1
-    assert first_attributions["items"][0]["run_id"] == first_run.id
-    assert (
-        client.get("/api/open/v1/evaluations", headers=second_headers).json()["total"]
-        == 1
-    )
+    assert first_attributions["total"] == 2
+    assert {item["run_id"] for item in first_attributions["items"]} == {
+        first_run.id,
+        second_run.id,
+    }
+    assert client.get("/api/open/v1/evaluations", headers=second_headers).json()["total"] == 2
 
 
 def test_open_api_reports_config_backed_dashscope_model_as_available(client, monkeypatch):
@@ -767,7 +764,7 @@ def test_temporary_evaluation_does_not_apply_multi_turn_case_contract(
 
 
 def test_open_api_returns_run_overview_metrics_without_case_data(client, session):
-    headers = _open_headers(client, ["evaluations:read_all"])
+    headers = _open_headers(client, ["evaluations:read"])
     run = EvalRun(
         run_slug="open-run-overview",
         name="OpenAPI 总览",
@@ -819,7 +816,7 @@ def test_open_api_returns_run_overview_metrics_without_case_data(client, session
 
 
 def test_open_api_returns_only_cx_agent_attribution_optimizations(client, session, settings):
-    headers = _open_headers(client, ["attributions:read_all"])
+    headers = _open_headers(client, ["attributions:read"])
     run = EvalRun(run_slug="attribution-open-api", name="归因 OpenAPI 测试", status="success")
     session.add(run)
     session.flush()

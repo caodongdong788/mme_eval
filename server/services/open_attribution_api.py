@@ -264,9 +264,8 @@ def list_open_attribution_tasks(
     limit: int,
     offset: int,
     frontend_url: str,
-    owner_api_key_id: int | None = None,
 ) -> tuple[int, list[dict[str, Any]]]:
-    """批量读取归因任务及其 cx-agent 优化投影，避免逐任务/逐 Case 的 N+1 查询。"""
+    """批量读取全平台归因任务及其 cx-agent 优化投影，避免逐任务/逐 Case 的 N+1 查询。"""
     stmt = (
         select(AttributionTask, EvalRun.name)
         .join(EvalRun, EvalRun.id == AttributionTask.run_id)
@@ -275,9 +274,6 @@ def list_open_attribution_tasks(
     count_stmt = select(func.count(AttributionTask.id)).join(
         EvalRun, EvalRun.id == AttributionTask.run_id
     )
-    if owner_api_key_id is not None:
-        stmt = stmt.where(EvalRun.open_api_key_id == owner_api_key_id)
-        count_stmt = count_stmt.where(EvalRun.open_api_key_id == owner_api_key_id)
     if run_id is not None:
         stmt = stmt.where(AttributionTask.run_id == run_id)
         count_stmt = count_stmt.where(AttributionTask.run_id == run_id)

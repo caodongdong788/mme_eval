@@ -138,8 +138,8 @@ class EvalRun(Base):
     scheduled_occurrence_key: Mapped[Optional[str]] = mapped_column(
         String(80), nullable=True
     )
-    # OpenAPI 创建的正式评测按调用 Key 隔离。Key 删除后保留整数快照，
-    # 避免历史任务被级联删除或突然变为其他调用方可见。
+    # 记录正式评测的 OpenAPI 创建来源，供审计、幂等和调用来源追踪使用。
+    # 任务查询是平台共享的，不以该字段做可见性隔离。
     open_api_key_id: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True, index=True
     )

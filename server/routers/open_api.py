@@ -309,9 +309,8 @@ def list_open_evaluations(
 
     stmt = select(EvalRun).order_by(EvalRun.id.desc())
     count_stmt = select(func.count(EvalRun.id))
-    if "evaluations:read_all" not in (access_key.permissions or []):
-        stmt = stmt.where(EvalRun.open_api_key_id == access_key.id)
-        count_stmt = count_stmt.where(EvalRun.open_api_key_id == access_key.id)
+    # 评测任务是平台共享资源。只要 Key 已获“查询任务状态”权限，就应能查询
+    # 人工、定时和其他 Open API 创建的任务；不再按创建 Key 做可见性隔离。
     if trigger_type is not None:
         stmt = stmt.where(EvalRun.trigger_type == trigger_type)
         count_stmt = count_stmt.where(EvalRun.trigger_type == trigger_type)
@@ -373,11 +372,6 @@ def list_open_attribution_tasks(
         limit=limit,
         offset=offset,
         frontend_url=get_settings().frontend_url,
-        owner_api_key_id=(
-            None
-            if "attributions:read_all" in (access_key.permissions or [])
-            else access_key.id
-        ),
     )
     return OpenAttributionTaskBatchOut(total=total, items=items)
 
@@ -395,9 +389,6 @@ def get_open_evaluation_summary(
     ),
 ) -> OpenEvaluationOut:
     run = session.get(EvalRun, run_id)
-    if run is None or (
-        "evaluations:read_all" not in (access_key.permissions or [])
-        and run.open_api_key_id != access_key.id
-    ):
+    if run is None:
         raise HTTPException(status_code=404, detail=f"评测任务 {run_id} 不存在")
     return _as_open_evaluation(run)
