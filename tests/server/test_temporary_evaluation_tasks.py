@@ -1,4 +1,4 @@
-"""临时评测异步任务：幂等、权限隔离、租约恢复和七天物理清理。"""
+"""临时评测异步任务：幂等、永久落库、每日 Run 汇总与租约恢复。"""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import time
 
 from fastapi import HTTPException
 
-from server.models_db import TemporaryEvaluation
+from server.models_db import EvalRun, TemporaryEvaluation
 
 
 def _create_key(client, name: str) -> tuple[dict[str, str], int]:
@@ -52,8 +52,13 @@ def test_temporary_evaluation_is_idempotent_and_scoped_to_api_key(
     row = session.query(TemporaryEvaluation).one()
     assert row.api_key_id == first_key_id
     assert row.status == "pending"
-    assert timedelta(days=6, hours=23) < row.expires_at - datetime.utcnow()
-    assert row.expires_at - datetime.utcnow() <= timedelta(days=7)
+    assert row.expires_at is None
+    assert row.run_id is not None
+    run = session.get(EvalRun, row.run_id)
+    assert run is not None
+    assert run.trigger_type == "open_api"
+    assert run.name.endswith("临时评测")
+    assert run.total == 1
 
     status = client.get(first.json()["status_url"], headers=first_headers)
     assert status.status_code == 200
@@ -137,7 +142,7 @@ def test_temporary_evaluation_failure_is_queryable(client, monkeypatch):
     assert status["retry_after_seconds"] is None
 
 
-def test_expired_temporary_evaluations_are_physically_deleted(
+def test_temporary_evaluations_are_not_deleted_after_legacy_expiry(
     client, session, monkeypatch
 ):
     from server.services import temporary_evaluation
@@ -155,9 +160,35 @@ def test_expired_temporary_evaluations_are_physically_deleted(
     row.expires_at = datetime.utcnow() - timedelta(seconds=1)
     session.commit()
 
-    assert tasks.cleanup_expired_temporary_evaluations() == 1
+    assert tasks.cleanup_expired_temporary_evaluations() == 0
     session.expire_all()
-    assert session.query(TemporaryEvaluation).count() == 0
-    missing = client.get(created["status_url"], headers=headers)
-    assert missing.status_code == 404
-    assert "已过期" in missing.json()["detail"]
+    assert session.query(TemporaryEvaluation).count() == 1
+    retained = client.get(created["status_url"], headers=headers)
+    assert retained.status_code == 200
+    assert retained.json()["status"] == "pending"
+
+
+def test_same_day_temporary_evaluations_share_one_open_api_run(client, session, monkeypatch):
+    from server.services import temporary_evaluation
+    from server.services import temporary_evaluation_tasks as tasks
+
+    monkeypatch.setattr(temporary_evaluation, "_platform_benchmarks", lambda _session: [])
+    monkeypatch.setattr(tasks, "schedule_temporary_evaluation", lambda _evaluation_id: None)
+    headers, _key_id = _create_key(client, "临时评测每日汇总 Key")
+    for index in (1, 2):
+        response = client.post(
+            "/api/open/v1/temporary-evaluations",
+            headers=headers,
+            json={
+                "external_request_id": f"daily-group-{index}",
+                "question": f"问题 {index}",
+                "answer": f"回答 {index}",
+            },
+        )
+        assert response.status_code == 202, response.text
+
+    rows = session.query(TemporaryEvaluation).order_by(TemporaryEvaluation.id).all()
+    assert len(rows) == 2
+    assert rows[0].run_id == rows[1].run_id
+    assert session.query(EvalRun).count() == 1
+    assert session.get(EvalRun, rows[0].run_id).total == 2

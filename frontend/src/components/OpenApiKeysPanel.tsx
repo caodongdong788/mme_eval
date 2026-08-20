@@ -20,7 +20,7 @@ import { formatApiError } from "../utils/apiError";
 const PERMISSIONS: Array<{ value: OpenApiPermission; label: string; description: string }> = [
   { value: "benchmarks:read", label: "读取评测用例集", description: "查询可用 Benchmark" },
   { value: "judge_models:read", label: "读取判分模型", description: "查询可用判分模型" },
-  { value: "temporary_evaluations:create", label: "执行临时评测", description: "创建并查询 7 天临时 Q&A 评测" },
+  { value: "temporary_evaluations:create", label: "执行临时评测", description: "创建并查询永久保存的临时 Q&A 评测" },
   { value: "evaluations:create", label: "创建评测任务", description: "通过 API 发起评测" },
   { value: "evaluations:read", label: "查询任务状态", description: "查询平台全部评测任务" },
   { value: "attributions:read", label: "查询归因任务", description: "查询平台全部归因任务与 CX-Agent 优化建议" },

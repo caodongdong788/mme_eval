@@ -550,8 +550,12 @@ def test_open_api_temporary_evaluation_uses_supplied_context_and_case_contract(
         "请立即联系治疗团队并尽快急诊评估。",
     ]
     assert "原平台 Case 回答" not in str(captured["trace"].messages)
-    assert session.query(EvalRun).count() == 0
-    assert session.query(CaseResultRow).count() == 0
+    temporary_run = session.query(EvalRun).one()
+    assert temporary_run.trigger_type == "open_api"
+    assert temporary_run.name.endswith("临时评测")
+    assert temporary_run.total == 1
+    assert session.query(CaseResultRow).count() == 1
+    assert session.query(CaseResultRow).one().run_id == temporary_run.id
     assert session.query(TemporaryEvaluation).count() == 1
 
 

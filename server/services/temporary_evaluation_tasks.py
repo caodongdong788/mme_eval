@@ -1,4 +1,4 @@
-"""临时评测的七天持久化、幂等、租约队列与进程内兼容调度。"""
+"""永久临时评测的幂等、每日 Run 汇总、租约队列与进程内兼容调度。"""
 
 from __future__ import annotations
 
@@ -10,17 +10,19 @@ import logging
 import os
 from typing import Any
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 from pydantic import ValidationError
-from sqlalchemy import delete, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from medeval.models import TestCase
+from medeval.models import CaseResult, ChatMessage, ConversationTrace, TestCase
 
 from ..db import session_scope
-from ..models_db import Benchmark, TemporaryEvaluation
+from ..ingest import upsert_case_result
+from ..models_db import Benchmark, CaseResultRow, EvalRun, TemporaryEvaluation
 from ..schemas import (
     OpenTemporaryCaseSource,
     OpenTemporaryEvaluationCreate,
@@ -38,13 +40,19 @@ log = logging.getLogger(__name__)
 ACTIVE_STATUSES = ("pending", "running")
 TERMINAL_STATUSES = ("success", "failed")
 DEFAULT_RETRY_AFTER_SECONDS = 5
-_cleanup_task: asyncio.Task | None = None
+SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 _in_process_tasks: dict[str, asyncio.Task] = {}
 _in_process_semaphore: asyncio.Semaphore | None = None
 
 
 def _now() -> datetime:
     return datetime.utcnow()
+
+
+def _group_date(now: datetime | None = None) -> str:
+    """用上海自然日聚合 Open API 临时评测。"""
+    utc_now = now or _now()
+    return utc_now.replace(tzinfo=ZoneInfo("UTC")).astimezone(SHANGHAI_TZ).date().isoformat()
 
 
 def _request_digest(payload: OpenTemporaryEvaluationCreate) -> str:
@@ -103,12 +111,101 @@ def _status_out(row: TemporaryEvaluation) -> OpenTemporaryEvaluationStatusOut:
 
 
 def cleanup_expired_temporary_evaluations() -> int:
-    """物理删除所有已到七天有效期的临时请求、状态、错误与评分结果。"""
-    with session_scope() as session:
-        result = session.execute(
-            delete(TemporaryEvaluation).where(TemporaryEvaluation.expires_at <= _now())
+    """兼容旧调用方：临时评测已改为永久保存，不再执行物理清理。"""
+    return 0
+
+
+def _daily_run(session: Session, *, api_key_id: int, now: datetime) -> EvalRun:
+    """取当天临时评测聚合 Run；同一上海自然日只有一条。"""
+    group_date = _group_date(now)
+    existing = session.scalar(
+        select(EvalRun).where(EvalRun.temporary_group_date == group_date)
+    )
+    if existing is not None:
+        return existing
+
+    row = EvalRun(
+        run_slug=f"open-api-temporary-{group_date}",
+        name=f"{group_date} 临时评测",
+        description="通过 Open API 创建的临时单轮评测，按上海自然日汇总。",
+        status="running",
+        trigger_type="open_api",
+        open_api_key_id=api_key_id,
+        temporary_group_date=group_date,
+        created_by="OpenAPI",
+        progress={"phase": "temporary_evaluation", "label": "临时评测", "done": 0, "total": 0},
+        config_snapshot={"temporary_evaluations": True, "group_date": group_date},
+    )
+    # 多个 Open API 请求可能在同一时刻到达。唯一键负责收口，保存点让冲突后
+    # 可以直接读取已由另一个请求创建的当天 Run，而不回滚本次临时请求。
+    try:
+        with session.begin_nested():
+            session.add(row)
+            session.flush()
+        return row
+    except IntegrityError:
+        existing = session.scalar(
+            select(EvalRun).where(EvalRun.temporary_group_date == group_date)
         )
-        return int(result.rowcount or 0)
+        if existing is None:
+            raise
+        return existing
+
+
+def _refresh_daily_run(session: Session, run_id: int | None) -> None:
+    """临时请求完成一条即同步常规 Run 汇总，供列表、看板和用例详情复用。"""
+    if run_id is None:
+        return
+    run = session.get(EvalRun, run_id)
+    if run is None:
+        return
+    rows = list(
+        session.scalars(
+            select(TemporaryEvaluation)
+            .where(TemporaryEvaluation.run_id == run_id)
+            .order_by(TemporaryEvaluation.id)
+        )
+    )
+    result_rows = list(
+        session.scalars(select(CaseResultRow).where(CaseResultRow.run_id == run_id))
+    )
+    total = len(rows)
+    done = sum(item.status in TERMINAL_STATUSES for item in rows)
+    judged_rows = [item for item in result_rows if not item.judge_error]
+    passed = sum(bool(item.release_passed) for item in judged_rows)
+    medical_safety_failed = sum(
+        not bool(item.medical_safety_passed) for item in judged_rows
+    )
+    scores = [
+        float(item.composite_score)
+        for item in judged_rows
+        if item.composite_score is not None
+    ]
+    run.total = total
+    run.passed = passed
+    run.pass_rate = (passed / total) if total else 0.0
+    run.medical_safety_failed = medical_safety_failed
+    run.n_runs = 1
+    run.progress = {
+        "phase": "temporary_evaluation",
+        "label": "临时评测",
+        "done": done,
+        "total": total,
+    }
+    run.grading = {"avg_composite": sum(scores) / len(scores) if scores else None}
+    if rows:
+        run.started_at = min(
+            (item.started_at or item.created_at or _now()) for item in rows
+        )
+    if total and done == total:
+        run.status = "success"
+        run.error_msg = ""
+        run.finished_at = max(
+            (item.finished_at or item.updated_at or _now()) for item in rows
+        )
+    else:
+        run.status = "running"
+        run.finished_at = None
 
 
 def create_temporary_evaluation(
@@ -127,10 +224,6 @@ def create_temporary_evaluation(
                 TemporaryEvaluation.external_request_id == payload.external_request_id,
             )
         )
-        if existing is not None and existing.expires_at <= now:
-            session.delete(existing)
-            session.flush()
-            existing = None
         if existing is not None:
             if existing.request_digest != digest:
                 raise HTTPException(
@@ -153,7 +246,7 @@ def create_temporary_evaluation(
         benchmark = session.get(Benchmark, case_source.benchmark_id)
         benchmark_version = benchmark.version if benchmark is not None else ""
 
-    retention_days = max(1, get_settings().temporary_evaluation_retention_days)
+    run = _daily_run(session, api_key_id=api_key_id, now=now)
     row = TemporaryEvaluation(
         evaluation_id=evaluation_id,
         api_key_id=api_key_id,
@@ -168,12 +261,15 @@ def create_temporary_evaluation(
         contract_fingerprint=_contract_fingerprint(case),
         judge_model_id=judge_model_id,
         judge_model_name=judge_model_name or "",
+        run_id=run.id,
         status="pending",
-        expires_at=now + timedelta(days=retention_days),
+        expires_at=None,
     )
     session.add(row)
     try:
-        # 后台任务必须在提交前看到完整请求和评分契约，因此这里显式提交。
+        session.flush()
+        _refresh_daily_run(session, run.id)
+        # 后台任务必须在提交前看到完整请求、评分契约和归属 Run，因此这里显式提交。
         session.commit()
     except IntegrityError:
         session.rollback()
@@ -207,11 +303,7 @@ def get_temporary_evaluation(
         )
     )
     if row is None:
-        raise HTTPException(status_code=404, detail="临时评测不存在或已过期")
-    if row.expires_at <= _now():
-        session.delete(row)
-        session.commit()
-        raise HTTPException(status_code=404, detail="临时评测不存在或已过期")
+        raise HTTPException(status_code=404, detail="临时评测不存在或无权访问")
     return _status_out(row)
 
 
@@ -227,7 +319,6 @@ def claim_temporary_evaluation(
         stmt = (
             select(TemporaryEvaluation)
             .where(
-                TemporaryEvaluation.expires_at > now,
                 or_(
                     TemporaryEvaluation.status == "pending",
                     (
@@ -301,6 +392,7 @@ def _finish_success(
     evaluation_id: str,
     owner: str,
     result: OpenTemporaryEvaluationOut,
+    case_result: CaseResult,
 ) -> bool:
     with session_scope() as session:
         row = session.scalar(
@@ -318,6 +410,9 @@ def _finish_success(
         row.lease_owner = None
         row.lease_expires_at = None
         row.heartbeat_at = row.finished_at
+        if row.run_id is not None:
+            upsert_case_result(session, row.run_id, case_result)
+        _refresh_daily_run(session, row.run_id)
         return True
 
 
@@ -344,6 +439,29 @@ def _failure_from_exception(exc: BaseException) -> tuple[str, str, bool]:
     )
 
 
+def _failed_case_result(row: TemporaryEvaluation, message: str) -> CaseResult:
+    """把判分异常也写入标准用例明细，避免临时 Run 出现“有任务无明细”。"""
+    payload = OpenTemporaryEvaluationCreate.model_validate(row.request_payload)
+    case = TestCase.model_validate(row.case_snapshot)
+    return CaseResult(
+        case=case,
+        trace=ConversationTrace(
+            messages=[
+                ChatMessage(role="user", content=payload.question),
+                ChatMessage(role="assistant", content=payload.answer),
+            ],
+            error=message,
+        ),
+        verdicts=[],
+        medical_safety_passed=True,
+        release_passed=False,
+        judge_error=True,
+        failure_tags=["判分异常"],
+        grade="判分异常",
+        stability="stable_fail",
+    )
+
+
 def _finish_failure(evaluation_id: str, owner: str, exc: BaseException) -> bool:
     code, message, retryable = _failure_from_exception(exc)
     with session_scope() as session:
@@ -363,10 +481,19 @@ def _finish_failure(evaluation_id: str, owner: str, exc: BaseException) -> bool:
         row.lease_owner = None
         row.lease_expires_at = None
         row.heartbeat_at = row.finished_at
+        if row.run_id is not None:
+            upsert_case_result(
+                session,
+                row.run_id,
+                _failed_case_result(row, row.error_message),
+            )
+        _refresh_daily_run(session, row.run_id)
         return True
 
 
-async def _evaluate_snapshot(evaluation_id: str) -> OpenTemporaryEvaluationOut:
+async def _evaluate_snapshot(
+    evaluation_id: str,
+) -> tuple[OpenTemporaryEvaluationOut, CaseResult]:
     """从临时表重建已冻结的请求与评分契约并执行 Judge。"""
     with session_scope() as session:
         row = session.scalar(
@@ -374,8 +501,8 @@ async def _evaluate_snapshot(evaluation_id: str) -> OpenTemporaryEvaluationOut:
                 TemporaryEvaluation.evaluation_id == evaluation_id
             )
         )
-        if row is None or row.expires_at <= _now():
-            raise HTTPException(status_code=404, detail="临时评测不存在或已过期")
+        if row is None:
+            raise HTTPException(status_code=404, detail="临时评测不存在")
         payload = OpenTemporaryEvaluationCreate.model_validate(row.request_payload)
         case = TestCase.model_validate(row.case_snapshot)
         case_source = (
@@ -383,7 +510,7 @@ async def _evaluate_snapshot(evaluation_id: str) -> OpenTemporaryEvaluationOut:
             if row.case_source
             else None
         )
-        return await evaluator.evaluate_temporary_conversation(
+        return await evaluator.evaluate_temporary_conversation_with_result(
             session,
             payload,
             evaluation_id=evaluation_id,
@@ -418,7 +545,7 @@ async def execute_claimed_temporary_evaluation(
                     task.cancel()
                     await asyncio.gather(task, return_exceptions=True)
                     return
-        result = await task
+        result, case_result = await task
     except asyncio.CancelledError:
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
@@ -429,7 +556,7 @@ async def execute_claimed_temporary_evaluation(
             log.exception("临时评测执行失败 evaluation_id=%s", row.evaluation_id)
         _finish_failure(row.evaluation_id, owner, exc)
     else:
-        _finish_success(row.evaluation_id, owner, result)
+        _finish_success(row.evaluation_id, owner, result, case_result)
 
 
 def _semaphore() -> asyncio.Semaphore:
@@ -474,7 +601,6 @@ def _reconcile_in_process_tasks() -> list[str]:
         rows = list(
             session.scalars(
                 select(TemporaryEvaluation).where(
-                    TemporaryEvaluation.expires_at > _now(),
                     TemporaryEvaluation.status.in_(ACTIVE_STATUSES),
                 )
             )
@@ -486,41 +612,17 @@ def _reconcile_in_process_tasks() -> list[str]:
         return [row.evaluation_id for row in rows]
 
 
-async def _cleanup_loop() -> None:
-    while True:
-        try:
-            await asyncio.sleep(60 * 60)
-            count = cleanup_expired_temporary_evaluations()
-            if count:
-                log.info("已物理删除过期临时评测 %s 条", count)
-        except asyncio.CancelledError:
-            raise
-        except Exception:  # noqa: BLE001 - 清理失败不能影响在线服务
-            log.exception("临时评测过期清理失败")
-
-
 def start_temporary_evaluation_service() -> None:
-    global _cleanup_task
-    cleanup_expired_temporary_evaluations()
     if get_settings().job_runner_mode != "database":
         for evaluation_id in _reconcile_in_process_tasks():
             schedule_temporary_evaluation(evaluation_id)
-    if _cleanup_task is None or _cleanup_task.done():
-        _cleanup_task = asyncio.create_task(
-            _cleanup_loop(), name="temporary-evaluation-cleanup"
-        )
 
 
 async def stop_temporary_evaluation_service() -> None:
-    global _cleanup_task, _in_process_semaphore
-    cleanup, _cleanup_task = _cleanup_task, None
-    if cleanup is not None:
-        cleanup.cancel()
+    global _in_process_semaphore
     tasks = [task for task in _in_process_tasks.values() if not task.done()]
     for task in tasks:
         task.cancel()
     await asyncio.gather(*tasks, return_exceptions=True)
-    if cleanup is not None:
-        await asyncio.gather(cleanup, return_exceptions=True)
     _in_process_tasks.clear()
     _in_process_semaphore = None

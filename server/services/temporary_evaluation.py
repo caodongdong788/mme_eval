@@ -1,4 +1,4 @@
-"""OpenAPI 临时单轮评测内核：复用正式八维与指南判分，不创建正式 EvalRun。"""
+"""OpenAPI 临时单轮评测内核：复用正式八维与指南判分。"""
 
 from __future__ import annotations
 
@@ -303,7 +303,7 @@ def _temporary_case(
         initial_state=_temporary_context(payload),
         turns=[Turn(role="user", content=payload.question)],
         evaluation=evaluation,
-        notes="OpenAPI 临时评测；输入与结果仅进入七天临时存储，不创建正式 EvalRun。",
+        notes="OpenAPI 临时评测；输入与结果永久保存，并按当天汇总到 Open API 评测记录。",
     )
     return case, case_source
 
@@ -375,14 +375,14 @@ def _deduction_summary(
     return list(dict.fromkeys([*dimension_deductions, *score_deductions]))
 
 
-async def evaluate_temporary_conversation(
+async def evaluate_temporary_conversation_with_result(
     session: Session,
     payload: OpenTemporaryEvaluationCreate,
     *,
     evaluation_id: str | None = None,
     case_snapshot: TestCase | None = None,
     case_source_snapshot: OpenTemporaryCaseSource | None = None,
-) -> OpenTemporaryEvaluationOut:
+) -> tuple[OpenTemporaryEvaluationOut, CaseResult]:
     """执行一次判分；任务持久化与租约状态由上层临时任务服务负责。"""
     evaluation_id = evaluation_id or f"temporary_{uuid4().hex}"
     judge_override, judge_model_id, judge_model_name = _judge_override(
@@ -435,7 +435,7 @@ async def evaluate_temporary_conversation(
         raise HTTPException(status_code=502, detail=detail)
 
     dimensions = _dimension_results(result)
-    return OpenTemporaryEvaluationOut(
+    output = OpenTemporaryEvaluationOut(
         evaluation_id=evaluation_id,
         external_request_id=payload.external_request_id,
         evaluation_mode="single_turn",
@@ -452,3 +452,23 @@ async def evaluate_temporary_conversation(
         guideline_results=_guideline_results(result),
         deductions=_deduction_summary(dimensions, result.score_deductions),
     )
+    return output, result
+
+
+async def evaluate_temporary_conversation(
+    session: Session,
+    payload: OpenTemporaryEvaluationCreate,
+    *,
+    evaluation_id: str | None = None,
+    case_snapshot: TestCase | None = None,
+    case_source_snapshot: OpenTemporaryCaseSource | None = None,
+) -> OpenTemporaryEvaluationOut:
+    """兼容既有调用方：仅返回 Open API 对外的精简结果。"""
+    output, _result = await evaluate_temporary_conversation_with_result(
+        session,
+        payload,
+        evaluation_id=evaluation_id,
+        case_snapshot=case_snapshot,
+        case_source_snapshot=case_source_snapshot,
+    )
+    return output

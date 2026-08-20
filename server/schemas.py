@@ -495,7 +495,8 @@ class OpenTemporaryEvaluationCreatedOut(BaseModel):
     external_request_id: Optional[str] = None
     status: Literal["pending", "running", "success", "failed"]
     status_url: str
-    expires_at: ApiDateTime
+    # 临时评测改为永久保存；保留字段兼容已接入调用方，恒为 null。
+    expires_at: Optional[ApiDateTime] = None
 
 
 class OpenTemporaryEvaluationError(BaseModel):

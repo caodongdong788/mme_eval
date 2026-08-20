@@ -168,7 +168,7 @@ cd frontend && npm run build
 curl -H "X-MME-API-Key: <key>" http://localhost:8000/api/open/v1/benchmarks
 curl -H "X-MME-API-Key: <key>" http://localhost:8000/api/open/v1/judge-models
 
-# 临时单轮评测：POST 返回 status_url；请求与结果保留 7 天，到期物理删除
+# 临时单轮评测：POST 返回 status_url；请求与结果永久保存，并按当天汇总到 Open API 评测记录
 curl -X POST http://localhost:8000/api/open/v1/temporary-evaluations \
   -H "Content-Type: application/json" \
   -H "X-MME-API-Key: <key>" \

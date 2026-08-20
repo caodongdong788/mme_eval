@@ -18,7 +18,7 @@ from ..secret_codec import decrypt_recoverable_secret, encrypt_recoverable_secre
 OPEN_API_PERMISSIONS: dict[str, str] = {
     "benchmarks:read": "读取评测用例集",
     "judge_models:read": "读取判分模型",
-    "temporary_evaluations:create": "创建并查询临时单轮评测",
+    "temporary_evaluations:create": "创建并查询永久保存的临时单轮评测",
     "evaluations:create": "创建评测任务",
     "evaluations:read": "查询全部评测任务状态",
     "attributions:read": "查询全部归因任务与 CX-Agent 优化建议",

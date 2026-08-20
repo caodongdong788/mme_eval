@@ -120,12 +120,12 @@ curl -sS "$MME_BASE_URL/api/open/v1/judge-models" \
 
 - 固定输出 MME 八维得分、三端得分、45 分制总分、评级、扣分原因和判分证据；
 - 用户画像、历史事实、RAG 引用和病例夹内容只作为本次回答可用的事实上下文；
-- 不调用被测 Agent，不创建正式 EvalRun，也不把本次 Q&A 保存到 Benchmark 或评测看板；
-- 请求、执行状态、错误和评分结果只保存在独立临时表，默认保留 7 天；到期后整条记录物理删除；
+- 不调用被测 Agent，也不把本次 Q&A 保存到 Benchmark；
+- 请求、执行状态、错误和评分结果永久保存；同一上海自然日首次创建时会生成一条“`YYYY-MM-DD 临时评测`”Open API 评测记录，随后当日的临时 Q&A 会作为用例明细追加到该记录，可使用普通评测的看板和用例详情查看；
 - MME 自动用 `question` 匹配平台 Benchmark Case；命中时只继承该 Case 的八维补充标准与指南检查点，不复用原 Case 的回答、用户画像和运行断言；
 - 医学安全性仍为强制门禁：该维为 0，或违反医学安全指南检查点时，总分归零。
 
-本次 Q&A 与辅助上下文会发送给所选的判分模型。调用方需按该模型服务商的数据处理政策确认敏感医疗信息的使用范围。`external_request_id` 是同一 OpenAPI Key 范围内的 7 天幂等键：同一流水号和同一请求返回原任务；同一流水号对应不同请求时返回 `409`。记录过期删除后，该流水号可以重新使用。
+本次 Q&A 与辅助上下文会发送给所选的判分模型。调用方需按该模型服务商的数据处理政策确认敏感医疗信息的使用范围。`external_request_id` 是同一 OpenAPI Key 范围内的永久幂等键：同一流水号和同一请求返回原任务；同一流水号对应不同请求时返回 `409`。
 
 ### 平台 Case 自动匹配规则
 
@@ -201,7 +201,7 @@ curl -sS -X POST "$MME_BASE_URL/api/open/v1/temporary-evaluations" \
   "external_request_id": "chat-20260819-0001",
   "status": "pending",
   "status_url": "/api/open/v1/temporary-evaluations/temporary_8b7a94b79c2b4da485dc067959e591ee",
-  "expires_at": "2026-08-26T10:00:00Z"
+  "expires_at": null
 }
 ```
 
@@ -220,7 +220,7 @@ curl -sS "$MME_BASE_URL/api/open/v1/temporary-evaluations/temporary_8b7a94b79c2b
   "external_request_id": "chat-20260819-0001",
   "status": "running",
   "status_url": "/api/open/v1/temporary-evaluations/temporary_8b7a94b79c2b4da485dc067959e591ee",
-  "expires_at": "2026-08-26T10:00:00Z",
+  "expires_at": null,
   "result": null,
   "error": null,
   "retry_after_seconds": 5
@@ -235,7 +235,7 @@ curl -sS "$MME_BASE_URL/api/open/v1/temporary-evaluations/temporary_8b7a94b79c2b
   "external_request_id": "chat-20260819-0001",
   "status": "success",
   "status_url": "/api/open/v1/temporary-evaluations/temporary_8b7a94b79c2b4da485dc067959e591ee",
-  "expires_at": "2026-08-26T10:00:00Z",
+  "expires_at": null,
   "result": {
     "evaluation_id": "temporary_8b7a94b79c2b4da485dc067959e591ee",
     "external_request_id": "chat-20260819-0001",
@@ -290,7 +290,7 @@ curl -sS "$MME_BASE_URL/api/open/v1/temporary-evaluations/temporary_8b7a94b79c2b
   "external_request_id": "chat-20260819-0001",
   "status": "failed",
   "status_url": "/api/open/v1/temporary-evaluations/temporary_8b7a94b79c2b4da485dc067959e591ee",
-  "expires_at": "2026-08-26T10:00:00Z",
+  "expires_at": null,
   "result": null,
   "error": {
     "code": "judge_evaluation_failed",

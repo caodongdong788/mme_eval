@@ -143,6 +143,11 @@ class EvalRun(Base):
     open_api_key_id: Mapped[Optional[int]] = mapped_column(
         Integer, nullable=True, index=True
     )
+    # 临时评测按上海自然日汇总到一个 Open API Run。普通/历史 Run 保持 NULL，
+    # 因而不影响原有名称、定时任务与 Open API 正式评测的唯一性。
+    temporary_group_date: Mapped[Optional[str]] = mapped_column(
+        String(10), nullable=True, unique=True, index=True
+    )
 
     adapter_type: Mapped[str] = mapped_column(String(50), default="")
     # 评测打分模型覆盖（provider/model/base_url/...，不含明文 api_key）
@@ -252,7 +257,7 @@ class EvaluationJob(Base):
 
 
 class TemporaryEvaluation(Base):
-    """OpenAPI 临时单轮评测：请求、租约状态与结果默认保留七天。"""
+    """OpenAPI 临时单轮评测：请求、租约状态、结果与每日汇总 Run 永久保存。"""
 
     __tablename__ = "temporary_evaluation"
     __table_args__ = (
@@ -267,13 +272,17 @@ class TemporaryEvaluation(Base):
             "lease_expires_at",
             "id",
         ),
-        Index("ix_temporary_evaluation_expires", "expires_at"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     evaluation_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     # 幂等与查询权限均按创建任务的 OpenAPI Key 隔离；Key 删除不应级联污染任务表。
     api_key_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
+    # 当天所有临时评测汇总到同一 Open API 评测记录；删除该记录时不删除原始
+    # Open API 请求，保留请求审计与状态查询能力。
+    run_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("eval_run.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     external_request_id: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     request_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
@@ -304,7 +313,8 @@ class TemporaryEvaluation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    # 兼容历史字段。新记录永久保存，因此固定为 NULL；不再据此清理或拒绝查询。
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()
     )
