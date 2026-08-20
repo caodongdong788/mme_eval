@@ -52,7 +52,9 @@ def _seed(settings) -> int:
 def test_cases_list_omits_langfuse_trace_url(client, settings):
     """列表路径不加载 detail_json，langfuse 深链仅在用例明细返回。"""
     rid = _seed(settings)
-    rows = client.get(f"/api/runs/{rid}/cases").json()
+    page = client.get(f"/api/runs/{rid}/cases").json()
+    rows = page["items"]
+    assert page["total"] == 2
     by = {r["sample_id"]: r for r in rows}
     assert by["bc_with"]["langfuse_trace_url"] is None
     assert by["bc_without"]["langfuse_trace_url"] is None

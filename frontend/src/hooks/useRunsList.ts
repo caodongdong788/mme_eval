@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { message } from "antd";
 import { api, ProgressInfo, RunSummary } from "../api/index";
 import { formatApiError } from "../utils/apiError";
+import { usePollingTask } from "./usePollingTask";
 
 export function useRunsList() {
   const [runs, setRuns] = useState<RunSummary[]>([]);
@@ -36,44 +37,20 @@ export function useRunsList() {
   }, []);
 
   useEffect(() => {
-    let stopped = false;
-    let timer: number | null = null;
-    const clear = () => {
-      if (timer !== null) {
-        window.clearInterval(timer);
-        timer = null;
-      }
-    };
-    const schedule = (hasActive: boolean) => {
-      clear();
-      if (!hasActive || document.visibilityState !== "visible") return;
-      timer = window.setInterval(async () => {
-        if (document.visibilityState !== "visible") return;
-        const stillActive = await reload();
-        if (!stillActive) clear();
-      }, 3000);
-    };
     setLoading(true);
-    reload()
-      .then((hasActive) => {
-        if (!stopped) schedule(hasActive);
-      })
-      .finally(() => setLoading(false));
-    const onVisibility = async () => {
-      if (document.visibilityState === "visible") {
-        const hasActive = await reload();
-        if (!stopped) schedule(hasActive);
-      } else {
-        clear();
-      }
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      stopped = true;
-      clear();
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
+    void reload().finally(() => setLoading(false));
   }, [reload]);
+
+  const anyActive = runs.some(
+    (run) => run.status === "running" || run.status === "pending"
+  );
+  usePollingTask(
+    async () => {
+      await reload();
+    },
+    [reload],
+    { enabled: anyActive, intervalMs: 3000 }
+  );
 
   const onDelete = async (id: number) => {
     // 作废进行中的轮询 reload，避免其迟到的 listRuns 响应把已删行写回表格。

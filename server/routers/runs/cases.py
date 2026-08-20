@@ -18,7 +18,7 @@ from ...constants import LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX
 from ...db import get_session
 from ...models_db import Benchmark, CaseResultRow, FeishuUser
 from ...paths import safe_join
-from ...schemas import CaseRowOut, CasesYamlOut
+from ...schemas import CasePageOut, CasesYamlOut
 from ...services.case_export import (
     export_transcripts,
     get_case_detail_json,
@@ -28,7 +28,7 @@ from ...services.case_export import (
 from ...services.case_query import (
     attach_review_summary,
     case_rag_status_from_detail,
-    filtered_case_rows,
+    filtered_case_page,
 )
 from ...services.case_query import case_row_or_404, next_case_sample_id
 from ...services.eval_artifacts import CASE_IMAGES_DIR
@@ -60,7 +60,7 @@ def _case_image_paths(detail: dict[str, Any]) -> set[str]:
     return paths
 
 
-@router.get("/{run_id}/cases", response_model=list[CaseRowOut])
+@router.get("/{run_id}/cases", response_model=CasePageOut)
 def list_case_results(
     run_id: int,
     level: Optional[str] = None,
@@ -75,23 +75,9 @@ def list_case_results(
     ),
     offset: int = Query(0, ge=0, description="分页偏移"),
     session: Session = Depends(get_session),
-) -> list[CaseResultRow]:
+) -> CasePageOut:
     get_run_or_404(session, run_id)
-    rows = filtered_case_rows(
-        session,
-        run_id,
-        level=level,
-        release_passed=release_passed,
-        stability=stability,
-        scenario=scenario,
-        turns=turns,
-        guideline=guideline,
-        # 轮数及真实 RAG 状态均已写入列表标量列，避免此接口读取整批大型链路 JSON。
-        load_detail_json=False,
-    )
-    # Langfuse 深链仍仅在用例详情接口返回，避免扩大列表响应中的外部追踪信息。
-    for row in rows:
-        row.langfuse_trace_url = None
+    pending_ids = None
     if review_pending:
         pending_ids = pending_review_sample_ids(
             session,
@@ -103,9 +89,24 @@ def list_case_results(
             turns=turns,
             guideline=guideline,
         )
-        rows = [r for r in rows if r.sample_id in pending_ids]
+    total, rows = filtered_case_page(
+        session,
+        run_id,
+        level=level,
+        release_passed=release_passed,
+        stability=stability,
+        scenario=scenario,
+        turns=turns,
+        guideline=guideline,
+        sample_ids=pending_ids,
+        limit=limit,
+        offset=offset,
+    )
+    # Langfuse 深链仍仅在用例详情接口返回，避免扩大列表响应中的外部追踪信息。
+    for row in rows:
+        row.langfuse_trace_url = None
     attach_review_summary(session, run_id, rows)
-    return rows[offset : offset + limit]
+    return CasePageOut(items=rows, total=total, limit=limit, offset=offset)
 
 
 @router.get("/{run_id}/cases-yaml", response_model=CasesYamlOut)

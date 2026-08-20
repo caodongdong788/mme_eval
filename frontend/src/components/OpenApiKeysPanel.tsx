@@ -13,8 +13,8 @@ import {
   Typography,
   message,
 } from "antd";
-import { PlusOutlined, ReloadOutlined, SyncOutlined } from "@ant-design/icons";
-import { api, OpenApiAccessKey, OpenApiPermission } from "../api";
+import { CopyOutlined, PlusOutlined, ReloadOutlined, SyncOutlined } from "@ant-design/icons";
+import { api, OpenApiAccessKey, OpenApiAccessKeyCreated, OpenApiPermission } from "../api";
 import { formatApiError } from "../utils/apiError";
 
 const PERMISSIONS: Array<{ value: OpenApiPermission; label: string; description: string }> = [
@@ -22,11 +22,33 @@ const PERMISSIONS: Array<{ value: OpenApiPermission; label: string; description:
   { value: "judge_models:read", label: "读取判分模型", description: "查询可用判分模型" },
   { value: "temporary_evaluations:create", label: "执行临时评测", description: "创建并查询 7 天临时 Q&A 评测" },
   { value: "evaluations:create", label: "创建评测任务", description: "通过 API 发起评测" },
-  { value: "evaluations:read", label: "查询任务状态", description: "查看评测进度和结果" },
-  { value: "attributions:read", label: "查询归因任务", description: "查看 CX-Agent 优化建议和用例归因明细" },
+  { value: "evaluations:read", label: "查询任务状态", description: "仅查看本 Key 创建的评测" },
+  { value: "evaluations:read_all", label: "查询全部评测", description: "管理员集成：跨 Key 查看全部评测" },
+  { value: "attributions:read", label: "查询归因任务", description: "仅查看本 Key 评测对应的归因" },
+  { value: "attributions:read_all", label: "查询全部归因", description: "管理员集成：跨 Key 查看全部归因" },
 ];
 
 const permissionLabels = Object.fromEntries(PERMISSIONS.map((item) => [item.value, item.label]));
+
+function ApiKeyValue({ apiKey }: { apiKey: string }) {
+  if (!apiKey) {
+    return <Typography.Text type="warning">历史 Key 不可恢复，请轮换</Typography.Text>;
+  }
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(apiKey);
+      message.success("完整 Key 已复制");
+    } catch {
+      message.error("浏览器无法自动复制，请显示 Key 后手动复制");
+    }
+  };
+  return (
+    <Space.Compact block>
+      <Input.Password value={apiKey} readOnly className="mono" aria-label="完整 OpenAPI Key" />
+      <Button icon={<CopyOutlined />} aria-label="复制完整 OpenAPI Key" onClick={() => void copy()} />
+    </Space.Compact>
+  );
+}
 
 export function OpenApiKeysPanel() {
   const [keys, setKeys] = useState<OpenApiAccessKey[]>([]);
@@ -34,7 +56,7 @@ export function OpenApiKeysPanel() {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<OpenApiAccessKey>();
   const [editorOpen, setEditorOpen] = useState(false);
-  const [issuedKey, setIssuedKey] = useState<OpenApiAccessKey>();
+  const [issuedKey, setIssuedKey] = useState<OpenApiAccessKeyCreated>();
   const [form] = Form.useForm<{ name: string; permissions: OpenApiPermission[] }>();
 
   const reload = async () => {
@@ -115,12 +137,10 @@ export function OpenApiKeysPanel() {
     { title: "名称", dataIndex: "name", width: 180 },
     {
       title: "API Key",
-      dataIndex: "key_prefix",
-      width: 210,
+      dataIndex: "api_key",
+      width: 390,
       render: (_: string, key: OpenApiAccessKey) => (
-        <Typography.Text className="mono" copyable={{ text: key.api_key, tooltips: ["复制完整 Key", "已复制"] }}>
-          {key.key_prefix}
-        </Typography.Text>
+        <ApiKeyValue apiKey={key.api_key} />
       ),
     },
     {
@@ -161,7 +181,7 @@ export function OpenApiKeysPanel() {
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, marginBottom: 18 }}>
         <div>
           <Typography.Title level={4} style={{ margin: 0 }}>Open API 访问密钥</Typography.Title>
-          <Typography.Text type="secondary">每把 Key 可独立配置权限；点击 Key 前缀即可复制完整值。</Typography.Text>
+          <Typography.Text type="secondary">完整 Key 可在此随时查看、复制和轮换。</Typography.Text>
         </div>
         <Space>
           <Button icon={<ReloadOutlined />} loading={loading} onClick={reload}>刷新</Button>
@@ -210,7 +230,7 @@ export function OpenApiKeysPanel() {
         onOk={() => setIssuedKey(undefined)}
         onCancel={() => setIssuedKey(undefined)}
       >
-        <Alert showIcon type="warning" message="请复制并妥善保管此 Key" style={{ marginBottom: 16 }} />
+        <Alert showIcon type="success" message="Key 已生效，之后仍可在列表中查看和复制" style={{ marginBottom: 16 }} />
         {issuedKey && (
           <Typography.Paragraph copyable={{ text: issuedKey.api_key, tooltips: ["复制完整 Key", "已复制"] }} className="mono">
             {issuedKey.api_key}

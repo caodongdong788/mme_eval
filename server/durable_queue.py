@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from .db import session_scope
 from .models_db import EvalRun, EvaluationJob
@@ -16,6 +18,14 @@ ACTIVE_STATUSES = ("queued", "running")
 # 这些 Job 才会直接决定 ``EvalRun`` 的终态。归因任务附着在已完成的
 # 评测记录之上，绝不能改写原评测状态。
 RUN_EXECUTION_KINDS = ("evaluation", "resume", "rejudge", "cases_retry")
+
+
+def _execution_active_key(run_id: int) -> str:
+    return f"run:{run_id}:execution"
+
+
+def _attribution_active_key(task_id: int) -> str:
+    return f"attribution:{task_id}"
 
 
 def reconcile_succeeded_run_statuses() -> int:
@@ -120,6 +130,7 @@ def reconcile_unqueued_runs(settings: Settings) -> tuple[int, int]:
                         kind=job_kind,
                         payload=job_payload,
                         status="queued",
+                        active_key=_execution_active_key(run.id),
                     )
                 )
                 run.status = "pending"
@@ -134,7 +145,9 @@ def reconcile_unqueued_runs(settings: Settings) -> tuple[int, int]:
     return recovered, failed
 
 
-def enqueue_job(run_id: int, kind: str, payload: dict[str, Any]) -> int:
+def enqueue_job_in_session(
+    session: Session, run_id: int, kind: str, payload: dict[str, Any]
+) -> int:
     """创建持久化评测任务；同一个 run 同时最多一个执行类任务。
 
     归因任务不会覆盖评测结果，允许与 Case 重试并行，不能参与这里的幂等
@@ -143,73 +156,100 @@ def enqueue_job(run_id: int, kind: str, payload: dict[str, Any]) -> int:
     """
     if kind not in RUN_EXECUTION_KINDS:
         raise ValueError(f"enqueue_job 仅接受评测执行类任务，收到: {kind}")
-    with session_scope() as session:
+    active_key = _execution_active_key(run_id)
+    existing = session.scalar(
+        select(EvaluationJob).where(EvaluationJob.active_key == active_key)
+    )
+    if existing is not None:
+        return existing.id
+    row = EvaluationJob(
+        run_id=run_id,
+        kind=kind,
+        payload=payload,
+        status="queued",
+        active_key=active_key,
+    )
+    try:
+        # Savepoint 让唯一键竞争只回滚本次 INSERT，不污染调用方对 Run 状态的事务。
+        with session.begin_nested():
+            session.add(row)
+            session.flush()
+    except IntegrityError:
         existing = session.scalar(
-            select(EvaluationJob)
-            .where(
-                EvaluationJob.run_id == run_id,
-                EvaluationJob.kind.in_(RUN_EXECUTION_KINDS),
-                EvaluationJob.status.in_(ACTIVE_STATUSES),
-            )
-            .order_by(EvaluationJob.id.desc())
+            select(EvaluationJob).where(EvaluationJob.active_key == active_key)
         )
         if existing is not None:
             return existing.id
-        row = EvaluationJob(run_id=run_id, kind=kind, payload=payload, status="queued")
-        session.add(row)
-        session.flush()
-        return row.id
+        raise
+    return row.id
 
 
-def enqueue_attribution_job(run_id: int, task_id: int) -> int:
+def enqueue_job(run_id: int, kind: str, payload: dict[str, Any]) -> int:
+    with session_scope() as session:
+        return enqueue_job_in_session(session, run_id, kind, payload)
+
+
+def enqueue_attribution_job_in_session(
+    session: Session, run_id: int, task_id: int
+) -> int:
     """为归因任务创建持久化 Worker Job。
 
     归因任务不能再依赖 Web 进程内的 ``asyncio.Task``：Web 发布或重启后，
     内存协程会消失，但逐 Case 的归因结果已经落库。这里按归因任务 ID 去重，
     使 Worker 可在租约过期或重启后从尚未成功的 Case 继续。
     """
-    with session_scope() as session:
-        active = list(session.scalars(
-            select(EvaluationJob).where(
-                EvaluationJob.run_id == run_id,
-                EvaluationJob.kind == "attribution",
-                EvaluationJob.status.in_(ACTIVE_STATUSES),
-            )
-        ))
-        for row in active:
-            if int((row.payload or {}).get("attribution_task_id") or 0) == task_id:
-                return row.id
-        row = EvaluationJob(
-            run_id=run_id,
-            kind="attribution",
-            payload={"attribution_task_id": task_id},
-            status="queued",
+    active_key = _attribution_active_key(task_id)
+    existing = session.scalar(
+        select(EvaluationJob).where(EvaluationJob.active_key == active_key)
+    )
+    if existing is not None:
+        return existing.id
+    row = EvaluationJob(
+        run_id=run_id,
+        kind="attribution",
+        payload={"attribution_task_id": task_id},
+        status="queued",
+        active_key=active_key,
+    )
+    try:
+        with session.begin_nested():
+            session.add(row)
+            session.flush()
+    except IntegrityError:
+        existing = session.scalar(
+            select(EvaluationJob).where(EvaluationJob.active_key == active_key)
         )
-        session.add(row)
-        session.flush()
-        return row.id
+        if existing is not None:
+            return existing.id
+        raise
+    return row.id
+
+
+def enqueue_attribution_job(run_id: int, task_id: int) -> int:
+    with session_scope() as session:
+        return enqueue_attribution_job_in_session(session, run_id, task_id)
 
 
 def cancel_attribution_job(task_id: int) -> bool:
     """取消指定归因任务的持久化 Job，而不影响同一评测的普通评测 Job。"""
-    cancelled = False
     with session_scope() as session:
-        rows = list(session.scalars(
+        # active_key 是唯一索引，直接点查替代“加载全部活跃归因 Job + Python
+        # 循环解析 JSON payload”，队列规模增长时查询成本仍保持常数级。
+        row = session.scalar(
             select(EvaluationJob).where(
-                EvaluationJob.kind == "attribution",
+                EvaluationJob.active_key == _attribution_active_key(task_id),
                 EvaluationJob.status.in_(ACTIVE_STATUSES),
             )
-        ))
-        for row in rows:
-            if int((row.payload or {}).get("attribution_task_id") or 0) != task_id:
-                continue
-            row.status = "cancelled"
-            row.finished_at = datetime.utcnow()
-            row.lease_expires_at = None
-            if row.lease_owner is None:
-                row.heartbeat_at = datetime.utcnow()
-            cancelled = True
-    return cancelled
+        )
+        if row is None:
+            return False
+        row.status = "cancelled"
+        row.active_key = None
+        row.finished_at = datetime.utcnow()
+        row.lease_expires_at = None
+        if row.lease_owner is None:
+            row.heartbeat_at = datetime.utcnow()
+        return True
 
 
 def claim_job(owner: str, lease_seconds: int) -> EvaluationJob | None:
@@ -285,6 +325,7 @@ def finish_job(job_id: int, owner: str, status: str, *, error: str = "") -> bool
         if row is None or row.status != "running" or row.lease_owner != owner:
             return False
         row.status = status
+        row.active_key = None
         row.error_msg = error[:4000]
         row.finished_at = datetime.utcnow()
         row.lease_owner = None
@@ -335,6 +376,7 @@ def cancel_job(run_id: int) -> bool:
         if row is None:
             return False
         row.status = "cancelled"
+        row.active_key = None
         row.finished_at = datetime.utcnow()
         row.lease_expires_at = None
         if row.lease_owner is None:

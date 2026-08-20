@@ -241,6 +241,65 @@ class DatabaseJobRunner(JobRunner):
         return True
 
 
+def enqueue_database_job_in_session(
+    session,
+    job_runner: JobRunner,
+    run_id: int,
+    job: JobFn,
+) -> bool:
+    """数据库调度模式下把任务加入调用方事务；其他模式返回 False。
+
+    这使 Run 的 pending 状态和 EvaluationJob 同时提交或同时回滚，杜绝只创建
+    Run、没有执行任务的僵尸记录。
+    """
+    if not isinstance(job_runner, DatabaseJobRunner):
+        return False
+    from .durable_queue import enqueue_job_in_session
+
+    spec = get_job_spec(job)
+    if spec is None:
+        raise ValueError("持久化调度要求 Job 提供可序列化任务描述")
+    enqueue_job_in_session(
+        session,
+        run_id,
+        spec.kind,
+        without_api_keys(spec.payload),
+    )
+    return True
+
+
+async def commit_and_submit_job(
+    session,
+    run_id: int,
+    job: JobFn,
+    *,
+    job_runner: JobRunner | None = None,
+    failure_message: str = "任务提交执行队列失败",
+) -> None:
+    """原子提交数据库任务，并为进程内调度提供失败补偿。"""
+    runner = job_runner or get_job_runner()
+    if enqueue_database_job_in_session(session, runner, run_id, job):
+        session.commit()
+        return
+
+    # 进程内任务必须先看到已提交的 Run；submit 只创建协程，不等待业务执行。
+    if hasattr(session, "commit"):
+        session.commit()
+    try:
+        await runner.submit(run_id, job)
+    except BaseException as exc:
+        if not hasattr(session, "get"):
+            raise
+        session.rollback()
+        row = session.get(EvalRun, run_id)
+        if row is not None and row.status == "pending":
+            row.status = "failed"
+            row.finished_at = datetime.utcnow()
+            row.error_msg = f"{failure_message}：{exc}"[:4000]
+            session.commit()
+        raise
+
+
 _runner: JobRunner | None = None
 
 

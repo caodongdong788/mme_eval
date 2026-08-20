@@ -19,6 +19,7 @@ from ..db import session_scope
 from ..ingest import build_case_row, populate_run_summary, update_case_row
 from ..models_db import Benchmark, CaseResultRow, EvalRun
 from ..job_specs import attach_job_spec
+from ..jobs import enqueue_database_job_in_session
 from ..progress import InMemoryProgress
 from ..settings import Settings, get_settings
 from .eval_launch import enrich_report_agent_chains
@@ -239,8 +240,11 @@ async def launch_case_retry(
     source.status = "pending"
     source.error_msg = ""
     source.progress = {"context": {"kind": "case_retry", "sample_id": sample_id}}
-    session.commit()
     job = build_retry_case_job(run_id, sample_id=sample_id)
+    if enqueue_database_job_in_session(session, job_runner, run_id, job):
+        session.commit()
+        return source
+    session.commit()
     try:
         await job_runner.submit(run_id, job)
     except BaseException:
@@ -270,9 +274,12 @@ async def launch_cases_retry(
             "sample_ids": ordered_ids,
         }
     }
-    # 先提交事务，避免后台 job 的 running 状态被当前请求的 pending 覆盖。
-    session.commit()
     job = build_retry_cases_job(run_id, sample_ids=ordered_ids)
+    if enqueue_database_job_in_session(session, job_runner, run_id, job):
+        session.commit()
+        return source
+    # 进程内任务必须先看到 pending 状态。
+    session.commit()
     try:
         await job_runner.submit(run_id, job)
     except BaseException:

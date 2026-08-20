@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from ...auth import get_current_user_optional
 from ...constants import LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX
 from ...db import get_session
-from ...jobs import get_job_runner
+from ...jobs import commit_and_submit_job, get_job_runner
 from medeval.evaluation_account_limiter import account_queue_snapshot
 from ...models_db import EvalRun, FeishuUser
 from ...schemas import ProgressOut, RunCreate, RunDetailOut, RunRenameRequest, RunSummaryOut
@@ -44,7 +44,9 @@ async def create_run(
         judge_model_id=getattr(plan, "judge_model_id", None),
         user_simulator_model_id=getattr(plan, "user_simulator_model_id", None),
     )
-    await get_job_runner().submit(plan.run.id, job)
+    await commit_and_submit_job(
+        session, plan.run.id, job, job_runner=get_job_runner()
+    )
     return plan.run
 
 

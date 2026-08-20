@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { usePairwisePage } from "./usePairwisePage";
 import { api } from "../api/index";
+import type { JudgeModel, RunSummary } from "../api/index";
 
 vi.mock("../api/index", () => ({
   api: {
@@ -21,10 +22,12 @@ describe("usePairwisePage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedApi.listRuns.mockResolvedValue([
-      { id: 1, name: "run-a", status: "success", has_traces: true } as any,
-      { id: 2, name: "run-b", status: "success", has_traces: true } as any,
+      { id: 1, name: "run-a", status: "success", has_traces: true } as RunSummary,
+      { id: 2, name: "run-b", status: "success", has_traces: true } as RunSummary,
     ]);
-    mockedApi.listJudgeModels.mockResolvedValue([{ id: 10, name: "judge", model: "gpt" } as any]);
+    mockedApi.listJudgeModels.mockResolvedValue([
+      { id: 10, name: "judge", model: "gpt" } as JudgeModel,
+    ]);
     mockedApi.listPairwise.mockResolvedValue([]);
     mockedApi.precheckPairwise.mockResolvedValue({
       comparable: true,

@@ -1,5 +1,5 @@
 import { Empty, Select, Tabs } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   Legend,
   Line,
@@ -9,28 +9,19 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { api, ScheduledEvaluation, TrendPoint } from "../api/index";
+import { ScheduledEvaluation, TrendPoint } from "../api/index";
 import { AsyncLoadError } from "../components/AsyncLoadError";
 import { DashboardPageShell } from "../components/DashboardPageShell";
 import { RunsChartCard } from "../components/RunsChartCard";
-import { useAsyncData } from "../hooks/useAsyncData";
+import { useRegressionTrends } from "../hooks/useRegressionTrends";
 import { useTrendsPage } from "../hooks/useTrendsPage";
 import { DIM_LABEL, EVALUATION_DIMENSIONS } from "../labels";
-import { palette } from "../theme";
+import { palette, trendSeriesColors } from "../theme";
 
 type ChartRow = Record<string, string | number | null>;
 type TrendSeries = { key: string; label: string; color: string };
 
-const SERIES_COLORS = [
-  palette.dashboard.purple,
-  palette.dashboard.teal,
-  "#3f8cff",
-  "#e38b17",
-  "#d25b9b",
-  "#6fba55",
-  "#8b6bd6",
-  "#13a6a1",
-];
+const SERIES_COLORS = trendSeriesColors;
 
 function asNumber(value: unknown): number | null {
   if (value == null || value === "") return null;
@@ -145,7 +136,7 @@ function TrendAnalysisSections({ points, loading }: { points: TrendPoint[]; load
             data={data}
             series={[
               { key: "平均耗时（ms）", label: "平均耗时", color: palette.dashboard.purple },
-              { key: "P90 耗时（ms）", label: "P90 耗时", color: "#e38b17" },
+              { key: "P90 耗时（ms）", label: "P90 耗时", color: palette.warn },
               { key: "平均 TTFT（ms）", label: "平均首 Token 耗时", color: palette.dashboard.teal },
             ]}
             unit="ms"
@@ -174,7 +165,7 @@ function TrendAnalysisSections({ points, loading }: { points: TrendPoint[]; load
           />
         </RunsChartCard>
         <RunsChartCard title="可靠性趋势：波动用例数" empty={loading || data.length === 0}>
-          <TrendChart data={data} series={[{ key: "波动用例", label: "波动用例", color: "#e38b17" }]} />
+          <TrendChart data={data} series={[{ key: "波动用例", label: "波动用例", color: palette.warn }]} />
         </RunsChartCard>
       </div>
       <RunsChartCard title="类别通过率趋势" empty={loading || caseTypeSeries.length === 0}>
@@ -204,34 +195,16 @@ function BenchmarkTrendPanel() {
 
 function RegressionTrendPanel() {
   const {
-    data: schedules,
-    loading: schedulesLoading,
-    error: schedulesError,
-    reload: reloadSchedules,
-  } = useAsyncData(() => api.listScheduledEvaluations(), []);
-  const [scheduleId, setScheduleId] = useState<number>();
-
-  useEffect(() => {
-    if (schedules?.length && scheduleId == null) setScheduleId(schedules[0].id);
-  }, [schedules, scheduleId]);
-
-  const {
-    data: regression,
-    loading: regressionLoading,
-    error: regressionError,
-    reload: reloadRegression,
-  } = useAsyncData(
-    () => (scheduleId == null ? Promise.resolve(null) : api.getRegressionTrends(scheduleId)),
-    [scheduleId]
-  );
-
-  const points = regression?.points || [];
-  const error = schedulesError || regressionError;
-  const reload = () => {
-    reloadSchedules();
-    if (scheduleId != null) reloadRegression();
-  };
-  const noSchedules = !schedulesLoading && (schedules?.length || 0) === 0;
+    schedules,
+    schedulesLoading,
+    scheduleId,
+    setScheduleId,
+    points,
+    regressionLoading,
+    error,
+    reload,
+  } = useRegressionTrends();
+  const noSchedules = !schedulesLoading && schedules.length === 0;
   const noRuns = !regressionLoading && Boolean(scheduleId) && points.length === 0;
 
   return (
@@ -244,7 +217,7 @@ function RegressionTrendPanel() {
           loading={schedulesLoading}
           onChange={setScheduleId}
           placeholder="请选择定时任务"
-          options={(schedules || []).map((task: ScheduledEvaluation) => ({ value: task.id, label: task.name }))}
+          options={schedules.map((task: ScheduledEvaluation) => ({ value: task.id, label: task.name }))}
         />
       </div>
       {error ? (

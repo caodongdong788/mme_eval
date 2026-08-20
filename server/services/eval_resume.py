@@ -14,6 +14,7 @@ from medeval.service import resolve_diff_target
 
 from ..models_db import EvalRun
 from ..job_specs import attach_job_spec
+from ..jobs import commit_and_submit_job
 from ..progress import InMemoryProgress
 from ..settings import Settings, get_settings
 from .eval_artifacts import (
@@ -68,15 +69,19 @@ async def launch_resume_run(
     source.error_msg = ""
     source.finished_at = None
     source.progress = {}
-    # submit 后的异步 job 可能立刻读取该记录，先提交状态，避免读到旧 failed 状态。
-    session.commit()
     job = build_resume_job(
         source.id,
         source_run_id=source.id,
         run_name=source.name,
         in_place=True,
     )
-    await job_runner.submit(source.id, job)
+    await commit_and_submit_job(
+        session,
+        source.id,
+        job,
+        job_runner=job_runner,
+        failure_message="续跑任务提交执行队列失败",
+    )
     return source
 
 

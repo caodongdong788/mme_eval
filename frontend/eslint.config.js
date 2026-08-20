@@ -34,7 +34,19 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": [
         "warn",
-        { allowConstantExport: true },
+        {
+          allowConstantExport: true,
+          // 这些导出是无状态纯函数/Hook；与组件同文件不会持有热更新状态。
+          allowExportNames: [
+            "useAuth",
+            "findConversationContextReferences",
+            "referenceAnswerEntries",
+            "filterSecondLevelCategories",
+            "runStatusMeta",
+            "RUN_STATUS_META",
+            "buildCaseColumns",
+          ],
+        },
       ],
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-unused-vars": [

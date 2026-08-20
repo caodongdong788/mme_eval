@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useYamlEditorState } from "./useYamlEditorState";
 import { api } from "../api/index";
+import type { CasesYaml } from "../api/index";
 
 vi.mock("../api/index", () => ({
   api: {
@@ -18,7 +19,11 @@ const mockedApi = vi.mocked(api);
 describe("useYamlEditorState", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedApi.getRunCasesYaml.mockResolvedValue({ yaml_text: "cases:\n  - id: x" } as any);
+    mockedApi.getRunCasesYaml.mockResolvedValue({
+      benchmark_id: 1,
+      count: 1,
+      yaml_text: "cases:\n  - id: x",
+    } satisfies CasesYaml);
   });
 
   it("opens editor and loads yaml from run", async () => {

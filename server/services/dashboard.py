@@ -6,9 +6,29 @@ from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 
 from ..models_db import EvalRun, ScheduledEvaluation
+
+
+_TREND_COLUMNS = (
+    EvalRun.id,
+    EvalRun.run_slug,
+    EvalRun.name,
+    EvalRun.finished_at,
+    EvalRun.pass_rate,
+    EvalRun.total,
+    EvalRun.passed,
+    EvalRun.medical_safety_failed,
+    EvalRun.grading,
+    EvalRun.failure_tag_counter,
+    EvalRun.stability_distribution,
+    EvalRun.pass_rate_ci,
+    EvalRun.latency_summary,
+    EvalRun.ttft_summary,
+    EvalRun.token_summary,
+    EvalRun.by_case_type,
+)
 
 
 def _trend_point(run: EvalRun) -> dict[str, Any]:
@@ -40,6 +60,7 @@ def benchmark_trends(session: Session, benchmark_id: int) -> dict[str, Any]:
     runs = list(
         session.execute(
             select(EvalRun)
+            .options(load_only(*_TREND_COLUMNS))
             .where(EvalRun.benchmark_id == benchmark_id, EvalRun.status == "success")
             .order_by(EvalRun.id.asc())
         ).scalars().all()
@@ -57,6 +78,7 @@ def scheduled_regression_trends(
     runs = list(
         session.execute(
             select(EvalRun)
+            .options(load_only(*_TREND_COLUMNS))
             .where(
                 EvalRun.scheduled_evaluation_id == task.id,
                 EvalRun.trigger_type == "scheduled",

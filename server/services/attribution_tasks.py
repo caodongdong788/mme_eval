@@ -109,6 +109,11 @@ def _task_out(session: Session, task: AttributionTask, *, include_items: bool) -
             "case_type": case_rows.get(item.sample_id).case_type if case_rows.get(item.sample_id) else "",
             "status": item.status,
             "attempt_count": item.attempt_count,
+            "runtime_status": item.runtime_status,
+            "runtime_message": item.runtime_message,
+            "model_attempt": item.model_attempt,
+            "retry_count": item.retry_count,
+            "runtime_updated_at": item.runtime_updated_at,
             "error_msg": item.error_msg,
             "attribution_available": bool(
                 isinstance(item.analysis_json, dict) and item.analysis_json.get("available")
@@ -523,6 +528,11 @@ def rerun_attribution_task_items(
         item = by_sample[sample_id]
         item.status = "pending"
         item.attempt_count = int(item.attempt_count or 0) + 1
+        item.runtime_status = "pending"
+        item.runtime_message = ""
+        item.model_attempt = 0
+        item.retry_count = 0
+        item.runtime_updated_at = None
         item.error_msg = ""
         item.analysis_json = None
         item.started_at = None
@@ -585,6 +595,23 @@ def _mark_task_model_unavailable(task_id: int, detail: str) -> None:
 
 
 async def _run_item(task_id: int, item_id: int) -> None:
+    async def update_runtime(
+        status: str,
+        message: str,
+        model_attempt: int = 0,
+        retry_count: int = 0,
+    ) -> None:
+        # 模型调用期间用独立短事务写进度，前端轮询无需等整次请求结束。
+        with session_scope() as progress_session:
+            progress_item = progress_session.get(AttributionTaskItem, item_id)
+            if progress_item is None:
+                return
+            progress_item.runtime_status = status
+            progress_item.runtime_message = message[:500]
+            progress_item.model_attempt = model_attempt
+            progress_item.retry_count = retry_count
+            progress_item.runtime_updated_at = datetime.utcnow()
+
     try:
         # 先读取模型键再等待并发槽位。同一模型的多个任务共享 3 个槽位；
         # 不同模型各自执行，避免先启动的慢模型饿死后续模型任务。
@@ -601,6 +628,11 @@ async def _run_item(task_id: int, item_id: int) -> None:
                     return
                 item.status = "running"
                 item.started_at = datetime.utcnow()
+                item.runtime_status = "preparing_evidence"
+                item.runtime_message = "正在整理归因证据"
+                item.model_attempt = 0
+                item.retry_count = 0
+                item.runtime_updated_at = datetime.utcnow()
 
             with session_scope() as session:
                 task = session.get(AttributionTask, task_id)
@@ -618,10 +650,14 @@ async def _run_item(task_id: int, item_id: int) -> None:
                     judge_model_id=task.judge_model_id,
                     attribution_task_id=task.id,
                     attribution_item_id=item.id,
+                    runtime_status_callback=update_runtime,
                 )
                 item.analysis_json = result
                 item.status = "success"
                 item.finished_at = datetime.utcnow()
+                item.runtime_status = "completed"
+                item.runtime_message = "归因完成"
+                item.runtime_updated_at = datetime.utcnow()
                 _refresh_task_counts(session, task)
     except Exception as exc:  # noqa: BLE001 - 每个 Case 独立失败，整批继续
         log.exception("attribution task=%s item=%s failed", task_id, item_id)
@@ -633,6 +669,9 @@ async def _run_item(task_id: int, item_id: int) -> None:
             item.status = "failed"
             item.error_msg = f"{type(exc).__name__}: {exc}"[:1000]
             item.finished_at = datetime.utcnow()
+            item.runtime_status = "failed"
+            item.runtime_message = "归因失败，请查看失败原因"
+            item.runtime_updated_at = datetime.utcnow()
             _refresh_task_counts(session, task)
 
 

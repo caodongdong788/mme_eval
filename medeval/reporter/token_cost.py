@@ -28,6 +28,14 @@ def case_token_cost(
     返回 (None, None)。成本仅在配置非零单价时折算（input/output 分别计价），否则 None。
     """
     usage = getattr(cr.trace, "turn_token_usage", []) if cr.trace else []
+    observations = [item for item in cr.per_run_observations if not item.error]
+    if observations:
+        total = sum(item.total_tokens for item in observations)
+        prompt = sum(item.prompt_tokens for item in observations)
+        completion = sum(item.completion_tokens for item in observations)
+        if total == 0 and prompt == 0 and completion == 0:
+            return None, None
+        return total, token_cost_from_counts(prompt, completion, pricing)
     if cr.per_run_tokens:
         total = sum(int(t) for t in cr.per_run_tokens)
     else:

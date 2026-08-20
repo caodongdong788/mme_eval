@@ -13,6 +13,8 @@ from server.db import session_scope
 from server.ingest import ingest_report
 from server.models_db import Benchmark, CaseResultRow, EvalRun
 from server.services.case_attribution import (
+    _ATTRIBUTION_MAX_RETRIES,
+    _ATTRIBUTION_TOTAL_TIMEOUT_S,
     _atomic_case_sources,
     build_evidence_pack,
     _compact_rag_calls,
@@ -127,7 +129,7 @@ class _FakeBackend:
         assert "不能把“询问是否执行”误当成“已经执行但内容不完整”" in prompt
         assert "已经生成卡片后，才可依据真实卡片内容判断是否遗漏" in prompt
         assert kwargs["request_timeout_s"] == 600.0
-        assert max_retries == 2
+        assert max_retries == 1
         assert kwargs["retry_transient_errors"] is True
         return {
             "analysis_status": "complete",
@@ -224,6 +226,11 @@ def test_kimi_k3_attribution_forces_official_default_parameters():
 
     assert temperature == 1.0
     assert judge.enable_thinking is True
+
+
+def test_attribution_retries_once_with_a_twenty_minute_total_budget():
+    assert _ATTRIBUTION_MAX_RETRIES == 1
+    assert _ATTRIBUTION_TOTAL_TIMEOUT_S == 1200.0
 
 
 def test_attribution_timeout_is_total_budget(initialized_db, settings, monkeypatch):

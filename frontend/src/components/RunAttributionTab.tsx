@@ -62,6 +62,7 @@ import {
 } from "../utils/attributionDisplay";
 import { formatApiDateTime } from "../utils/datetime";
 import { DashPanel } from "./DashPanel";
+import { usePollingTask } from "../hooks/usePollingTask";
 
 const OWNER_LABELS: Record<string, string> = {
   benchmark: "评测判据",
@@ -133,10 +134,27 @@ function AttributionPanelHeading({
 function AttributionStatusTag({
   status,
   task = false,
+  runtimeStatus,
+  retryCount = 0,
 }: {
   status: string;
   task?: boolean;
+  runtimeStatus?: string;
+  retryCount?: number;
 }) {
+  if (!task && status === "running" && runtimeStatus) {
+    const runtimeMeta =
+      runtimeStatus === "preparing_evidence"
+        ? { label: "整理证据", color: "processing" }
+        : runtimeStatus === "retrying"
+          ? { label: `重试第${retryCount || 1}次`, color: "warning" }
+          : { label: "模型调用中", color: "processing" };
+    return (
+      <Tag className="attribution-status-tag" color={runtimeMeta.color}>
+        {runtimeMeta.label}
+      </Tag>
+    );
+  }
   const meta =
     (task ? TASK_STATUS : TASK_ITEM_STATUS)[status] ||
     (task ? TASK_STATUS.failed : TASK_ITEM_STATUS.failed);
@@ -148,15 +166,20 @@ function AttributionStatusTag({
 }
 
 function AttributionItemProgress({ item }: { item: AttributionTaskItem }) {
-  const retrying = (item.attempt_count || 0) > 0;
+  const manuallyRetried = (item.attempt_count || 0) > 0;
+  const runtimeLabel = item.runtime_message?.trim();
   const meta =
     item.status === "pending"
-      ? { percent: 0, status: "normal" as const, label: retrying ? "等待重试" : "排队中" }
+      ? { percent: 0, status: "normal" as const, label: runtimeLabel || (manuallyRetried ? "等待重试" : "排队中") }
       : item.status === "running"
-        ? { percent: 55, status: "active" as const, label: retrying ? "重试中" : "分析中" }
+        ? {
+            percent: item.runtime_status === "preparing_evidence" ? 25 : item.runtime_status === "retrying" ? 70 : 55,
+            status: "active" as const,
+            label: runtimeLabel || (manuallyRetried ? "重试中" : "分析中"),
+          }
         : item.status === "success"
-          ? { percent: 100, status: "success" as const, label: retrying ? "重试完成" : "已完成" }
-          : { percent: 100, status: "exception" as const, label: retrying ? "重试失败" : "失败" };
+          ? { percent: 100, status: "success" as const, label: runtimeLabel || (manuallyRetried ? "重试完成" : "已完成") }
+          : { percent: 100, status: "exception" as const, label: runtimeLabel || (manuallyRetried ? "重试失败" : "失败") };
   return (
     <div className="attribution-item-progress">
       <Progress
@@ -915,6 +938,8 @@ function AttributionAnalysisModule({
   globalRecommendations: AttributionRecommendation[];
   limitations?: string[];
 }) {
+  // 归因模型偶尔会返回空字符串；它不代表需要补证，不能因此占用一个空模块。
+  const evidenceLimitations = limitations.filter((item) => item.trim());
   const color =
     kind === "supported"
       ? "red"
@@ -1004,7 +1029,7 @@ function AttributionAnalysisModule({
     });
   }
   // 空分类不占页面空间；证据不足模块只有存在具体扣分项或全局缺失说明时才展示。
-  if (!items.length && !(kind === "insufficient" && limitations.length)) return null;
+  if (!items.length && !(kind === "insufficient" && evidenceLimitations.length)) return null;
   return (
     <section className={`attribution-module attribution-module--${kind}`}>
       <div className="attribution-module__header">
@@ -1063,7 +1088,7 @@ function AttributionAnalysisModule({
           description={`暂无${title}`}
         />
       ) : null}
-      {expanded && kind !== "supported" && (recommendations.length || limitations.length) ? (
+      {expanded && kind !== "supported" && (recommendations.length || evidenceLimitations.length) ? (
         <div className="attribution-module__advice">
           <div className="attribution-module__advice-title">
             <BulbOutlined />
@@ -1075,12 +1100,12 @@ function AttributionAnalysisModule({
           {recommendations.length ? (
             <RecommendationList items={recommendations} />
           ) : null}
-          {limitations.length ? (
+          {evidenceLimitations.length ? (
             <Alert
               type="warning"
               showIcon
               message="缺少的证据"
-              description={limitations
+              description={evidenceLimitations
                 .map((item) => humanizeAttributionText(item, allItems))
                 .join("；")}
             />
@@ -1118,6 +1143,7 @@ export function AttributionDetail({ result }: { result: CaseAttribution }) {
       item.deduction_validation === "insufficient_evidence" &&
       item.evaluation_issue_category !== "missing_rag_reference"
   );
+  const evidenceLimitations = (analysis.limitations || []).filter((item) => item.trim());
   return (
     <div className="attribution-layout">
       {result.stale ? (
@@ -1144,15 +1170,17 @@ export function AttributionDetail({ result }: { result: CaseAttribution }) {
         allItems={deductions}
         globalRecommendations={analysis.global_recommendations || []}
       />
-      <AttributionAnalysisModule
-        kind="insufficient"
-        title="待补充证据"
-        description="仅在当前证据无法确认责任时展示，说明缺少的调用链、用户上下文或 RAG 阶段证据，以及需要补充的采集内容。"
-        items={insufficient}
-        allItems={deductions}
-        globalRecommendations={analysis.global_recommendations || []}
-        limitations={analysis.limitations || []}
-      />
+      {insufficient.length || evidenceLimitations.length ? (
+        <AttributionAnalysisModule
+          kind="insufficient"
+          title="待补充证据"
+          description="仅在当前证据无法确认责任时展示，说明缺少的调用链、用户上下文或 RAG 阶段证据，以及需要补充的采集内容。"
+          items={insufficient}
+          allItems={deductions}
+          globalRecommendations={analysis.global_recommendations || []}
+          limitations={evidenceLimitations}
+        />
+      ) : null}
       <div className="attribution-meta">
         分析模型：{result.metadata.model || "—"} · 分析时间：
         {formatApiDateTime(result.metadata.generated_at)}
@@ -1894,19 +1922,19 @@ export function RunAttributionTab({
   useEffect(() => {
     setSelectedSampleIds([]);
   }, [task?.id]);
-  useEffect(() => {
-    const active = tasks.some(
-      (item) => item.status === "queued" || item.status === "running"
-    );
-    if (!active) return;
-    const timer = window.setInterval(() => {
+  const hasActiveTask = tasks.some(
+    (item) => item.status === "queued" || item.status === "running"
+  );
+  usePollingTask(
+    async () => {
       const selectedIsActive =
         detailMode && (task?.status === "queued" || task?.status === "running");
-      if (selectedIsActive) void loadTask(true);
-      else void loadTasks(true);
-    }, 1500);
-    return () => window.clearInterval(timer);
-  }, [detailMode, loadTask, loadTasks, task?.status, tasks]);
+      if (selectedIsActive) await loadTask(true);
+      else await loadTasks(true);
+    },
+    [detailMode, loadTask, loadTasks, task?.status],
+    { enabled: hasActiveTask, immediate: false, intervalMs: 1500 }
+  );
   const rerunSelectedCases = useCallback(async (
     source: AttributionTask,
     sampleIds: string[],
@@ -2007,7 +2035,17 @@ export function RunAttributionTab({
         title: "状态",
         dataIndex: "status",
         width: 110,
-        render: (status: string) => <AttributionStatusTag status={status} />,
+        render: (status: string, item) => (
+          <Tooltip title={item.runtime_message || undefined}>
+            <span>
+              <AttributionStatusTag
+                status={status}
+                runtimeStatus={item.runtime_status}
+                retryCount={item.retry_count}
+              />
+            </span>
+          </Tooltip>
+        ),
       },
       {
         title: "归因进度",
@@ -2057,9 +2095,6 @@ export function RunAttributionTab({
       },
     ],
     [runId, task]
-  );
-  const hasActiveTask = tasks.some(
-    (item) => item.status === "queued" || item.status === "running"
   );
   const taskColumns: ColumnsType<AttributionTask> = useMemo(
     () => [

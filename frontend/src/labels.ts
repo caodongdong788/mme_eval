@@ -20,11 +20,11 @@ export const EVALUATION_DIMENSIONS = [
   "communication",
 ] as const;
 
-export const EVALUATION_ROLE_ORDER = ["doctor", "nurse", "patient"] as const;
+export const EVALUATION_ROLE_ORDER = ["doctor", "nurse", "user"] as const;
 export const EVALUATION_ROLE_LABEL: Record<(typeof EVALUATION_ROLE_ORDER)[number], string> = {
   doctor: "医生端",
   nurse: "护士端",
-  patient: "患者端",
+  user: "患者端",
 };
 export const EVALUATION_DIMENSION_ROLE: Record<(typeof EVALUATION_DIMENSIONS)[number], (typeof EVALUATION_ROLE_ORDER)[number]> = {
   medical_safety: "doctor",
@@ -32,9 +32,9 @@ export const EVALUATION_DIMENSION_ROLE: Record<(typeof EVALUATION_DIMENSIONS)[nu
   clinical_inquiry: "doctor",
   personalization: "nurse",
   plan_feasibility: "nurse",
-  empathy: "patient",
-  executability: "patient",
-  communication: "patient",
+  empathy: "user",
+  executability: "user",
+  communication: "user",
 };
 
 export const STABILITY_LABEL: Record<string, string> = {

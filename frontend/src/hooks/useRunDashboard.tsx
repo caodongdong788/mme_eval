@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Form, Modal, message } from "antd";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -16,6 +16,12 @@ import { useRunCaseFilters } from "./useRunCaseFilters";
 import { useRunDiff } from "./useRunDiff";
 import { useYamlEditorState } from "./useYamlEditorState";
 import { formatApiError } from "../utils/apiError";
+import { usePollingTask } from "./usePollingTask";
+import {
+  isRunDashboardTab,
+  runDashboardTabFromSearch,
+  withRunDashboardTab,
+} from "../utils/runDashboardTab";
 
 export function useRunDashboard(
   runId: number,
@@ -24,13 +30,39 @@ export function useRunDashboard(
   const navigate = useNavigate();
   const location = useLocation();
   const routeState = location.state as { tab?: string } | null;
+  const urlTab = runDashboardTabFromSearch(location.search);
+  const stateTab = isRunDashboardTab(routeState?.tab) ? routeState.tab : null;
 
   const [run, setRun] = useState<RunDetail | null>(null);
   const [progress, setProgress] = useState<ProgressInfo | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<string>(
-    () => routeState?.tab || "overview"
-  );
+  // URL 是刷新后的唯一真值；保留旧的 location.state 仅用于兼容站内旧链接。
+  const activeTab = urlTab || stateTab || "overview";
+  const setActiveTab = useCallback((nextTab: string) => {
+    const tab = isRunDashboardTab(nextTab) ? nextTab : "overview";
+    if (urlTab === tab) return;
+    navigate(
+      {
+        pathname: location.pathname,
+        search: withRunDashboardTab(location.search, tab),
+        hash: location.hash,
+      },
+      { state: null },
+    );
+  }, [location.hash, location.pathname, location.search, navigate, urlTab]);
+
+  useEffect(() => {
+    // 将旧的 state-only 跳转升级为可刷新地址，随后清除旧 state，避免返回概览。
+    if (urlTab || !stateTab) return;
+    navigate(
+      {
+        pathname: location.pathname,
+        search: withRunDashboardTab(location.search, stateTab),
+        hash: location.hash,
+      },
+      { replace: true, state: null },
+    );
+  }, [location.hash, location.pathname, location.search, navigate, stateTab, urlTab]);
   const [exporting, setExporting] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [acting, setActing] = useState(false);
@@ -103,29 +135,22 @@ export function useRunDashboard(
       .catch((e) => setRunError(formatApiError(e, "加载评测详情失败")));
   }, [runId]);
 
-  useEffect(() => {
-    if (run?.status !== "running" && run?.status !== "pending") return;
-    let alive = true;
-    const refresh = () => {
-      if (document.visibilityState !== "visible") return;
-      void Promise.all([api.getRun(runId), api.getProgress(runId)])
-        .then(([nextRun, nextProgress]) => {
-          if (!alive) return;
-          setRun(nextRun);
-          setProgress(nextProgress);
-        })
-        .catch(() => undefined);
-    };
-    refresh();
-    const timer = window.setInterval(refresh, 2000);
-    const onVisibility = () => refresh();
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      alive = false;
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [runId, run?.status]);
+  usePollingTask(
+    async (isCurrent) => {
+      const [nextRun, nextProgress] = await Promise.all([
+        api.getRun(runId),
+        api.getProgress(runId),
+      ]);
+      if (!isCurrent()) return;
+      setRun(nextRun);
+      setProgress(nextProgress);
+    },
+    [runId],
+    {
+      enabled: run?.status === "running" || run?.status === "pending",
+      intervalMs: 2000,
+    },
+  );
 
   const startEditName = () => {
     if (!run) return;

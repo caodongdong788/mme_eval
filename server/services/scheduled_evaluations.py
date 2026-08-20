@@ -11,10 +11,11 @@ from zoneinfo import ZoneInfo
 from fastapi import HTTPException
 import httpx
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..db import session_scope
-from ..jobs import get_job_runner
+from ..jobs import commit_and_submit_job, get_job_runner
 from ..models_db import (
     AttributionTask,
     AttributionTaskItem,
@@ -187,27 +188,31 @@ def delete_scheduled_evaluation(session: Session, task_id: int) -> None:
 
 
 async def run_due_scheduled_evaluations_once() -> int:
-    """发起所有到点的任务；先推进 next_run_at，避免执行较慢时重复提交。"""
-    due_ids: list[int] = []
+    """发起所有到点任务；Run、队列任务与 next_run_at 在同一事务提交。"""
+    due_occurrences: list[tuple[int, str]] = []
     now = _utc_now()
     with session_scope() as session:
-        due = list(
-            session.scalars(
-                select(ScheduledEvaluation).where(
+        stmt = select(ScheduledEvaluation).where(
                     ScheduledEvaluation.enabled.is_(True),
                     ScheduledEvaluation.next_run_at.is_not(None),
                     ScheduledEvaluation.next_run_at <= now,
                 )
-            )
-        )
+        due = list(session.scalars(stmt))
         for task in due:
-            task.next_run_at = compute_next_run_at(task, now)
-            due_ids.append(task.id)
+            occurrence_key = (
+                f"{task.id}:{task.next_run_at.isoformat(timespec='microseconds')}"
+            )
+            due_occurrences.append((task.id, occurrence_key))
 
     created = 0
-    for task_id in due_ids:
+    for task_id, occurrence_key in due_occurrences:
         try:
-            plan = await launch_scheduled_evaluation(task_id, now=now, require_enabled=True)
+            plan = await launch_scheduled_evaluation(
+                task_id,
+                now=now,
+                require_enabled=True,
+                occurrence_key=occurrence_key,
+            )
             if plan is None:
                 continue
             created += 1
@@ -228,6 +233,7 @@ async def launch_scheduled_evaluation(
     *,
     now: datetime | None = None,
     require_enabled: bool = False,
+    occurrence_key: str | None = None,
 ):
     """按既定定时任务参数立刻创建一次回归 run。
 
@@ -235,70 +241,106 @@ async def launch_scheduled_evaluation(
     ``scheduled_evaluation_id`` 和 ``trigger_type=scheduled``，确保回归趋势可连续分析。
     """
     triggered_at = _utc_now(now)
-    with session_scope() as session:
-        task = _get_or_404(session, task_id)
-        if require_enabled and not task.enabled:
-            return None
-        timestamp = triggered_at.replace(tzinfo=timezone.utc).astimezone(_SHANGHAI).strftime("%Y%m%d-%H%M%S")
-        version_name = await fetch_latest_active_deeptrace_version_name()
-        run_name_parts = [task.name]
-        if version_name:
-            run_name_parts.append(version_name)
-        run_name_parts.append(f"定时 {timestamp}")
-        run_payload = RunCreate(
-            benchmark_id=task.benchmark_id,
-            run_name=" · ".join(run_name_parts),
-            evaluation_mode=task.evaluation_mode,
-            levels=task.levels or [],
-            limit=task.limit,
-            repeat=task.repeat,
-            judge=JudgeOverride(enabled=task.enable_judge),
-            adapter=AdapterOverride(enable_rag=task.enable_rag),
-            judge_model_id=task.judge_model_id,
-            user_simulator_model_id=(
-                task.user_simulator_model_id if task.evaluation_mode == "multi_turn" else None
-            ),
-        )
-        plan = runs_svc.prepare_create_run(
-            session,
-            run_payload,
-            created_by=task.created_by or "定时任务",
-            trigger_type="scheduled",
-            scheduled_evaluation_id=task.id,
-        )
-        task.last_run_at = triggered_at
-        task.last_error = ""
-
-    # 判分与归因使用不同模型时，预先创建一个空的流水线归因任务。后续每完成
-    # 一个不合格 Case 就立即追加；模型相同时仍在整批评测结束后归因，避免争抢。
-    prepare_configured_streaming_attribution(plan.run.id)
-
-    from ..routers.runs import build_eval_job
-
-    job = build_eval_job(
-        plan.run.id,
-        benchmark_id=plan.benchmark_id,
-        run_name=plan.run_name,
-        levels=plan.levels,
-        limit=plan.limit,
-        repeat=plan.repeat,
-        judge_full=plan.judge_full,
-        adapter_full=plan.adapter_full,
-        judge_model_id=getattr(plan, "judge_model_id", None),
-        user_simulator_model_id=getattr(plan, "user_simulator_model_id", None),
-    )
+    # DeepTrace 是外部网络 IO，必须在开启事务、尤其是 PostgreSQL FOR UPDATE
+    # 之前完成，避免最慢 8 秒的远端等待长期占用连接和定时任务行锁。
+    version_name = await fetch_latest_active_deeptrace_version_name()
     try:
-        await get_job_runner().submit(plan.run.id, job)
-    except Exception as exc:
-        # run 已经在独立事务中创建；提交队列失败时必须明确落为失败，避免页面
-        # 永久显示“排队中”，后续调度器会按补偿时间创建新的一次执行。
         with session_scope() as session:
-            failed_run = session.get(EvalRun, plan.run.id)
-            if failed_run is not None:
-                failed_run.status = "failed"
-                failed_run.error_msg = f"定时任务提交执行队列失败：{exc}"[:2000]
-        abort_configured_streaming_attribution(plan.run.id, "定时评测未能提交执行队列")
+            task_stmt = select(ScheduledEvaluation).where(
+                ScheduledEvaluation.id == task_id
+            )
+            if occurrence_key and session.bind is not None and session.bind.dialect.name == "postgresql":
+                task_stmt = task_stmt.with_for_update()
+            task = session.scalar(task_stmt)
+            if task is None:
+                raise HTTPException(status_code=404, detail=f"定时评测任务 {task_id} 不存在")
+            if require_enabled and not task.enabled:
+                return None
+            if occurrence_key and session.scalar(
+                select(EvalRun.id).where(
+                    EvalRun.scheduled_evaluation_id == task_id,
+                    EvalRun.scheduled_occurrence_key == occurrence_key,
+                )
+            ):
+                return None
+            timestamp = triggered_at.replace(tzinfo=timezone.utc).astimezone(_SHANGHAI).strftime("%Y%m%d-%H%M%S")
+            run_name_parts = [task.name]
+            if version_name:
+                run_name_parts.append(version_name)
+            run_name_parts.append(f"定时 {timestamp}")
+            run_payload = RunCreate(
+                benchmark_id=task.benchmark_id,
+                run_name=" · ".join(run_name_parts),
+                evaluation_mode=task.evaluation_mode,
+                levels=task.levels or [],
+                limit=task.limit,
+                repeat=task.repeat,
+                judge=JudgeOverride(enabled=task.enable_judge),
+                adapter=AdapterOverride(enable_rag=task.enable_rag),
+                judge_model_id=task.judge_model_id,
+                user_simulator_model_id=(
+                    task.user_simulator_model_id if task.evaluation_mode == "multi_turn" else None
+                ),
+            )
+            plan = runs_svc.prepare_create_run(
+                session,
+                run_payload,
+                created_by=task.created_by or "定时任务",
+                trigger_type="scheduled",
+                scheduled_evaluation_id=task.id,
+                scheduled_occurrence_key=occurrence_key,
+            )
+            # 流式归因任务必须在评测 Job 可见之前创建，否则队列 Worker 可能先
+            # 完成首条 Case，导致这条不合格结果没有可追加的归因任务。
+            try:
+                _prepare_configured_streaming_attribution_in_session(session, plan.run, task)
+            except Exception:  # noqa: BLE001 - 归因预建失败不应阻断定时评测
+                logger.exception(
+                    "run #%s 预创建流水线归因任务失败，将在评测完成后补偿",
+                    plan.run.id,
+                )
+            task.last_run_at = triggered_at
+            task.last_error = ""
+            if occurrence_key:
+                # 与 EvalRun / EvaluationJob 一起提交。进程若在提交前崩溃，时间不
+                # 会被提前推进，下一轮调度仍会重试同一 occurrence。
+                task.next_run_at = compute_next_run_at(task, triggered_at)
+
+            from ..routers.runs import build_eval_job
+
+            job = build_eval_job(
+                plan.run.id,
+                benchmark_id=plan.benchmark_id,
+                run_name=plan.run_name,
+                levels=plan.levels,
+                limit=plan.limit,
+                repeat=plan.repeat,
+                judge_full=plan.judge_full,
+                adapter_full=plan.adapter_full,
+                judge_model_id=getattr(plan, "judge_model_id", None),
+                user_simulator_model_id=getattr(plan, "user_simulator_model_id", None),
+            )
+            await commit_and_submit_job(
+                session,
+                plan.run.id,
+                job,
+                job_runner=get_job_runner(),
+                failure_message="定时任务提交执行队列失败",
+            )
+    except IntegrityError:
+        if occurrence_key:
+            # 只吞掉 occurrence 唯一约束竞争；其他完整性错误仍需进入补偿重试。
+            with session_scope() as verify_session:
+                exists = verify_session.scalar(
+                    select(EvalRun.id).where(
+                        EvalRun.scheduled_evaluation_id == task_id,
+                        EvalRun.scheduled_occurrence_key == occurrence_key,
+                    )
+                )
+            if exists:
+                return None
         raise
+
     return plan
 
 
@@ -312,33 +354,44 @@ def _uses_distinct_attribution_model(schedule: ScheduledEvaluation) -> bool:
     )
 
 
-def prepare_configured_streaming_attribution(run_id: int) -> int | None:
-    """为满足条件的定时评测预建唯一的、不合格 Case 流水线归因任务。"""
+def _prepare_configured_streaming_attribution_in_session(
+    session: Session,
+    run: EvalRun,
+    schedule: ScheduledEvaluation,
+) -> int | None:
+    """在调用方事务内预建流式归因任务，保证它先于评测 Job 一起提交。"""
     from . import attribution_tasks
 
+    if run.trigger_type != "scheduled" or not _uses_distinct_attribution_model(schedule):
+        return None
+    existing = session.scalar(
+        select(AttributionTask).where(
+            AttributionTask.run_id == run.id,
+            AttributionTask.is_streaming.is_(True),
+        ).order_by(AttributionTask.id.desc())
+    )
+    if existing is not None:
+        return existing.id
+    task = attribution_tasks.create_streaming_attribution_task(
+        session,
+        run,
+        judge_model_id=int(schedule.auto_attribution_model_id),
+        created_by=schedule.created_by or "定时任务自动归因",
+    )
+    return task.id
+
+
+def prepare_configured_streaming_attribution(run_id: int) -> int | None:
+    """为满足条件的定时评测预建唯一的、不合格 Case 流水线归因任务。"""
     try:
         with session_scope() as session:
             run = session.get(EvalRun, run_id)
             if run is None or run.trigger_type != "scheduled" or not run.scheduled_evaluation_id:
                 return None
             schedule = session.get(ScheduledEvaluation, run.scheduled_evaluation_id)
-            if schedule is None or not _uses_distinct_attribution_model(schedule):
+            if schedule is None:
                 return None
-            existing = session.scalar(
-                select(AttributionTask).where(
-                    AttributionTask.run_id == run.id,
-                    AttributionTask.is_streaming.is_(True),
-                ).order_by(AttributionTask.id.desc())
-            )
-            if existing is not None:
-                return existing.id
-            task = attribution_tasks.create_streaming_attribution_task(
-                session,
-                run,
-                judge_model_id=int(schedule.auto_attribution_model_id),
-                created_by=schedule.created_by or "定时任务自动归因",
-            )
-            return task.id
+            return _prepare_configured_streaming_attribution_in_session(session, run, schedule)
     except Exception:  # noqa: BLE001 - 归因预建失败不应阻断定时评测
         logger.exception("run #%s 预创建流水线归因任务失败，将在评测完成后补偿", run_id)
         return None

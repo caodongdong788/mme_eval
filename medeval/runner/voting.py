@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from ..models import CaseResult, ConversationTrace
+from ..models import CaseResult, ConversationTrace, RunObservation
 
 
 def trace_total_tokens(trace: ConversationTrace) -> int:
@@ -21,6 +21,28 @@ def trace_total_tokens(trace: ConversationTrace) -> int:
     空 dict 占位（adapter 未返回 usage 的轮次）记 0。仅观测、不参与判分。
     """
     return sum(int(u.get("total_tokens", 0)) for u in trace.turn_token_usage)
+
+
+def trace_token_counts(trace: ConversationTrace) -> tuple[int, int, int]:
+    prompt = sum(int(u.get("prompt_tokens", 0)) for u in trace.turn_token_usage)
+    completion = sum(int(u.get("completion_tokens", 0)) for u in trace.turn_token_usage)
+    total = sum(
+        int(u.get("total_tokens", 0)) or int(u.get("prompt_tokens", 0)) + int(u.get("completion_tokens", 0))
+        for u in trace.turn_token_usage
+    )
+    return prompt, completion, total
+
+
+def trace_observation(trace: ConversationTrace) -> RunObservation:
+    prompt, completion, total = trace_token_counts(trace)
+    return RunObservation(
+        latency_ms=float(trace.duration_ms),
+        ttft_ms=trace_average_ttft(trace),
+        prompt_tokens=prompt,
+        completion_tokens=completion,
+        total_tokens=total,
+        error=trace.error,
+    )
 
 
 def trace_average_ttft(trace: ConversationTrace) -> float | None:
@@ -65,6 +87,7 @@ def fold_n_runs(per_run_results: list[list[CaseResult]]) -> list[CaseResult]:
             ttft = trace_average_ttft(r.trace)
             r.per_run_ttft_ms = [ttft] if ttft is not None else []
             r.per_run_tokens = [trace_total_tokens(r.trace)]
+            r.per_run_observations = [trace_observation(r.trace)]
             r.stability = "stable_pass" if r.release_passed else "stable_fail"
             folded.append(r)
             continue
@@ -79,7 +102,7 @@ def fold_n_runs(per_run_results: list[list[CaseResult]]) -> list[CaseResult]:
         ]
         # 极端情况：N 全 fail 但 majority_pass=False，candidates 仍非空；
         # 但若 candidates 仍为空（理论上不会发生），退回到第 0 次
-        rep_idx, rep = candidates[0] if candidates else (0, runs[0])
+        _rep_idx, rep = candidates[0] if candidates else (0, runs[0])
 
         rep.n_runs = len(runs)
         rep.per_run_passed = per_run_passed
@@ -92,6 +115,7 @@ def fold_n_runs(per_run_results: list[list[CaseResult]]) -> list[CaseResult]:
         ]
         # 收集每次会话总 token（同上，含错误 run，聚合时再过滤）
         rep.per_run_tokens = [trace_total_tokens(run.trace) for run in runs]
+        rep.per_run_observations = [trace_observation(run.trace) for run in runs]
         rep.stability = stability
         rep.release_passed = majority_pass
         folded.append(rep)

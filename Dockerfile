@@ -2,18 +2,20 @@
 # MME · Agent 评测平台 — 多阶段镜像：构建前端 + 运行 FastAPI（静态托管 + API）。
 
 # --- Stage 1: 前端构建 ---
-FROM node:20-alpine AS frontend-build
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS frontend-build
 WORKDIR /frontend
 # Node 20 镜像自带的 npm 10.8 在该 lockfile 上会异常退出（Exit handler never called）；
 # npm 11 支持 Node 20.17+，可稳定执行严格的 `npm ci`。
-RUN npm install --global npm@11
+RUN npm install --global npm@11.16.0
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
 # --- Stage 2: Python 运行时 ---
-FROM python:3.12-slim-bookworm AS runtime
+FROM python:3.12-slim-bookworm@sha256:a116514e19457bcb7af7efe9c3dd0b9b71e85b317694e7882a1c52aa15a78134 AS runtime
+
+COPY --from=ghcr.io/astral-sh/uv:0.11.24@sha256:99ea34acedc870ba4ad11a1f540a1c04267c9f30aadc465a94406f52dfda2c36 /uv /usr/local/bin/uv
 
 # 生产部署可通过 build arg 切换到就近镜像；开发环境不传该参数时仍使用官方源。
 ARG APT_DEBIAN_MIRROR=""
@@ -35,21 +37,24 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 # 依赖描述与业务源码分层：通常的代码改动不会再次解析、下载完整依赖。
 # 依赖清单由 pyproject 自动导出，避免维护第二份易漂移的 requirements 文件。
-COPY pyproject.toml ./
-COPY scripts/export_docker_requirements.py /usr/local/bin/export_docker_requirements.py
+COPY pyproject.toml uv.lock ./
 ARG PIP_INDEX_URL=""
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
-    python /usr/local/bin/export_docker_requirements.py pyproject.toml > /tmp/requirements.production.txt \
+    uv export --frozen --no-dev --no-emit-project \
+      --extra server --extra llm-openai --extra langfuse --extra postgres \
+      --format requirements-txt --output-file /tmp/requirements.production.txt \
     && \
     if [ -n "$PIP_INDEX_URL" ]; then \
-      pip install --index-url "$PIP_INDEX_URL" -r /tmp/requirements.production.txt; \
+      pip install --require-hashes --index-url "$PIP_INDEX_URL" -r /tmp/requirements.production.txt; \
     else \
-      pip install -r /tmp/requirements.production.txt; \
+      pip install --require-hashes -r /tmp/requirements.production.txt; \
     fi
 
 COPY README.md ./
 COPY medeval/ medeval/
 COPY server/ server/
+COPY migrations/ migrations/
+COPY alembic.ini ./alembic.ini
 COPY cases/ cases/
 COPY config.yaml ./config.yaml
 

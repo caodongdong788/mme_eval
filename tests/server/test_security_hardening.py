@@ -83,6 +83,23 @@ def test_production_without_feishu_auth_rejected(monkeypatch):
         get_settings.cache_clear()
 
 
+def test_production_example_open_api_encryption_secret_rejected(monkeypatch):
+    monkeypatch.setenv("MEDEVAL_ENV", "production")
+    monkeypatch.setenv("SESSION_SECRET", "a-strong-random-secret")
+    monkeypatch.setenv(
+        "MEDEVAL_OPEN_API_ENCRYPTION_SECRET",
+        "please-change-me-to-another-long-random-secret",
+    )
+    monkeypatch.setenv("FEISHU_APP_ID", "cli_test")
+    monkeypatch.setenv("FEISHU_APP_SECRET", "secret")
+    get_settings.cache_clear()
+    try:
+        with pytest.raises(RuntimeError, match="OPEN_API_ENCRYPTION_SECRET"):
+            get_settings().check_production_security()
+    finally:
+        get_settings.cache_clear()
+
+
 def test_development_default_secret_ok(monkeypatch):
     monkeypatch.delenv("MEDEVAL_ENV", raising=False)
     monkeypatch.delenv("SESSION_SECRET", raising=False)

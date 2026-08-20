@@ -15,6 +15,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from sqlalchemy import text
 
 from .db import init_db, session_scope
 from .error_messages import format_validation_errors, humanize_error_text
@@ -83,7 +84,10 @@ async def _lifespan(app: FastAPI):
         stop_temporary_evaluation_service,
     )
 
-    start_scheduler()
+    if get_settings().scheduler_enabled:
+        start_scheduler()
+    else:
+        logger.info("当前实例已禁用周期调度器（MEDEVAL_SCHEDULER_ENABLED=false）")
     start_temporary_evaluation_service()
     n_attribution = reconcile_orphaned_attribution_tasks()
     if n_attribution:
@@ -146,9 +150,12 @@ def create_app() -> FastAPI:
     @app.exception_handler(Exception)
     async def _unhandled_exc(request: Request, exc: Exception) -> JSONResponse:
         logger.exception("未处理异常 %s %s", request.method, request.url.path)
+        detail = "服务器处理请求时发生异常，请稍后重试；如持续出现，请联系管理员"
+        if not get_settings().is_production:
+            detail = f"{type(exc).__name__}: {exc}"
         return JSONResponse(
             status_code=500,
-            content={"detail": "服务器处理请求时发生异常，请稍后重试；如持续出现，请联系管理员"},
+            content={"detail": detail},
         )
 
     # 强制登录守卫：仅当配置了飞书应用密钥（auth_required）时生效；未配则放行（dev 兜底）。
@@ -174,9 +181,32 @@ def create_app() -> FastAPI:
                 )
         return await call_next(request)
 
+    @app.get("/api/health/live")
+    def health_live() -> dict:
+        return {"status": "ok"}
+
+    def _readiness() -> dict:
+        try:
+            with session_scope() as session:
+                session.execute(text("SELECT 1"))
+                # 关键队列表存在说明启动迁移已经完成，而不只是数据库端口可连。
+                session.execute(text("SELECT id FROM evaluation_job LIMIT 1"))
+                session.execute(text("SELECT id FROM temporary_evaluation LIMIT 1"))
+        except Exception as exc:  # noqa: BLE001 - readiness 必须明确返回非 2xx
+            logger.warning("readiness 检查失败: %s", exc)
+            return JSONResponse(
+                status_code=503,
+                content={"status": "not_ready", "database": "unavailable"},
+            )
+        return {"status": "ok", "database": "ready", "schema": "ready"}
+
     @app.get("/api/health")
     def health() -> dict:
-        return {"status": "ok"}
+        return _readiness()
+
+    @app.get("/api/health/ready")
+    def health_ready() -> dict:
+        return _readiness()
 
     # API 路由
     from .routers import (

@@ -8,6 +8,7 @@
 - 只允许推送 `gitlab/main`；`origin`（GitHub）不参与生产发布。
 - GitLab Pipeline 使用 `mme-production` 资源锁，同一时间只允许一个发布进行。
 - 发布不会重建数据库和数据卷。评测、重新评测和归因任务均以数据库中的任务记录与租约为准，Worker 重启后会继续领取未完成工作。
+- `MEDEVAL_OPEN_API_ENCRYPTION_SECRET` 用于加密管理员可随时查看的 OpenAPI Key，首次上线后必须稳定保存；不能直接更换或删除，否则既有 Key 仍可鉴权但无法在管理页解密查看。
 
 ## 标准发布流程
 
@@ -26,13 +27,13 @@
 
 4. 发布脚本取得主机锁后执行以下操作：
 
-   1. `git pull --ff-only` 拉取 GitLab 的最新 `main`；
+   1. 获取并校验 Pipeline 指定的不可变 `CI_COMMIT_SHA`，以 detached HEAD 检出该提交；
    2. 判断 Worker 相关代码是否发生变化；
-   3. 构建新的 Web（`app`）镜像；
-   4. 重建 `app` 容器；
-   5. 轮询 `/api/health`，确认 Web 服务恢复；
-   6. Worker 代码有变化时才重建 Worker；否则保留正在执行的 Worker；
-   7. 确认 Worker 运行后，发布结束。
+   3. 对 Postgres 执行自校验的 custom-format 发布前备份；
+   4. 构建以完整提交 SHA 标记的新 Web（`app`）镜像；
+   5. 重建 `app` 容器，并等待数据库、Schema 与临时评测表均通过 `/api/health` 就绪检查；
+   6. Worker 代码或锁文件/迁移有变化时才重建 Worker；否则保留正在执行的 Worker；
+   7. 等待 Worker 心跳健康检查通过后结束；任一检查失败会自动恢复上一版镜像。
 
 ## 当前发布期间的访问表现
 
@@ -53,7 +54,25 @@ docker compose -f docker-compose.yml -f docker-compose.release.yml ps
 
 业务侧还应打开 MME 首页和一条正在运行的评测/归因任务，确认页面可访问、进度正常刷新。
 
-如果健康检查失败，发布脚本会输出 `app` 最近日志并以失败退出；不要继续执行后续发布。应先根据容器日志定位启动失败原因。
+如果健康检查失败，发布脚本会输出最近日志并回退到发布前的 app/worker 镜像。数据库采用向前兼容的加法迁移，不随应用镜像自动降级；需要数据恢复时按下文的显式恢复流程操作。
+
+## 数据库备份与恢复
+
+每次发布会自动调用 `scripts/backup_postgres.sh`，默认保存到 `backups/postgres/`，生成 `.dump` 与 `.sha256`，保留 14 天。可通过 `MME_BACKUP_DIR`、`MME_BACKUP_RETENTION_DAYS` 覆盖。
+
+人工备份：
+
+```bash
+scripts/backup_postgres.sh
+```
+
+恢复属于破坏性维护操作，只能在确认目标绝对路径和校验和后执行：
+
+```bash
+MME_CONFIRM_RESTORE=RESTORE scripts/restore_postgres.sh /绝对路径/mme-时间.dump
+```
+
+恢复前应进入维护窗口并停止 `app`、`worker`，恢复完成后重新启动并检查 `/api/health` 与 Worker 健康状态。建议定期在隔离环境演练恢复，不能只验证“备份文件存在”。
 
 ## 手动发布与 Worker 控制
 
@@ -74,7 +93,7 @@ scripts/deploy_release.sh
 1. 先确认 Pipeline 是否仍在执行，避免与另一个发布并发。
 2. 等待 `/api/health` 恢复；新 Web 实例通常需要完成应用初始化后才会接收请求。
 3. 若健康检查持续失败，查看 `app` 容器日志，而不是反复刷新浏览器。
-4. 若仅 Web 发布失败且旧镜像仍可用，可回退到上一个 GitLab 提交后重新执行发布；数据库不回滚，任务记录保留。
+4. 发布脚本会优先自动回退上一版镜像；若仍失败，使用日志中记录的 SHA 定位版本，不要用浮动 `main` 猜测生产代码。
 
 ## 后续零中断发布方案（待实施）
 

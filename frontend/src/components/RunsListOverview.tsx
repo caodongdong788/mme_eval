@@ -260,7 +260,7 @@ export function RunsListOverview({
                   tickLine={false}
                   tick={{ fill: D.textMuted, fontSize: 11 }}
                 />
-                <RTooltip formatter={(v: number) => [`${v}%`, "通过率"]} />
+                <RTooltip formatter={(value) => [`${Number(value)}%`, "通过率"]} />
                 <Area
                   type="monotone"
                   dataKey="passPct"
@@ -286,7 +286,7 @@ export function RunsListOverview({
                 <BarChart data={bars} margin={{ top: 12, right: 8, bottom: 0, left: -12 }}>
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: D.textMuted, fontSize: 10 }} />
                   <YAxis domain={[0, 100]} unit="%" axisLine={false} tickLine={false} tick={{ fill: D.textMuted, fontSize: 10 }} />
-                  <RTooltip formatter={(v: number) => [`${v}%`, "通过率"]} />
+                  <RTooltip formatter={(value) => [`${Number(value)}%`, "通过率"]} />
                   <Bar dataKey="passPct" radius={[4, 4, 0, 0]} maxBarSize={32}>
                     {bars.map((_, i) => (
                       <Cell key={i} fill={i % 2 ? D.purpleLine : D.purple} />

@@ -107,6 +107,13 @@ class EvalRun(Base):
     """一次评测的 run 级汇总。"""
 
     __tablename__ = "eval_run"
+    __table_args__ = (
+        UniqueConstraint(
+            "scheduled_evaluation_id",
+            "scheduled_occurrence_key",
+            name="uq_eval_run_scheduled_occurrence",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     run_slug: Mapped[str] = mapped_column(String(200), index=True)
@@ -125,6 +132,16 @@ class EvalRun(Base):
     # 定时任务触发的 run 记录其来源任务，供回归趋势按任务连续分析。
     scheduled_evaluation_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("scheduled_evaluation.id"), nullable=True, index=True
+    )
+    # 定时调度的一次计划触发标识。多个 Web 实例即使同时看到同一到期任务，
+    # 也只能为同一 occurrence 创建一条 Run；人工“立即执行”不填写此字段。
+    scheduled_occurrence_key: Mapped[Optional[str]] = mapped_column(
+        String(80), nullable=True
+    )
+    # OpenAPI 创建的正式评测按调用 Key 隔离。Key 删除后保留整数快照，
+    # 避免历史任务被级联删除或突然变为其他调用方可见。
+    open_api_key_id: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, index=True
     )
 
     adapter_type: Mapped[str] = mapped_column(String(50), default="")
@@ -206,6 +223,11 @@ class EvaluationJob(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # 活跃任务幂等键。终态时清空；唯一索引把“查询后插入”的并发窗口交给
+    # 数据库收口，同时允许同一 Run 在旧任务结束后再次重评/续跑。
+    active_key: Mapped[Optional[str]] = mapped_column(
+        String(240), nullable=True, unique=True, index=True
+    )
     run_id: Mapped[int] = mapped_column(
         ForeignKey("eval_run.id", ondelete="CASCADE"), index=True, nullable=False
     )
@@ -434,6 +456,12 @@ class AttributionTaskItem(Base):
     status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
     # 在同一归因任务内手动重跑该 Case 的次数；首次归因保持 0。
     attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    # 细分运行状态独立于 status 的粗粒度终态，供页面展示模型调用、重试与等待原因。
+    runtime_status: Mapped[str] = mapped_column(String(40), default="pending")
+    runtime_message: Mapped[str] = mapped_column(Text, default="")
+    model_attempt: Mapped[int] = mapped_column(Integer, default=0)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0)
+    runtime_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     error_msg: Mapped[str] = mapped_column(Text, default="")
     # 每次任务独立保存本次模型返回，避免后续重新归因覆盖旧任务的查看结果。
     analysis_json: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
@@ -573,15 +601,15 @@ class JudgeModelConfig(Base):
 class OpenApiAccessKey(Base):
     """一把可独立授权、可撤销的 OpenAPI 密钥。
 
-    为满足管理员可随时复制的需求，明文只在平台登录后的参数配置接口中可读取；
-    对外 OpenAPI 的鉴权始终只使用 ``key_hash``。
+    ``api_key`` 保存带认证的可恢复密文，供管理员后续随时查看；鉴权只使用独立
+    的不可逆 ``key_hash``，不会在普通 OpenAPI 请求路径执行解密。
     """
 
     __tablename__ = "open_api_access_key"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(120), unique=True, index=True)
-    # 仅参数配置页（需平台登录）可读取，用于管理员复制；OpenAPI 本身只按 key_hash 校验。
+    # 管理端可恢复密文；升级前历史库可能暂时保留明文，启动迁移会原位加密。
     api_key: Mapped[str] = mapped_column(Text, default="")
     key_prefix: Mapped[str] = mapped_column(String(32), default="")
     key_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)

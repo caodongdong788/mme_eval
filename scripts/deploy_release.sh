@@ -19,35 +19,104 @@ fi
 COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.release.yml)
 
 BEFORE_REV="${MME_DEPLOY_BEFORE_REV:-$(git rev-parse HEAD)}"
-if [[ -n "${MME_DEPLOY_AFTER_REV:-}" ]]; then
-  AFTER_REV="$MME_DEPLOY_AFTER_REV"
+TARGET_REV="${MME_DEPLOY_COMMIT:-}"
+if [[ -z "$TARGET_REV" ]]; then
+  # 人工发布也只解析一次远端 HEAD，后续全程使用该不可变提交。
+  git fetch --quiet gitlab main
+  TARGET_REV="$(git rev-parse FETCH_HEAD)"
 else
-  git pull --ff-only
-  AFTER_REV="$(git rev-parse HEAD)"
-  # git pull 可能更新当前正在执行的脚本。Bash 会按文件偏移继续读取，导致新脚本尾部
-  # 被跳过；检测到自身变化时从新版本重新执行，并保留用于判断 Worker 变更的版本范围。
-  if [[ "$BEFORE_REV" != "$AFTER_REV" ]] && ! git diff --quiet "$BEFORE_REV" "$AFTER_REV" -- scripts/deploy_release.sh; then
-    exec env MME_DEPLOY_BEFORE_REV="$BEFORE_REV" MME_DEPLOY_AFTER_REV="$AFTER_REV" bash "$0"
+  git fetch --quiet gitlab main
+fi
+git cat-file -e "${TARGET_REV}^{commit}"
+AFTER_REV="$(git rev-parse "${TARGET_REV}^{commit}")"
+if ! git merge-base --is-ancestor "$AFTER_REV" FETCH_HEAD; then
+  echo "Refusing to deploy commit outside gitlab/main: $AFTER_REV" >&2
+  exit 1
+fi
+if [[ "$BEFORE_REV" != "$AFTER_REV" ]]; then
+  git checkout --detach --quiet "$AFTER_REV"
+  # 当前脚本可能已被新提交替换；从目标提交重新执行，避免继续读取旧文件偏移。
+  if [[ "${MME_DEPLOY_REEXECUTED:-0}" != "1" ]]; then
+    exec env MME_DEPLOY_REEXECUTED=1 MME_DEPLOY_BEFORE_REV="$BEFORE_REV" \
+      MME_DEPLOY_COMMIT="$AFTER_REV" bash "$0"
   fi
 fi
 WORKER_CHANGED=0
 if [[ "$BEFORE_REV" != "$AFTER_REV" ]] && ! git diff --quiet "$BEFORE_REV" "$AFTER_REV" -- \
-  Dockerfile pyproject.toml medeval server/worker.py server/durable_queue.py \
+  Dockerfile pyproject.toml uv.lock migrations medeval server/worker.py server/durable_queue.py \
   server/durable_jobs.py server/job_specs.py server/jobs.py server/models_db.py \
   server/db.py server/settings.py server/services; then
   WORKER_CHANGED=1
 fi
+
+OLD_APP_IMAGE=""
+OLD_WORKER_IMAGE=""
+if APP_CONTAINER_ID="$("${COMPOSE[@]}" ps -q app)" && [[ -n "$APP_CONTAINER_ID" ]]; then
+  OLD_APP_IMAGE="$(docker inspect --format '{{.Image}}' "$APP_CONTAINER_ID")"
+  docker tag "$OLD_APP_IMAGE" mme-eval:rollback-app
+fi
+if WORKER_CONTAINER_ID="$("${COMPOSE[@]}" ps -q worker)" && [[ -n "$WORKER_CONTAINER_ID" ]]; then
+  OLD_WORKER_IMAGE="$(docker inspect --format '{{.Image}}' "$WORKER_CONTAINER_ID")"
+  docker tag "$OLD_WORKER_IMAGE" mme-eval:rollback-worker
+fi
+
+rollback_app() {
+  if [[ -z "$OLD_APP_IMAGE" ]]; then
+    return
+  fi
+  export MME_IMAGE_TAG=rollback-app
+  if ! "${COMPOSE[@]}" up -d --no-deps --no-build app; then
+    echo "MME rollback warning: previous app image could not be started" >&2
+    return 0
+  fi
+  for _ in $(seq 1 12); do
+    curl -fsS http://127.0.0.1:"${MME_PORT:-8000}"/api/health >/dev/null && return
+    sleep 2
+  done
+  echo "MME rollback warning: previous app image did not become healthy" >&2
+  return 0
+}
+
+rollback_worker() {
+  if [[ -z "$OLD_WORKER_IMAGE" ]]; then
+    return
+  fi
+  export MME_IMAGE_TAG=rollback-worker
+  if ! "${COMPOSE[@]}" up -d --no-deps --no-build worker; then
+    echo "MME rollback warning: previous worker image could not be started" >&2
+  fi
+  return 0
+}
+
+# 所有启动迁移均为加法迁移，但仍在切换应用前保留可恢复的数据库快照。
+scripts/backup_postgres.sh
+
+export MME_IMAGE_TAG="$AFTER_REV"
 "${COMPOSE[@]}" build app
-"${COMPOSE[@]}" up -d --no-deps app
+if ! "${COMPOSE[@]}" up -d --no-deps app; then
+  rollback_app
+  echo "MME deployment failed: app container could not be started" >&2
+  exit 1
+fi
 
 for _ in $(seq 1 18); do
   if curl -fsS http://127.0.0.1:"${MME_PORT:-8000}"/api/health >/dev/null; then
     # 默认只保证 Worker 已存在，不重建正在工作的实例，因此普通 Web 发布完全不打断评测。
     # 仅 Worker 代码需要升级时显式传 DEPLOY_WORKER=1；它会优雅释放租约并断点续跑。
     if [[ "${DEPLOY_WORKER:-auto}" == "1" || ( "${DEPLOY_WORKER:-auto}" == "auto" && "$WORKER_CHANGED" == "1" ) ]]; then
-      "${COMPOSE[@]}" up -d --no-deps worker
+      if ! "${COMPOSE[@]}" up -d --no-deps worker; then
+        rollback_worker
+        rollback_app
+        echo "MME deployment failed: worker container could not be started" >&2
+        exit 1
+      fi
     else
-      "${COMPOSE[@]}" up -d --no-deps --no-recreate worker
+      if ! "${COMPOSE[@]}" up -d --no-deps --no-recreate worker; then
+        rollback_worker
+        rollback_app
+        echo "MME deployment failed: existing worker could not be retained" >&2
+        exit 1
+      fi
     fi
     for _ in $(seq 1 10); do
       if "${COMPOSE[@]}" ps --status running --services | grep -qx worker; then
@@ -57,7 +126,26 @@ for _ in $(seq 1 18); do
     done
     if ! "${COMPOSE[@]}" ps --status running --services | grep -qx worker; then
       "${COMPOSE[@]}" logs --tail=100 worker >&2
+      rollback_worker
+      rollback_app
       echo "MME deployment failed: worker is not running" >&2
+      exit 1
+    fi
+    for _ in $(seq 1 12); do
+      WORKER_CONTAINER_ID="$("${COMPOSE[@]}" ps -q worker)"
+      if [[ -n "$WORKER_CONTAINER_ID" ]] && \
+        [[ "$(docker inspect --format '{{.State.Health.Status}}' "$WORKER_CONTAINER_ID")" == "healthy" ]]; then
+        break
+      fi
+      sleep 2
+    done
+    WORKER_CONTAINER_ID="$("${COMPOSE[@]}" ps -q worker)"
+    if [[ -z "$WORKER_CONTAINER_ID" ]] || \
+      [[ "$(docker inspect --format '{{.State.Health.Status}}' "$WORKER_CONTAINER_ID")" != "healthy" ]]; then
+      "${COMPOSE[@]}" logs --tail=100 worker >&2
+      rollback_worker
+      rollback_app
+      echo "MME deployment failed: worker readiness check failed" >&2
       exit 1
     fi
     "${COMPOSE[@]}" ps
@@ -68,5 +156,9 @@ for _ in $(seq 1 18); do
 done
 
 "${COMPOSE[@]}" logs --tail=100 app >&2
+if [[ -n "$OLD_APP_IMAGE" ]]; then
+  rollback_app
+  echo "MME deployment rolled back to the previous app image" >&2
+fi
 echo "MME deployment health check failed" >&2
 exit 1

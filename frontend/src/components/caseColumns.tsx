@@ -1,7 +1,8 @@
 import { type ReactNode } from "react";
-import { Tooltip, Typography } from "antd";
+import { Space, Tag, Tooltip, Typography } from "antd";
 import { Link } from "react-router-dom";
 import { CaseRow } from "../api/index";
+import { failureTagHint } from "../hooks/useConfigLabelMap";
 
 const RAG_STATUS: Record<NonNullable<CaseRow["rag_status"]>, { label: string; kind: string }> = {
   hit: { label: "已触发并命中", kind: "pass" },
@@ -13,7 +14,7 @@ const RAG_STATUS: Record<NonNullable<CaseRow["rag_status"]>, { label: string; ki
 };
 
 // 状态圆点 + 文字（去面状彩色 Tag；样式见 styles.css .status-dot）。
-function Dot({ kind, children }: { kind: string; children: ReactNode }) {
+function dot(kind: string, children: ReactNode) {
   return <span className={`status-dot status-dot--${kind}`}>{children}</span>;
 }
 
@@ -26,7 +27,7 @@ export function buildCaseColumns(runId: number, tagLabel: (k: string) => string)
       render: (s: string, r: CaseRow) => (
         <Link
           to={`/runs/${runId}/cases/${r.sample_id}`}
-          state={{ from: { to: `/runs/${runId}`, state: { tab: "detail" }, label: "用例列表" } }}
+          state={{ from: { to: `/runs/${runId}?tab=detail`, label: "用例列表" } }}
           className="dash-table__link"
         >
           {s || r.sample_id}
@@ -56,14 +57,14 @@ export function buildCaseColumns(runId: number, tagLabel: (k: string) => string)
       dataIndex: "rag_status",
       render: (value?: CaseRow["rag_status"]) => {
         const item = RAG_STATUS[value || "unknown"];
-        return <Dot kind={item.kind}>{item.label}</Dot>;
+        return dot(item.kind, item.label);
       },
     },
     {
       title: "总分",
       dataIndex: "composite_score",
       render: (v: number | undefined, row: CaseRow) =>
-        row.judge_error ? <Dot kind="warn">判分异常</Dot> : (v == null ? "-" : `${v.toFixed(1)}/45`),
+        row.judge_error ? dot("warn", "判分异常") : (v == null ? "-" : `${v.toFixed(1)}/45`),
     },
     {
       title: "指南得分",
@@ -77,10 +78,10 @@ export function buildCaseColumns(runId: number, tagLabel: (k: string) => string)
       title: "综合评价",
       dataIndex: "grade",
       render: (grade: string, row: CaseRow) => {
-        if (row.judge_error) return <Dot kind="warn">判分异常</Dot>;
+        if (row.judge_error) return dot("warn", "判分异常");
         const label = grade || (row.release_passed ? "合格" : "不合格");
         const kind = label.includes("不合格") ? "fail" : label === "合格" ? "warn" : "pass";
-        return <Dot kind={kind}>{label}</Dot>;
+        return dot(kind, label);
       },
     },
     {
@@ -88,19 +89,27 @@ export function buildCaseColumns(runId: number, tagLabel: (k: string) => string)
       dataIndex: "stability",
       render: (s: string) =>
         s === "stable_pass" ? (
-          <Dot kind="pass">稳过</Dot>
+          dot("pass", "稳过")
         ) : s === "flaky" ? (
-          <Dot kind="warn">抖动</Dot>
+          dot("warn", "抖动")
         ) : (
-          <Dot kind="fail">稳挂</Dot>
+          dot("fail", "稳挂")
         ),
     },
     {
-      title: "失败标签",
+      title: "主要问题",
       dataIndex: "failure_tags",
       render: (tags: string[]) =>
         (tags || []).length ? (
-          <Dot kind="fail">{(tags || []).map(tagLabel).join("、")}</Dot>
+          <Space size={[4, 4]} wrap>
+            {(tags || []).map((tag) => (
+              <Tooltip title={failureTagHint(tag)} key={tag}>
+                <Tag color={tag === "medical_safety_risk" ? "red" : "volcano"}>
+                  {tagLabel(tag)}
+                </Tag>
+              </Tooltip>
+            ))}
+          </Space>
         ) : (
           <Typography.Text type="secondary">-</Typography.Text>
         ),
@@ -121,9 +130,10 @@ export function buildCaseColumns(runId: number, tagLabel: (k: string) => string)
         return (
           <Tooltip title={tip}>
             <span style={{ cursor: "help" }}>
-              <Dot kind={r.verdict === "agree" ? "pass" : "warn"}>
-                {r.verdict === "agree" ? "同意" : "推翻"}
-              </Dot>
+              {dot(
+                r.verdict === "agree" ? "pass" : "warn",
+                r.verdict === "agree" ? "同意" : "推翻"
+              )}
             </span>
           </Tooltip>
         );

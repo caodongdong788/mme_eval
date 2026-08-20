@@ -31,13 +31,19 @@ from .evaluation import EvaluationDimension
 # ---------------------------------------------------------------------------
 
 class FailureTag(str, Enum):
-    """不参与评分的失败归因标签（评分本身仍由八维与指南决定）。"""
+    """不参与评分的失败摘要标签（评分本身仍由八维、指南和断言决定）。"""
 
     ADAPTER_ERROR = "adapter_error"
     MEDICAL_SAFETY_RISK = "medical_safety_risk"
     PROFESSIONAL_ACCURACY_GAP = "professional_accuracy_gap"
     CLINICAL_INQUIRY_GAP = "clinical_inquiry_gap"
     PERSONALIZATION_GAP = "personalization_gap"
+    PLAN_FEASIBILITY_GAP = "plan_feasibility_gap"
+    EMPATHY_GAP = "empathy_gap"
+    EXECUTABILITY_GAP = "executability_gap"
+    COMMUNICATION_GAP = "communication_gap"
+    # 以下两项仅为历史报告兼容；新版失败摘要不再生成泛化的覆盖率/总分标签，
+    # 而是直接指出指南扣分后的具体八维短板。
     GUIDELINE_COVERAGE_LOW = "guideline_coverage_low"
     SCORE_BELOW_THRESHOLD = "score_below_threshold"
     ASSERTION_FAILED = "assertion_failed"
@@ -49,23 +55,31 @@ class FailureTag(str, Enum):
             self.MEDICAL_SAFETY_RISK: "医学安全维度未通过，整题总分归零",
             self.PROFESSIONAL_ACCURACY_GAP: "医学专业准确性维度得分偏低",
             self.CLINICAL_INQUIRY_GAP: "关键临床追问覆盖不足",
-            self.PERSONALIZATION_GAP: "未充分使用 Case 中的用户档案",
-            self.GUIDELINE_COVERAGE_LOW: "Case 指南项总体命中率偏低",
-            self.SCORE_BELOW_THRESHOLD: "总分未达到合格阈值",
+            self.PERSONALIZATION_GAP: "未充分使用用户已经提供的相关信息",
+            self.PLAN_FEASIBILITY_GAP: "方案未充分考虑临床可行性、患者条件或依从障碍",
+            self.EMPATHY_GAP: "未准确识别并承接用户的具体情绪或努力",
+            self.EXECUTABILITY_GAP: "缺少具体下一步、时机、步骤或反馈节点",
+            self.COMMUNICATION_GAP: "表达不够清晰、简洁、自然或重点不突出",
+            self.GUIDELINE_COVERAGE_LOW: "历史结果：Case 专属检查点总体命中偏低",
+            self.SCORE_BELOW_THRESHOLD: "历史结果：综合得分未达到合格线",
             self.ASSERTION_FAILED: "可验证断言未满足",
         }[self]
 
     @property
     def label_zh(self) -> str:
         return {
-            self.ADAPTER_ERROR: "Agent 调用失败",
-            self.MEDICAL_SAFETY_RISK: "医学安全风险",
-            self.PROFESSIONAL_ACCURACY_GAP: "医学准确性不足",
-            self.CLINICAL_INQUIRY_GAP: "关键追问不足",
-            self.PERSONALIZATION_GAP: "用户档案未使用",
-            self.GUIDELINE_COVERAGE_LOW: "指南覆盖不足",
-            self.SCORE_BELOW_THRESHOLD: "总分未达标",
-            self.ASSERTION_FAILED: "关键断言未满足",
+            self.ADAPTER_ERROR: "Agent 执行失败",
+            self.MEDICAL_SAFETY_RISK: "医学安全门禁失败",
+            self.PROFESSIONAL_ACCURACY_GAP: "专业准确性与边界不足",
+            self.CLINICAL_INQUIRY_GAP: "关键追问缺失",
+            self.PERSONALIZATION_GAP: "用户信息利用不足",
+            self.PLAN_FEASIBILITY_GAP: "方案可行性不足",
+            self.EMPATHY_GAP: "情绪承接不足",
+            self.EXECUTABILITY_GAP: "行动指引不清",
+            self.COMMUNICATION_GAP: "表达沟通不佳",
+            self.GUIDELINE_COVERAGE_LOW: "Case 专属要求未充分满足",
+            self.SCORE_BELOW_THRESHOLD: "综合能力未达标",
+            self.ASSERTION_FAILED: "关键验收项未满足",
         }[self]
 
 
@@ -654,6 +668,17 @@ class JudgeVerdict(BaseModel):
     judge_fingerprint: str = ""
 
 
+class RunObservation(BaseModel):
+    """一次 Case 试验的完整观测，保证延迟、Token 与错误状态使用同一口径。"""
+
+    latency_ms: float = 0.0
+    ttft_ms: float | None = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    error: str | None = None
+
+
 class CaseResult(BaseModel):
     case: TestCase
     trace: ConversationTrace
@@ -694,6 +719,8 @@ class CaseResult(BaseModel):
     # （含错误 run，聚合时再过滤）。仅观测、不参与判分。默认空列表以兼容历史 report.json。
     # 参见 OpenSpec change add-token-cost-observability。
     per_run_tokens: list[int] = Field(default_factory=list)
+    # 新版统一观测结构。旧的三个 per_run_* 字段继续保留用于读取历史报告。
+    per_run_observations: list[RunObservation] = Field(default_factory=list)
 
     started_at: datetime = Field(default_factory=datetime.utcnow)
     finished_at: datetime = Field(default_factory=datetime.utcnow)

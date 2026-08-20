@@ -30,8 +30,7 @@ export default function AttributionTaskDetailPage() {
           <div>
             <Link
               className="attribution-task-detail-back"
-              to={`/runs/${runNumber}`}
-              state={{ tab: "attribution" }}
+              to={`/runs/${runNumber}?tab=attribution`}
             >
               <ArrowLeftOutlined /> 返回归因任务列表
             </Link>
@@ -51,9 +50,7 @@ export default function AttributionTaskDetailPage() {
           if (nextTaskId) {
             navigate(`/runs/${runNumber}/attribution-tasks/${nextTaskId}`);
           } else {
-            navigate(`/runs/${runNumber}`, {
-              state: { tab: "attribution" },
-            });
+            navigate(`/runs/${runNumber}?tab=attribution`);
           }
         }}
       />

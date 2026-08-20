@@ -1,6 +1,7 @@
 import { DIM_LABEL, EVALUATION_DIMENSIONS } from "../labels";
+import type { JsonObject } from "../api";
 
-type CaseRecord = Record<string, any>;
+type CaseRecord = JsonObject;
 
 export interface CrossDimensionWarning {
   kind: "ownership" | "duplicate";

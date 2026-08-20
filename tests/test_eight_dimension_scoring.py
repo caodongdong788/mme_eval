@@ -129,8 +129,67 @@ def test_failed_case_gets_actionable_quality_tags() -> None:
     assert item.failure_tags == [
         "professional_accuracy_gap",
         "clinical_inquiry_gap",
-        "guideline_coverage_low",
+        "personalization_gap",
     ]
+    assert "guideline_coverage_low" not in item.failure_tags
+
+
+@pytest.mark.parametrize(
+    ("dimension", "expected_tag"),
+    [
+        (EvaluationDimension.professional_accuracy, "professional_accuracy_gap"),
+        (EvaluationDimension.clinical_inquiry, "clinical_inquiry_gap"),
+        (EvaluationDimension.personalization, "personalization_gap"),
+        (EvaluationDimension.plan_feasibility, "plan_feasibility_gap"),
+        (EvaluationDimension.empathy, "empathy_gap"),
+        (EvaluationDimension.executability, "executability_gap"),
+        (EvaluationDimension.communication, "communication_gap"),
+    ],
+)
+def test_each_low_dimension_gets_a_specific_failure_tag(
+    dimension: EvaluationDimension,
+    expected_tag: str,
+) -> None:
+    item = result()
+    for verdict in item.verdicts:
+        if verdict.name.startswith("dimension.") and verdict.name != "dimension.medical_safety":
+            verdict.score = 3
+        if verdict.name == f"dimension.{dimension.value}":
+            verdict.score = 0
+
+    apply_grading([item])
+
+    assert item.release_passed is False
+    assert item.failure_tags == [expected_tag]
+
+
+def test_failure_summary_only_keeps_the_three_worst_dimensions() -> None:
+    item = result()
+    for verdict in item.verdicts:
+        if verdict.name.startswith("dimension.") and verdict.name != "dimension.medical_safety":
+            verdict.score = 1
+
+    apply_grading([item])
+
+    assert item.failure_tags == [
+        "professional_accuracy_gap",
+        "clinical_inquiry_gap",
+        "personalization_gap",
+    ]
+
+
+def test_regrading_replaces_stale_derived_failure_tags() -> None:
+    item = result()
+    item.failure_tags = ["adapter_error", "guideline_coverage_low", "communication_gap"]
+    for verdict in item.verdicts:
+        if verdict.name.startswith("dimension.") and verdict.name != "dimension.medical_safety":
+            verdict.score = 3
+        if verdict.name == "dimension.plan_feasibility":
+            verdict.score = 0
+
+    apply_grading([item])
+
+    assert item.failure_tags == ["adapter_error", "plan_feasibility_gap"]
 
 
 def test_medical_safety_failure_only_gets_safety_tag() -> None:

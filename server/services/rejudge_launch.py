@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from medeval import trace_store
 
 from ..models_db import Benchmark, CaseResultRow, EvalRun, JudgeModelConfig
+from ..jobs import commit_and_submit_job
 from ..schemas import (
     JudgeOverride,
     PreviewRejudgeRequest,
@@ -132,7 +133,13 @@ async def launch_rejudge_run(
         only_release_failed=payload.only_release_failed,
         judge_model_id=payload.judge_model_id,
     )
-    await job_runner.submit(derived.id, job)
+    await commit_and_submit_job(
+        session,
+        derived.id,
+        job,
+        job_runner=job_runner,
+        failure_message="重判任务提交执行队列失败",
+    )
     return derived
 
 

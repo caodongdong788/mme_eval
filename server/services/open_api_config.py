@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import hashlib
 import secrets
 from typing import Optional
@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models_db import OpenApiAccessKey
+from ..secret_codec import decrypt_recoverable_secret, encrypt_recoverable_secret
 
 
 OPEN_API_PERMISSIONS: dict[str, str] = {
@@ -20,8 +21,11 @@ OPEN_API_PERMISSIONS: dict[str, str] = {
     "temporary_evaluations:create": "创建并查询临时单轮评测",
     "evaluations:create": "创建评测任务",
     "evaluations:read": "查询评测任务状态",
+    "evaluations:read_all": "查询全部来源的评测任务（管理员集成）",
     "attributions:read": "查询归因任务与 CX-Agent 优化建议",
+    "attributions:read_all": "查询全部调用方的归因任务（管理员集成）",
 }
+_LAST_USED_WRITE_INTERVAL = timedelta(minutes=1)
 
 
 def _hash(value: str) -> str:
@@ -57,6 +61,21 @@ def list_open_api_keys(session: Session) -> list[OpenApiAccessKey]:
     )
 
 
+def open_api_key_response(row: OpenApiAccessKey) -> dict:
+    """生成管理员配置接口响应，避免 ORM 可恢复密文被序列化到网络。"""
+    return {
+        "id": row.id,
+        "name": row.name,
+        "api_key": decrypt_recoverable_secret(row.api_key),
+        "key_prefix": row.key_prefix,
+        "permissions": list(row.permissions or []),
+        "created_by": row.created_by,
+        "created_at": row.created_at,
+        "updated_at": row.updated_at,
+        "last_used_at": row.last_used_at,
+    }
+
+
 def create_open_api_key(
     session: Session,
     *,
@@ -75,7 +94,7 @@ def create_open_api_key(
     raw_key = _new_secret()
     row = OpenApiAccessKey(
         name=display_name,
-        api_key=raw_key,
+        api_key=encrypt_recoverable_secret(raw_key),
         key_prefix=f"{raw_key[:14]}…",
         key_hash=_hash(raw_key),
         permissions=_normalize_permissions(permissions),
@@ -110,7 +129,7 @@ def update_open_api_key(
 def rotate_open_api_key(session: Session, key_id: int) -> tuple[OpenApiAccessKey, str]:
     row = _key_or_404(session, key_id)
     raw_key = _new_secret()
-    row.api_key = raw_key
+    row.api_key = encrypt_recoverable_secret(raw_key)
     row.key_prefix = f"{raw_key[:14]}…"
     row.key_hash = _hash(raw_key)
     row.last_used_at = None
@@ -126,16 +145,28 @@ def delete_open_api_key(session: Session, key_id: int) -> None:
 def authorize_open_api_key(
     session: Session, supplied_key: str | None, required_permission: str
 ) -> OpenApiAccessKey:
-    if not session.execute(select(OpenApiAccessKey.id).limit(1)).first():
-        raise HTTPException(status_code=503, detail="OpenAPI 尚未启用，请先创建 API Key")
     if not supplied_key:
+        if not session.execute(select(OpenApiAccessKey.id).limit(1)).first():
+            raise HTTPException(status_code=503, detail="OpenAPI 尚未启用，请先创建 API Key")
         raise HTTPException(status_code=401, detail="缺少 X-MME-API-Key")
     row = session.execute(
         select(OpenApiAccessKey).where(OpenApiAccessKey.key_hash == _hash(supplied_key))
     ).scalar_one_or_none()
     if row is None:
+        # 正常有效请求只需一次索引查询；仅失败路径补查是否完全未配置，以保持
+        # 原有 503（未启用）与 403（Key 无效）的响应语义。
+        if not session.execute(select(OpenApiAccessKey.id).limit(1)).first():
+            raise HTTPException(status_code=503, detail="OpenAPI 尚未启用，请先创建 API Key")
         raise HTTPException(status_code=403, detail="OpenAPI Key 无效")
-    if required_permission not in (row.permissions or []):
+    granted = set(row.permissions or [])
+    global_permission = (
+        f"{required_permission}_all" if required_permission.endswith(":read") else ""
+    )
+    if required_permission not in granted and global_permission not in granted:
         raise HTTPException(status_code=403, detail="该 OpenAPI Key 没有此接口权限")
-    row.last_used_at = datetime.utcnow()
+    now = datetime.utcnow()
+    # last_used_at 仅供管理页观察，不参与鉴权或业务判断。按分钟降采样可避免高频
+    # OpenAPI 调用每次都争抢数据库写锁、制造 WAL；展示语义仍是“最近使用”。
+    if row.last_used_at is None or now - row.last_used_at >= _LAST_USED_WRITE_INTERVAL:
+        row.last_used_at = now
     return row

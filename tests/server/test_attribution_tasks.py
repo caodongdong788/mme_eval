@@ -462,10 +462,11 @@ def test_batch_attribution_runs_three_cases_concurrently_and_persists_items(
         row,
         *,
         settings=None,
-        judge_model_id=None,
-        attribution_task_id=None,
-        attribution_item_id=None,
-    ):
+            judge_model_id=None,
+            attribution_task_id=None,
+            attribution_item_id=None,
+            runtime_status_callback=None,
+        ):
         nonlocal active, max_active
         assert judge_model_id == model_id
         assert attribution_task_id is not None

@@ -20,8 +20,9 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { DIM_LABEL, EVALUATION_DIMENSION_ROLE, EVALUATION_DIMENSIONS, EVALUATION_ROLE_LABEL, EVALUATION_ROLE_ORDER } from "../labels";
 import { reviewCrossDimensionCriteria } from "../utils/criteriaOwnership";
+import type { JsonObject } from "../api";
 
-type CaseData = Record<string, any>;
+type CaseData = JsonObject;
 type Pair = [string, unknown];
 
 function asText(value: unknown): string {

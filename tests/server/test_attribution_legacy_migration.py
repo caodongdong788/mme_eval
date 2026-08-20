@@ -20,7 +20,7 @@ def test_legacy_attribution_items_add_retry_column_before_orm_queries(settings):
         )
 
     # 回归生产升级路径：create_all 不会为历史表补列，必须由轻量迁移完成，
-    # 且 attempt_count 必须早于任何 AttributionTaskItem ORM 查询创建。
+    # 且运行状态字段必须早于任何 AttributionTaskItem ORM 查询创建。
     db_mod.init_db(settings)
 
     columns = {
@@ -29,4 +29,4 @@ def test_legacy_attribution_items_add_retry_column_before_orm_queries(settings):
     }
     assert "attempt_count" in columns
     assert "analysis_json" in columns
-
+    assert {"runtime_status", "runtime_message", "model_attempt", "retry_count"} <= columns

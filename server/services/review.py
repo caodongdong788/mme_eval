@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..models_db import CaseAnnotation
@@ -144,10 +144,16 @@ def pending_review_sample_ids(
         guideline=guideline,
         load_detail_json=False,
     )
-    anns_by_sample = _annotations_by_sample(session, run_id)
+    reviewed_sample_ids = set(
+        session.scalars(
+            select(CaseAnnotation.sample_id)
+            .where(CaseAnnotation.run_id == run_id)
+            .distinct()
+        )
+    )
     pending: set[str] = set()
     for r in rows:
-        if anns_by_sample.get(r.sample_id):
+        if r.sample_id in reviewed_sample_ids:
             continue
         reasons = queue_reasons(
             r,
@@ -177,13 +183,31 @@ def get_review_stats(session: Session, run_id: int) -> ReviewStatsOut:
     queue_total = len(queued)
 
     latest: dict[str, str] = {}
-    for a in session.execute(
-        select(CaseAnnotation)
-        .where(CaseAnnotation.run_id == run_id)
-        .order_by(CaseAnnotation.created_at)
-    ).scalars().all():
-        if a.sample_id in queued:
-            latest[a.sample_id] = a.verdict
+    if queued:
+        ranked = (
+            select(
+                CaseAnnotation.sample_id.label("sample_id"),
+                CaseAnnotation.verdict.label("verdict"),
+                func.row_number()
+                .over(
+                    partition_by=CaseAnnotation.sample_id,
+                    order_by=(CaseAnnotation.created_at.desc(), CaseAnnotation.id.desc()),
+                )
+                .label("position"),
+            )
+            .where(
+                CaseAnnotation.run_id == run_id,
+                CaseAnnotation.sample_id.in_(queued),
+            )
+            .subquery()
+        )
+        latest = dict(
+            session.execute(
+                select(ranked.c.sample_id, ranked.c.verdict).where(
+                    ranked.c.position == 1
+                )
+            )
+        )
 
     reviewed = len(latest)
     agree = sum(1 for v in latest.values() if v == "agree")

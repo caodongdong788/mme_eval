@@ -31,7 +31,12 @@ describe("useRunCaseFilters live refresh", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
-    mockedApi.listCaseResults.mockResolvedValue([caseRow]);
+    mockedApi.listCaseResults.mockResolvedValue({
+      items: [caseRow],
+      total: 1,
+      limit: 100,
+      offset: 0,
+    });
     mockedApi.getReviewStats.mockResolvedValue({
       queue_total: 0,
       reviewed: 0,

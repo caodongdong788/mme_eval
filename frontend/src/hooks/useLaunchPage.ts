@@ -62,7 +62,8 @@ export function useLaunchPage() {
   }, [defaultJudgeModelId, form]);
 
   const benchmarkId = Form.useWatch("benchmark_id", form);
-  const selectedLevels = Form.useWatch("levels", form) ?? [];
+  const watchedLevels = Form.useWatch("levels", form);
+  const selectedLevels = useMemo(() => watchedLevels ?? [], [watchedLevels]);
   const limit = Form.useWatch("limit", form) ?? 0;
 
   const selectedBenchmark = useMemo(

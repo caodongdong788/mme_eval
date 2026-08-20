@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
-from sqlalchemy import inspect
+from datetime import datetime, timedelta
+
+from sqlalchemy import event, inspect
 
 from server.benchmarks import create_uploaded_benchmark, load_benchmark_cases
 from server.db import get_sessionmaker, init_db, init_engine, session_scope
 from server.ingest import ingest_report
-from server.models_db import CaseResultRow, EvalRun
+from server.models_db import Benchmark, CaseAnnotation, CaseResultRow, EvalRun
+from server.services.case_query import attach_review_summary
+from server.services.dashboard import benchmark_trends
+from server.services.open_api_config import authorize_open_api_key, create_open_api_key
 
 from factories import make_report
 
@@ -152,3 +157,138 @@ def test_repeated_init_does_not_rescan_case_detail_json(initialized_db, session)
 
     # judge_error 列早已存在，重复 init_db 应直接返回，不能把历史明细再读写一遍。
     assert session.get(CaseResultRow, row.id).judge_error is False
+
+
+def test_valid_open_api_auth_uses_one_index_lookup(initialized_db) -> None:
+    """高频成功鉴权不能先额外扫描一次“是否存在任意 Key”。"""
+    with session_scope() as session:
+        _, raw_key = create_open_api_key(
+            session,
+            name="鉴权查询计数",
+            permissions=["benchmarks:read"],
+            created_by="test",
+        )
+
+    engine = init_engine(initialized_db)
+    statements: list[str] = []
+
+    def capture(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", capture)
+    try:
+        with session_scope() as session:
+            authorize_open_api_key(session, raw_key, "benchmarks:read")
+    finally:
+        event.remove(engine, "before_cursor_execute", capture)
+
+    key_selects = [
+        statement
+        for statement in statements
+        if statement.lstrip().upper().startswith("SELECT")
+        and "open_api_access_key" in statement.lower()
+    ]
+    assert len(key_selects) == 1
+
+
+def test_open_api_recent_use_does_not_write_on_every_request(initialized_db) -> None:
+    """一分钟内重复鉴权只读索引，避免热点 Key 持续争抢数据库写锁。"""
+    with session_scope() as session:
+        _, raw_key = create_open_api_key(
+            session,
+            name="鉴权写锁降采样",
+            permissions=["benchmarks:read"],
+            created_by="test",
+        )
+    with session_scope() as session:
+        authorize_open_api_key(session, raw_key, "benchmarks:read")
+
+    engine = init_engine(initialized_db)
+    statements: list[str] = []
+
+    def capture(_conn, _cursor, statement, _parameters, _context, _executemany):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", capture)
+    try:
+        with session_scope() as session:
+            authorize_open_api_key(session, raw_key, "benchmarks:read")
+    finally:
+        event.remove(engine, "before_cursor_execute", capture)
+
+    assert not any(
+        statement.lstrip().upper().startswith("UPDATE OPEN_API_ACCESS_KEY")
+        for statement in statements
+    )
+
+
+def test_review_summary_aggregates_history_in_database(session) -> None:
+    """列表只取每题最新审核与计数，不把全部历史评论对象装入内存。"""
+    run = EvalRun(run_slug="review-summary-perf", status="success")
+    session.add(run)
+    session.flush()
+    case = CaseResultRow(run_id=run.id, sample_id="case-1")
+    session.add(case)
+    session.flush()
+    started = datetime(2026, 1, 1)
+    session.add_all(
+        [
+            CaseAnnotation(
+                run_id=run.id,
+                sample_id=case.sample_id,
+                verdict="agree" if index < 99 else "override",
+                reviewer=f"reviewer-{index}",
+                comment=f"comment-{index}",
+                created_at=started + timedelta(seconds=index),
+            )
+            for index in range(100)
+        ]
+    )
+    session.commit()
+
+    attach_review_summary(session, run.id, [case])
+
+    assert case.review.count == 100
+    assert case.review.verdict == "override"
+    assert case.review.reviewer == "reviewer-99"
+    assert case.review.comment == "comment-99"
+
+
+def test_trend_query_does_not_lazy_load_omitted_run_columns(session) -> None:
+    """趋势接口只读取展示列，且不会因遗漏字段退化成逐 Run 懒加载。"""
+    benchmark = Benchmark(name="趋势列裁剪", source="offline")
+    session.add(benchmark)
+    session.flush()
+    session.add_all(
+        [
+            EvalRun(
+                run_slug=f"trend-{index}",
+                name=f"trend-{index}",
+                benchmark_id=benchmark.id,
+                status="success",
+                grading={"avg_composite": 40 + index},
+                config_snapshot={"large": "x" * 10_000},
+            )
+            for index in range(10)
+        ]
+    )
+    session.commit()
+    benchmark_id = benchmark.id
+    session.expire_all()
+
+    engine = session.get_bind()
+    statements: list[str] = []
+
+    def capture(_conn, _cursor, statement, _parameters, _context, _executemany):
+        if statement.lstrip().upper().startswith("SELECT"):
+            statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", capture)
+    try:
+        result = benchmark_trends(session, benchmark_id)
+    finally:
+        event.remove(engine, "before_cursor_execute", capture)
+
+    assert len(result["points"]) == 10
+    assert len(statements) == 1
+    assert "config_snapshot" not in statements[0]

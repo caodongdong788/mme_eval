@@ -1,7 +1,8 @@
 """REST API 出入参 schema（Pydantic v2）。
 
-敏感字段约定：``api_key`` 只在请求入参里出现、用于运行期，绝不出现在任何 *Out 响应或入库的
-``judge_overrides`` / ``adapter_overrides`` 中。
+敏感字段约定：判分模型与 Adapter 的 ``api_key`` 只在请求入参里出现、用于运行期，绝不进入
+普通 *Out 响应或入库的 ``judge_overrides`` / ``adapter_overrides``。唯一例外是管理员专用的
+``OpenApiAccessKeyOut``：产品要求它支持后续随时查看，服务端只从可恢复密文解密后返回。
 """
 
 from __future__ import annotations
@@ -432,7 +433,9 @@ class OpenTemporaryCaseSource(BaseModel):
     benchmark_name: str
     sample_id: str
     scenario: str = ""
-    match_type: Literal["normalized_exact_question"] = "normalized_exact_question"
+    match_type: Literal[
+        "normalized_exact_question", "normalized_near_exact_question"
+    ] = "normalized_exact_question"
 
 
 class OpenTemporaryDimensionResult(BaseModel):
@@ -684,6 +687,11 @@ class OpenAttributionCaseOut(BaseModel):
     case_type: str = ""
     status: str
     attempt_count: int = 0
+    runtime_status: str = "pending"
+    runtime_message: str = ""
+    model_attempt: int = 0
+    retry_count: int = 0
+    runtime_updated_at: Optional[ApiDateTime] = None
     error_msg: str = ""
     attribution_available: bool = False
     started_at: Optional[ApiDateTime] = None
@@ -828,7 +836,9 @@ OpenApiPermission = Literal[
     "temporary_evaluations:create",
     "evaluations:create",
     "evaluations:read",
+    "evaluations:read_all",
     "attributions:read",
+    "attributions:read_all",
 ]
 
 
@@ -837,6 +847,7 @@ class OpenApiAccessKeyOut(BaseModel):
 
     id: int
     name: str
+    # 仅管理员配置接口返回；产品要求创建后仍可随时查看和复制完整 Key。
     api_key: str
     key_prefix: str
     permissions: list[OpenApiPermission]
@@ -864,7 +875,7 @@ class OpenApiAccessKeyUpdate(OpenApiAccessKeyCreate):
 
 
 class OpenApiAccessKeyCreatedOut(OpenApiAccessKeyOut):
-    """创建或轮换后的 OpenAPI Key。"""
+    """创建或轮换后的 OpenAPI Key；字段形态与后续管理员查询保持一致。"""
 
 
 # ---------------------------------------------------------------------------
@@ -1038,6 +1049,13 @@ class CaseRowOut(BaseModel):
     review: Optional[ReviewSummary] = None
     # 该用例代表 trace 的 Langfuse 深链（追踪关闭/未配置/旧 run 时为 None）。仅用于前端跳转。
     langfuse_trace_url: Optional[str] = None
+
+
+class CasePageOut(BaseModel):
+    items: list[CaseRowOut]
+    total: int
+    limit: int
+    offset: int
 
 
 class CaseRetryRequest(BaseModel):

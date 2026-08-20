@@ -10,6 +10,7 @@ import {
 } from "../api/index";
 import { formatApiError, humanizeErrorText } from "../utils/apiError";
 import { isActiveCaseRetry } from "../utils/caseRetryProgress";
+import { usePollingTask } from "./usePollingTask";
 
 export function useCaseDetail(runId: number, sampleId: string | undefined) {
   const [detail, setDetail] = useState<Record<string, unknown> | null>(null);
@@ -218,58 +219,50 @@ export function useCaseDetail(runId: number, sampleId: string | undefined) {
     }
   };
 
-  useEffect(() => {
-    if (!retryPolling || !sampleId) return undefined;
-    let alive = true;
-    let finishing = false;
-    const finish = async (status: string) => {
-      if (finishing || !alive) return;
-      finishing = true;
-      window.clearInterval(timer);
+  usePollingTask(
+    async (isCurrent) => {
+      if (!sampleId) return;
+      const next = await api.getProgress(runId);
+      if (!isCurrent()) return;
+      setRetryProgress(next);
+      if (next.status === "pending" || next.status === "running") return;
+
+      if (next.status !== "success") {
+        try {
+          const nextRun = await api.getRun(runId);
+          if (!isCurrent()) return;
+          setRun(nextRun);
+          message.error(
+            humanizeErrorText(nextRun.error_msg, "用例重新评测失败，请稍后重试")
+          );
+        } catch {
+          if (isCurrent()) message.error("Case 重试失败");
+        }
+      } else {
+        try {
+          const [refreshed, nextRun] = await Promise.all([
+            api.getCaseDetail(runId, sampleId),
+            api.getRun(runId),
+          ]);
+          if (!isCurrent()) return;
+          // 新一次执行可能产生新的 Langfuse 链路，允许自动补同步重新执行。
+          autoChainSyncKeyRef.current = null;
+          setDetail(refreshed);
+          setRun(nextRun);
+          message.success("Case 重试完成，页面结果已更新");
+        } catch (error) {
+          if (isCurrent())
+            message.error(formatApiError(error, "重试完成，但刷新结果失败"));
+        }
+      }
+      if (!isCurrent()) return;
       setRetrying(false);
       setRetryPolling(false);
       setRetryProgress(null);
-      if (status !== "success") {
-        try {
-          const next = await api.getRun(runId);
-          if (alive) {
-            setRun(next);
-            message.error(humanizeErrorText(next.error_msg, "用例重新评测失败，请稍后重试"));
-          }
-        } catch {
-          if (alive) message.error("Case 重试失败");
-        }
-        return;
-      }
-      try {
-        const [refreshed, nextRun] = await Promise.all([
-          api.getCaseDetail(runId, sampleId),
-          api.getRun(runId),
-        ]);
-        if (!alive) return;
-        // 新一次执行可能产生新的 Langfuse 链路，允许自动补同步重新执行。
-        autoChainSyncKeyRef.current = null;
-        setDetail(refreshed);
-        setRun(nextRun);
-        message.success("Case 重试完成，页面结果已更新");
-      } catch (e: unknown) {
-        if (alive) message.error(formatApiError(e, "重试完成，但刷新结果失败"));
-      }
-    };
-    const poll = () => {
-      api.getProgress(runId).then((next) => {
-        if (!alive) return;
-        setRetryProgress(next);
-        if (next.status !== "pending" && next.status !== "running") void finish(next.status);
-      }).catch(() => undefined);
-    };
-    poll();
-    const timer = window.setInterval(poll, 1200);
-    return () => {
-      alive = false;
-      window.clearInterval(timer);
-    };
-  }, [retryPolling, runId, sampleId]);
+    },
+    [runId, sampleId],
+    { enabled: retryPolling && Boolean(sampleId), intervalMs: 1200 }
+  );
 
   const saveCaseOverwrite = async () => {
     if (!sampleId || !run?.benchmark_id || !caseContent) return;

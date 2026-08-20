@@ -6,6 +6,7 @@ import {
   type PairwiseDetail,
 } from "../api/index";
 import { formatApiError } from "../utils/apiError";
+import { usePollingTask } from "./usePollingTask";
 
 export type PairwiseRagFilter = "triggered" | "not_triggered" | "unknown";
 
@@ -31,27 +32,25 @@ export function usePairwiseDetail(comparisonId: number) {
   const [tablePage, setTablePage] = useState(1);
   const didMountFiltersRef = useRef(false);
 
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
     if (!comparisonId) return;
-    api
-      .getPairwise(comparisonId)
-      .then((d) => {
-        setDetail(d);
-        setDetailError(null);
-      })
-      .catch((e) => setDetailError(formatApiError(e, "加载对比详情失败")));
+    try {
+      const next = await api.getPairwise(comparisonId);
+      setDetail(next);
+      setDetailError(null);
+    } catch (error) {
+      setDetailError(formatApiError(error, "加载对比详情失败"));
+    }
   }, [comparisonId]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  useEffect(() => {
-    if (detail?.status === "running") {
-      const t = setInterval(load, 2500);
-      return () => clearInterval(t);
-    }
-  }, [detail?.status, load]);
+  usePollingTask(load, [load], {
+    enabled: detail?.status === "running",
+    intervalMs: 2500,
+  });
 
   useEffect(() => {
     if (!didMountFiltersRef.current) {

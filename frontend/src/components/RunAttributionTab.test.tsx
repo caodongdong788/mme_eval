@@ -373,7 +373,9 @@ describe("RunAttributionTab", () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByText("归因任务 #100")).toBeInTheDocument();
+    expect(
+      await screen.findByText(["归因任务", "100"].join(" #"))
+    ).toBeInTheDocument();
     expect(screen.getByText("归因任务 #99")).toBeInTheDocument();
   });
 
@@ -643,6 +645,40 @@ describe("RunAttributionTab", () => {
     expect(
       container.querySelector(".attribution-loading")
     ).not.toBeInTheDocument();
+  });
+
+  it("shows the model retry reason instead of a generic analysing label", async () => {
+    const retryingTask: AttributionTask = {
+      ...task,
+      status: "running",
+      completed_count: 0,
+      success_count: 0,
+      running_count: 1,
+      pending_count: 0,
+      items: [
+        {
+          ...task.items[0],
+          status: "running",
+          attribution_available: false,
+          runtime_status: "retrying",
+          runtime_message: "模型网关超时，正在重试第 1 次（约 2 秒后）",
+          model_attempt: 2,
+          retry_count: 1,
+        },
+      ],
+    };
+    mockedApi.getAttributionTask.mockResolvedValue(retryingTask);
+
+    renderWithProviders(
+      <MemoryRouter>
+        <RunAttributionTab runId={26} mode="detail" selectedTaskId={99} />
+      </MemoryRouter>
+    );
+
+    expect(
+      await screen.findByText("模型网关超时，正在重试第 1 次（约 2 秒后）")
+    ).toBeInTheDocument();
+    expect(screen.getByText("重试第1次")).toBeInTheDocument();
   });
 
   it("opens a useful failure-reason dialog", async () => {

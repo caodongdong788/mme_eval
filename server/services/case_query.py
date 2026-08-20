@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 import yaml
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.inspection import inspect as sa_inspect
 from sqlalchemy.orm import Session, load_only
 
@@ -225,8 +225,7 @@ def guideline_counts(row: CaseResultRow) -> Optional[tuple[float, float]]:
     )
 
 
-def filtered_case_rows(
-    session: Session,
+def _filtered_case_stmt(
     run_id: int,
     *,
     level: Optional[str] = None,
@@ -237,7 +236,8 @@ def filtered_case_rows(
     guideline: Optional[str] = None,
     load_detail_json: bool = True,
     load_full_detail_json: bool = False,
-) -> list[CaseResultRow]:
+    sample_ids: set[str] | None = None,
+):
     stmt = select(CaseResultRow).where(CaseResultRow.run_id == run_id)
     if load_full_detail_json:
         load_detail_json = True
@@ -251,7 +251,61 @@ def filtered_case_rows(
         stmt = stmt.where(CaseResultRow.stability == stability)
     if scenario:
         stmt = stmt.where(CaseResultRow.scenario == scenario)
+    if sample_ids is not None:
+        if not sample_ids:
+            stmt = stmt.where(False)
+        else:
+            stmt = stmt.where(CaseResultRow.sample_id.in_(sample_ids))
+    if guideline == "full":
+        stmt = stmt.where(
+            CaseResultRow.guideline_max.is_not(None),
+            CaseResultRow.guideline_max > 0,
+            CaseResultRow.guideline_earned == CaseResultRow.guideline_max,
+        )
+    elif guideline == "partial":
+        stmt = stmt.where(
+            CaseResultRow.guideline_max.is_not(None),
+            CaseResultRow.guideline_max > 0,
+            (CaseResultRow.guideline_earned.is_(None))
+            | (CaseResultRow.guideline_earned != CaseResultRow.guideline_max),
+        )
+    elif guideline == "none":
+        stmt = stmt.where(
+            (CaseResultRow.guideline_max.is_(None))
+            | (CaseResultRow.guideline_max <= 0)
+        )
+    if turns == "single":
+        stmt = stmt.where(CaseResultRow.n_turns <= 1)
+    elif turns == "multi":
+        stmt = stmt.where(CaseResultRow.n_turns > 1)
     stmt = stmt.order_by(CaseResultRow.sample_id)
+    return stmt
+
+
+def filtered_case_rows(
+    session: Session,
+    run_id: int,
+    *,
+    level: Optional[str] = None,
+    release_passed: Optional[bool] = None,
+    stability: Optional[str] = None,
+    scenario: Optional[str] = None,
+    turns: Optional[str] = None,
+    guideline: Optional[str] = None,
+    load_detail_json: bool = True,
+    load_full_detail_json: bool = False,
+) -> list[CaseResultRow]:
+    stmt = _filtered_case_stmt(
+        run_id,
+        level=level,
+        release_passed=release_passed,
+        stability=stability,
+        scenario=scenario,
+        turns=turns,
+        guideline=guideline,
+        load_detail_json=load_detail_json,
+        load_full_detail_json=load_full_detail_json,
+    )
     rows = list(session.execute(stmt).scalars().all())
     for row in rows:
         _attach_row_display_fields(
@@ -260,39 +314,78 @@ def filtered_case_rows(
             # 不读取 detail_json，避免 PostgreSQL 逐条解压大型 Langfuse 快照。
             load_detail_json=load_full_detail_json,
         )
-    if guideline == "full":
-        rows = [r for r in rows if r.guideline_max and r.guideline_earned == r.guideline_max]
-    elif guideline == "partial":
-        rows = [r for r in rows if r.guideline_max and r.guideline_earned != r.guideline_max]
-    elif guideline == "none":
-        rows = [r for r in rows if not r.guideline_max]
-    if turns == "single":
-        rows = [r for r in rows if r.n_turns <= 1]
-    elif turns == "multi":
-        rows = [r for r in rows if r.n_turns > 1]
     return rows
+
+
+def filtered_case_page(
+    session: Session,
+    run_id: int,
+    *,
+    limit: int,
+    offset: int,
+    sample_ids: set[str] | None = None,
+    **filters,
+) -> tuple[int, list[CaseResultRow]]:
+    """SQL 层过滤、计数和分页；列表页不再先加载整批结果后切片。"""
+    stmt = _filtered_case_stmt(
+        run_id,
+        load_detail_json=False,
+        load_full_detail_json=False,
+        sample_ids=sample_ids,
+        **filters,
+    )
+    count_stmt = select(func.count()).select_from(stmt.order_by(None).subquery())
+    total = int(session.scalar(count_stmt) or 0)
+    rows = list(session.scalars(stmt.offset(offset).limit(limit)))
+    for row in rows:
+        _attach_row_display_fields(row, load_detail_json=False)
+    return total, rows
 
 
 def attach_review_summary(
     session: Session, run_id: int, rows: list[CaseResultRow]
 ) -> None:
-    by_sample: dict[str, list[CaseAnnotation]] = {}
-    for a in session.execute(
-        select(CaseAnnotation)
-        .where(CaseAnnotation.run_id == run_id)
-        .order_by(CaseAnnotation.created_at)
-    ).scalars().all():
-        by_sample.setdefault(a.sample_id, []).append(a)
+    sample_ids = [row.sample_id for row in rows]
+    if not sample_ids:
+        return
+    ranked = (
+        select(
+            CaseAnnotation.sample_id.label("sample_id"),
+            CaseAnnotation.verdict.label("verdict"),
+            CaseAnnotation.reviewer.label("reviewer"),
+            CaseAnnotation.suggestion.label("suggestion"),
+            CaseAnnotation.comment.label("comment"),
+            func.count(CaseAnnotation.id)
+            .over(partition_by=CaseAnnotation.sample_id)
+            .label("annotation_count"),
+            func.row_number()
+            .over(
+                partition_by=CaseAnnotation.sample_id,
+                order_by=(CaseAnnotation.created_at.desc(), CaseAnnotation.id.desc()),
+            )
+            .label("position"),
+        )
+        .where(
+            CaseAnnotation.run_id == run_id,
+            CaseAnnotation.sample_id.in_(sample_ids),
+        )
+        .subquery()
+    )
+    summaries = {
+        item["sample_id"]: item
+        for item in session.execute(
+            select(ranked).where(ranked.c.position == 1)
+        ).mappings()
+    }
     for row in rows:
-        anns = by_sample.get(row.sample_id)
-        if anns:
-            latest = anns[-1]
+        latest = summaries.get(row.sample_id)
+        if latest:
             row.review = ReviewSummary(
-                verdict=latest.verdict,
-                reviewer=latest.reviewer,
-                suggestion=latest.suggestion,
-                comment=latest.comment,
-                count=len(anns),
+                verdict=latest["verdict"],
+                reviewer=latest["reviewer"],
+                suggestion=latest["suggestion"],
+                comment=latest["comment"],
+                count=int(latest["annotation_count"]),
             )
         else:
             row.review = None

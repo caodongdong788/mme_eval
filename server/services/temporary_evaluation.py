@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
+from difflib import SequenceMatcher
+from threading import Lock
 from typing import Any
 import unicodedata
 from uuid import uuid4
@@ -46,6 +49,12 @@ from ..schemas import (
 from ..settings import get_settings
 from . import judge_models as judge_models_svc
 from .eval_stack import build_judge_stack, prepare_run_config
+
+
+logger = logging.getLogger(__name__)
+_CASE_INDEX_LOCK = Lock()
+_CASE_INDEX_CACHE_KEY: tuple | None = None
+_CASE_INDEX: dict[str, list[tuple[int, TestCase]]] = {}
 
 
 def _judge_override(
@@ -130,42 +139,95 @@ def _platform_benchmarks(session: Session) -> list[Benchmark]:
     return benchmarks
 
 
+def _benchmark_index_key(benchmarks: list[Benchmark]) -> tuple:
+    return tuple(
+        (
+            benchmark.id,
+            benchmark.version,
+            benchmark.storage_path,
+            benchmark.case_count,
+            str(benchmark.updated_at or ""),
+        )
+        for benchmark in benchmarks
+    )
+
+
+def _platform_case_index(
+    session: Session,
+) -> dict[str, list[tuple[int, TestCase]]]:
+    """按 Benchmark 元数据版本缓存标准化问题索引，更新后自动失效。"""
+    global _CASE_INDEX_CACHE_KEY, _CASE_INDEX
+    benchmarks = _platform_benchmarks(session)
+    cache_key = _benchmark_index_key(benchmarks)
+    with _CASE_INDEX_LOCK:
+        if _CASE_INDEX_CACHE_KEY == cache_key:
+            return _CASE_INDEX
+        index: dict[str, list[tuple[int, TestCase]]] = {}
+        for benchmark in benchmarks:
+            if not str(benchmark.storage_path or "").strip():
+                continue
+            try:
+                cases = bm_domain.load_benchmark_cases(benchmark)
+            except Exception:  # noqa: BLE001 - 单个损坏用例集不能拖垮所有临时评测
+                logger.exception(
+                    "构建临时评测 Case 索引时跳过损坏 benchmark id=%s",
+                    benchmark.id,
+                )
+                continue
+            for case in cases:
+                question = _normalize_question(_case_opening_question(case))
+                if question:
+                    index.setdefault(question, []).append((benchmark.id, case))
+        _CASE_INDEX_CACHE_KEY = cache_key
+        _CASE_INDEX = index
+        return index
+
+
+def clear_platform_case_index_cache() -> None:
+    """测试及显式维护操作可调用；正常更新依赖元数据指纹自动失效。"""
+    global _CASE_INDEX_CACHE_KEY, _CASE_INDEX
+    with _CASE_INDEX_LOCK:
+        _CASE_INDEX_CACHE_KEY = None
+        _CASE_INDEX = {}
+
+
 def _match_platform_case(
     session: Session,
     question: str,
-) -> tuple[Benchmark, TestCase] | None:
-    """在全部已注册 Benchmark 中按标准化后的开场问题做确定性精确匹配。"""
+) -> tuple[Benchmark, TestCase, str] | None:
+    """按标准化开场问题确定性匹配，并显式返回精确/近精确类型。"""
     target = _normalize_question(question)
+    index = _platform_case_index(session)
+    indexed_matches = list(index.get(target, []))
+    match_type = "normalized_exact_question"
+    if not indexed_matches and target:
+        # 精确匹配优先；仅在无结果时接受极高相似度的排版/标点微调，避免把
+        # 医学上相近但评分契约不同的问题误合并。
+        scored = [
+            (SequenceMatcher(None, target, candidate).ratio(), values)
+            for candidate, values in index.items()
+            if abs(len(candidate) - len(target)) <= max(4, len(target) // 20)
+        ]
+        best = max((score for score, _values in scored), default=0.0)
+        if best >= 0.97:
+            match_type = "normalized_near_exact_question"
+            indexed_matches = [
+                item
+                for score, values in scored
+                if score == best
+                for item in values
+            ]
+
     matches: list[tuple[Benchmark, TestCase]] = []
     unsupported_multi_turn_matches: list[tuple[Benchmark, TestCase]] = []
-    for benchmark in _platform_benchmarks(session):
-        # 历史测试/占位记录可能没有实际 Case 存储；空路径不能交给 loader，
-        # 否则会被解析成项目根目录并误扫其他 YAML。
-        if not str(benchmark.storage_path or "").strip():
+    for benchmark_id, case in indexed_matches:
+        benchmark = session.get(Benchmark, benchmark_id)
+        if benchmark is None:
             continue
-        try:
-            cases = bm_domain.load_benchmark_cases(benchmark)
-        except Exception as exc:  # noqa: BLE001 - 不能静默漏掉可能含目标 Case 的用例集
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    f"平台 Benchmark Case 索引暂不可用：benchmark {benchmark.id} 加载失败"
-                ),
-            ) from exc
-        if int(benchmark.case_count or 0) > 0 and not cases:
-            raise HTTPException(
-                status_code=503,
-                detail=(
-                    f"平台 Benchmark Case 索引暂不可用：benchmark {benchmark.id} 没有加载到 Case"
-                ),
-            )
-        for case in cases:
-            if _normalize_question(_case_opening_question(case)) != target:
-                continue
-            target_collection = (
-                matches if _is_single_turn_case(case) else unsupported_multi_turn_matches
-            )
-            target_collection.append((benchmark, case))
+        target_collection = (
+            matches if _is_single_turn_case(case) else unsupported_multi_turn_matches
+        )
+        target_collection.append((benchmark, case))
 
     if not matches:
         if unsupported_multi_turn_matches:
@@ -197,7 +259,8 @@ def _match_platform_case(
             ),
         )
 
-    return min(matches, key=lambda item: (item[0].id, item[1].sample_id))
+    benchmark, case = min(matches, key=lambda item: (item[0].id, item[1].sample_id))
+    return benchmark, case, match_type
 
 
 def _temporary_case(
@@ -213,7 +276,7 @@ def _temporary_case(
 
     matched = _match_platform_case(session, payload.question)
     if matched is not None:
-        benchmark, selected = matched
+        benchmark, selected, match_type = matched
         # 临时评测只继承评分契约。原 Case 的问答、画像、断言和运行证据均不混入本次请求。
         evaluation = CaseEvaluation(
             dimension_criteria=selected.evaluation.dimension_criteria,
@@ -227,6 +290,7 @@ def _temporary_case(
             benchmark_name=benchmark.name,
             sample_id=selected.sample_id,
             scenario=selected.scenario,
+            match_type=match_type,
         )
 
     case = TestCase(

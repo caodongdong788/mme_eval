@@ -96,6 +96,63 @@ def test_schedule_can_run_immediately_as_a_regression_task(client, session, monk
     assert captured["run_id"] == run.id
 
 
+def test_streaming_attribution_is_committed_before_job_submission(client, session, monkeypatch):
+    """Worker 能看到评测 Job 时，首条 Case 所需的流式归因任务必须已经存在。"""
+    from types import SimpleNamespace
+
+    from server.db import session_scope
+    from server.routers import runs
+    from server.services import scheduled_evaluations as service
+
+    benchmark = Benchmark(name="流式归因原子提交测试集", source="offline")
+    judge_model = JudgeModelConfig(
+        name="原子提交判分模型", provider="openai", model="judge", api_key="judge-key"
+    )
+    attribution_model = JudgeModelConfig(
+        name="原子提交归因模型", provider="openai", model="attribution", api_key="attr-key"
+    )
+    session.add_all([benchmark, judge_model, attribution_model])
+    session.flush()
+    schedule = ScheduledEvaluation(
+        name="流式归因原子提交",
+        benchmark_id=benchmark.id,
+        enable_judge=True,
+        judge_model_id=judge_model.id,
+        auto_attribution_enabled=True,
+        auto_attribution_model_id=attribution_model.id,
+    )
+    session.add(schedule)
+    session.commit()
+
+    async def submit(run_id, _job):
+        with session_scope() as verify_session:
+            captured["task_id"] = verify_session.scalar(
+                select(AttributionTask.id).where(
+                    AttributionTask.run_id == run_id,
+                    AttributionTask.is_streaming.is_(True),
+                )
+            )
+
+    def build_job(*_args, **_kwargs):
+        async def noop(_progress):
+            return None
+
+        return noop
+
+    captured = {}
+    monkeypatch.setattr(runs, "build_eval_job", build_job)
+    monkeypatch.setattr(service, "get_job_runner", lambda: SimpleNamespace(submit=submit))
+    monkeypatch.setattr(
+        service,
+        "fetch_latest_active_deeptrace_version_name",
+        lambda: asyncio.sleep(0, result=None),
+    )
+
+    response = client.post(f"/api/scheduled-evaluations/{schedule.id}/run")
+    assert response.status_code == 201, response.text
+    assert captured["task_id"] is not None
+
+
 def test_failed_due_schedule_is_retried_after_backoff(session, monkeypatch):
     from server.services import scheduled_evaluations as service
 

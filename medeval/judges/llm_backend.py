@@ -18,10 +18,11 @@ from __future__ import annotations
 import asyncio
 from contextvars import ContextVar
 from dataclasses import dataclass
+import inspect
 import json
 import logging
 import time
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from ..retry import backoff_delay, retry_async
 
@@ -221,6 +222,7 @@ class LLMBackend:
         request_timeout_s: float | None = None,
         retry_transient_errors: bool = False,
         request_headers: dict[str, str] | None = None,
+        on_retry: Callable[[int, BaseException, float], Awaitable[None] | None] | None = None,
     ) -> dict[str, Any]:
         """单条 user prompt → 严格 JSON 响应，带限速指数退避。返回 ``json.loads(text)``。
 
@@ -252,7 +254,7 @@ class LLMBackend:
                 return await asyncio.wait_for(request, timeout=request_timeout_s)
             return await request
 
-        def _on_retry(attempt: int, exc: BaseException, wait: float) -> None:
+        async def _on_retry(attempt: int, exc: BaseException, wait: float) -> None:
             log.warning(
                 "%s 触发限速 (尝试 %d/%d)，等待 %.1fs 重试%s",
                 self.owner,
@@ -261,6 +263,10 @@ class LLMBackend:
                 wait,
                 " [QPM]" if "qpm" in str(exc).lower() else "",
             )
+            if on_retry is not None:
+                callback_result = on_retry(attempt, exc, wait)
+                if inspect.isawaitable(callback_result):
+                    await callback_result
 
         rate_limit_state = await _acquire_llm_slot()
         try:

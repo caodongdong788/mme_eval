@@ -14,11 +14,13 @@ import { OpenApiKeysPanel } from "../components/OpenApiKeysPanel";
 import { ScheduledEvaluationsPanel } from "../components/ScheduledEvaluationsPanel";
 import { useEvaluationAccounts } from "../hooks/useEvaluationAccounts";
 import { useJudgeModelsPage } from "../hooks/useJudgeModelsPage";
+import { useAuth } from "../auth/AuthContext";
 
 export default function JudgeModelsPage() {
   const jm = useJudgeModelsPage();
+  const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState("models");
-  const accounts = useEvaluationAccounts();
+  const accounts = useEvaluationAccounts(isAdmin);
   const accountRows = accounts.data?.accounts ?? [];
   const statelessCount = accountRows.filter(
     (account) => account.pool === "stateless"
@@ -155,7 +157,7 @@ export default function JudgeModelsPage() {
               </div>
             ),
           },
-          {
+          ...(isAdmin ? [{
             key: "accounts",
             label: accountRows.length
               ? `账号配置（${accountRows.length}）`
@@ -195,7 +197,7 @@ export default function JudgeModelsPage() {
             key: "open-api",
             label: "Open API",
             children: <OpenApiKeysPanel />,
-          },
+          }] : []),
           {
             key: "scheduled-evaluations",
             label: "定时任务",

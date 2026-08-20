@@ -152,6 +152,10 @@ def me(
     settings = get_settings()
     payload = {
         "auth_required": settings.auth_required,
+        "is_admin": bool(
+            not settings.auth_required
+            or (user is not None and user.open_id in settings.admin_open_ids)
+        ),
         "user": None,
     }
     if user is not None:

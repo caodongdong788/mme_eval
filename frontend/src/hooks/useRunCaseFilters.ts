@@ -7,6 +7,7 @@ import {
   filterCaseRows,
   isActiveCaseFilter,
 } from "../utils/caseFilters";
+import { usePollingTask } from "./usePollingTask";
 
 function readSavedFilters(filtersKey: string): {
   conditions: CaseFilterCondition[];
@@ -37,38 +38,34 @@ export function useRunCaseFilters(
   runStatus?: string,
 ) {
   const filtersKey = `run:${runId}:caseFilters`;
-  const saved = readSavedFilters(filtersKey);
 
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [filterConditions, setFilterConditions] = useState<CaseFilterCondition[]>(
-    () => saved.conditions
+    () => readSavedFilters(filtersKey).conditions
   );
   const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
   const [queueIds, setQueueIds] = useState<Set<string>>(new Set());
   const [hasLoaded, setHasLoaded] = useState(false);
   const [loading, setLoading] = useState(enabled);
+  const [caseTotal, setCaseTotal] = useState(0);
+  const active = runStatus === "running" || runStatus === "pending";
 
   useEffect(() => {
     sessionStorage.setItem(filtersKey, JSON.stringify({ conditions: filterConditions }));
   }, [filtersKey, filterConditions]);
 
-  useEffect(() => {
-    if (!enabled) return;
-    let alive = true;
-    const refresh = () => {
-      if (document.visibilityState !== "visible") return;
-      api.getReviewStats(runId)
-        .then((stats) => alive && setReviewStats(stats))
-        .catch(() => alive && setReviewStats(null));
-    };
-    refresh();
-    const active = runStatus === "running" || runStatus === "pending";
-    const timer = active ? window.setInterval(refresh, 2000) : null;
-    return () => {
-      alive = false;
-      if (timer !== null) window.clearInterval(timer);
-    };
-  }, [runId, enabled, runStatus]);
+  usePollingTask(
+    async (isCurrent) => {
+      try {
+        const stats = await api.getReviewStats(runId);
+        if (isCurrent()) setReviewStats(stats);
+      } catch {
+        if (isCurrent()) setReviewStats(null);
+      }
+    },
+    [runId],
+    { enabled, intervalMs: active ? 2000 : 60_000 },
+  );
 
   const needsPendingQueue = filterConditions.some(
     (condition) =>
@@ -81,34 +78,39 @@ export function useRunCaseFilters(
 
   useEffect(() => {
     if (!enabled) return;
-    let alive = true;
     setHasLoaded(false);
     setLoading(true);
-    const refresh = (showLoading = false) => {
-      if (document.visibilityState !== "visible") return;
-      if (showLoading) setLoading(true);
-      api.listCaseResults(runId, { limit: CASE_LIST_LIMIT })
-        .then((items) => {
-          if (!alive) return;
-          setCases(items);
-          setHasLoaded(true);
-        })
-        .catch(() => undefined)
-        .finally(() => alive && setLoading(false));
-    };
-    refresh(true);
-    const active = runStatus === "running" || runStatus === "pending";
-    const timer = active ? window.setInterval(() => refresh(false), 2000) : null;
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") refresh(false);
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      alive = false;
-      if (timer !== null) window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [runId, enabled, runStatus]);
+  }, [enabled, runId]);
+
+  usePollingTask(
+    async (isCurrent) => {
+      try {
+        const first = await api.listCaseResults(runId, {
+          limit: CASE_LIST_LIMIT,
+          offset: 0,
+        });
+        const items = [...first.items];
+        let offset = items.length;
+        while (offset < first.total) {
+          const page = await api.listCaseResults(runId, {
+            limit: CASE_LIST_LIMIT,
+            offset,
+          });
+          if (!page.items.length) break;
+          items.push(...page.items);
+          offset += page.items.length;
+        }
+        if (!isCurrent()) return;
+        setCases(items);
+        setCaseTotal(first.total);
+        setHasLoaded(true);
+      } finally {
+        if (isCurrent()) setLoading(false);
+      }
+    },
+    [runId],
+    { enabled, intervalMs: active ? 2000 : 60_000 },
+  );
 
   useEffect(() => {
     if (!enabled || !needsPendingQueue) {
@@ -142,6 +144,7 @@ export function useRunCaseFilters(
 
   return {
     cases,
+    caseTotal,
     shownCases,
     filterConditions,
     setFilterConditions,

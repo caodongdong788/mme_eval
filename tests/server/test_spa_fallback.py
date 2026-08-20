@@ -55,7 +55,13 @@ def test_spa_serves_assets(spa_client):
 
 
 def test_api_health_unaffected(spa_client):
-    assert spa_client.get("/api/health").json() == {"status": "ok"}
+    response = spa_client.get("/api/health")
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "database": "ready",
+        "schema": "ready",
+    }
 
 
 def test_spa_root(spa_client):

@@ -62,6 +62,17 @@ export const dashboardPieColors = [
   palette.dashboard.textMuted,
 ] as const;
 
+export const trendSeriesColors = [
+  palette.dashboard.purple,
+  palette.dashboard.teal,
+  "#3F8CFF",
+  "#E38B17",
+  "#D25B9B",
+  "#6FBA55",
+  "#8B6BD6",
+  "#13A6A1",
+] as const;
+
 const FONT_SANS =
   "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter', 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif";
 

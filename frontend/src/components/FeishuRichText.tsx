@@ -56,7 +56,9 @@ interface FeishuImagePreview {
   title: string;
 }
 
-function isRecord(value: unknown): value is Record<string, any> {
+type RichTextRecord = Record<string, ReturnType<typeof JSON.parse>>;
+
+function isRecord(value: unknown): value is RichTextRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -144,8 +146,9 @@ function renderInlineMarkdown(
   return nodes.length ? nodes : renderBoldText(text, "text");
 }
 
-function richTextStyle(node: Record<string, any>): CSSProperties | undefined {
-  const style = node.text_element_style || node.style || {};
+function richTextStyle(node: RichTextRecord): CSSProperties | undefined {
+  const rawStyle = node.text_element_style || node.style;
+  const style = isRecord(rawStyle) ? rawStyle : {};
   const css: CSSProperties = {};
   if (style.bold || style.is_bold) css.fontWeight = 700;
   if (style.italic || style.is_italic) css.fontStyle = "italic";

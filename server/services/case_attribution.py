@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import re
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from fastapi import HTTPException
@@ -41,11 +42,11 @@ from .langfuse_trace import sync_conversation_trace
 PROMPT_VERSION = "case-attribution-v18"
 _STORAGE_KEY = "attribution_analysis"
 _MAX_STRING = 1800
-# 归因是后台任务：单次模型请求最多 600 秒，最多发起 3 次完整请求
-# （首次 + 最多 2 次重试）。外层 1,800 秒是最终边界，避免任务无限占用
-# Worker；重试会重新生成完整 JSON，不会接续前一次的部分输出。
+# 归因是后台任务：单次模型请求最多 600 秒，失败后仅重试 1 次。
+# 外层 1,200 秒是最终边界，避免单条 Case 因上游抖动长期占用 Worker；重试会
+# 重新生成完整 JSON，不会接续前一次的部分输出。
 _ATTRIBUTION_REQUEST_TIMEOUT_S = 600.0
-_ATTRIBUTION_MAX_ATTEMPTS = 3
+_ATTRIBUTION_MAX_ATTEMPTS = 2
 _ATTRIBUTION_MAX_RETRIES = _ATTRIBUTION_MAX_ATTEMPTS - 1
 _ATTRIBUTION_TOTAL_TIMEOUT_S = _ATTRIBUTION_REQUEST_TIMEOUT_S * _ATTRIBUTION_MAX_ATTEMPTS
 
@@ -2086,6 +2087,22 @@ def _safe_provider_error(exc: Exception) -> str:
     return detail[:800] or type(exc).__name__
 
 
+def _runtime_retry_message(exc: BaseException, retry_number: int, delay: float) -> str:
+    """将上游短暂错误收敛为列表可读、且不暴露密钥的运行期提示。"""
+    detail = _safe_provider_error(
+        exc if isinstance(exc, Exception) else Exception(str(exc))
+    ).lower()
+    if "429" in detail or "rate limit" in detail or "qpm" in detail:
+        reason = "模型网关限流"
+    elif "timeout" in detail or "timed out" in detail:
+        reason = "模型网关超时"
+    elif any(token in detail for token in ("bad gateway", "gateway", "502", "503", "504")):
+        reason = "模型网关临时异常"
+    else:
+        reason = "模型服务临时异常"
+    return f"{reason}，正在重试第 {retry_number} 次（约 {max(1, round(delay))} 秒后）"
+
+
 async def generate_case_attribution(
     session: Session,
     run: EvalRun,
@@ -2095,6 +2112,7 @@ async def generate_case_attribution(
     judge_model_id: int | None = None,
     attribution_task_id: int | None = None,
     attribution_item_id: int | None = None,
+    runtime_status_callback: Callable[[str, str, int, int], Awaitable[None]] | None = None,
 ) -> dict[str, Any]:
     settings = settings or get_settings()
     if row.release_passed:
@@ -2108,6 +2126,8 @@ async def generate_case_attribution(
         await sync_conversation_trace(trace, settings)
         detail["trace"] = trace.model_dump(mode="json")
 
+    if runtime_status_callback is not None:
+        await runtime_status_callback("preparing_evidence", "正在整理归因证据", 0, 0)
     evidence_pack, valid_refs, evidence_registry = build_evidence_pack(
         session, run, row, detail
     )
@@ -2142,12 +2162,26 @@ async def generate_case_attribution(
         "{evidence_pack}",
         json.dumps(evidence_pack, ensure_ascii=False, separators=(",", ":")),
     )
+
+    async def on_retry(attempt: int, exc: BaseException, delay: float) -> None:
+        if runtime_status_callback is None:
+            return
+        retry_number = attempt + 1
+        await runtime_status_callback(
+            "retrying",
+            _runtime_retry_message(exc, retry_number, delay),
+            retry_number + 1,
+            retry_number,
+        )
+
     try:
         request_headers = {}
         if attribution_task_id is not None:
             request_headers["X-MME-Attribution-Task-ID"] = str(attribution_task_id)
         if attribution_item_id is not None:
             request_headers["X-MME-Attribution-Item-ID"] = str(attribution_item_id)
+        if runtime_status_callback is not None:
+            await runtime_status_callback("requesting_model", "正在请求归因模型（第 1/2 次）", 1, 0)
         async with asyncio.timeout(_ATTRIBUTION_TOTAL_TIMEOUT_S):
             raw = await backend.chat_json(
                 judge.model,
@@ -2157,12 +2191,13 @@ async def generate_case_attribution(
                 request_timeout_s=_ATTRIBUTION_REQUEST_TIMEOUT_S,
                 retry_transient_errors=True,
                 request_headers=request_headers or None,
+                on_retry=on_retry if runtime_status_callback is not None else None,
             )
     except TimeoutError as exc:
         raise HTTPException(
             status_code=504,
             detail=(
-                "AI 归因生成超时（单次 600 秒、最多 3 次尝试、累计 1,800 秒），"
+                "AI 归因生成超时（单次 600 秒、最多 2 次尝试、累计 1,200 秒），"
                 "该用例已自动标记失败，可稍后重新归因"
             ),
         ) from exc

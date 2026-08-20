@@ -7,6 +7,7 @@ import type {
   CaseBrief,
   DeriveBenchmarkYamlPayload,
   OverwriteBenchmarkYamlPayload,
+  JsonObject,
 } from "./types";
 
 export const selectableBenchmarks = (list: Benchmark[]): Benchmark[] =>
@@ -24,7 +25,11 @@ export const benchmarksApi = {
     http
       .get<BenchmarkCaseContent>(`/benchmarks/${benchmarkId}/cases/${sampleId}/content`)
       .then((r) => r.data),
-  saveBenchmarkCaseContent: (benchmarkId: number, sampleId: string, caseContent: Record<string, any>) =>
+  saveBenchmarkCaseContent: (
+    benchmarkId: number,
+    sampleId: string,
+    caseContent: JsonObject
+  ) =>
     http
       .put<BenchmarkCaseContent>(`/benchmarks/${benchmarkId}/cases/${sampleId}/content`, {
         case: caseContent,

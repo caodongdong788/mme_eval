@@ -18,7 +18,7 @@ function buildDiffColumns(runId: number): ColumnsType<DiffCaseRow> {
       render: (s: string, r: DiffCaseRow) => (
         <Link
           to={`/runs/${runId}/cases/${r.sample_id}`}
-          state={{ from: { to: `/runs/${runId}`, state: { tab: "diff" }, label: "版本对比" } }}
+          state={{ from: { to: `/runs/${runId}?tab=diff`, label: "版本对比" } }}
           className="dash-table__link"
         >
           {s || r.sample_id}

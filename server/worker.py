@@ -215,12 +215,29 @@ async def run_worker() -> None:
         asyncio.create_task(_worker_slot(i + 1, owner), name=f"worker-slot-{i + 1}")
         for i in range(max(1, settings.max_concurrent_jobs))
     ]
+    readiness = asyncio.create_task(
+        _write_readiness_heartbeat(stop), name="worker-readiness-heartbeat"
+    )
     logger.info("评测 Worker 已启动 owner=%s slots=%s", owner, len(slots))
     await stop.wait()
     for task in slots:
         task.cancel()
     await asyncio.gather(*slots, return_exceptions=True)
+    readiness.cancel()
+    await asyncio.gather(readiness, return_exceptions=True)
+    settings.worker_ready_file.unlink(missing_ok=True)
     logger.info("评测 Worker 已停止；在跑任务已重新排队")
+
+
+async def _write_readiness_heartbeat(stop: asyncio.Event) -> None:
+    """供容器健康检查确认 Worker 已完成建表等待且事件循环仍在推进。"""
+    path = get_settings().worker_ready_file
+    while not stop.is_set():
+        path.write_text(str(asyncio.get_running_loop().time()), encoding="utf-8")
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=5)
+        except asyncio.TimeoutError:
+            continue
 
 
 async def _wait_for_schema() -> None:

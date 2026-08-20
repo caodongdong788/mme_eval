@@ -25,6 +25,13 @@ def _latency_summary(results: list[CaseResult]) -> dict[str, Any]:
     """跨用例聚合会话延迟（仅记录、不计分）。过滤代表性 trace 报错的用例。"""
     vals: list[float] = []
     for r in results:
+        if r.per_run_observations:
+            vals.extend(
+                observation.latency_ms
+                for observation in r.per_run_observations
+                if not observation.error
+            )
+            continue
         if r.trace.error:
             continue  # 错误 run 不计入延迟聚合
         if r.per_run_latency_ms:
@@ -47,6 +54,13 @@ def _ttft_summary(results: list[CaseResult]) -> dict[str, Any]:
     """跨用例聚合流式首 Token 耗时；历史/非流式数据不参与。"""
     vals: list[float] = []
     for result in results:
+        if result.per_run_observations:
+            vals.extend(
+                float(observation.ttft_ms)
+                for observation in result.per_run_observations
+                if not observation.error and observation.ttft_ms is not None
+            )
+            continue
         if result.trace.error:
             continue
         if result.per_run_ttft_ms:
@@ -83,6 +97,15 @@ def _token_summary(
     token_total = 0
     count = 0
     for r in results:
+        if r.per_run_observations:
+            for observation in r.per_run_observations:
+                if observation.error:
+                    continue
+                prompt_total += observation.prompt_tokens
+                completion_total += observation.completion_tokens
+                token_total += observation.total_tokens
+                count += 1
+            continue
         if r.trace.error:
             continue  # 错误 run 不计入聚合
         # 逐 run token（与 per_run_latency_ms 对仗）；缺失则回退到代表性 trace 求和

@@ -131,3 +131,29 @@ def test_retry_async_on_retry_callback():
         )
     )
     assert events == [(0, 2.0)]
+
+
+def test_retry_async_awaits_async_on_retry_callback():
+    events: list[tuple[int, float]] = []
+
+    async def fn():
+        if not events:
+            raise ValueError("temporary")
+        return "ok"
+
+    async def on_retry(attempt, _exc, delay):
+        await asyncio.sleep(0)
+        events.append((attempt, delay))
+
+    assert asyncio.run(
+        retry_async(
+            fn,
+            max_retries=1,
+            retryable=lambda e: isinstance(e, ValueError),
+            base=2.0,
+            max_delay=40.0,
+            on_retry=on_retry,
+            sleep=_collecting_sleep([]),
+        )
+    ) == "ok"
+    assert events == [(0, 2.0)]

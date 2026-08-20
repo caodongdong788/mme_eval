@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Button, Descriptions, Empty, Result, Spin, Tag } from "antd";
 import { Link, useParams } from "react-router-dom";
-import { api, type AttributionTask, type CaseAttribution } from "../api";
 import { AttributionDetail } from "../components/RunAttributionTab";
 import { DashPanel } from "../components/DashPanel";
-import { formatApiError } from "../utils/apiError";
 import { formatApiDateTime } from "../utils/datetime";
+import { useAttributionCaseDetail } from "../hooks/useAttributionCaseDetail";
 
 export default function AttributionCaseDetailPage() {
   const { runId, taskId, sampleId } = useParams();
@@ -15,29 +14,11 @@ export default function AttributionCaseDetailPage() {
     () => decodeURIComponent(sampleId || ""),
     [sampleId]
   );
-  const [task, setTask] = useState<AttributionTask | null>(null);
-  const [result, setResult] = useState<CaseAttribution | null>(null);
-  const [error, setError] = useState<string>();
-
-  useEffect(() => {
-    let alive = true;
-    setError(undefined);
-    Promise.all([
-      api.getAttributionTask(runNumber, taskNumber),
-      api.getAttributionTaskResult(runNumber, taskNumber, decodedSampleId),
-    ])
-      .then(([nextTask, nextResult]) => {
-        if (!alive) return;
-        setTask(nextTask);
-        setResult(nextResult);
-      })
-      .catch((reason) => {
-        if (alive) setError(formatApiError(reason, "加载归因结果失败"));
-      });
-    return () => {
-      alive = false;
-    };
-  }, [decodedSampleId, runNumber, taskNumber]);
+  const { task, result, error } = useAttributionCaseDetail(
+    runNumber,
+    taskNumber,
+    decodedSampleId
+  );
 
   const item = task?.items.find(
     (candidate) => candidate.sample_id === decodedSampleId

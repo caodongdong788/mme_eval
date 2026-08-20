@@ -23,8 +23,8 @@ export default function CaseDetailPage() {
   const tagLabel = useFailureTagLabels();
   const id = Number(runId);
   const backFrom = (location.state as { from?: { to: string; state?: unknown; label?: string } } | null)?.from;
-  const backTo = backFrom?.to ?? `/runs/${id}`;
-  const backState = backFrom?.state ?? { tab: "detail" };
+  const backTo = backFrom?.to ?? `/runs/${id}?tab=detail`;
+  const backState = backFrom?.state;
   const backLabel = backFrom?.label ?? "用例列表";
 
   const cd = useCaseDetail(id, sampleId);

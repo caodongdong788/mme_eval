@@ -27,6 +27,7 @@ exports[`PairwiseConversationCol > matches snapshot for empty messages 1`] = `
         class="ant-card-extra"
       >
         <a
+          data-discover="true"
           href="/runs/1/cases/bc_001"
         >
           用例明细 
@@ -145,6 +146,7 @@ exports[`PairwiseConversationCol > matches snapshot for user and assistant messa
         class="ant-card-extra"
       >
         <a
+          data-discover="true"
           href="/runs/1/cases/bc_001"
         >
           用例明细 

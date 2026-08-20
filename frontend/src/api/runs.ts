@@ -3,9 +3,9 @@ import type {
   AnnotatePayload,
   Annotation,
   CaseAttribution,
+  CasePage,
   AttributionTask,
   RunAttributionCategoryStats,
-  CaseRow,
   CasesYaml,
   PreviewRejudgePayload,
   PreviewRejudgeResult,
@@ -17,6 +17,7 @@ import type {
   RunDetail,
   RunDiff,
   RunSummary,
+  JsonObject,
 } from "./types";
 
 /** 用例列表单次拉取上限（当前 benchmark ≤92，与 LIST_LIMIT_MAX 对齐）。 */
@@ -29,16 +30,18 @@ export const runsApi = {
     http.post<RunSummary>("/runs", payload).then((r) => r.data),
   getProgress: (id: number) =>
     http.get<ProgressInfo>(`/runs/${id}/progress`).then((r) => r.data),
-  listCaseResults: (id: number, params?: Record<string, any>) =>
-    http.get<CaseRow[]>(`/runs/${id}/cases`, { params }).then((r) => r.data),
+  listCaseResults: (id: number, params?: Record<string, unknown>) =>
+    http.get<CasePage>(`/runs/${id}/cases`, { params }).then((r) => r.data),
   getCaseDetail: (id: number, sampleId: string) =>
-    http.get<any>(`/runs/${id}/cases/${sampleId}`).then((r) => r.data),
+    http.get<JsonObject>(`/runs/${id}/cases/${sampleId}`).then((r) => r.data),
   getNextCase: (id: number, sampleId: string) =>
     http.get<{ sample_id: string | null }>(`/runs/${id}/cases/${sampleId}/next`).then((r) => r.data),
   getCaseRagAudit: (id: number, sampleId: string) =>
     http.get<{ calls: unknown[] }>(`/runs/${id}/cases/${sampleId}/agent-chain/rag-audit`).then((r) => r.data),
   syncCaseAgentChain: (id: number, sampleId: string) =>
-    http.post<any>(`/runs/${id}/cases/${sampleId}/agent-chain/sync`).then((r) => r.data),
+    http
+      .post<JsonObject>(`/runs/${id}/cases/${sampleId}/agent-chain/sync`)
+      .then((r) => r.data),
   getCaseAttribution: (id: number, sampleId: string) =>
     http.get<CaseAttribution>(`/runs/${id}/cases/${sampleId}/attribution`).then((r) => r.data),
   listAttributionTasks: (id: number) =>
@@ -77,7 +80,7 @@ export const runsApi = {
       .then((r) => r.data),
   deleteAttributionTask: (id: number, taskId: number) =>
     http.delete(`/runs/${id}/attribution-tasks/${taskId}`).then((r) => r.data),
-  getRunCasesYaml: (id: number, params?: Record<string, any>) =>
+  getRunCasesYaml: (id: number, params?: Record<string, unknown>) =>
     http.get<CasesYaml>(`/runs/${id}/cases-yaml`, { params }).then((r) => r.data),
   previewRejudgeCase: (id: number, sampleId: string, payload?: PreviewRejudgePayload) =>
     http
@@ -92,7 +95,7 @@ export const runsApi = {
     http.post<RunSummary>(`/runs/${id}/cases/retry`, { sample_ids: sampleIds }).then((r) => r.data),
   cancelRetryCases: (id: number) =>
     http.post<RunSummary>(`/runs/${id}/cases/retry/cancel`).then((r) => r.data),
-  getReviewQueue: (id: number, params?: Record<string, any>) =>
+  getReviewQueue: (id: number, params?: Record<string, unknown>) =>
     http.get<ReviewQueueItem[]>(`/runs/${id}/review-queue`, { params }).then((r) => r.data),
   getReviewStats: (id: number) =>
     http.get<ReviewStats>(`/runs/${id}/review-stats`).then((r) => r.data),
@@ -100,7 +103,7 @@ export const runsApi = {
     http.get<Annotation[]>(`/runs/${id}/cases/${sampleId}/annotations`).then((r) => r.data),
   annotateCase: (id: number, sampleId: string, payload: AnnotatePayload) =>
     http.post<Annotation>(`/runs/${id}/cases/${sampleId}/annotate`, payload).then((r) => r.data),
-  exportTranscripts: (id: number, params?: Record<string, any>) =>
+  exportTranscripts: (id: number, params?: Record<string, unknown>) =>
     http
       .post<{ url: string; count: number; filename: string }>(
         `/runs/${id}/export-transcripts`,

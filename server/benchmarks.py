@@ -397,7 +397,12 @@ def _validate_yaml_path(path: Path, settings: Settings) -> list[TestCase]:
             format_validation_exception(exc, prefix="用例校验失败")
         ) from exc
     except Exception as exc:  # noqa: BLE001 —— loader 校验失败统一转领域错误
-        raise BenchmarkValidationError("用例校验失败，请检查用例内容和字段格式") from exc
+        message = str(exc).split(": ", 1)[-1].strip()
+        raise BenchmarkValidationError(
+            f"用例校验失败：{message}"
+            if message
+            else "用例校验失败，请检查用例内容和字段格式"
+        ) from exc
     if not cases:
         raise BenchmarkValidationError("用例集为空或不含合法用例")
     return cases
@@ -1397,7 +1402,12 @@ def _validate_case_dict(
             format_validation_exception(exc, prefix="用例校验失败")
         ) from exc
     except Exception as exc:  # noqa: BLE001
-        raise BenchmarkValidationError("用例校验失败，请检查用例内容和字段格式") from exc
+        message = str(exc).split(": ", 1)[-1].strip()
+        raise BenchmarkValidationError(
+            f"用例校验失败：{message}"
+            if message
+            else "用例校验失败，请检查用例内容和字段格式"
+        ) from exc
     finally:
         tmp.unlink(missing_ok=True)
     if len(cases) != 1:

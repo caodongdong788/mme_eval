@@ -9,6 +9,7 @@ import {
 } from "../api/index";
 import { formatApiError } from "../utils/apiError";
 import { useAsyncData } from "./useAsyncData";
+import { usePollingTask } from "./usePollingTask";
 
 export const PAIRWISE_SUBJECT_LABELS: Record<string, string> = {
   model: "被测模型",
@@ -49,13 +50,13 @@ export function usePairwisePage() {
   const [submitting, setSubmitting] = useState(false);
 
   const anyRunning = history.some((h) => h.status === "running");
-  useEffect(() => {
-    if (!anyRunning) return;
-    const t = window.setInterval(() => {
-      if (document.visibilityState === "visible") loadHistory();
-    }, 2500);
-    return () => window.clearInterval(t);
-  }, [anyRunning, loadHistory]);
+  usePollingTask(
+    async () => {
+      await loadHistory();
+    },
+    [loadHistory],
+    { enabled: anyRunning, intervalMs: 2500 }
+  );
 
   useEffect(() => {
     if (runA && runB && runA !== runB) {

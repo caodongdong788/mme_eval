@@ -23,7 +23,7 @@ describe("useAsyncData", () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.data).toBeNull();
-    expect(result.current.error).toBe("boom");
+    expect(result.current.error).toBe("加载失败");
   });
 
   it("reload refetches", async () => {

@@ -23,15 +23,16 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
-    // antd 作为单独 vendor chunk 体积较大但可被长期缓存并并行加载，调高告警阈值避免噪音。
-    chunkSizeWarningLimit: 1100,
     rollupOptions: {
       output: {
-        // 拆分第三方依赖，避免单体大包（react / antd / recharts 各自成 chunk）。
-        manualChunks: {
-          "vendor-react": ["react", "react-dom", "react-router-dom"],
-          "vendor-antd": ["antd", "@ant-design/icons"],
-          "vendor-charts": ["recharts"],
+        // React 是所有页面共享的运行时；其余依赖交给 Vite 按路由依赖自动
+        // 拆分，避免把懒加载页面使用的组件强行聚合为首屏必载大包。
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (/node_modules\/(react|react-dom|react-router|react-router-dom)\//.test(id)) {
+            return "vendor-react";
+          }
+          return undefined;
         },
       },
     },

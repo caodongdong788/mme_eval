@@ -45,4 +45,29 @@ describe("buildCaseColumns", () => {
     expect(screen.queryByText("症状识别")).not.toBeInTheDocument();
     expect(screen.queryByText("最终结论")).not.toBeInTheDocument();
   });
+
+  it("shows concise actionable problem tags instead of one ambiguous failure string", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <Table<CaseRow>
+          rowKey="id"
+          pagination={false}
+          columns={buildCaseColumns(1, (tag) => ({
+            plan_feasibility_gap: "方案可行性不足",
+            executability_gap: "行动指引不清",
+          })[tag] || tag)}
+          dataSource={[{
+            ...row,
+            release_passed: false,
+            failure_tags: ["plan_feasibility_gap", "executability_gap"],
+          }]}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getAllByText("主要问题").length).toBeGreaterThan(0);
+    expect(screen.getByText("方案可行性不足")).toBeInTheDocument();
+    expect(screen.getByText("行动指引不清")).toBeInTheDocument();
+    expect(screen.queryByText("失败标签")).not.toBeInTheDocument();
+  });
 });

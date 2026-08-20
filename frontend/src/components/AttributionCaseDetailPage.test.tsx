@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, type AttributionTask, type CaseAttribution } from "../api";
 import { clearConfigLabelMapCache } from "../hooks/useConfigLabelMap";
 import { renderWithProviders } from "../test/renderWithProviders";
-import AttributionCaseDetailPage from "./AttributionCaseDetailPage";
+import AttributionCaseDetailPage from "../pages/AttributionCaseDetailPage";
 
 afterEach(cleanup);
 
@@ -302,6 +302,32 @@ describe("AttributionCaseDetailPage", () => {
     expect(
       screen.getByText("需要补充最终选中文献与最终生成上下文的映射记录。")
     ).toBeInTheDocument();
+  });
+
+  it("hides pending evidence when the API only returns empty limitation values", async () => {
+    mockedApi.getAttributionTaskResult.mockResolvedValue({
+      ...result,
+      analysis: {
+        ...result.analysis!,
+        limitations: ["", "  "],
+      },
+    });
+
+    renderWithProviders(
+      <MemoryRouter
+        initialEntries={["/runs/26/attribution-tasks/28/cases/case_23"]}
+      >
+        <Routes>
+          <Route
+            path="/runs/:runId/attribution-tasks/:taskId/cases/:sampleId"
+            element={<AttributionCaseDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("cx-agent 优化建议")).toBeInTheDocument();
+    expect(screen.queryByText("待补充证据")).not.toBeInTheDocument();
   });
 
   it("shows evaluation-tool optimization for questionable deductions", async () => {

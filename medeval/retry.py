@@ -15,6 +15,7 @@ executor 的失败是「值驱动」（``ChatResponse.error``）与「异常驱�
 from __future__ import annotations
 
 import asyncio
+import inspect
 import random
 from typing import Awaitable, Callable, TypeVar
 
@@ -50,7 +51,7 @@ async def retry_async(
     factor: float = 2.0,
     max_delay: float,
     jitter: float = 0.0,
-    on_retry: Callable[[int, BaseException, float], None] | None = None,
+    on_retry: Callable[[int, BaseException, float], Awaitable[None] | None] | None = None,
     delay_for: Callable[[int, BaseException], float | None] | None = None,
     sleep: Callable[[float], Awaitable[None]] | None = None,
 ) -> T:
@@ -76,6 +77,8 @@ async def retry_async(
                 if override is not None:
                     delay = override
             if on_retry is not None:
-                on_retry(attempt, e, delay)
+                callback_result = on_retry(attempt, e, delay)
+                if inspect.isawaitable(callback_result):
+                    await callback_result
             await _sleep(delay)
             attempt += 1

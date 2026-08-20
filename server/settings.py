@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import os
+import json
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -15,6 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # 内置默认会话密钥（生产环境禁止沿用，单一信任源）。
 DEFAULT_SESSION_SECRET = "dev-insecure-secret"
+EXAMPLE_OPEN_API_ENCRYPTION_SECRET = "please-change-me-to-another-long-random-secret"
 
 
 def _load_dotenv(path: Path) -> None:
@@ -86,6 +88,18 @@ class Settings:
     job_heartbeat_seconds: int = field(
         default_factory=lambda: int(os.environ.get("MEDEVAL_JOB_HEARTBEAT_SECONDS", "10"))
     )
+    # Web 多实例/蓝绿发布时可只让一个实例运行周期调度器。数据库 occurrence
+    # 唯一约束仍作为最终幂等兜底。
+    scheduler_enabled: bool = field(
+        default_factory=lambda: os.environ.get(
+            "MEDEVAL_SCHEDULER_ENABLED", "true"
+        ).strip().lower() in {"1", "true", "yes", "on"}
+    )
+    worker_ready_file: Path = field(
+        default_factory=lambda: _env_path(
+            "MEDEVAL_WORKER_READY_FILE", Path("/tmp/mme-worker-ready")
+        )
+    )
     # OpenAPI 临时评测请求与结果的保留期；到期后物理删除整条记录。
     temporary_evaluation_retention_days: int = field(
         default_factory=lambda: int(
@@ -116,6 +130,16 @@ class Settings:
             "sheets:spreadsheet:read",
         )
     )
+    # 仅这些飞书 open_id 可管理平台级密钥和敏感评测账号；逗号分隔。
+    admin_open_ids_raw: str = field(
+        default_factory=lambda: os.environ.get("MEDEVAL_ADMIN_OPEN_IDS", "")
+    )
+    # SIT 评测账号验证码必须由部署环境注入，格式为 {"+86...":"123456"}。
+    evaluation_account_codes_json: str = field(
+        default_factory=lambda: os.environ.get(
+            "MEDEVAL_EVALUATION_ACCOUNT_CODES_JSON", "{}"
+        )
+    )
     # 登录成功后回跳的前端地址。
     frontend_url: str = field(
         default_factory=lambda: os.environ.get("FRONTEND_URL", "http://localhost:5173")
@@ -123,6 +147,14 @@ class Settings:
     # 会话 cookie 签名密钥（生产必须配置）。
     session_secret: str = field(
         default_factory=lambda: os.environ.get("SESSION_SECRET", DEFAULT_SESSION_SECRET)
+    )
+    # OpenAPI Key 的可恢复密文主密钥。默认复用 SESSION_SECRET；生产建议单独注入
+    # 一个长期稳定值，避免会话密钥轮换影响管理员查看既有 Key。
+    open_api_encryption_secret: str = field(
+        default_factory=lambda: (
+            os.environ.get("MEDEVAL_OPEN_API_ENCRYPTION_SECRET", "").strip()
+            or os.environ.get("SESSION_SECRET", DEFAULT_SESSION_SECRET)
+        )
     )
     # 会话有效期（秒），默认 7 天。
     session_ttl_seconds: int = field(
@@ -201,6 +233,28 @@ class Settings:
         return bool(self.feishu_app_id and self.feishu_app_secret)
 
     @property
+    def admin_open_ids(self) -> frozenset[str]:
+        return frozenset(
+            value.strip()
+            for value in self.admin_open_ids_raw.split(",")
+            if value.strip()
+        )
+
+    @property
+    def evaluation_account_codes(self) -> dict[str, str]:
+        try:
+            value = json.loads(self.evaluation_account_codes_json or "{}")
+        except ValueError:
+            return {}
+        if not isinstance(value, dict):
+            return {}
+        return {
+            str(phone): str(code)
+            for phone, code in value.items()
+            if str(phone).strip() and str(code).strip()
+        }
+
+    @property
     def is_production(self) -> bool:
         return self.env.strip().lower() in ("production", "prod")
 
@@ -219,6 +273,14 @@ class Settings:
         if self.session_secret == DEFAULT_SESSION_SECRET:
             raise RuntimeError(
                 "生产环境禁止使用默认 SESSION_SECRET，请配置一个高强度随机密钥后再启动。"
+            )
+        if self.open_api_encryption_secret in {
+            DEFAULT_SESSION_SECRET,
+            EXAMPLE_OPEN_API_ENCRYPTION_SECRET,
+        }:
+            raise RuntimeError(
+                "生产环境必须配置真实的 MEDEVAL_OPEN_API_ENCRYPTION_SECRET，"
+                "禁止使用示例值。"
             )
 
 

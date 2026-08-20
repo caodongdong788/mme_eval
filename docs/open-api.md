@@ -13,6 +13,10 @@
 
 平台管理员需在「参数配置 → Open API」创建一把 API Key，并为调用方勾选最小所需权限。一个集成方建议使用一把独立的 Key，以便后续轮换或撤销时不影响其他系统。
 
+完整 Key 在创建后仍可由平台管理员随时回到「参数配置 → Open API」查看和复制。平台数据库保存带完整性校验的可恢复密文，实际请求鉴权使用独立的不可逆哈希；普通 OpenAPI 响应和日志不会返回完整 Key。调用方仍应将 Key 存入自己的密钥管理服务，不要依赖人工查看作为自动化配置来源。
+
+> **必须长期保留的产品约束：OpenAPI Key 不是一次性展示。后续安全、性能或存储优化不得删除“管理员随时查看完整 Key”的能力，也不得把列表退化为仅显示前缀。** 已经被旧版本清空明文的历史 Key 无法逆向恢复，需要在管理页轮换一次；此后生成的新 Key 均可持续查看。生产环境应设置并长期保持稳定的 `MEDEVAL_OPEN_API_ENCRYPTION_SECRET`，更换该主密钥前必须先完成密文迁移。
+
 所有请求均需携带：
 
 ```http
@@ -28,7 +32,11 @@ X-MME-API-Key: mme_xxxxxxxxxxxxxxxxx
 | `temporary_evaluations:create` | 创建并查询临时 Q&A 评测 |
 | `evaluations:create` | 创建评测任务 |
 | `evaluations:read` | 查询单个或批量评测任务结果 |
+| `evaluations:read_all` | 管理员集成查询所有调用方及人工/定时评测结果 |
 | `attributions:read` | 查询归因任务的 CX-Agent 优化建议 |
+| `attributions:read_all` | 管理员集成查询所有评测的归因建议 |
+
+`evaluations:read` 和 `attributions:read` 默认只返回由当前这把 Key 创建的评测及其归因，其他 Key 的任务表现为不存在。`*_all` 是高权限能力，只应授予平台管理员集成。
 
 ## 2. 推荐调用流程
 
@@ -125,7 +133,7 @@ curl -sS "$MME_BASE_URL/api/open/v1/judge-models" \
 
 1. 单轮固定 Case 读取其唯一用户问题；多轮固定 Case 与动态 Case 的 opening 只用于识别“不支持的多轮命中”；
 2. 对传入问题与 Case 问题做 NFKC 全半角归一，并移除换行、空格、零宽字符等排版差异；
-3. 归一后完全一致才视为同一个 Case，不做模糊或语义相似匹配；
+3. 优先使用归一后的完全一致匹配；完全一致无结果时，只接受相似度不低于 0.97 且长度接近的标点/排版级近精确匹配，不做语义相似匹配；
 4. 命中后自动继承 `dimension_criteria` 和 `guidelines`，但不继承原 Case 的对话、画像与 assertions；
 5. 未命中时按平台通用八维标准评测，返回 `benchmark_case_matched: false`、`case_source: null`；
 6. 同一问题命中多个 Case 时，如果评分契约相同则确定性选取其中一条；如果评分点或指南检查点不同，则返回 `409`，避免静默套错标准。
@@ -368,12 +376,12 @@ curl -sS -X POST "$MME_BASE_URL/api/open/v1/evaluations" \
 
 ## 7. 查询评测任务状态
 
-`GET /api/open/v1/evaluations/{run_id}`
+`GET /api/open/v1/evaluation-summaries/{run_id}`
 
 所需权限：`evaluations:read`
 
 ```bash
-curl -sS "$MME_BASE_URL/api/open/v1/evaluations/42" \
+curl -sS "$MME_BASE_URL/api/open/v1/evaluation-summaries/42" \
   -H "X-MME-API-Key: $MME_API_KEY"
 ```
 
@@ -666,7 +674,7 @@ run = created.json()
 while run["status"] in {"pending", "running"}:
     time.sleep(10)
     status = requests.get(
-        f"{base_url}/api/open/v1/evaluations/{run['id']}",
+        f"{base_url}/api/open/v1/evaluation-summaries/{run['id']}",
         headers=headers,
         timeout=30,
     )

@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..db import get_session
-from ..jobs import get_job_runner
+from ..jobs import commit_and_submit_job, get_job_runner
 from ..models_db import CaseResultRow, EvalRun, OpenApiAccessKey
 from ..open_api_auth import require_open_api_permission
 from ..settings import get_settings
@@ -234,11 +234,13 @@ def get_temporary_evaluation(
     response_model=OpenEvaluationOut,
     status_code=201,
     summary="创建评测任务",
-    dependencies=[Depends(require_open_api_permission("evaluations:create"))],
 )
 async def create_open_evaluation(
     payload: OpenEvaluationCreate,
     session: Session = Depends(get_session),
+    access_key: OpenApiAccessKey = Depends(
+        require_open_api_permission("evaluations:create")
+    ),
 ) -> OpenEvaluationOut:
     run_payload = RunCreate(
         benchmark_id=payload.benchmark_id,
@@ -251,7 +253,11 @@ async def create_open_evaluation(
         judge_model_id=payload.judge_model_id,
     )
     plan = runs_svc.prepare_create_run(
-        session, run_payload, created_by="OpenAPI", trigger_type="open_api"
+        session,
+        run_payload,
+        created_by=f"OpenAPI:{access_key.name}",
+        trigger_type="open_api",
+        open_api_key_id=access_key.id,
     )
     # EvalRun 没有单独的 judge_model_id 列；将这个 OpenAPI 入参作为运行元数据保存，
     # 不参与 adapter 配置合并，也不包含任何连接凭据。
@@ -259,7 +265,6 @@ async def create_open_evaluation(
         **(plan.run.adapter_overrides or {}),
         "open_api_judge_model_id": payload.judge_model_id,
     }
-    session.commit()
     job = build_eval_job(
         plan.run.id,
         benchmark_id=plan.benchmark_id,
@@ -272,7 +277,9 @@ async def create_open_evaluation(
         judge_model_id=getattr(plan, "judge_model_id", None),
         user_simulator_model_id=getattr(plan, "user_simulator_model_id", None),
     )
-    await get_job_runner().submit(plan.run.id, job)
+    await commit_and_submit_job(
+        session, plan.run.id, job, job_runner=get_job_runner()
+    )
     return _as_open_evaluation(plan.run, payload)
 
 
@@ -280,7 +287,6 @@ async def create_open_evaluation(
     "/evaluations",
     response_model=OpenEvaluationBatchOut,
     summary="按任务类型批量查询评测结果",
-    dependencies=[Depends(require_open_api_permission("evaluations:read"))],
 )
 def list_open_evaluations(
     trigger_type: str | None = Query(
@@ -290,6 +296,9 @@ def list_open_evaluations(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_session),
+    access_key: OpenApiAccessKey = Depends(
+        require_open_api_permission("evaluations:read")
+    ),
 ) -> OpenEvaluationBatchOut:
     valid_trigger_types = {"manual", "scheduled", "open_api"}
     valid_statuses = {"pending", "running", "success", "failed"}
@@ -300,6 +309,9 @@ def list_open_evaluations(
 
     stmt = select(EvalRun).order_by(EvalRun.id.desc())
     count_stmt = select(func.count(EvalRun.id))
+    if "evaluations:read_all" not in (access_key.permissions or []):
+        stmt = stmt.where(EvalRun.open_api_key_id == access_key.id)
+        count_stmt = count_stmt.where(EvalRun.open_api_key_id == access_key.id)
     if trigger_type is not None:
         stmt = stmt.where(EvalRun.trigger_type == trigger_type)
         count_stmt = count_stmt.where(EvalRun.trigger_type == trigger_type)
@@ -334,7 +346,6 @@ def list_open_evaluations(
     "/attribution-tasks",
     response_model=OpenAttributionTaskBatchOut,
     summary="查询归因任务的 CX-Agent 优化建议",
-    dependencies=[Depends(require_open_api_permission("attributions:read"))],
 )
 def list_open_attribution_tasks(
     run_id: int | None = Query(default=None, gt=0, description="可选：仅查询某个评测任务的归因任务"),
@@ -345,6 +356,9 @@ def list_open_attribution_tasks(
     limit: int = Query(default=20, ge=1, le=50),
     offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_session),
+    access_key: OpenApiAccessKey = Depends(
+        require_open_api_permission("attributions:read")
+    ),
 ) -> OpenAttributionTaskBatchOut:
     valid_statuses = {"queued", "running", "success", "partial", "failed"}
     if status is not None and status not in valid_statuses:
@@ -359,6 +373,11 @@ def list_open_attribution_tasks(
         limit=limit,
         offset=offset,
         frontend_url=get_settings().frontend_url,
+        owner_api_key_id=(
+            None
+            if "attributions:read_all" in (access_key.permissions or [])
+            else access_key.id
+        ),
     )
     return OpenAttributionTaskBatchOut(total=total, items=items)
 
@@ -367,12 +386,18 @@ def list_open_attribution_tasks(
     "/evaluation-summaries/{run_id}",
     response_model=OpenEvaluationOut,
     summary="查询单个评测任务总览",
-    dependencies=[Depends(require_open_api_permission("evaluations:read"))],
 )
 def get_open_evaluation_summary(
-    run_id: int, session: Session = Depends(get_session)
+    run_id: int,
+    session: Session = Depends(get_session),
+    access_key: OpenApiAccessKey = Depends(
+        require_open_api_permission("evaluations:read")
+    ),
 ) -> OpenEvaluationOut:
     run = session.get(EvalRun, run_id)
-    if run is None:
+    if run is None or (
+        "evaluations:read_all" not in (access_key.permissions or [])
+        and run.open_api_key_id != access_key.id
+    ):
         raise HTTPException(status_code=404, detail=f"评测任务 {run_id} 不存在")
     return _as_open_evaluation(run)

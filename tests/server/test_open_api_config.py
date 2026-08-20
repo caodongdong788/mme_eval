@@ -12,7 +12,9 @@ def _create_key(client, name: str, permissions: list[str]) -> dict:
     return response.json()
 
 
-def test_open_api_keys_are_multiple_copyable_and_permission_scoped(client):
+def test_open_api_keys_remain_viewable_and_permission_scoped(client, session):
+    from server.models_db import OpenApiAccessKey
+
     benchmark_key = _create_key(
         client,
         "CI 只读",
@@ -30,9 +32,15 @@ def test_open_api_keys_are_multiple_copyable_and_permission_scoped(client):
 
     listed = client.get("/api/config/open-api-keys")
     assert listed.status_code == 200
+    assert listed.headers["cache-control"] == "no-store"
     listed_by_id = {item["id"]: item for item in listed.json()}
-    # 参数配置页面可随时重新获取完整值，从而支持复制，而不是仅首次展示。
+    # 管理员后续仍能查看完整值；数据库保存密文，普通鉴权只查独立摘要。
     assert listed_by_id[benchmark_key["id"]]["api_key"] == benchmark_key["api_key"]
+    session.expire_all()
+    stored = session.get(OpenApiAccessKey, benchmark_key["id"])
+    assert stored is not None
+    assert stored.api_key.startswith("fernet:v1:")
+    assert stored.api_key != benchmark_key["api_key"]
     assert listed_by_id[evaluation_key["id"]]["permissions"] == [
         "evaluations:create",
         "evaluations:read",
@@ -66,6 +74,8 @@ def test_open_api_key_can_update_rotate_and_delete(client):
     assert rotated.status_code == 200, rotated.text
     new_value = rotated.json()["api_key"]
     assert new_value != old_value
+    listed_after_rotate = client.get("/api/config/open-api-keys").json()
+    assert next(item for item in listed_after_rotate if item["id"] == key["id"])["api_key"] == new_value
 
     old_key_rejected = client.get(
         "/api/open/v1/judge-models", headers={"X-MME-API-Key": old_value}

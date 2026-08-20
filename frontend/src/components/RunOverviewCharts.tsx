@@ -84,10 +84,10 @@ export function RunOverviewCharts({
                   tick={AXIS_TICK}
                 />
                 <RTooltip
-                  labelFormatter={(label: string) => `类别：${label}`}
-                  formatter={(value: number, name: string) => [
-                    name === "通过率" ? `${value}%` : `${value} 例`,
-                    name,
+                  labelFormatter={(label) => `类别：${String(label ?? "")}`}
+                  formatter={(value, name) => [
+                    String(name) === "通过率" ? `${Number(value)}%` : `${Number(value)} 例`,
+                    String(name),
                   ]}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
@@ -153,8 +153,8 @@ export function RunOverviewCharts({
                 tick={AXIS_TICK}
               />
               <RTooltip
-                formatter={(v: number, name: string) =>
-                  name === "通过率" ? `${v}%` : v
+                formatter={(value, name) =>
+                  String(name) === "通过率" ? `${Number(value)}%` : Number(value)
                 }
               />
               <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
@@ -201,7 +201,7 @@ export function RunOverviewCharts({
                 tick={AXIS_TICK}
               />
               <RTooltip
-                formatter={(value: number) => [
+                formatter={(value) => [
                   `${Number(value).toFixed(2)} / 5`,
                   "平均分",
                 ]}
@@ -249,7 +249,7 @@ export function RunOverviewCharts({
                   ))}
                 </Pie>
                 <RTooltip
-                  formatter={(v: number, n: string) => [`${v} 例`, n]}
+                  formatter={(value, name) => [`${Number(value)} 例`, String(name)]}
                 />
                 <Legend
                   layout="vertical"

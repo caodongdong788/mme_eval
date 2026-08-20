@@ -112,7 +112,6 @@ def create_derived_run(
     )
     session.add(derived)
     session.flush()
-    session.commit()
     return derived
 
 
@@ -139,6 +138,8 @@ def prepare_create_run(
     created_by: Optional[str] = None,
     trigger_type: str = "manual",
     scheduled_evaluation_id: int | None = None,
+    scheduled_occurrence_key: str | None = None,
+    open_api_key_id: int | None = None,
 ) -> CreateRunPlan:
     # 独立 Worker 不能安全继承请求进程内的一次性明文密钥。持久化模式要求使用
     # 已保存的模型配置或环境变量，避免把凭据写进数据库队列。
@@ -242,6 +243,10 @@ def prepare_create_run(
         trigger_type=trigger_type if trigger_type in {"manual", "scheduled", "open_api"} else "manual",
         benchmark_id=bm.id,
         scheduled_evaluation_id=scheduled_evaluation_id if trigger_type == "scheduled" else None,
+        scheduled_occurrence_key=(
+            scheduled_occurrence_key if trigger_type == "scheduled" else None
+        ),
+        open_api_key_id=open_api_key_id if trigger_type == "open_api" else None,
         judge_overrides=judge_public,
         adapter_overrides=adapter_public,
         n_runs=payload.repeat or 1,
@@ -249,7 +254,6 @@ def prepare_create_run(
     )
     session.add(run)
     session.flush()
-    session.commit()
 
     judge_full = judge_ov.model_dump(exclude_none=True) if has_judge else None
     adapter_full = payload.adapter.model_dump(exclude_none=True) if payload.adapter else {}

@@ -1,5 +1,5 @@
 import { http } from "./client";
-import type { EvaluationAccountsConfig, EvaluationStandard, JudgeDefaults, OpenApiAccessKey, OpenApiPermission, RunSummary, ScheduledEvaluation, ScheduledEvaluationPayload } from "./types";
+import type { EvaluationAccountsConfig, EvaluationStandard, JudgeDefaults, OpenApiAccessKey, OpenApiAccessKeyCreated, OpenApiPermission, RunSummary, ScheduledEvaluation, ScheduledEvaluationPayload } from "./types";
 
 export const configApi = {
   getEvaluationStandard: () =>
@@ -15,11 +15,11 @@ export const configApi = {
   listOpenApiKeys: () =>
     http.get<OpenApiAccessKey[]>("/config/open-api-keys").then((r) => r.data),
   createOpenApiKey: (payload: { name: string; permissions: OpenApiPermission[] }) =>
-    http.post<OpenApiAccessKey>("/config/open-api-keys", payload).then((r) => r.data),
+    http.post<OpenApiAccessKeyCreated>("/config/open-api-keys", payload).then((r) => r.data),
   updateOpenApiKey: (id: number, payload: { name: string; permissions: OpenApiPermission[] }) =>
     http.patch<OpenApiAccessKey>(`/config/open-api-keys/${id}`, payload).then((r) => r.data),
   rotateOpenApiKey: (id: number) =>
-    http.post<OpenApiAccessKey>(`/config/open-api-keys/${id}/rotate`).then((r) => r.data),
+    http.post<OpenApiAccessKeyCreated>(`/config/open-api-keys/${id}/rotate`).then((r) => r.data),
   deleteOpenApiKey: (id: number) => http.delete(`/config/open-api-keys/${id}`),
   listScheduledEvaluations: () =>
     http.get<ScheduledEvaluation[]>("/scheduled-evaluations").then((r) => r.data),

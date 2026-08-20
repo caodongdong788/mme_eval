@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { formatApiError } from "../utils/apiError";
 
 export interface AsyncData<T> {
@@ -13,35 +13,43 @@ export interface AsyncData<T> {
 export function useAsyncData<T>(
   fetcher: () => Promise<T>,
   deps: unknown[],
-  fallbackMessage = "加载失败"
+  fallbackMessage = "加载失败",
+  options: { enabled?: boolean } = {},
 ): AsyncData<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const generation = useRef(0);
+  const enabled = options.enabled ?? true;
 
   const run = useCallback(() => {
-    let cancelled = false;
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
+    const requestGeneration = ++generation.current;
     setLoading(true);
     setError(null);
     fetcher()
       .then((res) => {
-        if (!cancelled) setData(res);
+        if (generation.current === requestGeneration) setData(res);
       })
       .catch((e) => {
-        if (!cancelled) setError(formatApiError(e, fallbackMessage));
+        if (generation.current === requestGeneration) {
+          setError(formatApiError(e, fallbackMessage));
+        }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (generation.current === requestGeneration) setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+  }, [enabled, ...deps]);
 
   useEffect(() => {
-    const cleanup = run();
-    return cleanup;
+    run();
+    return () => {
+      generation.current += 1;
+    };
   }, [run]);
 
   return { data, loading, error, reload: run };

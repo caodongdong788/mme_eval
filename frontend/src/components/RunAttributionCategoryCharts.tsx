@@ -59,13 +59,14 @@ function CategoryBarChart({
             interval={0}
           />
           <RTooltip
-            labelFormatter={(label: string, payload) => {
+            labelFormatter={(label, payload) => {
               const row = payload?.[0]?.payload as AttributionCategoryCount | undefined;
+              const text = String(label ?? "");
               return showParent && row?.parent_label
-                ? `${row.parent_label} / ${label}`
-                : label;
+                ? `${row.parent_label} / ${text}`
+                : text;
             }}
-            formatter={(value: number) => [`${value} 个 Case`, "去重数量"]}
+            formatter={(value) => [`${Number(value)} 个 Case`, "去重数量"]}
           />
           <Bar
             dataKey="case_count"
@@ -137,7 +138,7 @@ export function RunAttributionCategoryCharts({
 }) {
   const [selectedFirstLevel, setSelectedFirstLevel] = useState<string | null>(null);
   const firstLevel = stats?.first_level || [];
-  const secondLevel = stats?.second_level || [];
+  const secondLevel = useMemo(() => stats?.second_level || [], [stats?.second_level]);
   const effectiveSelectedKey = firstLevel.some((row) => row.key === selectedFirstLevel)
     ? selectedFirstLevel
     : null;

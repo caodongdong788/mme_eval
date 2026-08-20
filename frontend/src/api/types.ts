@@ -1,5 +1,6 @@
 export interface MeResponse {
   auth_required: boolean;
+  is_admin: boolean;
   user: { open_id: string; name: string; avatar_url: string } | null;
 }
 
@@ -62,9 +63,16 @@ export interface CasesYaml {
   yaml_text: string;
 }
 
+export interface CasePage {
+  items: CaseRow[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export interface CaseLogicOverride {
   sample_id: string;
-  evaluation?: Record<string, any> | null;
+  evaluation?: JsonObject | null;
 }
 
 export interface PreviewRejudgePayload {
@@ -92,7 +100,7 @@ export interface CaseScores {
     max_score?: number | null;
     reason?: string | null;
     evidence?: string[];
-    details?: Record<string, any>;
+    details?: JsonObject;
   }>;
 }
 
@@ -101,7 +109,7 @@ export interface PreviewRejudgeResult {
   current: CaseScores;
   preview: CaseScores;
   changed: boolean;
-  case_result: Record<string, any>;
+  case_result: JsonObject;
 }
 
 export interface CaseBrief {
@@ -123,7 +131,7 @@ export interface BenchmarkCaseContent {
   benchmark_id: number;
   sample_id: string;
   case_file: string;
-  case: Record<string, any>;
+  case: JsonObject;
 }
 
 export interface RunSummary {
@@ -187,21 +195,21 @@ export type ScheduledEvaluationPayload = Omit<
 
 export interface RunDetail extends RunSummary {
   description: string;
-  judge_overrides: Record<string, any>;
-  adapter_overrides: Record<string, any>;
-  grading: Record<string, any>;
+  judge_overrides: JsonObject;
+  adapter_overrides: JsonObject;
+  grading: JsonObject;
   stability_distribution: Record<string, number>;
-  latency_summary: Record<string, any>;
-  ttft_summary: Record<string, any>;
-  token_summary: Record<string, any>;
-  pass_rate_ci: Record<string, any>;
-  guideline_match: Record<string, any>;
+  latency_summary: JsonObject;
+  ttft_summary: JsonObject;
+  token_summary: JsonObject;
+  pass_rate_ci: JsonObject;
+  guideline_match: JsonObject;
   failure_tag_counter: Record<string, number>;
   judge_fingerprints: Record<string, string>;
   by_level: Record<string, { total: number; passed: number; medical_safety_failed?: number }>;
   by_scenario: Record<string, { total: number; passed: number }>;
   by_case_type: Record<string, { total: number; passed: number }>;
-  config_snapshot: Record<string, any>;
+  config_snapshot: JsonObject;
 }
 
 export interface CaseRow {
@@ -442,6 +450,11 @@ export interface AttributionTaskItem {
   case_type: string;
   status: "pending" | "running" | "success" | "failed" | string;
   attempt_count?: number;
+  runtime_status?: string;
+  runtime_message?: string;
+  model_attempt?: number;
+  retry_count?: number;
+  runtime_updated_at?: string | null;
   error_msg: string;
   attribution_available: boolean;
   attribution_stale: boolean;
@@ -612,11 +625,14 @@ export type OpenApiPermission =
   | "temporary_evaluations:create"
   | "evaluations:create"
   | "evaluations:read"
-  | "attributions:read";
+  | "evaluations:read_all"
+  | "attributions:read"
+  | "attributions:read_all";
 
 export interface OpenApiAccessKey {
   id: number;
   name: string;
+  /** 管理员可随时查看和复制；服务端数据库保存的是可恢复密文。 */
   api_key: string;
   key_prefix: string;
   permissions: OpenApiPermission[];
@@ -625,6 +641,8 @@ export interface OpenApiAccessKey {
   updated_at?: string | null;
   last_used_at?: string | null;
 }
+
+export type OpenApiAccessKeyCreated = OpenApiAccessKey;
 
 export interface EvaluationStandard {
   roles: Array<{
@@ -695,7 +713,7 @@ export interface TrendPoint {
   avg_dimension: Record<string, number>;
   failure_tag_counter: Record<string, number>;
   stability_distribution: Record<string, number>;
-  pass_rate_ci: Record<string, any>;
+  pass_rate_ci: Record<string, unknown>;
   latency_summary?: Record<string, number>;
   ttft_summary?: Record<string, number>;
   token_summary?: Record<string, number | string>;
@@ -706,7 +724,7 @@ export interface TrendPoint {
 export interface PairwiseComparability {
   comparable: boolean;
   reasons: string[];
-  subject_diff: Record<string, { a: any; b: any }>;
+  subject_diff: Record<string, { a: unknown; b: unknown }>;
   rag_analysis: PairwiseRagAnalysis;
 }
 
@@ -759,7 +777,7 @@ export interface PairwiseComparison {
   scope: string;
   total_cases: number;
   done_cases: number;
-  subject_diff: Record<string, { a: any; b: any }>;
+  subject_diff: Record<string, { a: unknown; b: unknown }>;
   summary: Partial<PairwiseSummary>;
   created_at?: string | null;
   finished_at?: string | null;
@@ -852,3 +870,5 @@ export interface RunDiff {
   fingerprint_changes: Record<string, { against: unknown; current: unknown }>;
   cases: DiffCaseRow[];
 }
+/** 服务端冻结快照中的开放 JSON 对象；字段结构随适配器/版本变化。 */
+export type JsonObject = Record<string, ReturnType<typeof JSON.parse>>;

@@ -8,11 +8,12 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+import json
 
 from sqlalchemy import create_engine, inspect, select, text, update
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-from .settings import Settings, get_settings
+from .settings import PROJECT_ROOT, Settings, get_settings
 
 
 class Base(DeclarativeBase):
@@ -50,15 +51,36 @@ def init_engine(settings: Settings | None = None):
 
 
 def init_db(settings: Settings | None = None) -> None:
-    """按当前 ORM 从空数据库建表，并补齐轻量列表所需的兼容列。
-
-    这里会被 Web 进程调用。Worker 不应重复执行历史数据回填，否则主机重启时
-    两个进程会同时全表读取/重写 ``case_result.detail_json``，放大 PostgreSQL
-    数据页和 WAL 写入，严重时会把单机磁盘 I/O 打满。
-    """
+    """通过 Alembic 升级数据库；旧库只在首次接管时执行一次兼容迁移。"""
     engine = init_engine(settings)
     from . import models_db  # noqa: F401  触发 ORM 表注册
 
+    tables = set(inspect(engine).get_table_names())
+    if "alembic_version" not in tables and tables:
+        # 2026-08-20 之前的安装没有版本表。先按旧逻辑补齐到 baseline，之后所有
+        # 发布只执行 Alembic revision，不再每次启动扫描/ALTER 历史表。
+        Base.metadata.create_all(engine)
+        _run_legacy_schema_adoption(engine)
+        _run_alembic(engine, stamp_only=True)
+        return
+    _run_alembic(engine, stamp_only=False)
+
+
+def _run_alembic(engine, *, stamp_only: bool) -> None:
+    from alembic import command
+    from alembic.config import Config
+
+    config = Config(str(PROJECT_ROOT / "alembic.ini"))
+    with engine.begin() as connection:
+        config.attributes["connection"] = connection
+        if stamp_only:
+            command.stamp(config, "head")
+        else:
+            command.upgrade(config, "head")
+
+
+def _run_legacy_schema_adoption(engine) -> None:
+    """仅用于无 alembic_version 的历史安装，完成后立即 stamp baseline。"""
     Base.metadata.create_all(engine)
     _migrate_benchmark_updated_at(engine)
     _migrate_legacy_open_api_key(engine)
@@ -73,6 +95,117 @@ def init_db(settings: Settings | None = None) -> None:
     _migrate_attribution_task_item_analysis(engine)
     _migrate_attribution_task_streaming(engine)
     _migrate_attribution_task_active_index(engine)
+    _migrate_run_submission_integrity(engine)
+
+
+def _migrate_run_submission_integrity(engine) -> None:
+    """补齐 Run 所有权、定时 occurrence 与队列幂等字段及约束。
+
+    历史版本可能已经留下同一 Run 的多个活跃任务。迁移时保留一个 running
+    优先、ID 最小的任务，并把其余任务收敛为 cancelled，再建立唯一索引。
+    """
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+    if "eval_run" in tables:
+        columns = {column["name"] for column in inspector.get_columns("eval_run")}
+        with engine.begin() as connection:
+            if "scheduled_occurrence_key" not in columns:
+                connection.exec_driver_sql(
+                    "ALTER TABLE eval_run ADD COLUMN scheduled_occurrence_key VARCHAR(80)"
+                )
+            if "open_api_key_id" not in columns:
+                connection.exec_driver_sql(
+                    "ALTER TABLE eval_run ADD COLUMN open_api_key_id INTEGER"
+                )
+            connection.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_eval_run_open_api_key_id "
+                "ON eval_run (open_api_key_id)"
+            )
+            connection.exec_driver_sql(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_eval_run_scheduled_occurrence "
+                "ON eval_run (scheduled_evaluation_id, scheduled_occurrence_key)"
+            )
+
+    if "evaluation_job" in tables:
+        columns = {column["name"] for column in inspector.get_columns("evaluation_job")}
+        with engine.begin() as connection:
+            if "active_key" not in columns:
+                connection.exec_driver_sql(
+                    "ALTER TABLE evaluation_job ADD COLUMN active_key VARCHAR(240)"
+                )
+            rows = connection.execute(
+                text(
+                    "SELECT id, run_id, kind, payload, status FROM evaluation_job "
+                    "WHERE status IN ('queued', 'running') ORDER BY id"
+                )
+            ).mappings().all()
+            grouped: dict[str, list[dict]] = {}
+            for row in rows:
+                kind = str(row["kind"] or "")
+                if kind in {"evaluation", "resume", "rejudge", "cases_retry"}:
+                    key = f"run:{int(row['run_id'])}:execution"
+                elif kind == "attribution":
+                    payload = row["payload"] or {}
+                    if isinstance(payload, str):
+                        try:
+                            payload = json.loads(payload)
+                        except ValueError:
+                            payload = {}
+                    task_id = int((payload or {}).get("attribution_task_id") or 0)
+                    if not task_id:
+                        continue
+                    key = f"attribution:{task_id}"
+                else:
+                    continue
+                grouped.setdefault(key, []).append(dict(row))
+
+            for key, candidates in grouped.items():
+                candidates.sort(
+                    key=lambda item: (0 if item["status"] == "running" else 1, item["id"])
+                )
+                keep = candidates[0]
+                connection.execute(
+                    text("UPDATE evaluation_job SET active_key=:key WHERE id=:id"),
+                    {"key": key, "id": keep["id"]},
+                )
+                duplicate_ids = [item["id"] for item in candidates[1:]]
+                for duplicate_id in duplicate_ids:
+                    connection.execute(
+                        text(
+                            "UPDATE evaluation_job SET status='cancelled', active_key=NULL, "
+                            "lease_owner=NULL, lease_expires_at=NULL, finished_at=CURRENT_TIMESTAMP, "
+                            "error_msg='重复活跃任务已由幂等迁移取消' WHERE id=:id"
+                        ),
+                        {"id": duplicate_id},
+                    )
+            connection.exec_driver_sql(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_evaluation_job_active_key "
+                "ON evaluation_job (active_key)"
+            )
+
+    if "open_api_access_key" in tables:
+        # 管理端要求后续随时查看完整 Key。只对升级前遗留的明文做一次原位加密；
+        # 已是版本化密文或旧版本已经清空的记录不反复写表。
+        from .secret_codec import encrypt_recoverable_secret, is_encrypted_recoverable_secret
+
+        with engine.begin() as connection:
+            rows = connection.execute(
+                text(
+                    "SELECT id, api_key FROM open_api_access_key "
+                    "WHERE api_key IS NOT NULL AND api_key<>''"
+                )
+            ).mappings().all()
+            for row in rows:
+                raw_value = str(row["api_key"] or "")
+                if is_encrypted_recoverable_secret(raw_value):
+                    continue
+                connection.execute(
+                    text("UPDATE open_api_access_key SET api_key=:value WHERE id=:id"),
+                    {
+                        "id": row["id"],
+                        "value": encrypt_recoverable_secret(raw_value),
+                    },
+                )
 
 
 def _migrate_benchmark_updated_at(engine) -> None:
@@ -151,18 +284,42 @@ def _migrate_attribution_task_item_analysis(engine) -> None:
 
 
 def _migrate_attribution_task_item_attempt_count(engine) -> None:
-    """为历史归因明细补充原任务内重试次数。"""
+    """为历史归因明细补充重试计数与运行期状态列，且早于 ORM 查询。"""
     inspector = inspect(engine)
     if "attribution_task_item" not in inspector.get_table_names():
         return
     columns = {column["name"] for column in inspector.get_columns("attribution_task_item")}
-    if "attempt_count" in columns:
-        return
     with engine.begin() as connection:
-        connection.exec_driver_sql(
-            "ALTER TABLE attribution_task_item "
-            "ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0"
-        )
+        if "attempt_count" not in columns:
+            connection.exec_driver_sql(
+                "ALTER TABLE attribution_task_item "
+                "ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0"
+            )
+        if "runtime_status" not in columns:
+            connection.exec_driver_sql(
+                "ALTER TABLE attribution_task_item "
+                "ADD COLUMN runtime_status VARCHAR(40) NOT NULL DEFAULT 'pending'"
+            )
+        if "runtime_message" not in columns:
+            connection.exec_driver_sql(
+                "ALTER TABLE attribution_task_item "
+                "ADD COLUMN runtime_message TEXT NOT NULL DEFAULT ''"
+            )
+        if "model_attempt" not in columns:
+            connection.exec_driver_sql(
+                "ALTER TABLE attribution_task_item "
+                "ADD COLUMN model_attempt INTEGER NOT NULL DEFAULT 0"
+            )
+        if "retry_count" not in columns:
+            connection.exec_driver_sql(
+                "ALTER TABLE attribution_task_item "
+                "ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0"
+            )
+        if "runtime_updated_at" not in columns:
+            connection.exec_driver_sql(
+                "ALTER TABLE attribution_task_item "
+                "ADD COLUMN runtime_updated_at DATETIME"
+            )
 
 
 def _migrate_attribution_task_streaming(engine) -> None:
@@ -337,6 +494,8 @@ def _migrate_legacy_open_api_key(engine) -> None:
 
     import hashlib
 
+    from .secret_codec import encrypt_recoverable_secret
+
     with engine.begin() as connection:
         legacy = connection.execute(
             text("SELECT api_key, updated_by FROM open_api_key_config WHERE id = 1")
@@ -367,7 +526,7 @@ def _migrate_legacy_open_api_key(engine) -> None:
             ),
             {
                 "name": name,
-                "api_key": raw_key,
+                "api_key": encrypt_recoverable_secret(raw_key),
                 "key_prefix": f"{raw_key[:14]}…",
                 "key_hash": key_hash,
                 "permissions": '["benchmarks:read", "judge_models:read", '

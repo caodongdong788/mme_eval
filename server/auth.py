@@ -10,10 +10,13 @@
 from __future__ import annotations
 
 import secrets
+import hashlib
+import hmac
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from . import feishu_oauth as fo
@@ -53,10 +56,19 @@ def _apply_token(user: FeishuUser, tok: fo.TokenBundle, now: datetime) -> None:
         user.scope = tok.scope
 
 
+def _stored_session_id(raw_session_id: str) -> str:
+    """数据库只保存带服务端密钥的不可逆会话摘要，DB 泄露不能直接复用 Cookie。"""
+    return hmac.new(
+        get_settings().session_secret.encode("utf-8"),
+        raw_session_id.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
 def create_session(session: Session, open_id: str, ttl_seconds: int) -> str:
     sid = secrets.token_urlsafe(32)
     row = UserSession(
-        session_id=sid,
+        session_id=_stored_session_id(sid),
         open_id=open_id,
         expires_at=datetime.utcnow() + timedelta(seconds=ttl_seconds),
     )
@@ -67,14 +79,28 @@ def create_session(session: Session, open_id: str, ttl_seconds: int) -> str:
 def resolve_session(session: Session, session_id: str) -> Optional[FeishuUser]:
     if not session_id:
         return None
-    row = session.get(UserSession, session_id)
+    row = session.get(UserSession, _stored_session_id(session_id))
+    if row is None:
+        # 无中断兼容升级前的明文 session_id；首次使用后立即迁移为摘要。
+        row = session.get(UserSession, session_id)
+        if row is not None:
+            stored_id = _stored_session_id(session_id)
+            session.execute(
+                update(UserSession)
+                .where(UserSession.session_id == session_id)
+                .values(session_id=stored_id)
+            )
+            session.flush()
+            row = session.get(UserSession, stored_id)
     if row is None or row.expires_at <= datetime.utcnow():
         return None
     return session.get(FeishuUser, row.open_id)
 
 
 def delete_session(session: Session, session_id: str) -> None:
-    row = session.get(UserSession, session_id)
+    row = session.get(UserSession, _stored_session_id(session_id))
+    if row is None:
+        row = session.get(UserSession, session_id)
     if row is not None:
         session.delete(row)
 
@@ -123,4 +149,18 @@ def get_current_user_optional(
     except SessionExpired:
         delete_session(session, sid)
         return None
+    return user
+
+
+def require_admin_user(
+    user: Optional[FeishuUser] = Depends(get_current_user_optional),
+) -> Optional[FeishuUser]:
+    """平台级敏感配置只允许显式管理员访问；本地未启用登录时保持可开发。"""
+    settings = get_settings()
+    if not settings.auth_required:
+        return user
+    if user is None:
+        raise HTTPException(status_code=401, detail="请先登录")
+    if user.open_id not in settings.admin_open_ids:
+        raise HTTPException(status_code=403, detail="仅平台管理员可执行此操作")
     return user
