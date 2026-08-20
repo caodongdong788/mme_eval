@@ -316,9 +316,17 @@ def _migrate_attribution_task_item_attempt_count(engine) -> None:
                 "ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0"
             )
         if "runtime_updated_at" not in columns:
+            # PostgreSQL 没有 SQLite 使用的 ``DATETIME`` 类型。历史库首次
+            # 接管时会走这里，因此必须按当前数据库方言生成列类型；否则应用会在
+            # 启动阶段反复重启，无法进入后续的 Alembic 升级。
+            column_type = (
+                "TIMESTAMP WITHOUT TIME ZONE"
+                if engine.dialect.name == "postgresql"
+                else "DATETIME"
+            )
             connection.exec_driver_sql(
                 "ALTER TABLE attribution_task_item "
-                "ADD COLUMN runtime_updated_at DATETIME"
+                f"ADD COLUMN runtime_updated_at {column_type}"
             )
 
 
