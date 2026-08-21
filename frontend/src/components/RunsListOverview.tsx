@@ -312,7 +312,20 @@ export function RunsListOverview({
                 margin={{ top: 8, right: 12, bottom: 0, left: -8 }}
               >
                 <CartesianGrid stroke={D.border} vertical={false} />
-                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: D.textMuted, fontSize: 11 }} />
+                <XAxis
+                  dataKey="timestamp"
+                  type="number"
+                  scale="time"
+                  domain={cxAgentOptimizationTrend.xDomain || ["dataMin", "dataMax"]}
+                  ticks={cxAgentOptimizationTrend.dateTicks}
+                  tickFormatter={(timestamp) => {
+                    const date = new Date(Number(timestamp));
+                    return `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+                  }}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: D.textMuted, fontSize: 11 }}
+                />
                 <YAxis
                   allowDecimals={false}
                   axisLine={false}

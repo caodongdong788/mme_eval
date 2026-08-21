@@ -37,6 +37,8 @@ export interface CxAgentOptimizationTrend {
     } & Record<string, string | number>
   >;
   series: CxAgentOptimizationTrendSeries[];
+  dateTicks: number[];
+  xDomain: [number, number] | null;
   latestTotal: number | null;
   latestP0Total: number | null;
   previousTotal: number | null;
@@ -113,6 +115,11 @@ function evaluationTimestamp(run: RunSummary): number {
   const value = run.finished_at || run.created_at;
   const timestamp = value ? Date.parse(value) : Number.NaN;
   return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function dayStartTimestamp(timestamp: number): number {
+  const date = new Date(timestamp);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 }
 
 function sortByEvaluationTimeDesc(runs: RunSummary[]): RunSummary[] {
@@ -204,6 +211,15 @@ export function buildCxAgentOptimizationTrend(
       })
     )
     .sort((a, b) => a.timestamp - b.timestamp || a.runId - b.runId);
+  const dateTicks = [...new Set(
+    points
+      .map((point) => point.timestamp)
+      .filter((timestamp) => timestamp > 0)
+      .map(dayStartTimestamp)
+  )].sort((a, b) => a - b);
+  const xDomain = dateTicks.length
+    ? [dateTicks[0], dateTicks[dateTicks.length - 1] + 24 * 60 * 60 * 1000 - 1] as [number, number]
+    : null;
   const publicSeries = series.map((item) => ({
     key: item.key,
     benchmarkId: item.benchmarkId,
@@ -227,6 +243,8 @@ export function buildCxAgentOptimizationTrend(
   return {
     points,
     series: publicSeries,
+    dateTicks,
+    xDomain,
     latestTotal,
     latestP0Total,
     previousTotal,

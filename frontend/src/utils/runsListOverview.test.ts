@@ -96,6 +96,11 @@ describe("runsListOverview", () => {
     expect(trend.points).toContainEqual(
       expect.objectContaining({ runId: 4, optimizationCount: 12, p0OptimizationCount: 4 })
     );
+    expect(trend.dateTicks).toHaveLength(2);
+    expect(trend.xDomain).toEqual([
+      new Date("2026-06-10T00:00:00").getTime(),
+      new Date("2026-06-11T23:59:59.999").getTime(),
+    ]);
     expect(trend.latestTotal).toBe(18);
     expect(trend.latestP0Total).toBe(6);
     expect(trend.previousTotal).toBe(14);
