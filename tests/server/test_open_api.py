@@ -129,6 +129,7 @@ def test_open_api_lists_resources_and_creates_evaluation(
             "levels": ["L2"],
             "enable_judge": True,
             "judge_model_id": judge_model.id,
+            "deeptrace_execution_id": "agent-jenkins-354",
         },
     )
     assert response.status_code == 201, response.text
@@ -161,6 +162,7 @@ def test_open_api_lists_resources_and_creates_evaluation(
 
     completed = session.get(EvalRun, body["id"])
     assert completed is not None
+    assert completed.adapter_overrides["deeptrace"] == {"execution_id": "agent-jenkins-354"}
     completed.status = "success"
     completed.total = 63
     completed.passed = 48

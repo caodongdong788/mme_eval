@@ -212,7 +212,7 @@ class Settings:
         ).rstrip("/")
     )
     deeptrace_space_key: str = field(
-        default_factory=lambda: os.environ.get("DEEPTRACE_SPACE_KEY", "cx")
+        default_factory=lambda: os.environ.get("DEEPTRACE_SPACE_KEY", "CX")
     )
     deeptrace_open_api_token: str = field(
         default_factory=lambda: os.environ.get("DEEPTRACE_OPEN_API_TOKEN", "")

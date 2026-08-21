@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPassRateTrend,
+  buildCxAgentOptimizationTrend,
   computeRunsListKpis,
   computeRunsPeriodDeltas,
   countRunsByFilter,
@@ -76,6 +77,19 @@ describe("runsListOverview", () => {
     expect(trend).toHaveLength(2);
     expect(trend[0].passPct).toBe(80);
     expect(trend[1].passPct).toBe(90);
+  });
+
+  it("builds cx-agent optimization trend only from attributed completed runs", () => {
+    const trend = buildCxAgentOptimizationTrend([
+      run({ id: 1, created_at: "2026-06-10T10:00:00Z", cx_agent_optimization_count: 4 }),
+      run({ id: 2, created_at: "2026-06-11T10:00:00Z", cx_agent_optimization_count: null }),
+      run({ id: 3, created_at: "2026-06-12T10:00:00Z", cx_agent_optimization_count: 0 }),
+      run({ id: 4, status: "running", cx_agent_optimization_count: 2 }),
+    ]);
+    expect(trend).toEqual([
+      expect.objectContaining({ runId: 1, optimizationCount: 4 }),
+      expect.objectContaining({ runId: 3, optimizationCount: 0 }),
+    ]);
   });
 
   it("computeRunsPeriodDeltas compares two windows", () => {

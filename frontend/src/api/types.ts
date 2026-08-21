@@ -150,6 +150,8 @@ export interface RunSummary {
   n_runs: number;
   /** 已完成评测的用例总分均值，满分 45。 */
   avg_composite?: number | null;
+  /** 归因页口径的 cx-agent 通用优化点数量；尚未归因时为空。 */
+  cx_agent_optimization_count?: number | null;
   started_at?: string | null;
   finished_at?: string | null;
   created_at?: string | null;

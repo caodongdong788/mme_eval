@@ -151,6 +151,9 @@ class InProcessJobRunner(JobRunner):
                 )
             else:
                 _set_status(run_id, "success", progress=progress.snapshot())
+                from .services.deeptrace_automation import report_run_completion
+
+                await report_run_completion(run_id)
             finally:
                 self._states[run_id] = "done"
 

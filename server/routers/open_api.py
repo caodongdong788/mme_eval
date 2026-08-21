@@ -264,6 +264,11 @@ async def create_open_evaluation(
     plan.run.adapter_overrides = {
         **(plan.run.adapter_overrides or {}),
         "open_api_judge_model_id": payload.judge_model_id,
+        **(
+            {"deeptrace": {"execution_id": payload.deeptrace_execution_id}}
+            if payload.deeptrace_execution_id
+            else {}
+        ),
     }
     job = build_eval_job(
         plan.run.id,

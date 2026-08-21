@@ -8,6 +8,7 @@ import {
   Cell,
   ComposedChart,
   Legend,
+  Line,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -28,6 +29,7 @@ import {
 } from "../utils/runsDateRange";
 import {
   buildPassRateTrend,
+  buildCxAgentOptimizationTrend,
   buildRecentPassBars,
   buildStatusDistribution,
   computeRunsListKpis,
@@ -79,10 +81,28 @@ export function RunsListOverview({
   const filterCounts = countRunsByFilter(runs);
   const kpis = computeRunsListKpis(filteredRuns);
   const trend = buildPassRateTrend(filteredRuns);
+  const cxAgentOptimizationTrend = buildCxAgentOptimizationTrend(filteredRuns);
   const bars = buildRecentPassBars(filteredRuns);
   const statusPie = buildStatusDistribution(filteredRuns);
   const passRateDelta = periodDeltas?.passRatePct ?? null;
   const latestPass = trend.length ? trend[trend.length - 1].passPct : null;
+  const latestCxAgentOptimization = cxAgentOptimizationTrend.length
+    ? cxAgentOptimizationTrend[cxAgentOptimizationTrend.length - 1].optimizationCount
+    : null;
+  const previousCxAgentOptimization = cxAgentOptimizationTrend.length > 1
+    ? cxAgentOptimizationTrend[cxAgentOptimizationTrend.length - 2].optimizationCount
+    : null;
+  const cxAgentOptimizationDelta =
+    latestCxAgentOptimization != null && previousCxAgentOptimization != null
+      ? latestCxAgentOptimization - previousCxAgentOptimization
+      : null;
+  const avgCxAgentOptimization = cxAgentOptimizationTrend.length
+    ? Math.round(
+      (cxAgentOptimizationTrend.reduce((sum, point) => sum + point.optimizationCount, 0) /
+        cxAgentOptimizationTrend.length) *
+        10
+    ) / 10
+    : null;
   const hasPeriod = periodBounds != null && previousBounds != null;
 
   return (
@@ -268,6 +288,71 @@ export function RunsListOverview({
                   fill="url(#runsPassFill)"
                   strokeWidth={2}
                   dot={{ r: 3, fill: D.card, stroke: D.purpleLine, strokeWidth: 2 }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </div>
+
+      <div className="runs-chart-card runs-chart-card--main">
+        <div className="runs-chart-card__head">
+          <div>
+            <div className="runs-chart-card__title">cx-agent 归因优化点趋势</div>
+            <div className="runs-chart-card__subtitle">
+              同一优先级、同一一级/二级分类合并为一个通用优化点；未完成归因的评测不纳入统计。
+            </div>
+          </div>
+        </div>
+        {cxAgentOptimizationTrend.length > 0 && (
+          <div className="runs-mini-kpis">
+            <div>
+              <div className="runs-mini-kpi__label">最新优化点</div>
+              <div className="runs-mini-kpi__val">{latestCxAgentOptimization} 个</div>
+            </div>
+            <div>
+              <div className="runs-mini-kpi__label">平均优化点</div>
+              <div className="runs-mini-kpi__val">{avgCxAgentOptimization} 个</div>
+            </div>
+            <div>
+              <div className="runs-mini-kpi__label">较上次评测</div>
+              <div className="runs-mini-kpi__val" style={{ color: D.purpleLine }}>
+                {cxAgentOptimizationDelta != null
+                  ? `${cxAgentOptimizationDelta >= 0 ? "+" : ""}${cxAgentOptimizationDelta} 个`
+                  : "—"}
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="runs-chart-area">
+          {cxAgentOptimizationTrend.length === 0 ? (
+            <div className="runs-chart-empty">当前范围内暂无已完成归因结果，完成归因后将自动展示趋势</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <ComposedChart
+                data={cxAgentOptimizationTrend}
+                margin={{ top: 8, right: 12, bottom: 0, left: -8 }}
+              >
+                <CartesianGrid stroke={D.border} vertical={false} />
+                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: D.textMuted, fontSize: 11 }} />
+                <YAxis
+                  allowDecimals={false}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: D.textMuted, fontSize: 11 }}
+                />
+                <RTooltip
+                  formatter={(value) => [`${Number(value)} 个`, "通用优化点"]}
+                  labelFormatter={(_label, payload) => payload[0]?.payload?.name || ""
+                  }
+                />
+                <Line
+                  type="monotone"
+                  dataKey="optimizationCount"
+                  stroke={D.teal}
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: D.card, stroke: D.teal, strokeWidth: 2 }}
+                  activeDot={{ r: 5 }}
                 />
               </ComposedChart>
             </ResponsiveContainer>

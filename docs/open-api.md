@@ -328,6 +328,7 @@ X-MME-API-Key: <API_KEY>
 | `levels` | string[] | 否 | `[]` | 可选值 `L1`、`L2`、`L3`、`L4`；空数组代表评测所有 Level |
 | `enable_judge` | boolean | 否 | `true` | 是否启用八维与指南判分 |
 | `judge_model_id` | integer/null | 否 | `null` | 已保存的判分模型 ID；留空使用平台默认模型 |
+| `deeptrace_execution_id` | string/null | 否 | `null` | DeepTrace 预先创建的 `agent_evaluation` 执行标识，最长 128 字符；MME 成功结束后自动回写该记录 |
 
 约束：当 `enable_judge` 为 `false` 时，不能传 `judge_model_id`。
 
@@ -343,7 +344,8 @@ curl -sS -X POST "$MME_BASE_URL/api/open/v1/evaluations" \
     "repeat": 1,
     "levels": ["L2"],
     "enable_judge": true,
-    "judge_model_id": 1
+    "judge_model_id": 1,
+    "deeptrace_execution_id": "agent-jenkins-354"
   }'
 ```
 
@@ -371,6 +373,18 @@ curl -sS -X POST "$MME_BASE_URL/api/open/v1/evaluations" \
 ```
 
 `dashboard_url` 是该任务在评测平台中的看板链接，可直接在浏览器打开。`result` 仅在任务成功完成（`status: "success"`）时返回运行结果；排队、运行或失败时固定为 `null`。`queue_position` 表示当前服务内任务队列中的位置；账号资源紧张时，`waiting_for_accounts` 可能为 `true`。这两项均可能为空或随轮询变化，调用方不应据此判断任务失败。
+
+### DeepTrace 自动化结果回写
+
+适用于 Agent 自动化评测：调用方先以 DeepTrace Open API 创建 `type: "agent_evaluation"` 的待回写记录，再把其 `executionId` 作为 `deeptrace_execution_id` 传入本接口。MME 任务成功结束（包括重新评测完成）后，会调用 DeepTrace 的 `PATCH /automation-test-runs/{executionId}` 回写：
+
+- `totalCases`：本次 MME 实际生成的 Case 结果数；
+- `passedCases`：`release_passed=true` 的 Case 数，即 MME 的“合格” Case；
+- `failedCases`：其余 Case 数；
+- `bugsFound`：固定为 `0`，MME 不把评测不合格直接归类为研发缺陷；
+- `reportUrl`：MME 运行看板；`executedAt`：本次评测完成时间（上海时区）。
+
+回写只更新 DeepTrace 的执行结果，不修改该记录创建时的版本、需求关联或评测类型。MME 服务端需要配置 `DEEPTRACE_OPEN_API_TOKEN`（具备 `automation:write`）和 `DEEPTRACE_SPACE_KEY`；缺失配置或 DeepTrace 暂时不可用不会把 MME 评测改为失败，运行元数据会记录最后一次回写状态供排查。
 
 ## 7. 查询评测任务状态
 

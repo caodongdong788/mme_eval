@@ -17,6 +17,13 @@ export interface RunsTrendPoint {
   name: string;
 }
 
+export interface CxAgentOptimizationTrendPoint {
+  label: string;
+  optimizationCount: number;
+  runId: number;
+  name: string;
+}
+
 const SUCCESS = "success";
 const RUNNING = new Set(["running", "pending"]);
 
@@ -83,6 +90,18 @@ function sortByCreatedDesc(runs: RunSummary[]): RunSummary[] {
   });
 }
 
+function evaluationTimestamp(run: RunSummary): number {
+  const value = run.finished_at || run.created_at;
+  const timestamp = value ? Date.parse(value) : Number.NaN;
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function sortByEvaluationTimeDesc(runs: RunSummary[]): RunSummary[] {
+  return [...runs].sort((a, b) => {
+    return evaluationTimestamp(b) - evaluationTimestamp(a);
+  });
+}
+
 export function buildPassRateTrend(runs: RunSummary[], limit = 7): RunsTrendPoint[] {
   const success = sortByCreatedDesc(runs.filter((r) => r.status === SUCCESS)).slice(0, limit);
   return success
@@ -100,6 +119,37 @@ export function buildPassRateTrend(runs: RunSummary[], limit = 7): RunsTrendPoin
         name: r.name || r.run_slug,
       };
     });
+}
+
+/**
+ * 仅展示已有可用归因结果的已完成评测：空值代表尚未归因，不能误当作 0 个优化点。
+ */
+export function buildCxAgentOptimizationTrend(
+  runs: RunSummary[],
+  limit = 7
+): CxAgentOptimizationTrendPoint[] {
+  const attributed = sortByEvaluationTimeDesc(
+    runs.filter(
+      (run): run is RunSummary & { cx_agent_optimization_count: number } =>
+        run.status === SUCCESS &&
+        typeof run.cx_agent_optimization_count === "number" &&
+        Number.isFinite(run.cx_agent_optimization_count)
+    )
+  ).slice(0, limit);
+  return attributed.reverse().map((run) => {
+    const timestamp = run.finished_at || run.created_at;
+    const d = timestamp ? new Date(timestamp) : null;
+    const label =
+      d && !Number.isNaN(d.getTime())
+        ? `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+        : `#${run.id}`;
+    return {
+      label,
+      optimizationCount: Number(run.cx_agent_optimization_count),
+      runId: run.id,
+      name: run.name || run.run_slug,
+    };
+  });
 }
 
 export function buildStatusDistribution(runs: RunSummary[]): Array<{ name: string; value: number }> {

@@ -3,9 +3,9 @@ from types import SimpleNamespace
 
 import server.routers.runs as runs_router
 from server.routers.runs import crud
-from server.models_db import Benchmark, EvalRun
+from server.models_db import AttributionTask, AttributionTaskItem, Benchmark, EvalRun
 from server.schemas import RunCreate, RunSummaryOut
-from server.services.runs import create_derived_run, prepare_create_run
+from server.services.runs import create_derived_run, list_runs, prepare_create_run
 
 
 def test_create_route_passes_logged_in_creator(monkeypatch):
@@ -72,6 +72,58 @@ def test_run_summary_exposes_average_composite_score(session):
     session.flush()
 
     assert RunSummaryOut.model_validate(run).avg_composite == 31.25
+
+
+def test_run_list_exposes_deduplicated_cx_agent_optimization_count(session):
+    run = EvalRun(run_slug="attribution-summary", name="归因汇总", status="success")
+    without_attribution = EvalRun(run_slug="without-attribution", status="success")
+    session.add_all([run, without_attribution])
+    session.flush()
+
+    task = AttributionTask(run_id=run.id, judge_model_id=1, status="success")
+    session.add(task)
+    session.flush()
+    snapshot = {
+        "available": True,
+        "analysis": {
+            "score_health": {"status": "healthy"},
+            "deduction_analyses": [
+                {
+                    "deduction_id": "guideline.medical_safety",
+                    "dimension": "medical_safety",
+                    "severity": "high",
+                    "deduction_validation": "supported",
+                    "primary_cause": {
+                        "code": "safety_policy_error",
+                        "label": "安全策略遗漏",
+                        "owner": "safety_policy",
+                    },
+                    "optimization_classification": {
+                        "category_primary": "输出校验与安全守卫",
+                        "category_secondary": "遗漏风险提示",
+                        "domain": "medical_safety",
+                        "component": "safety_policy",
+                        "failure_mode": "safety_policy_error",
+                        "action_type": "safety_rule",
+                    },
+                    "recommendations": [
+                        {"scope": "cx_agent", "priority": "P1", "target": "安全策略", "action": "补齐风险提示"}
+                    ],
+                }
+            ],
+        },
+    }
+    session.add_all([
+        AttributionTaskItem(task_id=task.id, sample_id="case_1", status="success", analysis_json=snapshot),
+        AttributionTaskItem(task_id=task.id, sample_id="case_2", status="success", analysis_json=snapshot),
+    ])
+    session.flush()
+
+    listed = {item.id: item for item in list_runs(session)}
+
+    assert listed[run.id].cx_agent_optimization_count == 1
+    assert listed[without_attribution.id].cx_agent_optimization_count is None
+    assert RunSummaryOut.model_validate(listed[run.id]).cx_agent_optimization_count == 1
 
 
 def test_derived_run_stores_initiating_creator(session):

@@ -528,6 +528,12 @@ class OpenEvaluationCreate(BaseModel):
     judge_model_id: Optional[int] = Field(
         default=None, description="已保存判分模型 ID；为空时使用平台默认模型"
     )
+    deeptrace_execution_id: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        description="DeepTrace 预创建的 agent_evaluation 执行标识；任务成功后 MME 回写最终统计",
+    )
 
     @field_validator("name")
     @classmethod
@@ -535,6 +541,16 @@ class OpenEvaluationCreate(BaseModel):
         value = value.strip()
         if not value:
             raise ValueError("评测名称不能为空")
+        return value
+
+    @field_validator("deeptrace_execution_id")
+    @classmethod
+    def _deeptrace_execution_id_not_blank(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            raise ValueError("deeptrace_execution_id 不能为空")
         return value
 
     @model_validator(mode="after")
@@ -966,6 +982,8 @@ class RunSummaryOut(BaseModel):
     n_runs: int
     # 已完成评测的用例总分均值（满分 45）；运行中 / 历史无评分数据时为 null。
     avg_composite: Optional[float] = None
+    # 归因任务中聚合出的 cx-agent 通用优化点数量；尚未有可用归因结果时为 null。
+    cx_agent_optimization_count: Optional[int] = None
     started_at: Optional[ApiDateTime] = None
     finished_at: Optional[ApiDateTime] = None
     created_at: Optional[ApiDateTime] = None

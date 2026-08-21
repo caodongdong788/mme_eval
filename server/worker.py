@@ -142,6 +142,9 @@ async def _execute_claimed(row, owner: str) -> None:
         if finish_job(row.id, owner, "succeeded"):
             if not is_attribution:
                 _set_status(row.run_id, "success", progress=progress.snapshot())
+                from .services.deeptrace_automation import report_run_completion
+
+                await report_run_completion(row.run_id)
 
 
 async def _worker_slot(slot: int, owner_prefix: str) -> None:
