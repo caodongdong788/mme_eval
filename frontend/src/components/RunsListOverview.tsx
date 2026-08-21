@@ -17,6 +17,8 @@ import {
   YAxis,
 } from "recharts";
 import type { RunSummary } from "../api/types";
+import type { RunAttributionCategoryStats } from "../api/types";
+import { RunAttributionCategoryCharts } from "./RunAttributionCategoryCharts";
 import { palette, dashboardPieColors, trendSeriesColors } from "../theme";
 import {
   formatPeriodLabel,
@@ -67,6 +69,8 @@ export function RunsListOverview({
   periodBounds,
   previousBounds,
   periodDeltas,
+  attributionCategoryStats,
+  attributionCategoryStatsLoading,
 }: {
   runs: RunSummary[];
   filteredRuns: RunSummary[];
@@ -77,6 +81,8 @@ export function RunsListOverview({
   periodBounds: RunsPeriodBounds | null;
   previousBounds: RunsPeriodBounds | null;
   periodDeltas: RunsPeriodDeltas | null;
+  attributionCategoryStats: RunAttributionCategoryStats | null;
+  attributionCategoryStatsLoading: boolean;
 }) {
   const filterCounts = countRunsByFilter(runs);
   const kpis = computeRunsListKpis(filteredRuns);
@@ -286,11 +292,27 @@ export function RunsListOverview({
           <div className="runs-mini-kpis">
             <div>
               <div className="runs-mini-kpi__label">最新优化点</div>
-              <div className="runs-mini-kpi__val">{cxAgentOptimizationTrend.latestTotal} 个</div>
+              <div className="runs-mini-kpi__val">
+                {cxAgentOptimizationTrend.latestTotal == null
+                  ? "—"
+                  : `${cxAgentOptimizationTrend.latestTotal} 个`}
+              </div>
             </div>
             <div>
               <div className="runs-mini-kpi__label">P0 优化点</div>
-              <div className="runs-mini-kpi__val">{cxAgentOptimizationTrend.latestP0Total} 个</div>
+              <div className="runs-mini-kpi__val">
+                {cxAgentOptimizationTrend.latestP0Total == null
+                  ? "—"
+                  : `${cxAgentOptimizationTrend.latestP0Total} 个`}
+              </div>
+            </div>
+            <div>
+              <div className="runs-mini-kpi__label">P0 较上次评测</div>
+              <div className="runs-mini-kpi__val" style={{ color: D.purpleLine }}>
+                {cxAgentOptimizationTrend.p0Delta != null
+                  ? `${cxAgentOptimizationTrend.p0Delta >= 0 ? "+" : ""}${cxAgentOptimizationTrend.p0Delta} 个`
+                  : "—"}
+              </div>
             </div>
             <div>
               <div className="runs-mini-kpi__label">较上次评测</div>
@@ -334,15 +356,19 @@ export function RunsListOverview({
                 />
                 <RTooltip
                   formatter={(value, _name, item) => {
+                    const seriesKey = String(item.dataKey);
                     const point = item.payload as {
-                      p0OptimizationCount?: number;
+                      [key: string]: string | number | undefined;
                     };
                     return [
-                      `${Number(value)} 个（P0 ${Number(point.p0OptimizationCount || 0)} 个）`,
-                      "本次归因优化点",
+                      `${Number(value)} 个（P0 ${Number(point[`${seriesKey}__p0`] || 0)} 个）`,
+                      `${String(_name)} · ${String(point[`${seriesKey}__run_name`] || "")}`,
                     ];
                   }}
-                  labelFormatter={(_label, payload) => payload[0]?.payload?.name || ""}
+                  labelFormatter={(_label, payload) => {
+                    const point = payload[0]?.payload as { name?: string } | undefined;
+                    return point?.name ? `评测日期：${point.name}` : "";
+                  }}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
                 {cxAgentOptimizationTrend.series.map((series, index) => {
@@ -366,6 +392,13 @@ export function RunsListOverview({
           )}
         </div>
       </div>
+
+      <RunAttributionCategoryCharts
+        stats={attributionCategoryStats}
+        loading={attributionCategoryStatsLoading}
+        description="仅汇总两个 Benchmark 各自最新一次成功归因；同一 Benchmark 内同一 Case 在同一分类下只统计一次"
+        emptyText="两个 Benchmark 的最新归因结果暂无分类数据"
+      />
 
       <div className="runs-duo-charts">
         <div className="runs-chart-card">

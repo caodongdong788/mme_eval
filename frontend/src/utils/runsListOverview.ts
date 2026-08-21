@@ -32,7 +32,6 @@ export interface CxAgentOptimizationTrend {
     {
       label: string;
       timestamp: number;
-      runId: number;
       name: string;
     } & Record<string, string | number>
   >;
@@ -41,7 +40,9 @@ export interface CxAgentOptimizationTrend {
   xDomain: [number, number] | null;
   latestTotal: number | null;
   latestP0Total: number | null;
+  previousP0Total: number | null;
   previousTotal: number | null;
+  p0Delta: number | null;
   delta: number | null;
 }
 
@@ -122,12 +123,6 @@ function dayStartTimestamp(timestamp: number): number {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 }
 
-function sortByEvaluationTimeDesc(runs: RunSummary[]): RunSummary[] {
-  return [...runs].sort((a, b) => {
-    return evaluationTimestamp(b) - evaluationTimestamp(a);
-  });
-}
-
 export function buildPassRateTrend(runs: RunSummary[], limit = 7): RunsTrendPoint[] {
   const success = sortByCreatedDesc(runs.filter((r) => r.status === SUCCESS)).slice(0, limit);
   return success
@@ -170,7 +165,18 @@ export function buildCxAgentOptimizationTrend(
 
   const series = [...grouped.entries()]
     .map(([groupKey, group]) => {
-      const selected = sortByEvaluationTimeDesc(group).slice(0, limit).reverse();
+      // 同一 Benchmark 在同一天多次评测时，仅保留当天最后完成的一次。
+      const latestRunByDay = new Map<number, (typeof group)[number]>();
+      for (const run of [...group].sort(
+        (a, b) => evaluationTimestamp(b) - evaluationTimestamp(a)
+      )) {
+        const evaluatedAt = evaluationTimestamp(run);
+        const day = evaluatedAt ? dayStartTimestamp(evaluatedAt) : -run.id;
+        if (!latestRunByDay.has(day)) latestRunByDay.set(day, run);
+      }
+      const selected = [...latestRunByDay.values()]
+        .sort((a, b) => evaluationTimestamp(a) - evaluationTimestamp(b))
+        .slice(-limit);
       const last = selected[selected.length - 1];
       const previous = selected.length > 1 ? selected[selected.length - 2] : null;
       const benchmarkId = last?.benchmark_id ?? null;
@@ -190,32 +196,38 @@ export function buildCxAgentOptimizationTrend(
     })
     .sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
 
-  const points = series
-    .flatMap((item) =>
-      item.runs.map((run) => {
-        const timestamp = evaluationTimestamp(run);
-        const d = timestamp ? new Date(timestamp) : null;
+  const pointsByDay = new Map<string, {
+    label: string;
+    timestamp: number;
+    name: string;
+  } & Record<string, string | number>>();
+  for (const item of series) {
+    for (const run of item.runs) {
+        const evaluatedAt = evaluationTimestamp(run);
+        // 同一自然日的不同 Benchmark 应在同一条纵轴上比较；横轴不区分小时分钟。
+        const timestamp = evaluatedAt ? dayStartTimestamp(evaluatedAt) : 0;
+        const d = evaluatedAt ? new Date(evaluatedAt) : null;
         const label =
           d && !Number.isNaN(d.getTime())
             ? `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
             : `#${run.id}`;
-        return {
+        const pointKey = timestamp ? String(timestamp) : `unknown-${run.id}`;
+        const point = pointsByDay.get(pointKey) || {
           label,
           timestamp,
-          runId: run.id,
-          name: run.name || run.run_slug,
-          optimizationCount: Number(run.cx_agent_optimization_count),
-          p0OptimizationCount: Number(run.cx_agent_p0_optimization_count || 0),
-          [item.key]: Number(run.cx_agent_optimization_count),
+          name: label,
         };
-      })
-    )
-    .sort((a, b) => a.timestamp - b.timestamp || a.runId - b.runId);
+        point[item.key] = Number(run.cx_agent_optimization_count);
+        point[`${item.key}__p0`] = Number(run.cx_agent_p0_optimization_count || 0);
+        point[`${item.key}__run_name`] = run.name || run.run_slug;
+        pointsByDay.set(pointKey, point);
+    }
+  }
+  const points = [...pointsByDay.values()].sort((a, b) => a.timestamp - b.timestamp);
   const dateTicks = [...new Set(
     points
       .map((point) => point.timestamp)
       .filter((timestamp) => timestamp > 0)
-      .map(dayStartTimestamp)
   )].sort((a, b) => a - b);
   const xDomain = dateTicks.length
     ? [dateTicks[0], dateTicks[dateTicks.length - 1] + 24 * 60 * 60 * 1000 - 1] as [number, number]
@@ -229,17 +241,22 @@ export function buildCxAgentOptimizationTrend(
     latestP0: item.latestP0,
     previousP0: item.previousP0,
   }));
-  const latestTotal = publicSeries.length
-    ? publicSeries.reduce((sum, item) => sum + item.latest, 0)
-    : null;
-  const latestP0Total = publicSeries.length
-    ? publicSeries.reduce((sum, item) => sum + item.latestP0, 0)
-    : null;
-  const hasCompletePrevious =
-    publicSeries.length > 0 && publicSeries.every((item) => item.previous != null);
-  const previousTotal = hasCompletePrevious
-    ? publicSeries.reduce((sum, item) => sum + Number(item.previous), 0)
-    : null;
+  // 顶部指标仅比较同一日期内两个 Benchmark 都已完成归因的结果，不能跨日期拼接。
+  const completeDailyPoints = points.filter((point) =>
+    publicSeries.every((item) => typeof point[item.key] === "number")
+  );
+  const latestPoint = completeDailyPoints.length
+    ? completeDailyPoints[completeDailyPoints.length - 1]
+    : undefined;
+  const previousPoint = completeDailyPoints.length > 1
+    ? completeDailyPoints[completeDailyPoints.length - 2]
+    : undefined;
+  const sumPoint = (point: (typeof points)[number], suffix = "") =>
+    publicSeries.reduce((sum, item) => sum + Number(point[`${item.key}${suffix}`] || 0), 0);
+  const latestTotal = latestPoint ? sumPoint(latestPoint) : null;
+  const latestP0Total = latestPoint ? sumPoint(latestPoint, "__p0") : null;
+  const previousTotal = previousPoint ? sumPoint(previousPoint) : null;
+  const previousP0Total = previousPoint ? sumPoint(previousPoint, "__p0") : null;
   return {
     points,
     series: publicSeries,
@@ -248,6 +265,11 @@ export function buildCxAgentOptimizationTrend(
     latestTotal,
     latestP0Total,
     previousTotal,
+    previousP0Total,
+    p0Delta:
+      latestP0Total != null && previousP0Total != null
+        ? latestP0Total - previousP0Total
+        : null,
     delta:
       latestTotal != null && previousTotal != null ? latestTotal - previousTotal : null,
   };

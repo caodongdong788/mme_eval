@@ -108,11 +108,13 @@ function CategoryChartCard({
   description,
   children,
   empty,
+  emptyText,
 }: {
   title: string;
   description: string;
   children: React.ReactNode;
   empty: boolean;
+  emptyText: string;
 }) {
   return (
     <div className="runs-attribution-category-card">
@@ -121,7 +123,7 @@ function CategoryChartCard({
         <div className="runs-attribution-category-card__description">{description}</div>
       </div>
       {empty ? (
-        <div className="runs-chart-empty">本次评测无相关数据</div>
+        <div className="runs-chart-empty">{emptyText}</div>
       ) : (
         children
       )}
@@ -132,9 +134,13 @@ function CategoryChartCard({
 export function RunAttributionCategoryCharts({
   stats,
   loading,
+  description = "每个 Case 仅采用最新一次成功归因，同一 Case 在同一分类下只统计一次",
+  emptyText = "本次评测无相关数据",
 }: {
   stats: RunAttributionCategoryStats | null;
   loading: boolean;
+  description?: string;
+  emptyText?: string;
 }) {
   const [selectedFirstLevel, setSelectedFirstLevel] = useState<string | null>(null);
   const firstLevel = stats?.first_level || [];
@@ -170,7 +176,7 @@ export function RunAttributionCategoryCharts({
         <div>
           <div className="runs-attribution-panel__title">归因问题分类</div>
           <div className="runs-attribution-panel__description">
-            每个 Case 仅采用最新一次成功归因，同一 Case 在同一分类下只统计一次
+            {description}
           </div>
         </div>
         <div className="runs-attribution-panel__count">
@@ -182,6 +188,7 @@ export function RunAttributionCategoryCharts({
           title="归因一级分类"
           description="点击柱形筛选右侧二级分类，再次点击可取消"
           empty={firstLevel.length === 0}
+          emptyText={emptyText}
         >
           <CategoryBarChart
             data={firstLevel}
@@ -196,6 +203,7 @@ export function RunAttributionCategoryCharts({
             ? `仅展示“${selectedFirstLevelLabel}”下的具体问题`
             : "可直接定位和处理的具体问题"}
           empty={visibleSecondLevel.length === 0}
+          emptyText={emptyText}
         >
           <CategoryBarChart data={visibleSecondLevel} color={D.teal} showParent />
         </CategoryChartCard>
