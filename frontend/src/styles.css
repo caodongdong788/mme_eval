@@ -1355,10 +1355,19 @@ a.ant-typography-secondary:hover {
   color: #34415a;
   font-weight: 650;
 }
-.case-editor-guideline-dimension-group__header span {
+.case-editor-guideline-dimension-group__actions {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.case-editor-guideline-dimension-group__actions .ant-btn {
+  padding-inline: 4px;
+}
+.case-editor-guideline-dimension-group__actions span {
   color: #8b96a8;
   font-size: 11px;
+  white-space: nowrap;
 }
 .case-editor-guideline-dimension-group__items {
   display: grid;

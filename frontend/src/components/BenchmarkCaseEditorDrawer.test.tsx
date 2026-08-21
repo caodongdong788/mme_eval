@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { BenchmarkCaseEditorDrawer } from "./BenchmarkCaseEditorDrawer";
@@ -90,6 +90,40 @@ describe("BenchmarkCaseEditorDrawer criteria variant", () => {
     expect(roleGroups[2]).toHaveTextContent("患者检查点一");
     expect(roleGroups[2]).toHaveTextContent("患者检查点二");
     expect(roleGroups[2].querySelectorAll(".case-editor-guideline-dimension-group")).toHaveLength(1);
+  });
+
+  it("adds an independent guideline item for the selected dimension", () => {
+    const onChange = vi.fn();
+    const groupedCase = {
+      ...testCase,
+      evaluation: {
+        ...testCase.evaluation,
+        guidelines: [
+          { id: "g01", dimension: "medical_safety", criteria: ["已有检查点"], reference_answers: ["已有好答案"] },
+        ],
+      },
+    };
+    renderWithProviders(
+      <BenchmarkCaseEditorDrawer open loading={false} saving={false} source="uploaded" caseFile="cases.yaml" value={groupedCase} onChange={onChange} onClose={vi.fn()} />
+    );
+
+    fireEvent.click(screen.getByText("指南扣分点（1）"));
+    const dimensionGroups = document.body.querySelectorAll<HTMLElement>(".case-editor-guideline-dimension-group");
+    fireEvent.click(within(dimensionGroups[dimensionGroups.length - 1]!).getByRole("button", { name: /新增扣分项/ }));
+
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      evaluation: expect.objectContaining({
+        guidelines: [
+          groupedCase.evaluation.guidelines[0],
+          expect.objectContaining({
+            id: "g02",
+            dimension: "medical_safety",
+            criteria: [""],
+            reference_answers: [""],
+          }),
+        ],
+      }),
+    }));
   });
 
   it("shows a non-blocking warning for cross-dimension ownership risks", () => {

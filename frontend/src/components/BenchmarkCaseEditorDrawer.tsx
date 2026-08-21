@@ -192,6 +192,24 @@ function TimelineEditor({ value, onChange }: { value: unknown; onChange: (next: 
 function GuidelinesEditor({ value, onChange }: { value: unknown; onChange: (next: CaseData[]) => void }) {
   const guidelines: CaseData[] = Array.isArray(value) ? value.map((item) => ({ ...(item || {}) })) : [];
   const update = (index: number, patch: CaseData) => onChange(guidelines.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+  const createGuideline = (dimension = "professional_accuracy") => {
+    const usedIds = new Set(guidelines.map((guide) => String(guide.id || "")));
+    let sequence = guidelines.length + 1;
+    let id = `g${String(sequence).padStart(2, "0")}`;
+    while (usedIds.has(id)) {
+      sequence += 1;
+      id = `g${String(sequence).padStart(2, "0")}`;
+    }
+    return {
+      id,
+      dimension,
+      criteria: [""],
+      reference_answers: [""],
+      deduction_rule: "",
+      max_score: 1,
+    };
+  };
+  const addGuideline = (dimension?: string) => onChange([...guidelines, createGuideline(dimension)]);
   const entries = guidelines.map((guide, sourceIndex) => ({ guide, sourceIndex }));
   const entriesForDimension = (dimension: string) => entries.filter(({ guide }) => guide.dimension === dimension);
   const orderedEntries = [
@@ -244,7 +262,14 @@ function GuidelinesEditor({ value, onChange }: { value: unknown; onChange: (next
           <header className="case-editor-guideline-role-group__header"><strong>{EVALUATION_ROLE_LABEL[role]}</strong><span>{dimensions.reduce((total, group) => total + group.entries.length, 0)} 个扣分项</span></header>
           {dimensions.map(({ dimension, dimensionIndex, entries: dimensionEntries }) => (
             <section className="case-editor-guideline-dimension-group" key={dimension}>
-              <header className="case-editor-guideline-dimension-group__header"><em>{String(dimensionIndex + 1).padStart(2, "0")}</em><strong>{DIM_LABEL[dimension]}</strong><span>{dimensionEntries.length} 个扣分项 · {dimensionEntries.reduce((total, { guide }) => total + countCriteria(guide), 0)} 个检查点</span></header>
+              <header className="case-editor-guideline-dimension-group__header">
+                <em>{String(dimensionIndex + 1).padStart(2, "0")}</em>
+                <strong>{DIM_LABEL[dimension]}</strong>
+                <div className="case-editor-guideline-dimension-group__actions">
+                  <Button type="link" size="small" icon={<PlusOutlined />} onClick={() => addGuideline(dimension)}>新增扣分项</Button>
+                  <span>{dimensionEntries.length} 个扣分项 · {dimensionEntries.reduce((total, { guide }) => total + countCriteria(guide), 0)} 个检查点</span>
+                </div>
+              </header>
               <div className="case-editor-guideline-dimension-group__items">{dimensionEntries.map(({ guide, sourceIndex }) => guidelineCard(guide, sourceIndex))}</div>
             </section>
           ))}
@@ -259,7 +284,7 @@ function GuidelinesEditor({ value, onChange }: { value: unknown; onChange: (next
       <Button
         type="dashed"
         icon={<PlusOutlined />}
-        onClick={() => onChange([...guidelines, { id: `g${String(guidelines.length + 1).padStart(2, "0")}`, dimension: "professional_accuracy", criteria: [""], reference_answers: [], deduction_rule: "", max_score: 1 }])}
+        onClick={() => addGuideline()}
       >
         新增指南扣分点
       </Button>
