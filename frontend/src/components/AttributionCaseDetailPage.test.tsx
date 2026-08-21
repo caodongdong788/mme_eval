@@ -264,7 +264,7 @@ describe("AttributionCaseDetailPage", () => {
     expect(await screen.findByText("归因任务明细页")).toBeInTheDocument();
   });
 
-  it("shows pending evidence only when attribution evidence is actually missing", async () => {
+  it("shows pending evidence only when an evidence-insufficient deduction exists", async () => {
     const baseDeduction = result.analysis!.deduction_analyses[0];
     mockedApi.getAttributionTaskResult.mockResolvedValue({
       ...result,
@@ -298,10 +298,8 @@ describe("AttributionCaseDetailPage", () => {
     expect(await screen.findByText("待补充证据")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "待补充证据展开" }));
     expect(screen.getByText("需要补充的证据")).toBeInTheDocument();
-    expect(screen.getByText("缺少的证据")).toBeInTheDocument();
-    expect(
-      screen.getByText("需要补充最终选中文献与最终生成上下文的映射记录。")
-    ).toBeInTheDocument();
+    expect(screen.queryByText("缺少的证据")).not.toBeInTheDocument();
+    expect(screen.getByText("缺少最终生成上下文，无法确认相关文献是否提供给回答模型。")).toBeInTheDocument();
   });
 
   it("hides pending evidence when the API only returns empty limitation values", async () => {
@@ -310,6 +308,32 @@ describe("AttributionCaseDetailPage", () => {
       analysis: {
         ...result.analysis!,
         limitations: ["", "  "],
+      },
+    });
+
+    renderWithProviders(
+      <MemoryRouter
+        initialEntries={["/runs/26/attribution-tasks/28/cases/case_23"]}
+      >
+        <Routes>
+          <Route
+            path="/runs/:runId/attribution-tasks/:taskId/cases/:sampleId"
+            element={<AttributionCaseDetailPage />}
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("cx-agent 优化建议")).toBeInTheDocument();
+    expect(screen.queryByText("待补充证据")).not.toBeInTheDocument();
+  });
+
+  it("hides pending evidence when there are no evidence-insufficient deductions", async () => {
+    mockedApi.getAttributionTaskResult.mockResolvedValue({
+      ...result,
+      analysis: {
+        ...result.analysis!,
+        limitations: ["缺少候选文献筛选记录，但当前没有待补证的扣分项。"],
       },
     });
 

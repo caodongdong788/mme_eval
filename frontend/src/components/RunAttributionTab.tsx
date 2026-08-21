@@ -928,7 +928,6 @@ function AttributionAnalysisModule({
   items,
   allItems,
   globalRecommendations,
-  limitations = [],
 }: {
   kind: AttributionModuleKind;
   title: string;
@@ -936,10 +935,7 @@ function AttributionAnalysisModule({
   items: AttributionDeductionAnalysis[];
   allItems: AttributionDeductionAnalysis[];
   globalRecommendations: AttributionRecommendation[];
-  limitations?: string[];
 }) {
-  // 归因模型偶尔会返回空字符串；它不代表需要补证，不能因此占用一个空模块。
-  const evidenceLimitations = limitations.filter((item) => item.trim());
   const color =
     kind === "supported"
       ? "red"
@@ -1028,8 +1024,8 @@ function AttributionAnalysisModule({
       ),
     });
   }
-  // 空分类不占页面空间；证据不足模块只有存在具体扣分项或全局缺失说明时才展示。
-  if (!items.length && !(kind === "insufficient" && evidenceLimitations.length)) return null;
+  // 空分类不占页面空间；全局说明不是待补充证据条目，不能单独展示一个“0 项”模块。
+  if (!items.length) return null;
   return (
     <section className={`attribution-module attribution-module--${kind}`}>
       <div className="attribution-module__header">
@@ -1088,7 +1084,7 @@ function AttributionAnalysisModule({
           description={`暂无${title}`}
         />
       ) : null}
-      {expanded && kind !== "supported" && (recommendations.length || evidenceLimitations.length) ? (
+      {expanded && kind !== "supported" && recommendations.length ? (
         <div className="attribution-module__advice">
           <div className="attribution-module__advice-title">
             <BulbOutlined />
@@ -1099,16 +1095,6 @@ function AttributionAnalysisModule({
           </div>
           {recommendations.length ? (
             <RecommendationList items={recommendations} />
-          ) : null}
-          {evidenceLimitations.length ? (
-            <Alert
-              type="warning"
-              showIcon
-              message="缺少的证据"
-              description={evidenceLimitations
-                .map((item) => humanizeAttributionText(item, allItems))
-                .join("；")}
-            />
           ) : null}
         </div>
       ) : null}
@@ -1143,7 +1129,6 @@ export function AttributionDetail({ result }: { result: CaseAttribution }) {
       item.deduction_validation === "insufficient_evidence" &&
       item.evaluation_issue_category !== "missing_rag_reference"
   );
-  const evidenceLimitations = (analysis.limitations || []).filter((item) => item.trim());
   return (
     <div className="attribution-layout">
       {result.stale ? (
@@ -1170,7 +1155,7 @@ export function AttributionDetail({ result }: { result: CaseAttribution }) {
         allItems={deductions}
         globalRecommendations={analysis.global_recommendations || []}
       />
-      {insufficient.length || evidenceLimitations.length ? (
+      {insufficient.length ? (
         <AttributionAnalysisModule
           kind="insufficient"
           title="待补充证据"
@@ -1178,7 +1163,6 @@ export function AttributionDetail({ result }: { result: CaseAttribution }) {
           items={insufficient}
           allItems={deductions}
           globalRecommendations={analysis.global_recommendations || []}
-          limitations={evidenceLimitations}
         />
       ) : null}
       <div className="attribution-meta">
