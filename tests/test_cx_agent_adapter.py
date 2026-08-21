@@ -101,6 +101,33 @@ def test_cx_agent_adapter_measures_first_nonempty_streaming_delta():
     asyncio.run(adapter.close())
 
 
+def test_cx_agent_adapter_uses_visible_heading_text_for_evaluation():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            text=_sse(
+                ("session", {"sessionId": "cx-visible-heading"}),
+                ("text_delta", {"content": "### [护理] 什么时候抹\n\n参考文献[1]"}),
+                ("message_end", {}),
+            ),
+        )
+
+    adapter = _adapter_with_transport(handler)
+    response = asyncio.run(
+        adapter.chat(
+            ChatRequest(
+                messages=[{"role": "user", "content": "怎么用保湿霜"}],
+                session_id="mme-visible-heading",
+            )
+        )
+    )
+
+    assert response.reply == "### 什么时候抹\n\n参考文献[1]"
+    # 原始 SSE 仍保留，方便审计 CX 实际返回的 payload。
+    assert response.raw["events"][1]["data"]["content"] == "### [护理] 什么时候抹\n\n参考文献[1]"
+    asyncio.run(adapter.close())
+
+
 def test_cx_agent_adapter_reuses_cx_session_for_same_mme_session():
     bodies: list[dict] = []
 

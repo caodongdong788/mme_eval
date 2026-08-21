@@ -22,6 +22,7 @@ from medeval.evaluation_account_limiter import (
     AccountPool,
     evaluation_account_limiter,
 )
+from medeval.visible_response import normalize_cx_agent_visible_text
 
 from .base import BaseAdapter, ChatRequest, ChatResponse
 from .registry import register_adapter
@@ -425,7 +426,11 @@ class CxAgentAdapter(BaseAdapter):
             return ChatResponse(reply="", raw=raw, error=error)
         if not saw_message_end:
             return ChatResponse(reply="", raw=raw, error="cx_agent error: missing message_end")
-        return ChatResponse(reply="".join(reply_parts), raw=raw)
+        # 与 CX 页面一致：内部标题分类标签不属于最终用户可见回答，也不应进入
+        # 后续的八维/指南判分或作为下一轮上下文。
+        return ChatResponse(
+            reply=normalize_cx_agent_visible_text("".join(reply_parts)), raw=raw
+        )
 
     async def close(self) -> None:
         for session_id in list(self._leases):

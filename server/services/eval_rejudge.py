@@ -10,6 +10,7 @@ from medeval import trace_store
 from medeval.models import CaseResult, RunReport
 from medeval.reporter.aggregator import build_report
 from medeval.run_slug import make_run_slug
+from medeval.visible_response import normalize_cx_agent_visible_trace
 
 from ..benchmarks import _apply_case_overrides
 from ..db import session_scope
@@ -67,6 +68,14 @@ def build_rejudge_job(
             adapter_ov=adapter_ov,
             extra_judge_ov=judge_override,
         )
+
+        # 历史 CX run 的 trace 保存的是原始 SSE 文本，其中可能含用户页面已隐藏的
+        # 标题分类标签。离线重判也必须与当前在线评测采用相同的可见文本口径。
+        if config.adapter.type == "cx_agent":
+            per_case_traces = [
+                [normalize_cx_agent_visible_trace(trace) for trace in traces]
+                for traces in per_case_traces
+            ]
 
         judges = build_judge_stack(config)
 

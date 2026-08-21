@@ -455,8 +455,8 @@
     "semantic_hash": ""
   },
   "frontend/src/pages/CaseDetailPage.tsx": {
-    "mtime": 1787206044.1911674,
-    "ast_hash": "299753748ab14fe7c61c7fed8077ba2d",
+    "mtime": 1787281786.9426117,
+    "ast_hash": "3d0e572b4893164635fc019f092ffeeb",
     "semantic_hash": ""
   },
   "frontend/src/pages/JudgeModelsPage.tsx": {
@@ -595,8 +595,8 @@
     "semantic_hash": ""
   },
   "medeval/adapter/cx_agent.py": {
-    "mtime": 1786325613.1978326,
-    "ast_hash": "c2ce61e5c51cb3d9f92ab908aa50597e",
+    "mtime": 1787285022.8367517,
+    "ast_hash": "74820d336fad13a5a086e9e0eefdd6cf",
     "semantic_hash": ""
   },
   "medeval/adapter/http.py": {
@@ -760,8 +760,8 @@
     "semantic_hash": ""
   },
   "medeval/run_slug.py": {
-    "mtime": 1782374249.0031822,
-    "ast_hash": "da0d6a71f8280c8b455594adbfa12e61",
+    "mtime": 1787284548.12112,
+    "ast_hash": "686b0cb27e839e5421a06b412a82c314",
     "semantic_hash": ""
   },
   "medeval/runner/__init__.py": {
@@ -870,8 +870,8 @@
     "semantic_hash": ""
   },
   "server/db.py": {
-    "mtime": 1787206783.8432927,
-    "ast_hash": "f8cc731afbf29984bcb0f33ad63c7c87",
+    "mtime": 1787208460.0399384,
+    "ast_hash": "2c9856d4a88d4c3623442777b9c715a0",
     "semantic_hash": ""
   },
   "server/eval_job.py": {
@@ -905,8 +905,8 @@
     "semantic_hash": ""
   },
   "server/models_db.py": {
-    "mtime": 1787206628.5978632,
-    "ast_hash": "697ca491c8e59741c010bfaa4ef43bce",
+    "mtime": 1787220456.4153996,
+    "ast_hash": "bc32e432f92695b0148555af034965b5",
     "semantic_hash": ""
   },
   "server/pairwise_job.py": {
@@ -995,8 +995,8 @@
     "semantic_hash": ""
   },
   "server/schemas.py": {
-    "mtime": 1787206628.5981407,
-    "ast_hash": "4d19e142690c54ae64b4e731dd52788b",
+    "mtime": 1787220456.4165955,
+    "ast_hash": "3e4d8ed1af3c37c1d6602884ea91d50d",
     "semantic_hash": ""
   },
   "server/services/__init__.py": {
@@ -1045,8 +1045,8 @@
     "semantic_hash": ""
   },
   "server/services/eval_rejudge.py": {
-    "mtime": 1786688344.2661211,
-    "ast_hash": "4ebe3da2fbb6dc9494c36de16ba02ab3",
+    "mtime": 1787285022.8372495,
+    "ast_hash": "4c2715413b4170cac0ea92bbf82ed800",
     "semantic_hash": ""
   },
   "server/services/eval_resume.py": {
@@ -1105,8 +1105,8 @@
     "semantic_hash": ""
   },
   "server/settings.py": {
-    "mtime": 1787199109.299295,
-    "ast_hash": "a9d01e569322c13c214dd1cca567e0b4",
+    "mtime": 1787220883.6255255,
+    "ast_hash": "9c4e494040d15c475435ee9be1bea9cd",
     "semantic_hash": ""
   },
   "server/spa_static.py": {
@@ -1265,8 +1265,8 @@
     "semantic_hash": ""
   },
   "tests/test_cx_agent_adapter.py": {
-    "mtime": 1786159306.16035,
-    "ast_hash": "64db1914f2e8bca93b1a91b39ddc4ae1",
+    "mtime": 1787285022.837739,
+    "ast_hash": "b647e2ccd1351798d52df69c62de1ebf",
     "semantic_hash": ""
   },
   "tests/test_diff_latency.py": {
@@ -1365,8 +1365,8 @@
     "semantic_hash": ""
   },
   "tests/test_run_slug.py": {
-    "mtime": 1782374249.057272,
-    "ast_hash": "6313b6e2fcdd6181aec30f28522b6122",
+    "mtime": 1787284548.1219845,
+    "ast_hash": "7a586dfd9ff1369009d3393e01a5505d",
     "semantic_hash": ""
   },
   "tests/test_runner_repeat.py": {
@@ -1415,8 +1415,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1787136072.0010943,
-    "ast_hash": "40b433fb1474a45a38f2e8df3f7bddd4",
+    "mtime": 1787220883.6268916,
+    "ast_hash": "bacd93f094eed6fd09ac7dd681415c92",
     "semantic_hash": ""
   },
   "calibration/human_scores.example.yaml": {
@@ -4555,13 +4555,13 @@
     "semantic_hash": ""
   },
   "frontend/src/components/CxReplayEmbed.test.tsx": {
-    "mtime": 1784799376.8943043,
-    "ast_hash": "bff1a8ab2b927a98d34e98f8ed5e9b30",
+    "mtime": 1787281740.90395,
+    "ast_hash": "688d0b3ad0657e8d52719df40e40c5c4",
     "semantic_hash": ""
   },
   "frontend/src/components/CxReplayEmbed.tsx": {
-    "mtime": 1784799319.3018687,
-    "ast_hash": "445c44648021080cc897260ccea541e9",
+    "mtime": 1787281786.942102,
+    "ast_hash": "cae69f88d854d7dea5aaabe2453c3a28",
     "semantic_hash": ""
   },
   "frontend/src/components/SimulationTracePanel.tsx": {
@@ -4785,8 +4785,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/OpenApiKeysPanel.tsx": {
-    "mtime": 1787199113.654161,
-    "ast_hash": "f50f7827c97d9b3fdee5940bc79de91d",
+    "mtime": 1787220883.6262622,
+    "ast_hash": "18db597c827f3e118581b5e68853ac35",
     "semantic_hash": ""
   },
   "frontend/src/components/ReferenceAnswersPanel.test.tsx": {
@@ -4805,8 +4805,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/RunAttributionTab.tsx": {
-    "mtime": 1787206720.940701,
-    "ast_hash": "24d2da362c1ea35e79acd8021bc7c9f4",
+    "mtime": 1787282457.039734,
+    "ast_hash": "a0a8bb559b9d1d8ce480ea03e42a346d",
     "semantic_hash": ""
   },
   "frontend/src/components/RunTriggerTag.tsx": {
@@ -4875,8 +4875,8 @@
     "semantic_hash": ""
   },
   "server/routers/open_api.py": {
-    "mtime": 1787194274.0780022,
-    "ast_hash": "44d47c1879842b10dd76334bf251346d",
+    "mtime": 1787215951.1273234,
+    "ast_hash": "9dfb7263653adfd8b9809635349e41f8",
     "semantic_hash": ""
   },
   "server/routers/runs/attribution.py": {
@@ -4905,8 +4905,8 @@
     "semantic_hash": ""
   },
   "server/services/open_api_config.py": {
-    "mtime": 1787198940.3359368,
-    "ast_hash": "d1cf1907a150557fb1d53d38be232744",
+    "mtime": 1787221034.6029973,
+    "ast_hash": "88f751487566a35ac8c114deea442b73",
     "semantic_hash": ""
   },
   "server/services/scheduled_evaluations.py": {
@@ -4945,8 +4945,8 @@
     "semantic_hash": ""
   },
   "tests/server/test_open_api.py": {
-    "mtime": 1787195558.6154966,
-    "ast_hash": "98041aee9715127b65da69853a07505f",
+    "mtime": 1787221021.757115,
+    "ast_hash": "4b0b8297702254163abd197a2716b337",
     "semantic_hash": ""
   },
   "tests/server/test_open_api_config.py": {
@@ -4955,8 +4955,8 @@
     "semantic_hash": ""
   },
   "tests/server/test_open_api_legacy_migration.py": {
-    "mtime": 1787206783.8445878,
-    "ast_hash": "7ccfbd70b073154c88c303e6ee38a3b3",
+    "mtime": 1787221307.2171788,
+    "ast_hash": "f45c2a79270225feef0573cc89950850",
     "semantic_hash": ""
   },
   "tests/server/test_scheduled_evaluations.py": {
@@ -4980,8 +4980,8 @@
     "semantic_hash": ""
   },
   "docs/open-api.md": {
-    "mtime": 1787198877.4092898,
-    "ast_hash": "890d25f391baf031baedeb62181910fa",
+    "mtime": 1787220934.0149992,
+    "ast_hash": "66d2db985f7eabf1079316613d89023c",
     "semantic_hash": ""
   },
   "graphify-out/memory/query_20260814_062735_\u5f00\u59cb\u6267\u884c_\u4e00\u76f4\u5b9e\u73b0\u5230\u7b2c\u4e8c\u9636\u6bb5.md": {
@@ -5000,8 +5000,8 @@
     "semantic_hash": ""
   },
   "server/services/open_attribution_api.py": {
-    "mtime": 1787194278.493129,
-    "ast_hash": "2d1806a458528f28297dc1df0b0538b2",
+    "mtime": 1787215951.1281166,
+    "ast_hash": "a774c2800c69683a29d9d5cfe03e642e",
     "semantic_hash": ""
   },
   "tests/server/test_attribution_legacy_migration.py": {
@@ -5100,23 +5100,23 @@
     "semantic_hash": ""
   },
   "server/services/temporary_evaluation.py": {
-    "mtime": 1787195306.3799968,
-    "ast_hash": "9f92d6c8df019bbc77b87c1f05db50c7",
+    "mtime": 1787220456.4172087,
+    "ast_hash": "9c76e8c51c7e1931a871909c1d72d438",
     "semantic_hash": ""
   },
   "server/services/temporary_evaluation_tasks.py": {
-    "mtime": 1787136342.3890285,
-    "ast_hash": "c3bd574e83c1dc42a988c773be5a7b19",
+    "mtime": 1787220934.014482,
+    "ast_hash": "f208c3127cc6acd406e037e7463b1b9e",
     "semantic_hash": ""
   },
   "tests/server/test_temporary_evaluation_tasks.py": {
-    "mtime": 1787136342.3895252,
-    "ast_hash": "dc1959ac8701f348fc0eecc7dc24ea43",
+    "mtime": 1787220995.3492918,
+    "ast_hash": "9cd627fb08e8b0067380a05160508791",
     "semantic_hash": ""
   },
   "frontend/src/components/AttributionCaseDetailPage.test.tsx": {
-    "mtime": 1787205647.1778584,
-    "ast_hash": "2e8f17e5809aaf33e35b679b390c7898",
+    "mtime": 1787282457.0401075,
+    "ast_hash": "0b57155f5b53b52c0d33385d39a43588",
     "semantic_hash": ""
   },
   "frontend/src/components/OpenApiKeysPanel.test.tsx": {
@@ -5192,6 +5192,21 @@
   "migrations/versions/20260820_0003_attribution_runtime_status.py": {
     "mtime": 1787206658.0116065,
     "ast_hash": "e5d1a4e877e9d8ea8f06b227c7db7caf",
+    "semantic_hash": ""
+  },
+  "medeval/visible_response.py": {
+    "mtime": 1787285030.0294855,
+    "ast_hash": "441c0b0aa59474ba0ba0dbe8700ac33b",
+    "semantic_hash": ""
+  },
+  "migrations/versions/20260820_0004_persistent_temporary_evaluation_runs.py": {
+    "mtime": 1787220816.659625,
+    "ast_hash": "9a0f9ce268372b971b3098c8583b40f8",
+    "semantic_hash": ""
+  },
+  "tests/test_visible_response.py": {
+    "mtime": 1787285022.8382528,
+    "ast_hash": "e3c32ddd4c14ef6ef38b4bc066c49a4d",
     "semantic_hash": ""
   }
 }
