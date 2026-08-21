@@ -300,8 +300,24 @@ def list_runs(
         stmt = stmt.offset(offset)
     stmt = stmt.limit(effective_limit)
     runs = list(session.execute(stmt).scalars().all())
+    _attach_benchmark_names(session, runs)
     _attach_cx_agent_optimization_counts(session, runs)
     return runs
+
+
+def _attach_benchmark_names(session: Session, runs: list[EvalRun]) -> None:
+    benchmark_ids = {run.benchmark_id for run in runs if run.benchmark_id is not None}
+    names = (
+        dict(
+            session.execute(
+                select(Benchmark.id, Benchmark.name).where(Benchmark.id.in_(benchmark_ids))
+            ).all()
+        )
+        if benchmark_ids
+        else {}
+    )
+    for run in runs:
+        setattr(run, "benchmark_name", names.get(run.benchmark_id))
 
 
 def _attach_cx_agent_optimization_counts(session: Session, runs: list[EvalRun]) -> None:

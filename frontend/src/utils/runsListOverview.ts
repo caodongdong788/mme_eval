@@ -17,11 +17,27 @@ export interface RunsTrendPoint {
   name: string;
 }
 
-export interface CxAgentOptimizationTrendPoint {
-  label: string;
-  optimizationCount: number;
-  runId: number;
+export interface CxAgentOptimizationTrendSeries {
+  key: string;
+  benchmarkId: number | null;
   name: string;
+  latest: number;
+  previous: number | null;
+}
+
+export interface CxAgentOptimizationTrend {
+  points: Array<
+    {
+      label: string;
+      timestamp: number;
+      runId: number;
+      name: string;
+    } & Record<string, string | number>
+  >;
+  series: CxAgentOptimizationTrendSeries[];
+  latestTotal: number | null;
+  previousTotal: number | null;
+  delta: number | null;
 }
 
 const SUCCESS = "success";
@@ -127,29 +143,82 @@ export function buildPassRateTrend(runs: RunSummary[], limit = 7): RunsTrendPoin
 export function buildCxAgentOptimizationTrend(
   runs: RunSummary[],
   limit = 7
-): CxAgentOptimizationTrendPoint[] {
-  const attributed = sortByEvaluationTimeDesc(
-    runs.filter(
-      (run): run is RunSummary & { cx_agent_optimization_count: number } =>
-        run.status === SUCCESS &&
-        typeof run.cx_agent_optimization_count === "number" &&
-        Number.isFinite(run.cx_agent_optimization_count)
+): CxAgentOptimizationTrend {
+  const attributed = runs.filter(
+    (run): run is RunSummary & { cx_agent_optimization_count: number } =>
+      run.status === SUCCESS &&
+      typeof run.cx_agent_optimization_count === "number" &&
+      Number.isFinite(run.cx_agent_optimization_count)
+  );
+  const grouped = new Map<string, typeof attributed>();
+  for (const run of attributed) {
+    const groupKey = run.benchmark_id == null ? "unassigned" : String(run.benchmark_id);
+    const group = grouped.get(groupKey) || [];
+    group.push(run);
+    grouped.set(groupKey, group);
+  }
+
+  const series = [...grouped.entries()]
+    .map(([groupKey, group]) => {
+      const selected = sortByEvaluationTimeDesc(group).slice(0, limit).reverse();
+      const last = selected[selected.length - 1];
+      const previous = selected.length > 1 ? selected[selected.length - 2] : null;
+      const benchmarkId = last?.benchmark_id ?? null;
+      return {
+        key: `benchmark_${groupKey}`,
+        benchmarkId,
+        name:
+          last?.benchmark_name?.trim() ||
+          (benchmarkId == null ? "未关联 Benchmark" : `Benchmark #${benchmarkId}`),
+        latest: Number(last.cx_agent_optimization_count),
+        previous: previous == null ? null : Number(previous.cx_agent_optimization_count),
+        runs: selected,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
+
+  const points = series
+    .flatMap((item) =>
+      item.runs.map((run) => {
+        const timestamp = evaluationTimestamp(run);
+        const d = timestamp ? new Date(timestamp) : null;
+        const label =
+          d && !Number.isNaN(d.getTime())
+            ? `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+            : `#${run.id}`;
+        return {
+          label,
+          timestamp,
+          runId: run.id,
+          name: run.name || run.run_slug,
+          [item.key]: Number(run.cx_agent_optimization_count),
+        };
+      })
     )
-  ).slice(0, limit);
-  return attributed.reverse().map((run) => {
-    const timestamp = run.finished_at || run.created_at;
-    const d = timestamp ? new Date(timestamp) : null;
-    const label =
-      d && !Number.isNaN(d.getTime())
-        ? `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-        : `#${run.id}`;
-    return {
-      label,
-      optimizationCount: Number(run.cx_agent_optimization_count),
-      runId: run.id,
-      name: run.name || run.run_slug,
-    };
-  });
+    .sort((a, b) => a.timestamp - b.timestamp || a.runId - b.runId);
+  const publicSeries = series.map((item) => ({
+    key: item.key,
+    benchmarkId: item.benchmarkId,
+    name: item.name,
+    latest: item.latest,
+    previous: item.previous,
+  }));
+  const latestTotal = publicSeries.length
+    ? publicSeries.reduce((sum, item) => sum + item.latest, 0)
+    : null;
+  const hasCompletePrevious =
+    publicSeries.length > 0 && publicSeries.every((item) => item.previous != null);
+  const previousTotal = hasCompletePrevious
+    ? publicSeries.reduce((sum, item) => sum + Number(item.previous), 0)
+    : null;
+  return {
+    points,
+    series: publicSeries,
+    latestTotal,
+    previousTotal,
+    delta:
+      latestTotal != null && previousTotal != null ? latestTotal - previousTotal : null,
+  };
 }
 
 export function buildStatusDistribution(runs: RunSummary[]): Array<{ name: string; value: number }> {

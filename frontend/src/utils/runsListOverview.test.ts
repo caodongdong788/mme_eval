@@ -79,17 +79,34 @@ describe("runsListOverview", () => {
     expect(trend[1].passPct).toBe(90);
   });
 
-  it("builds cx-agent optimization trend only from attributed completed runs", () => {
+  it("builds one cx-agent optimization line per benchmark and aggregates latest comparisons", () => {
     const trend = buildCxAgentOptimizationTrend([
-      run({ id: 1, created_at: "2026-06-10T10:00:00Z", cx_agent_optimization_count: 4 }),
-      run({ id: 2, created_at: "2026-06-11T10:00:00Z", cx_agent_optimization_count: null }),
-      run({ id: 3, created_at: "2026-06-12T10:00:00Z", cx_agent_optimization_count: 0 }),
-      run({ id: 4, status: "running", cx_agent_optimization_count: 2 }),
+      run({ id: 1, benchmark_id: 10, benchmark_name: "真实患者", created_at: "2026-06-10T10:00:00Z", cx_agent_optimization_count: 4 }),
+      run({ id: 2, benchmark_id: 10, benchmark_name: "真实患者", created_at: "2026-06-11T10:00:00Z", cx_agent_optimization_count: 6 }),
+      run({ id: 3, benchmark_id: 20, benchmark_name: "合成对话", created_at: "2026-06-10T11:00:00Z", cx_agent_optimization_count: 10 }),
+      run({ id: 4, benchmark_id: 20, benchmark_name: "合成对话", created_at: "2026-06-11T11:00:00Z", cx_agent_optimization_count: 12 }),
+      run({ id: 5, benchmark_id: 20, benchmark_name: "合成对话", created_at: "2026-06-12T10:00:00Z", cx_agent_optimization_count: null }),
+      run({ id: 6, status: "running", benchmark_id: 10, cx_agent_optimization_count: 2 }),
     ]);
-    expect(trend).toEqual([
-      expect.objectContaining({ runId: 1, optimizationCount: 4 }),
-      expect.objectContaining({ runId: 3, optimizationCount: 0 }),
+    expect(trend.series).toEqual([
+      expect.objectContaining({ name: "合成对话", latest: 12, previous: 10 }),
+      expect.objectContaining({ name: "真实患者", latest: 6, previous: 4 }),
     ]);
+    expect(trend.points).toHaveLength(4);
+    expect(trend.latestTotal).toBe(18);
+    expect(trend.previousTotal).toBe(14);
+    expect(trend.delta).toBe(4);
+  });
+
+  it("does not compare benchmark totals until every benchmark has a previous result", () => {
+    const trend = buildCxAgentOptimizationTrend([
+      run({ id: 1, benchmark_id: 10, benchmark_name: "真实患者", created_at: "2026-06-10T10:00:00Z", cx_agent_optimization_count: 4 }),
+      run({ id: 2, benchmark_id: 10, benchmark_name: "真实患者", created_at: "2026-06-11T10:00:00Z", cx_agent_optimization_count: 6 }),
+      run({ id: 3, benchmark_id: 20, benchmark_name: "合成对话", created_at: "2026-06-11T11:00:00Z", cx_agent_optimization_count: 12 }),
+    ]);
+    expect(trend.latestTotal).toBe(18);
+    expect(trend.previousTotal).toBeNull();
+    expect(trend.delta).toBeNull();
   });
 
   it("computeRunsPeriodDeltas compares two windows", () => {

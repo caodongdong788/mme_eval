@@ -17,7 +17,7 @@ import {
   YAxis,
 } from "recharts";
 import type { RunSummary } from "../api/types";
-import { palette, dashboardPieColors } from "../theme";
+import { palette, dashboardPieColors, trendSeriesColors } from "../theme";
 import {
   formatPeriodLabel,
   getRunsDatePresetRange,
@@ -86,23 +86,6 @@ export function RunsListOverview({
   const statusPie = buildStatusDistribution(filteredRuns);
   const passRateDelta = periodDeltas?.passRatePct ?? null;
   const latestPass = trend.length ? trend[trend.length - 1].passPct : null;
-  const latestCxAgentOptimization = cxAgentOptimizationTrend.length
-    ? cxAgentOptimizationTrend[cxAgentOptimizationTrend.length - 1].optimizationCount
-    : null;
-  const previousCxAgentOptimization = cxAgentOptimizationTrend.length > 1
-    ? cxAgentOptimizationTrend[cxAgentOptimizationTrend.length - 2].optimizationCount
-    : null;
-  const cxAgentOptimizationDelta =
-    latestCxAgentOptimization != null && previousCxAgentOptimization != null
-      ? latestCxAgentOptimization - previousCxAgentOptimization
-      : null;
-  const avgCxAgentOptimization = cxAgentOptimizationTrend.length
-    ? Math.round(
-      (cxAgentOptimizationTrend.reduce((sum, point) => sum + point.optimizationCount, 0) /
-        cxAgentOptimizationTrend.length) *
-        10
-    ) / 10
-    : null;
   const hasPeriod = periodBounds != null && previousBounds != null;
 
   return (
@@ -297,40 +280,31 @@ export function RunsListOverview({
 
       <div className="runs-chart-card runs-chart-card--main">
         <div className="runs-chart-card__head">
-          <div>
-            <div className="runs-chart-card__title">cx-agent 归因优化点趋势</div>
-            <div className="runs-chart-card__subtitle">
-              同一优先级、同一一级/二级分类合并为一个通用优化点；未完成归因的评测不纳入统计。
-            </div>
-          </div>
+          <div className="runs-chart-card__title">cx-agent 归因优化点趋势</div>
         </div>
-        {cxAgentOptimizationTrend.length > 0 && (
+        {cxAgentOptimizationTrend.series.length > 0 && (
           <div className="runs-mini-kpis">
             <div>
               <div className="runs-mini-kpi__label">最新优化点</div>
-              <div className="runs-mini-kpi__val">{latestCxAgentOptimization} 个</div>
-            </div>
-            <div>
-              <div className="runs-mini-kpi__label">平均优化点</div>
-              <div className="runs-mini-kpi__val">{avgCxAgentOptimization} 个</div>
+              <div className="runs-mini-kpi__val">{cxAgentOptimizationTrend.latestTotal} 个</div>
             </div>
             <div>
               <div className="runs-mini-kpi__label">较上次评测</div>
               <div className="runs-mini-kpi__val" style={{ color: D.purpleLine }}>
-                {cxAgentOptimizationDelta != null
-                  ? `${cxAgentOptimizationDelta >= 0 ? "+" : ""}${cxAgentOptimizationDelta} 个`
+                {cxAgentOptimizationTrend.delta != null
+                  ? `${cxAgentOptimizationTrend.delta >= 0 ? "+" : ""}${cxAgentOptimizationTrend.delta} 个`
                   : "—"}
               </div>
             </div>
           </div>
         )}
         <div className="runs-chart-area">
-          {cxAgentOptimizationTrend.length === 0 ? (
+          {cxAgentOptimizationTrend.series.length === 0 ? (
             <div className="runs-chart-empty">当前范围内暂无已完成归因结果，完成归因后将自动展示趋势</div>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <ComposedChart
-                data={cxAgentOptimizationTrend}
+                data={cxAgentOptimizationTrend.points}
                 margin={{ top: 8, right: 12, bottom: 0, left: -8 }}
               >
                 <CartesianGrid stroke={D.border} vertical={false} />
@@ -342,18 +316,26 @@ export function RunsListOverview({
                   tick={{ fill: D.textMuted, fontSize: 11 }}
                 />
                 <RTooltip
-                  formatter={(value) => [`${Number(value)} 个`, "通用优化点"]}
-                  labelFormatter={(_label, payload) => payload[0]?.payload?.name || ""
-                  }
+                  formatter={(value, name) => [`${Number(value)} 个`, String(name)]}
+                  labelFormatter={(_label, payload) => payload[0]?.payload?.name || ""}
                 />
-                <Line
-                  type="monotone"
-                  dataKey="optimizationCount"
-                  stroke={D.teal}
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: D.card, stroke: D.teal, strokeWidth: 2 }}
-                  activeDot={{ r: 5 }}
-                />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                {cxAgentOptimizationTrend.series.map((series, index) => {
+                  const color = trendSeriesColors[index % trendSeriesColors.length];
+                  return (
+                    <Line
+                      key={series.key}
+                      type="monotone"
+                      dataKey={series.key}
+                      name={series.name}
+                      stroke={color}
+                      strokeWidth={2}
+                      connectNulls
+                      dot={{ r: 3, fill: D.card, stroke: color, strokeWidth: 2 }}
+                      activeDot={{ r: 5 }}
+                    />
+                  );
+                })}
               </ComposedChart>
             </ResponsiveContainer>
           )}

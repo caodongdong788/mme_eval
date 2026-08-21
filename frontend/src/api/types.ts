@@ -141,6 +141,7 @@ export interface RunSummary {
   status: string;
   trigger_type: "manual" | "scheduled" | "open_api";
   benchmark_id?: number | null;
+  benchmark_name?: string | null;
   scheduled_evaluation_id?: number | null;
   adapter_type: string;
   total: number;
