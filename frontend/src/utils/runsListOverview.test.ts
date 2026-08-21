@@ -81,19 +81,23 @@ describe("runsListOverview", () => {
 
   it("builds one cx-agent optimization line per benchmark and aggregates latest comparisons", () => {
     const trend = buildCxAgentOptimizationTrend([
-      run({ id: 1, benchmark_id: 10, benchmark_name: "真实患者", created_at: "2026-06-10T10:00:00Z", cx_agent_optimization_count: 4 }),
-      run({ id: 2, benchmark_id: 10, benchmark_name: "真实患者", created_at: "2026-06-11T10:00:00Z", cx_agent_optimization_count: 6 }),
-      run({ id: 3, benchmark_id: 20, benchmark_name: "合成对话", created_at: "2026-06-10T11:00:00Z", cx_agent_optimization_count: 10 }),
-      run({ id: 4, benchmark_id: 20, benchmark_name: "合成对话", created_at: "2026-06-11T11:00:00Z", cx_agent_optimization_count: 12 }),
+      run({ id: 1, benchmark_id: 10, benchmark_name: "真实患者", created_at: "2026-06-10T10:00:00Z", cx_agent_optimization_count: 4, cx_agent_p0_optimization_count: 1 }),
+      run({ id: 2, benchmark_id: 10, benchmark_name: "真实患者", created_at: "2026-06-11T10:00:00Z", cx_agent_optimization_count: 6, cx_agent_p0_optimization_count: 2 }),
+      run({ id: 3, benchmark_id: 20, benchmark_name: "合成对话", created_at: "2026-06-10T11:00:00Z", cx_agent_optimization_count: 10, cx_agent_p0_optimization_count: 3 }),
+      run({ id: 4, benchmark_id: 20, benchmark_name: "合成对话", created_at: "2026-06-11T11:00:00Z", cx_agent_optimization_count: 12, cx_agent_p0_optimization_count: 4 }),
       run({ id: 5, benchmark_id: 20, benchmark_name: "合成对话", created_at: "2026-06-12T10:00:00Z", cx_agent_optimization_count: null }),
       run({ id: 6, status: "running", benchmark_id: 10, cx_agent_optimization_count: 2 }),
     ]);
     expect(trend.series).toEqual([
-      expect.objectContaining({ name: "合成对话", latest: 12, previous: 10 }),
-      expect.objectContaining({ name: "真实患者", latest: 6, previous: 4 }),
+      expect.objectContaining({ name: "合成对话", latest: 12, previous: 10, latestP0: 4, previousP0: 3 }),
+      expect.objectContaining({ name: "真实患者", latest: 6, previous: 4, latestP0: 2, previousP0: 1 }),
     ]);
     expect(trend.points).toHaveLength(4);
+    expect(trend.points).toContainEqual(
+      expect.objectContaining({ runId: 4, optimizationCount: 12, p0OptimizationCount: 4 })
+    );
     expect(trend.latestTotal).toBe(18);
+    expect(trend.latestP0Total).toBe(6);
     expect(trend.previousTotal).toBe(14);
     expect(trend.delta).toBe(4);
   });
@@ -105,6 +109,7 @@ describe("runsListOverview", () => {
       run({ id: 3, benchmark_id: 20, benchmark_name: "合成对话", created_at: "2026-06-11T11:00:00Z", cx_agent_optimization_count: 12 }),
     ]);
     expect(trend.latestTotal).toBe(18);
+    expect(trend.latestP0Total).toBe(0);
     expect(trend.previousTotal).toBeNull();
     expect(trend.delta).toBeNull();
   });

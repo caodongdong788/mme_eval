@@ -360,6 +360,7 @@ def _attach_cx_agent_optimization_counts(session: Session, runs: list[EvalRun]) 
         snapshots = latest_by_run_case.get(run.id)
         if not snapshots:
             setattr(run, "cx_agent_optimization_count", None)
+            setattr(run, "cx_agent_p0_optimization_count", None)
             continue
         summary = build_task_diagnostic_summary(snapshots.items())
         points: set[tuple[str, str, str]] = set()
@@ -372,6 +373,11 @@ def _attach_cx_agent_optimization_counts(session: Session, runs: list[EvalRun]) 
             priority = str(cluster.get("priority") or "P2").upper()
             points.add((priority, primary_key, secondary_label))
         setattr(run, "cx_agent_optimization_count", len(points))
+        setattr(
+            run,
+            "cx_agent_p0_optimization_count",
+            sum(1 for priority, _primary, _secondary in points if priority == "P0"),
+        )
 
 
 def delete_run(session: Session, run_id: int) -> None:

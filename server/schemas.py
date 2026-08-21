@@ -985,6 +985,8 @@ class RunSummaryOut(BaseModel):
     avg_composite: Optional[float] = None
     # 归因任务中聚合出的 cx-agent 通用优化点数量；尚未有可用归因结果时为 null。
     cx_agent_optimization_count: Optional[int] = None
+    # 上述通用优化点中优先级为 P0 的数量；尚未有可用归因结果时为 null。
+    cx_agent_p0_optimization_count: Optional[int] = None
     started_at: Optional[ApiDateTime] = None
     finished_at: Optional[ApiDateTime] = None
     created_at: Optional[ApiDateTime] = None

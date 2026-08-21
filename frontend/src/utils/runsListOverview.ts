@@ -23,6 +23,8 @@ export interface CxAgentOptimizationTrendSeries {
   name: string;
   latest: number;
   previous: number | null;
+  latestP0: number;
+  previousP0: number | null;
 }
 
 export interface CxAgentOptimizationTrend {
@@ -36,6 +38,7 @@ export interface CxAgentOptimizationTrend {
   >;
   series: CxAgentOptimizationTrendSeries[];
   latestTotal: number | null;
+  latestP0Total: number | null;
   previousTotal: number | null;
   delta: number | null;
 }
@@ -172,6 +175,9 @@ export function buildCxAgentOptimizationTrend(
           (benchmarkId == null ? "未关联 Benchmark" : `Benchmark #${benchmarkId}`),
         latest: Number(last.cx_agent_optimization_count),
         previous: previous == null ? null : Number(previous.cx_agent_optimization_count),
+        latestP0: Number(last.cx_agent_p0_optimization_count || 0),
+        previousP0:
+          previous == null ? null : Number(previous.cx_agent_p0_optimization_count || 0),
         runs: selected,
       };
     })
@@ -191,6 +197,8 @@ export function buildCxAgentOptimizationTrend(
           timestamp,
           runId: run.id,
           name: run.name || run.run_slug,
+          optimizationCount: Number(run.cx_agent_optimization_count),
+          p0OptimizationCount: Number(run.cx_agent_p0_optimization_count || 0),
           [item.key]: Number(run.cx_agent_optimization_count),
         };
       })
@@ -202,9 +210,14 @@ export function buildCxAgentOptimizationTrend(
     name: item.name,
     latest: item.latest,
     previous: item.previous,
+    latestP0: item.latestP0,
+    previousP0: item.previousP0,
   }));
   const latestTotal = publicSeries.length
     ? publicSeries.reduce((sum, item) => sum + item.latest, 0)
+    : null;
+  const latestP0Total = publicSeries.length
+    ? publicSeries.reduce((sum, item) => sum + item.latestP0, 0)
     : null;
   const hasCompletePrevious =
     publicSeries.length > 0 && publicSeries.every((item) => item.previous != null);
@@ -215,6 +228,7 @@ export function buildCxAgentOptimizationTrend(
     points,
     series: publicSeries,
     latestTotal,
+    latestP0Total,
     previousTotal,
     delta:
       latestTotal != null && previousTotal != null ? latestTotal - previousTotal : null,

@@ -115,7 +115,7 @@ def test_run_list_exposes_deduplicated_cx_agent_optimization_count(session):
                         "action_type": "safety_rule",
                     },
                     "recommendations": [
-                        {"scope": "cx_agent", "priority": "P1", "target": "安全策略", "action": "补齐风险提示"}
+                        {"scope": "cx_agent", "priority": "P0", "target": "安全策略", "action": "补齐风险提示"}
                     ],
                 }
             ],
@@ -130,10 +130,13 @@ def test_run_list_exposes_deduplicated_cx_agent_optimization_count(session):
     listed = {item.id: item for item in list_runs(session)}
 
     assert listed[run.id].cx_agent_optimization_count == 1
+    assert listed[run.id].cx_agent_p0_optimization_count == 1
     assert listed[run.id].benchmark_name == "真实患者 Benchmark"
     assert listed[without_attribution.id].cx_agent_optimization_count is None
+    assert listed[without_attribution.id].cx_agent_p0_optimization_count is None
     summary = RunSummaryOut.model_validate(listed[run.id])
     assert summary.cx_agent_optimization_count == 1
+    assert summary.cx_agent_p0_optimization_count == 1
     assert summary.benchmark_name == "真实患者 Benchmark"
 
 

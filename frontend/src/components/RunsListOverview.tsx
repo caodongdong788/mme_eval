@@ -289,6 +289,10 @@ export function RunsListOverview({
               <div className="runs-mini-kpi__val">{cxAgentOptimizationTrend.latestTotal} 个</div>
             </div>
             <div>
+              <div className="runs-mini-kpi__label">P0 优化点</div>
+              <div className="runs-mini-kpi__val">{cxAgentOptimizationTrend.latestP0Total} 个</div>
+            </div>
+            <div>
               <div className="runs-mini-kpi__label">较上次评测</div>
               <div className="runs-mini-kpi__val" style={{ color: D.purpleLine }}>
                 {cxAgentOptimizationTrend.delta != null
@@ -316,7 +320,15 @@ export function RunsListOverview({
                   tick={{ fill: D.textMuted, fontSize: 11 }}
                 />
                 <RTooltip
-                  formatter={(value, name) => [`${Number(value)} 个`, String(name)]}
+                  formatter={(value, _name, item) => {
+                    const point = item.payload as {
+                      p0OptimizationCount?: number;
+                    };
+                    return [
+                      `${Number(value)} 个（P0 ${Number(point.p0OptimizationCount || 0)} 个）`,
+                      "本次归因优化点",
+                    ];
+                  }}
                   labelFormatter={(_label, payload) => payload[0]?.payload?.name || ""}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
