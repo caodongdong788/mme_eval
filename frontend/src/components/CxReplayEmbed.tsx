@@ -6,7 +6,7 @@ const REPLAY_READY_EVENT = "cx-evaluation-replay-ready";
 const REPLAY_READY_TIMEOUT_MS = 4_000;
 
 interface CxReplayEmbedProps {
-  src: string;
+  src?: string | null;
   messages: ConversationMessage[];
   resolveImageSrc?: (imagePath: string) => string;
 }
@@ -20,6 +20,7 @@ export function CxReplayEmbed({ src, messages, resolveImageSrc }: CxReplayEmbedP
 
   useEffect(() => {
     setFallback(false);
+    if (!src) return undefined;
     let origin = "";
     try {
       origin = new URL(src).origin;
@@ -44,6 +45,14 @@ export function CxReplayEmbed({ src, messages, resolveImageSrc }: CxReplayEmbedP
       window.removeEventListener("message", onMessage);
     };
   }, [src]);
+
+  if (!src) {
+    return messages.length ? (
+      <ConversationThread messages={messages} maxHeight={640} resolveImageSrc={resolveImageSrc} />
+    ) : (
+      <Empty description="此用例没有可用的对话内容" />
+    );
+  }
 
   if (fallback) {
     return (

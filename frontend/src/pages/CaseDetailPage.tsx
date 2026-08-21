@@ -1,4 +1,4 @@
-import { Button, Col, Empty, Result, Row, Spin } from "antd";
+import { Button, Col, Result, Row, Spin } from "antd";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { BenchmarkCaseEditorDrawer } from "../components/BenchmarkCaseEditorDrawer";
 import { CasePreviewRejudgePanel } from "../components/CasePreviewRejudgePanel";
@@ -97,24 +97,20 @@ export default function CaseDetailPage() {
       <Row gutter={14}>
         <Col xs={24} lg={14}>
           <DashPanel
-            title="CX 完整回放"
+            title={trace?.cx_evaluation_share_url ? "CX 完整回放" : "对话明细"}
             extra={trace?.cx_evaluation_share_url ? (
               <Button type="link" size="small" href={trace.cx_evaluation_share_url} target="_blank" rel="noreferrer">
                 在新窗口打开
               </Button>
             ) : undefined}
           >
-            {trace?.cx_evaluation_share_url ? (
-              <CxReplayEmbed
-                src={trace.cx_evaluation_share_url}
-                messages={messages}
-                resolveImageSrc={(imagePath) =>
-                  `/api/runs/${id}/cases/${encodeURIComponent(sampleId || "")}/images/${encodeURIComponent(imagePath)}`
-                }
-              />
-            ) : (
-              <Empty description="此用例尚未生成 CX 回放，请重新评测" />
-            )}
+            <CxReplayEmbed
+              src={trace?.cx_evaluation_share_url}
+              messages={messages}
+              resolveImageSrc={(imagePath) =>
+                `/api/runs/${id}/cases/${encodeURIComponent(sampleId || "")}/images/${encodeURIComponent(imagePath)}`
+              }
+            />
           </DashPanel>
         </Col>
         <Col xs={24} lg={10}>

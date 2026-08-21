@@ -14,6 +14,14 @@ afterEach(() => {
 });
 
 describe("CxReplayEmbed", () => {
+  it("shows the saved conversation directly when no CX replay URL exists", () => {
+    renderWithProviders(<CxReplayEmbed src={null} messages={props.messages} />);
+
+    expect(screen.getByText("已保存的本地回放")).toBeInTheDocument();
+    expect(screen.queryByText("CX 原生回放暂不可嵌入，已切换为本地回放")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("CX 完整回放")).not.toBeInTheDocument();
+  });
+
   it("falls back to the saved conversation when CX does not confirm iframe readiness", () => {
     vi.useFakeTimers();
     renderWithProviders(<CxReplayEmbed {...props} />);
