@@ -149,6 +149,55 @@ def test_prompt_enforces_role_boundaries_and_evidence_based_reasons() -> None:
     assert "不得自动升格为阈值错误" in captured
     assert "不能只根据一句“暂不需要急着就医”判断风险" in captured
     assert "不得只截取“暂不需要急着就医”这一句作出判定" in captured
+    assert "必须区分“说明公认医学事实或标准治疗方向”" in captured
+    assert "HER2 IHC 3+ 通常判定为 HER2 阳性" in captured
+    assert "不得仅因回答给出明确治疗方向而判医学安全性 0 分" in captured
+
+
+def test_prompt_includes_only_selected_rag_evidence_for_fact_checking() -> None:
+    judge = EightDimensionJudge(enabled=False)
+    judge.enabled = True
+    captured = ""
+    rag_trace = ConversationTrace(
+        messages=[ChatMessage(role="assistant", content="HER2 3+ 属于 HER2 阳性。")],
+        cx_literature_audits=[{
+            "query": "HER2 3+ 治疗意义",
+            "hits": [
+                {
+                    "rank": 1,
+                    "selected": True,
+                    "raw": {
+                        "title": "HER2 treatment consensus",
+                        "translation": "HER2 IHC 3+ 判定为 HER2 阳性，抗 HER2 治疗是标准治疗方向。",
+                    },
+                },
+                {
+                    "rank": 2,
+                    "selected": False,
+                    "raw": {
+                        "title": "未采用文献",
+                        "translation": "这段候选证据不应进入判分上下文。",
+                    },
+                },
+            ],
+        }],
+    )
+
+    async def fake_call(prompt: str):
+        nonlocal captured
+        captured = prompt
+        scores = {dimension.value: 5 for dimension in EvaluationDimension}
+        return scores, {key: "stub" for key in scores}
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    asyncio.run(judge.judge(case(), rag_trace))
+
+    assert "本次回答实际采用的 RAG 文献证据" in captured
+    assert "HER2 3+ 治疗意义" in captured
+    assert "HER2 IHC 3+ 判定为 HER2 阳性" in captured
+    assert "未采用文献" not in captured
+    assert "不能仅因存在 RAG 就默认回答正确" in captured
+    assert "RAG 不能替代面诊" in captured
 
 
 def test_prompt_uses_shared_dimension_standards() -> None:
