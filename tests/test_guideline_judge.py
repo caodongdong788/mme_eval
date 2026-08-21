@@ -146,6 +146,7 @@ def test_prompt_includes_case_initial_state_without_counting_it_as_coverage() ->
     assert "纯禁止项" in captured
     assert "duplicate_of" in captured
     assert "医学知识解释、治疗方向讨论和替患者确定具体" in captured
+    assert "不得孤立截取“暂不需要急着就医”一句" in captured
 
 
 def test_prompt_includes_guideline_reference_answers() -> None:

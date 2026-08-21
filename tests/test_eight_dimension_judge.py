@@ -147,6 +147,8 @@ def test_prompt_enforces_role_boundaries_and_evidence_based_reasons() -> None:
     assert "不要求必须使用“您”" in captured
     assert "必须扫描全部 bot 回复" in captured
     assert "不得自动升格为阈值错误" in captured
+    assert "不能只根据一句“暂不需要急着就医”判断风险" in captured
+    assert "不得只截取“暂不需要急着就医”这一句作出判定" in captured
 
 
 def test_prompt_uses_shared_dimension_standards() -> None:
