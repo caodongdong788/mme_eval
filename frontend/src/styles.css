@@ -2473,6 +2473,16 @@ a.ant-typography-secondary:hover {
 .feishu-mention--empty {
   color: var(--runs-text-muted);
 }
+.runs-table__creator {
+  overflow: hidden !important;
+}
+.runs-table__creator .feishu-mention {
+  overflow: hidden;
+}
+.runs-table__creator .feishu-mention > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* Dashboard 表单卡内控件 */
 .dash-form-card .ant-select-selector {

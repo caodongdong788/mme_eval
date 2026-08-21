@@ -125,6 +125,7 @@ export function useRunsTableColumns(
       dataIndex: "created_by",
       width: "10%",
       ...nowrap,
+      className: "runs-table__creator",
       render: (name?: string | null) => <FeishuMention name={name} />,
     },
     {
