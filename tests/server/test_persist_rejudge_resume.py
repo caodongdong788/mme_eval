@@ -15,7 +15,6 @@ from server.models_db import Benchmark, CaseResultRow, EvalRun
 from server.progress import InMemoryProgress
 from server.services.case_retry import (
     IncrementalRetryPersister,
-    _hydrate_frozen_case_images,
     launch_cases_retry,
 )
 from server.services.eval_artifacts import (
@@ -311,20 +310,6 @@ def test_in_place_resume_passes_persisted_results_to_evaluator(
 # 4.5 单 Case 重试：真实调用+判分后原位替换，并同步 report.json
 
 
-def test_retry_image_hydration_keeps_frozen_case_truth():
-    frozen = make_report("frozen-case").results[0].case.model_copy(deep=True)
-    current = frozen.model_copy(deep=True)
-    frozen.turns[0].images = ["images/evidence.png"]
-    current.turns[0].images = ["images/evidence.png"]
-    current.turns[0].attach_image_data_urls(["data:image/png;base64,abc"])
-    current.scenario = "Benchmark 后来被改过的场景"
-
-    _hydrate_frozen_case_images(frozen, current)
-
-    assert frozen.scenario != current.scenario
-    assert frozen.turns[0].image_data_urls == ["data:image/png;base64,abc"]
-
-
 def test_incremental_retry_persister_replaces_case_before_batch_finishes(initialized_db):
     source = make_report("incremental_retry")
     target_id = source.results[0].case.sample_id
@@ -350,12 +335,17 @@ def test_incremental_retry_persister_replaces_case_before_batch_finishes(initial
         assert run.finished_at is None
 
 
-def test_retry_case_job_replaces_only_target_case(initialized_db, settings, monkeypatch):
+def test_retry_case_job_uses_current_benchmark_case_and_replaces_only_target_case(
+    initialized_db, settings, monkeypatch
+):
     source = make_report("retry_2026-07-22_1")
     out_dir = settings.outputs_dir / source.run_name
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "report.json").write_text(source.model_dump_json(), encoding="utf-8")
     target_id = source.results[0].case.sample_id
+    current_case = source.results[0].case.model_copy(deep=True)
+    current_case.scenario = "当前 Benchmark 更新后的场景"
+    current_case.evaluation.guidelines = []
 
     with session_scope() as s:
         bm = Benchmark(name="retry-bm", source="uploaded", storage_path="/tmp/none")
@@ -366,6 +356,8 @@ def test_retry_case_job_replaces_only_target_case(initialized_db, settings, monk
 
     async def fake_eval(config, cases, adapter, judges, *, progress=None, run_name=None, **kw):
         assert [case.sample_id for case in cases] == [target_id]
+        assert cases[0].scenario == "当前 Benchmark 更新后的场景"
+        assert cases[0].evaluation.guidelines == []
         retried = make_report(run_name)
         replacement = retried.results[0].model_copy(deep=True)
         replacement.case = cases[0]
@@ -378,6 +370,10 @@ def test_retry_case_job_replaces_only_target_case(initialized_db, settings, monk
         return None
 
     monkeypatch.setattr("server.eval_job.evaluate", fake_eval)
+    monkeypatch.setattr(
+        "server.services.case_retry.load_benchmark_cases",
+        lambda *args, **kwargs: [current_case],
+    )
     monkeypatch.setattr("server.services.case_retry.build_eval_adapter", lambda config: object())
     monkeypatch.setattr("server.services.case_retry.build_judge_stack", lambda config: [])
     monkeypatch.setattr("server.services.case_retry.enrich_report_agent_chains", no_agent_chain)
@@ -393,6 +389,8 @@ def test_retry_case_job_replaces_only_target_case(initialized_db, settings, monk
         assert s.get(EvalRun, run_id).status == "success"
     persisted = make_report("unused").model_validate_json((out_dir / "report.json").read_text())
     assert persisted.results[0].trace.messages[-1].content == "这是重试后的回答"
+    assert persisted.results[0].case.scenario == "当前 Benchmark 更新后的场景"
+    assert persisted.results[0].case.evaluation.guidelines == []
 
 
 def test_retry_case_endpoint_submits_current_run(client, settings, monkeypatch):

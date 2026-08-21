@@ -1210,8 +1210,8 @@
     "semantic_hash": ""
   },
   "tests/server/test_persist_rejudge_resume.py": {
-    "mtime": 1787028193.922719,
-    "ast_hash": "aa3d5c97a19eeae80d9f5dd9da36e950",
+    "mtime": 1787297814.807941,
+    "ast_hash": "a4ac3d986dd8daea9dd6f502ff2f200d",
     "semantic_hash": ""
   },
   "tests/server/test_platform_config_service.py": {
@@ -4575,8 +4575,8 @@
     "semantic_hash": ""
   },
   "server/services/case_retry.py": {
-    "mtime": 1787194091.707122,
-    "ast_hash": "b207c9c830ac46277fcb5445e352c67b",
+    "mtime": 1787297806.0381682,
+    "ast_hash": "2b55a14bdcbbd643db34873667bb73b2",
     "semantic_hash": ""
   },
   "server/services/default_judge_model.py": {
@@ -4660,8 +4660,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/BenchmarkCaseEditorDrawer.tsx": {
-    "mtime": 1787195439.5932775,
-    "ast_hash": "96612199d93b7f97516ed8ac4dc5d329",
+    "mtime": 1787296450.0687642,
+    "ast_hash": "fdcf3183a0bd59e29e5662916572853e",
     "semantic_hash": ""
   },
   "frontend/src/components/FeishuMention.test.tsx": {
@@ -4750,8 +4750,8 @@
     "semantic_hash": ""
   },
   "frontend/src/components/BenchmarkCaseEditorDrawer.test.tsx": {
-    "mtime": 1787124555.0635417,
-    "ast_hash": "14b8d51f5ab3f95bd73cccc2df3a829e",
+    "mtime": 1787296488.2564516,
+    "ast_hash": "1672d280cc0e60ba7729830c5bbfe1ff",
     "semantic_hash": ""
   },
   "frontend/src/hooks/useCaseDetail.test.ts": {

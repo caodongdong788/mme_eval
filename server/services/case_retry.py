@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
@@ -15,6 +14,7 @@ from medeval.models import CaseResult
 from medeval.reporter.aggregator import build_report
 from medeval.service import write_core_artifacts
 
+from ..benchmarks import load_benchmark_cases
 from ..db import session_scope
 from ..ingest import build_case_row, populate_run_summary, update_case_row
 from ..models_db import Benchmark, CaseResultRow, EvalRun
@@ -25,7 +25,7 @@ from ..settings import Settings, get_settings
 from .eval_launch import enrich_report_agent_chains
 from medeval.assertions import refresh_result_assertions
 from medeval.reporter.aggregator import refresh_report
-from .eval_source import frozen_cases_and_traces, load_source_run
+from .eval_source import load_source_run
 from .eval_stack import build_eval_adapter, build_judge_stack, prepare_run_config
 from .runs import get_run_or_404, source_out_dir
 
@@ -98,38 +98,6 @@ class IncrementalRetryPersister:
                 populate_run_summary(run, merged)
                 run.status, run.error_msg = status, error_msg
                 run.started_at, run.finished_at = started_at, finished_at
-
-
-def _case_image_turns(case):
-    """按 Case 中的稳定顺序返回所有可能携带图片的用户轮次。"""
-    dynamic_turns = []
-    if case.conversation is not None:
-        dynamic_turns = [
-            case.conversation.opening,
-            *[rule.reply for rule in case.conversation.reply_rules],
-            *case.conversation.follow_ups,
-        ]
-    return [*case.turns, *dynamic_turns]
-
-
-def _hydrate_frozen_case_images(frozen_case, current_case) -> None:
-    """只给冻结 Case 补运行时图片，不用可变 Benchmark 覆盖冻结真值。
-
-    report.json 不保存图片 base64，因此仍需从 Benchmark 读取字节。只有轮次正文与图片
-    路径都和冻结版本一致时才注入，Benchmark 已改动时宁可明确失败，也不能悄悄用新
-    Case 的画像、Rubric 或对话替换历史评测依据。
-    """
-    frozen_turns = _case_image_turns(frozen_case)
-    current_turns = _case_image_turns(current_case)
-    if len(frozen_turns) != len(current_turns):
-        return
-    for frozen_turn, current_turn in zip(frozen_turns, current_turns, strict=True):
-        if (
-            frozen_turn.content == current_turn.content
-            and list(frozen_turn.images) == list(current_turn.images)
-            and current_turn.image_data_urls
-        ):
-            frozen_turn.attach_image_data_urls(current_turn.image_data_urls)
 
 
 def _ensure_retry_queue_is_idle(job_runner: "JobRunner", run_id: int) -> None:
@@ -205,7 +173,7 @@ def _restore_failed_retry_launch(
 def validate_case_retry(
     session: Session, run_id: int, sample_ids: list[str]
 ) -> EvalRun:
-    """校验当前 run 可以重试，且源 Case 和冻结用例仍在。"""
+    """校验当前 run 可以重试，且待重评 Case 属于该 Run。"""
     source = get_run_or_404(session, run_id)
     if source.status in {"pending", "running"}:
         raise CaseRetryError(409, "该评测正在执行，暂不能重试单个 Case")
@@ -351,25 +319,31 @@ def build_retry_cases_job(
 
         src_slug, benchmark_id, judge_ov, adapter_ov = load_source_run(settings, run_id)
         src_dir = settings.outputs_dir / src_slug
-        cases, _old_traces, n_runs = frozen_cases_and_traces(src_dir, require_traces=False)
-        selected = [item for item in cases if item.sample_id in set(ordered_ids)]
-        found_ids = {item.sample_id for item in selected}
-        missing = next((sample_id for sample_id in ordered_ids if sample_id not in found_ids), None)
+        if benchmark_id is None:
+            raise ValueError(f"run {run_id} 未关联 benchmark，无法读取最新用例")
+        # “重新评测”面向 Benchmark 当前版本：重新读取包括问题、上下文、检查点和
+        # 好答案在内的完整 Case。完成后由 IncrementalRetryPersister 原位覆盖该 Case
+        # 的旧结果；历史 run 中未被选中的 Case 保持不变。
+        with session_scope() as source_session:
+            source_run = source_session.get(EvalRun, run_id)
+            benchmark = source_session.get(Benchmark, benchmark_id)
+            if source_run is None:
+                raise ValueError(f"run {run_id} 不存在")
+            if benchmark is None:
+                raise ValueError(f"run {run_id} 关联的 benchmark {benchmark_id} 不存在")
+            current_by_id = {
+                item.sample_id: item
+                for item in load_benchmark_cases(benchmark, settings=settings)
+            }
+            n_runs = source_run.n_runs or 1
+        missing = next(
+            (sample_id for sample_id in ordered_ids if sample_id not in current_by_id),
+            None,
+        )
         if missing is not None:
-            raise ValueError(f"用例 {missing} 不在当前 run 的冻结报告中")
+            raise ValueError(f"用例 {missing} 已不在当前 benchmark 中，无法重新评测")
+        selected = [current_by_id[sample_id] for sample_id in ordered_ids]
         progress.set_case_ids(ordered_ids)
-        # report.json 只保留相对图片路径、不持久化图片 base64；从关联 Benchmark
-        # 仅恢复运行时图片内容，绝不以当前可变 Case 覆盖本次 run 的冻结真值。
-        if benchmark_id is not None:
-            with session_scope() as source_session:
-                benchmark = source_session.get(Benchmark, benchmark_id)
-                if benchmark is not None and Path(benchmark.storage_path).exists():
-                    current_cases = ej.load_benchmark_cases(benchmark, settings=settings)
-                    current_by_id = {item.sample_id: item for item in current_cases}
-                    for frozen_case in selected:
-                        current_case = current_by_id.get(frozen_case.sample_id)
-                        if current_case is not None:
-                            _hydrate_frozen_case_images(frozen_case, current_case)
 
         config = prepare_run_config(
             settings,
