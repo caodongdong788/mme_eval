@@ -10,6 +10,8 @@ variables:
 
 backend_verify:
   stage: verify
+  tags:
+    - build
   image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
   script:
     - uv sync --frozen --extra dev --extra server --extra llm-openai --extra postgres --extra langfuse
@@ -17,6 +19,8 @@ backend_verify:
 
 frontend_verify:
   stage: verify
+  tags:
+    - build
   image: node:20-alpine
   before_script:
     - npm install --global npm@11.16.0
@@ -32,6 +36,8 @@ frontend_verify:
 
 docker_build_verify:
   stage: build
+  tags:
+    - build
   image: docker:27-cli
   services:
     - name: docker:27-dind
