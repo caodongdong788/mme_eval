@@ -54,6 +54,7 @@ export function RunCaseResultsCard({
   onCancelRetry,
 }: RunCaseResultsCardProps) {
   const [selectedKeys, setSelectedKeys] = useState<Key[]>([]);
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
   const failedShownCases = shownCases.filter((item) => !item.release_passed);
   const selectedCases = useMemo(
     () => shownCases.filter((item) => selectedKeys.includes(item.id)),
@@ -63,6 +64,12 @@ export function RunCaseResultsCard({
     const visible = new Set(shownCases.map((item) => item.id));
     setSelectedKeys((keys) => keys.filter((key) => visible.has(Number(key))));
   }, [shownCases]);
+  useEffect(() => {
+    const lastPage = Math.max(1, Math.ceil(shownCases.length / pagination.pageSize));
+    setPagination((current) =>
+      current.current > lastPage ? { ...current, current: lastPage } : current
+    );
+  }, [pagination.pageSize, shownCases.length]);
   const retryActive = Boolean(
     retryProgress && !retryProgress.cancelled && ["pending", "running"].includes(retryProgress.status),
   );
@@ -186,7 +193,17 @@ export function RunCaseResultsCard({
             getCheckboxProps: () => ({ disabled: live }),
           }}
           loading={loading}
-          pagination={{ pageSize: 20, showTotal: (t) => `共 ${t} 条` }}
+          pagination={{
+            ...pagination,
+            showSizeChanger: true,
+            pageSizeOptions: ["20", "50", "100"],
+            showTotal: (t) => `共 ${t} 条`,
+            onChange: (current, pageSize) =>
+              setPagination((previous) => ({
+                current: pageSize === previous.pageSize ? current : 1,
+                pageSize,
+              })),
+          }}
         />
       </div>
     </div>

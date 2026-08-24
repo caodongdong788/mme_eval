@@ -59,8 +59,14 @@ describe("runsListOverview", () => {
 
   it("computeRunsListKpis aggregates success runs", () => {
     const kpis = computeRunsListKpis([
-      run({ id: 1, pass_rate: 0.8, medical_safety_failed: 1, avg_composite: 30 }),
-      run({ id: 2, pass_rate: 0.9, medical_safety_failed: 2, avg_composite: 36 }),
+      run({
+        id: 1, benchmark_id: 10, total: 100, passed: 80,
+        created_at: "2026-06-10T10:00:00Z", medical_safety_failed: 1, avg_composite: 30,
+      }),
+      run({
+        id: 2, benchmark_id: 20, total: 100, passed: 90,
+        created_at: "2026-06-10T11:00:00Z", medical_safety_failed: 2, avg_composite: 36,
+      }),
       run({ id: 3, status: "running", avg_composite: 40 }),
     ]);
     expect(kpis.total).toBe(3);
@@ -69,14 +75,55 @@ describe("runsListOverview", () => {
     expect(kpis.medicalSafetyFailedTotal).toBe(3);
   });
 
-  it("buildPassRateTrend returns chronological points", () => {
+  it("buildPassRateTrend aggregates the latest run of every benchmark into one daily point", () => {
     const trend = buildPassRateTrend([
-      run({ id: 1, pass_rate: 0.8, created_at: "2026-06-10T10:00:00Z" }),
-      run({ id: 2, pass_rate: 0.9, created_at: "2026-06-16T10:00:00Z" }),
+      run({ id: 1, benchmark_id: 10, total: 100, passed: 80, created_at: "2026-06-10T09:00:00Z" }),
+      run({ id: 2, benchmark_id: 10, total: 100, passed: 90, created_at: "2026-06-10T11:00:00Z" }),
+      run({ id: 3, benchmark_id: 20, total: 50, passed: 30, created_at: "2026-06-10T10:00:00Z" }),
+      run({ id: 4, benchmark_id: 20, total: 50, passed: 40, created_at: "2026-06-10T12:00:00Z" }),
+      run({ id: 5, benchmark_id: 10, total: 100, passed: 70, created_at: "2026-06-11T10:00:00Z" }),
+      run({ id: 6, benchmark_id: 20, total: 50, passed: 35, created_at: "2026-06-11T11:00:00Z" }),
     ]);
-    expect(trend).toHaveLength(2);
-    expect(trend[0].passPct).toBe(80);
-    expect(trend[1].passPct).toBe(90);
+    expect(trend.points).toHaveLength(2);
+    expect(trend.points[0]).toEqual(expect.objectContaining({
+      label: "06-10",
+      passPct: 86.7,
+      passed: 130,
+      total: 150,
+    }));
+    expect(trend.points[1]).toEqual(expect.objectContaining({
+      label: "06-11",
+      passPct: 70,
+      passed: 105,
+      total: 150,
+    }));
+    expect(trend.dateTicks).toEqual([
+      new Date("2026-06-10T00:00:00").getTime(),
+      new Date("2026-06-11T00:00:00").getTime(),
+    ]);
+    expect(trend.xDomain).toEqual([
+      new Date("2026-06-10T00:00:00").getTime(),
+      new Date("2026-06-11T23:59:59.999").getTime(),
+    ]);
+  });
+
+  it("buildPassRateTrend omits dates until every benchmark has a completed result", () => {
+    const trend = buildPassRateTrend([
+      run({ id: 1, benchmark_id: 10, created_at: "2026-06-10T10:00:00Z" }),
+      run({ id: 2, benchmark_id: 10, created_at: "2026-06-11T10:00:00Z" }),
+      run({ id: 3, benchmark_id: 20, created_at: "2026-06-11T11:00:00Z" }),
+    ]);
+    expect(trend.points).toHaveLength(1);
+    expect(trend.points[0].label).toBe("06-11");
+  });
+
+  it("computeRunsListKpis uses the same weighted daily latest benchmark pass rate", () => {
+    const kpis = computeRunsListKpis([
+      run({ id: 1, benchmark_id: 10, total: 100, passed: 80, created_at: "2026-06-10T09:00:00Z" }),
+      run({ id: 2, benchmark_id: 10, total: 100, passed: 90, created_at: "2026-06-10T11:00:00Z" }),
+      run({ id: 3, benchmark_id: 20, total: 50, passed: 40, created_at: "2026-06-10T12:00:00Z" }),
+    ]);
+    expect(kpis.avgPassPct).toBe(86.7);
   });
 
   it("builds one cx-agent optimization line per benchmark and aggregates latest comparisons", () => {
@@ -150,15 +197,41 @@ describe("runsListOverview", () => {
 
   it("computeRunsPeriodDeltas compares two windows", () => {
     const current = [
-      run({ id: 1, pass_rate: 0.9, medical_safety_failed: 1, avg_composite: 36 }),
-      run({ id: 2, pass_rate: 0.7, medical_safety_failed: 0, avg_composite: 30 }),
+      run({
+        id: 1, benchmark_id: 10, total: 100, passed: 90,
+        created_at: "2026-06-11T10:00:00Z", medical_safety_failed: 1, avg_composite: 36,
+      }),
+      run({
+        id: 2, benchmark_id: 20, total: 100, passed: 70,
+        created_at: "2026-06-11T11:00:00Z", medical_safety_failed: 0, avg_composite: 30,
+      }),
     ];
-    const previous = [run({ id: 3, pass_rate: 0.6, medical_safety_failed: 2, avg_composite: 27 })];
+    const previous = [
+      run({
+        id: 3, benchmark_id: 10, total: 100, passed: 60,
+        created_at: "2026-06-10T10:00:00Z", medical_safety_failed: 2, avg_composite: 27,
+      }),
+      run({
+        id: 4, benchmark_id: 20, total: 100, passed: 60,
+        created_at: "2026-06-10T11:00:00Z", medical_safety_failed: 0, avg_composite: 27,
+      }),
+    ];
     expect(computeRunsPeriodDeltas(current, previous)).toEqual({
-      total: 1,
+      total: 0,
       passRatePct: 20,
       avgComposite: 6,
       medicalSafetyFailed: -1,
     });
+  });
+
+  it("does not compare pass rates when one period lacks a benchmark", () => {
+    const current = [
+      run({ id: 1, benchmark_id: 10, created_at: "2026-06-11T10:00:00Z" }),
+      run({ id: 2, benchmark_id: 20, created_at: "2026-06-11T11:00:00Z" }),
+    ];
+    const previous = [
+      run({ id: 3, benchmark_id: 10, created_at: "2026-06-10T10:00:00Z" }),
+    ];
+    expect(computeRunsPeriodDeltas(current, previous)?.passRatePct).toBeNull();
   });
 });

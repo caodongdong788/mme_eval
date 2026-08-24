@@ -2139,6 +2139,12 @@ export function RunAttributionTab({
         render: (value?: string | null) => formatApiDateTime(value),
       },
       {
+        title: "结束时间",
+        dataIndex: "finished_at",
+        width: 180,
+        render: (value?: string | null) => formatApiDateTime(value),
+      },
+      {
         title: "操作",
         key: "action",
         fixed: "right",
@@ -2257,7 +2263,7 @@ export function RunAttributionTab({
               size="small"
               columns={taskColumns}
               dataSource={tasks}
-              scroll={{ x: 1240 }}
+              scroll={{ x: 1580 }}
               pagination={{
                 pageSize: 10,
                 showTotal: (total) => `共 ${total} 次归因`,

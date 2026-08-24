@@ -131,13 +131,20 @@ export function useRunsTableColumns(
     {
       title: "创建时间",
       dataIndex: "created_at",
-      width: "11%",
+      width: "10%",
       ...nowrap,
       render: (value?: string) => formatApiDateTime(value),
     },
     {
+      title: "结束时间",
+      dataIndex: "finished_at",
+      width: "10%",
+      ...nowrap,
+      render: (value?: string | null) => formatApiDateTime(value),
+    },
+    {
       title: "操作",
-      width: "11%",
+      width: "10%",
       ...wrapCell,
       render: (_: unknown, run: RunSummary) => {
         const busy = run.status === "running" || run.status === "pending";

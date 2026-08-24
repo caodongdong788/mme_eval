@@ -86,7 +86,8 @@ export function RunsListOverview({
 }) {
   const filterCounts = countRunsByFilter(runs);
   const kpis = computeRunsListKpis(filteredRuns);
-  const trend = buildPassRateTrend(filteredRuns);
+  const passRateTrend = buildPassRateTrend(filteredRuns);
+  const trend = passRateTrend.points;
   const cxAgentOptimizationTrend = buildCxAgentOptimizationTrend(filteredRuns);
   const bars = buildRecentPassBars(filteredRuns);
   const statusPie = buildStatusDistribution(filteredRuns);
@@ -179,7 +180,7 @@ export function RunsListOverview({
         />
         <RunsKpi
           title="平均通过率"
-          tip={`仅统计当前范围内已完成的评测${hasPeriod ? ` · ${PERIOD_COMPARE_TIP}` : ""}`}
+          tip={`每天取各 Benchmark 当天最新一次已完成评测，按通过 Case 数 ÷ Case 总数聚合${hasPeriod ? ` · ${PERIOD_COMPARE_TIP}` : ""}`}
           value={kpis.avgPassPct != null ? kpis.avgPassPct.toFixed(1) : "—"}
           unit={kpis.avgPassPct != null ? "%" : undefined}
           trend={hasPeriod ? <PeriodDeltaBadge delta={passRateDelta} percent /> : undefined}
@@ -248,8 +249,8 @@ export function RunsListOverview({
           {trend.length === 0 ? (
             <div className="runs-chart-empty">
               {filter === "success" || filter === "all"
-                ? "当前范围内暂无已完成评测，无法绘制趋势"
-                : "当前筛选无已完成评测，无法绘制趋势"}
+                ? "当前范围内暂无两个 Benchmark 同日完成的评测，无法绘制聚合趋势"
+                : "当前筛选无两个 Benchmark 同日完成的评测，无法绘制聚合趋势"}
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
@@ -261,7 +262,20 @@ export function RunsListOverview({
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke={D.border} vertical={false} />
-                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: D.textMuted, fontSize: 11 }} />
+                <XAxis
+                  dataKey="timestamp"
+                  type="number"
+                  scale="time"
+                  domain={passRateTrend.xDomain || ["dataMin", "dataMax"]}
+                  ticks={passRateTrend.dateTicks}
+                  tickFormatter={(timestamp) => {
+                    const date = new Date(Number(timestamp));
+                    return `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+                  }}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: D.textMuted, fontSize: 11 }}
+                />
                 <YAxis
                   domain={[0, 100]}
                   unit="%"
@@ -269,7 +283,16 @@ export function RunsListOverview({
                   tickLine={false}
                   tick={{ fill: D.textMuted, fontSize: 11 }}
                 />
-                <RTooltip formatter={(value) => [`${Number(value)}%`, "通过率"]} />
+                <RTooltip
+                  labelFormatter={(timestamp) => {
+                    const date = new Date(Number(timestamp));
+                    return `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+                  }}
+                  formatter={(value, _name, item) => {
+                    const point = item.payload as { passed: number; total: number };
+                    return [`${Number(value)}%（${point.passed}/${point.total}）`, "聚合通过率"];
+                  }}
+                />
                 <Area
                   type="monotone"
                   dataKey="passPct"

@@ -12,9 +12,16 @@ export interface RunsListKpis {
 
 export interface RunsTrendPoint {
   label: string;
+  timestamp: number;
   passPct: number;
-  runId: number;
-  name: string;
+  passed: number;
+  total: number;
+}
+
+export interface PassRateTrend {
+  points: RunsTrendPoint[];
+  dateTicks: number[];
+  xDomain: [number, number] | null;
 }
 
 export interface CxAgentOptimizationTrendSeries {
@@ -87,10 +94,8 @@ export function computeRunsListKpis(runs: RunSummary[]): RunsListKpis {
     (r): r is RunSummary & { avg_composite: number } =>
       typeof r.avg_composite === "number" && Number.isFinite(r.avg_composite)
   );
-  const avgPassPct =
-    successRuns.length > 0
-      ? Math.round((successRuns.reduce((s, r) => s + r.pass_rate, 0) / successRuns.length) * 1000) / 10
-      : null;
+  const passRatePoints = buildDailyPassRatePoints(successRuns);
+  const avgPassPct = aggregateDailyPassRatePct(passRatePoints);
   const avgComposite =
     scoredRuns.length > 0
       ? Math.round((scoredRuns.reduce((s, r) => s + r.avg_composite, 0) / scoredRuns.length) * 10) / 10
@@ -123,23 +128,90 @@ function dayStartTimestamp(timestamp: number): number {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 }
 
-export function buildPassRateTrend(runs: RunSummary[], limit = 7): RunsTrendPoint[] {
-  const success = sortByCreatedDesc(runs.filter((r) => r.status === SUCCESS)).slice(0, limit);
-  return success
-    .reverse()
-    .map((r) => {
-      const d = r.created_at ? new Date(r.created_at) : null;
-      const label =
-        d && !Number.isNaN(d.getTime())
-          ? `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-          : `#${r.id}`;
-      return {
-        label,
-        passPct: Math.round(r.pass_rate * 1000) / 10,
-        runId: r.id,
-        name: r.name || r.run_slug,
-      };
+type CompletedBenchmarkRun = RunSummary & { benchmark_id: number };
+
+function isCompletedBenchmarkRun(run: RunSummary): run is CompletedBenchmarkRun {
+  return (
+    run.status === SUCCESS &&
+    typeof run.benchmark_id === "number" &&
+    Number.isFinite(run.benchmark_id) &&
+    evaluationTimestamp(run) > 0
+  );
+}
+
+function passRateBenchmarkIds(runs: RunSummary[]): number[] {
+  return [...new Set(
+    runs
+      .filter(isCompletedBenchmarkRun)
+      .map((run) => run.benchmark_id)
+  )].sort((a, b) => a - b);
+}
+
+function aggregateDailyPassRatePct(points: RunsTrendPoint[]): number | null {
+  const total = points.reduce((sum, point) => sum + point.total, 0);
+  const passed = points.reduce((sum, point) => sum + point.passed, 0);
+  return total > 0 ? Math.round((passed / total) * 1000) / 10 : null;
+}
+
+function buildDailyPassRatePoints(
+  runs: RunSummary[],
+  expectedBenchmarkIds = passRateBenchmarkIds(runs)
+): RunsTrendPoint[] {
+  const completed = runs.filter(isCompletedBenchmarkRun);
+  if (expectedBenchmarkIds.length === 0) return [];
+
+  const latestByDay = new Map<number, Map<number, (typeof completed)[number]>>();
+  for (const run of completed) {
+    const evaluatedAt = evaluationTimestamp(run);
+    const day = dayStartTimestamp(evaluatedAt);
+    const benchmarkRuns = latestByDay.get(day) || new Map();
+    const existing = benchmarkRuns.get(run.benchmark_id);
+    if (
+      existing == null ||
+      evaluatedAt > evaluationTimestamp(existing) ||
+      (evaluatedAt === evaluationTimestamp(existing) && run.id > existing.id)
+    ) {
+      benchmarkRuns.set(run.benchmark_id, run);
+    }
+    latestByDay.set(day, benchmarkRuns);
+  }
+
+  return [...latestByDay.entries()]
+    .filter(([, benchmarkRuns]) =>
+      expectedBenchmarkIds.every((benchmarkId) => benchmarkRuns.has(benchmarkId))
+    )
+    .sort(([dayA], [dayB]) => dayA - dayB)
+    .flatMap(([timestamp, benchmarkRuns]) => {
+      const selected = expectedBenchmarkIds
+        .map((benchmarkId) => benchmarkRuns.get(benchmarkId))
+        .filter((run): run is (typeof completed)[number] => run != null);
+      const total = selected.reduce((sum, run) => sum + Number(run.total || 0), 0);
+      if (total <= 0) return [];
+      const passed = selected.reduce((sum, run) => sum + Number(run.passed || 0), 0);
+      const date = new Date(timestamp);
+      return [{
+        label: `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`,
+        timestamp,
+        passPct: Math.round((passed / total) * 1000) / 10,
+        passed,
+        total,
+      }];
     });
+}
+
+export function buildPassRateTrend(runs: RunSummary[], limit = 7): PassRateTrend {
+  const benchmarkIds = passRateBenchmarkIds(runs);
+  const allPoints = buildDailyPassRatePoints(runs, benchmarkIds);
+  const points = allPoints.slice(-limit);
+  const dateTicks = points.map((point) => point.timestamp);
+  const xDomain = dateTicks.length
+    ? [dateTicks[0], dateTicks[dateTicks.length - 1] + 24 * 60 * 60 * 1000 - 1] as [number, number]
+    : null;
+  return {
+    points,
+    dateTicks,
+    xDomain,
+  };
 }
 
 /**
@@ -323,8 +395,15 @@ export function computeRunsPeriodDeltas(
   const prev = computeRunsListKpis(previous);
   let passRatePct: number | null = null;
   let avgComposite: number | null = null;
-  if (cur.avgPassPct != null && prev.avgPassPct != null) {
-    passRatePct = Math.round((cur.avgPassPct - prev.avgPassPct) * 10) / 10;
+  const comparableBenchmarkIds = passRateBenchmarkIds([...current, ...previous]);
+  const currentPassPct = aggregateDailyPassRatePct(
+    buildDailyPassRatePoints(current, comparableBenchmarkIds)
+  );
+  const previousPassPct = aggregateDailyPassRatePct(
+    buildDailyPassRatePoints(previous, comparableBenchmarkIds)
+  );
+  if (currentPassPct != null && previousPassPct != null) {
+    passRatePct = Math.round((currentPassPct - previousPassPct) * 10) / 10;
   }
   if (cur.avgComposite != null && prev.avgComposite != null) {
     avgComposite = Math.round((cur.avgComposite - prev.avgComposite) * 10) / 10;

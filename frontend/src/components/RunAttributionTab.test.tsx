@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { api, type AttributionTask, type CaseAttribution } from "../api/index";
 import { clearConfigLabelMapCache } from "../hooks/useConfigLabelMap";
 import { renderWithProviders } from "../test/renderWithProviders";
+import { formatApiDateTime } from "../utils/datetime";
 import { AttributionDetail, RunAttributionTab } from "./RunAttributionTab";
 
 vi.mock("../api/index", () => ({
@@ -39,6 +40,8 @@ const task: AttributionTask = {
   running_count: 0,
   pending_count: 0,
   error_msg: "",
+  created_at: "2026-08-22T06:34:26+08:00",
+  finished_at: "2026-08-22T06:42:15+08:00",
   diagnostic_summary: {
     available_results: 1,
     score_health_counts: { healthy: 1 },
@@ -239,6 +242,11 @@ describe("RunAttributionTab", () => {
     );
 
     expect(await screen.findByText("归因任务 #99")).toBeInTheDocument();
+    expect(screen.getAllByText("创建时间")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("结束时间")[0]).toBeInTheDocument();
+    expect(
+      screen.getByText(formatApiDateTime("2026-08-22T06:42:15+08:00"))
+    ).toBeInTheDocument();
     expect(screen.queryByText("归因任务总结")).not.toBeInTheDocument();
     expect(
       screen.queryByText("任务 #99 · 用例归因结果")
