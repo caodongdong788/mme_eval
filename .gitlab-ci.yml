@@ -14,8 +14,24 @@ backend_verify:
     - build
   image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
   script:
-    - uv sync --frozen --extra dev --extra server --extra llm-openai --extra postgres --extra langfuse
-    - uv run pytest -q
+    - >-
+      uv export --frozen
+      --extra dev
+      --extra server
+      --extra llm-openai
+      --extra postgres
+      --extra langfuse
+      --no-emit-project
+      --no-hashes
+      --output-file /tmp/mme-ci-requirements.txt
+    - uv venv .venv
+    - >-
+      uv pip sync
+      --python .venv/bin/python
+      --default-index https://mirrors.aliyun.com/pypi/simple/
+      /tmp/mme-ci-requirements.txt
+    - uv pip install --python .venv/bin/python --no-deps --editable .
+    - .venv/bin/pytest -q
 
 frontend_verify:
   stage: verify
