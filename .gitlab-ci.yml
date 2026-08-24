@@ -1,6 +1,5 @@
 stages:
   - verify
-  - build
   - deploy
 
 variables:
@@ -54,19 +53,6 @@ frontend_verify:
     expire_in: 1 day
     paths:
       - frontend/dist/
-
-docker_build_verify:
-  stage: build
-  tags:
-    - build
-  image: docker:27-cli
-  services:
-    - name: docker:27-dind
-  variables:
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
-  script:
-    - docker build --pull --tag "mme-eval:${CI_COMMIT_SHA}" .
 
 deploy_production:
   stage: deploy
