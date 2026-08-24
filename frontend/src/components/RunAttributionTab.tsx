@@ -1249,13 +1249,34 @@ function fallbackCxAgentOptimizationAction(categoryKey: string) {
   return actions[categoryKey] || "根据问题描述和直接证据修复对应环节。";
 }
 
-function cxAgentOptimizationActions(cluster: AttributionCluster, categoryKey: string) {
-  const actions = [...new Set(
-    (cluster.recommendations || [])
-      .map((item) => String(item.action || "").trim())
-      .filter(Boolean)
-  )];
-  return actions.length ? actions : [fallbackCxAgentOptimizationAction(categoryKey)];
+function genericCxAgentProblemDescription(
+  category: ReturnType<typeof cxAgentSuggestionCategory>
+) {
+  const descriptions: Record<string, string> = {
+    "rag:未触发检索": "涉及医学事实、药物或个体化风险时，流程没有稳定触发检索，回答缺少应作为判断依据的外部证据。",
+    "rag:调用失败": "检索链路在部分场景没有稳定完成，回答生成未能获得所需证据，也没有可靠的重试或降级保障。",
+    "rag:排序或重排不当": "检索结果没有优先呈现与当前用户条件和问题约束最相关的证据，导致后续判断依据偏离重点。",
+    "rag:已召回但未使用": "相关证据已经进入上下文，但回答生成没有将关键结论与这些证据绑定，形成“召回成功、决策未消费”的断层。",
+    "rag:证据误读": "回答使用了检索证据，但没有稳定核对其适用人群、前提条件和结论边界，容易把局部结论泛化到当前用户。",
+    "rag:缺少 RAG 引用": "关键医学结论缺少可回链的证据引用，用户和评测无法确认结论实际基于哪些检索内容。",
+    "engineering:Timeline 或用户事实未注入": "用户档案、病历、Timeline 或历史对话中的关键事实没有稳定进入当前回合的可见上下文，导致回答只能基于片段信息判断。",
+    "engineering:上下文已注入但未使用": "用户档案、病历、Timeline 或历史对话已经进入可见上下文，但回答生成没有将与当前问题相关的关键事实纳入判断与结论；“已注入”没有形成“已消费、可校验”。",
+    "engineering:多轮状态丢失": "跨回合的关键事实和已确认结论没有被稳定保存与传递，后续回答无法连续地理解用户当前状态。",
+    "engineering:工具未调用": "当前场景需要的工具没有被稳定发现和调用，导致回答缺少本应获取的用户信息或专业依据。",
+    "engineering:工具选择错误": "工具选择与当前问题不匹配，必要信息没有通过正确能力获取，后续回答因此建立在不完整或错误输入上。",
+    "engineering:工具参数错误": "工具调用没有稳定携带必要上下文或正确参数，导致返回结果无法支持当前问题的判断。",
+    "engineering:工具执行失败": "工具或模型调用失败后，流程没有形成可靠的错误回传、重试和安全降级，最终回答仍可能在信息不足时直接输出。",
+    "reasoning:未优先追问关键问题": "在关键信息不足时，流程没有先补齐会改变判断或处置建议的事实，就直接给出了结论或行动建议。",
+    "reasoning:禁忌或相互作用判断不足": "生成方案前没有稳定校验用户的用药、治疗阶段、禁忌和相互作用，存在把不适用建议直接输出给用户的风险。",
+    "prompt:未说清红旗信号": "回答没有稳定覆盖当前场景需要关注的风险信号和升级处置条件，用户难以判断何时应及时就医或升级咨询。",
+    "prompt:未说明适用边界": "回答给出了建议，但没有清晰说明适用条件、限制和需要医生决策的边界，容易被用户过度泛化执行。",
+    "prompt:回答信息不完整": "回答没有稳定覆盖当前场景的关键要素，导致用户获得的信息不足以支撑下一步判断或行动。",
+    "safety:关键事实前后矛盾": "最终回答中的结论没有与已知关键事实完成一致性校验，可能出现前后矛盾或与用户真实情况不符的建议。",
+    "safety:遗漏风险提示": "终答前缺少对当前场景风险提示的完整性检查，关键风险或红旗信号容易被遗漏。",
+    "safety:放出不安全建议": "高风险、禁忌或红旗条件没有在终答前有效拦截，流程可能将不安全建议直接发送给用户。",
+  };
+  return descriptions[category.key]
+    || `“${category.secondaryLabel}”在多个 Case 中重复出现，说明当前缺少一套可复用的${category.primaryLabel}控制机制，无法稳定保证同类场景的输入、判断和输出质量。`;
 }
 
 type CxAgentClusterGroup = {
@@ -1264,8 +1285,6 @@ type CxAgentClusterGroup = {
   clusters: AttributionCluster[];
   sampleIds: string[];
   deductionCount: number;
-  descriptions: string[];
-  actions: string[];
 };
 
 function groupedCxAgentClusters(clusters: AttributionCluster[]) {
@@ -1288,49 +1307,16 @@ function groupedCxAgentClusters(clusters: AttributionCluster[]) {
       clusters: [],
       sampleIds: [],
       deductionCount: 0,
-      descriptions: [],
-      actions: [],
     };
     group.clusters.push(cluster);
     group.sampleIds.push(...cluster.sample_ids);
     group.deductionCount += cluster.deduction_count;
-    const descriptionCandidates = cluster.examples?.length
-      ? cluster.examples
-      : [cluster.summary || cluster.cause_label];
-    descriptionCandidates.forEach((value) => {
-      const description = humanizeAttributionText(value);
-      if (description && !group.descriptions.includes(description)) {
-        group.descriptions.push(description);
-      }
-    });
-    cxAgentOptimizationActions(cluster, category.key).forEach((action) => {
-      const readable = humanizeAttributionText(action);
-      if (!group.actions.includes(readable)) group.actions.push(readable);
-    });
     groups.set(key, group);
   });
   return [...groups.values()].map((group) => ({
     ...group,
     sampleIds: [...new Set(group.sampleIds)],
   }));
-}
-
-function NumberedAttributionPoints({
-  items,
-  emptyText,
-}: {
-  items: string[];
-  emptyText: string;
-}) {
-  const values = [...new Set(items.map((value) => value.trim()).filter(Boolean))];
-  if (!values.length) return <span>{emptyText}</span>;
-  return (
-    <ol className="attribution-numbered-points">
-      {values.map((value) => (
-        <li key={value}>{value}</li>
-      ))}
-    </ol>
-  );
 }
 
 function CxAgentClusterPriorityGroups({
@@ -1371,19 +1357,11 @@ function CxAgentClusterPriorityGroups({
                     <div className="attribution-cluster-detail attribution-cluster-detail--optimization">
                       <div className="attribution-optimization-field">
                         <strong>通用问题描述：</strong>
-                        <NumberedAttributionPoints
-                          items={group.descriptions}
-                          emptyText={`共同问题是“${group.category.label}”，当前还缺少可展示的具体表现。`}
-                        />
+                        <span>{genericCxAgentProblemDescription(group.category)}</span>
                       </div>
                       <div className="attribution-optimization-field">
                         <strong>怎么优化：</strong>
-                        <NumberedAttributionPoints
-                          items={group.actions.map((action) =>
-                            humanizeAttributionText(action)
-                          )}
-                          emptyText="暂无可执行的优化建议"
-                        />
+                        <span>{fallbackCxAgentOptimizationAction(group.category.key)}</span>
                       </div>
                       <div className="attribution-optimization-field">
                         <strong>关联 Case：</strong>
@@ -1684,7 +1662,7 @@ export function AttributionTaskSummary({ task }: { task: AttributionTask }) {
           <div>
             <h4>cx-agent 优化建议</h4>
             <p>
-              按八维评分标准聚合：同一维度、同一二级问题分类合并为通用优化点，并保留关联 Case。
+              按八维评分标准聚合：问题分类保持不变，仅将同类 Case 的问题描述和优化动作收敛为通用方案；具体表现请从关联 Case 查看。
             </p>
           </div>
           <Space size={6} wrap className="attribution-priority-filter">

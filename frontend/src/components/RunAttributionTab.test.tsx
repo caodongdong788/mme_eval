@@ -447,15 +447,15 @@ describe("RunAttributionTab", () => {
       screen.getByText("问题分类：RAG 优化 / 已召回但未使用")
     );
     expect(screen.getByText("通用问题描述：")).toBeInTheDocument();
-    expect(screen.getByText("相关医学风险已经召回，但回答没有采用。")).toBeInTheDocument();
+    expect(
+      screen.getByText("相关证据已经进入上下文，但回答生成没有将关键结论与这些证据绑定，形成“召回成功、决策未消费”的断层。")
+    ).toBeInTheDocument();
     expect(screen.getByText("怎么优化：")).toBeInTheDocument();
+    expect(
+      screen.getByText("增加回答前证据覆盖检查，要求关键医学结论实际使用已召回的证据。")
+    ).toBeInTheDocument();
     expect(screen.getByText("关联 Case：")).toBeInTheDocument();
-    const numberedPoints = container.querySelectorAll(
-      ".attribution-numbered-points"
-    );
-    expect(numberedPoints).toHaveLength(2);
-    expect(numberedPoints[0].tagName).toBe("OL");
-    expect(numberedPoints[1].tagName).toBe("OL");
+    expect(container.querySelectorAll(".attribution-numbered-points")).toHaveLength(0);
     fireEvent.click(screen.getByText("尚未关联维度"));
     expect(screen.getByText("P2 · 一般优先级")).toBeInTheDocument();
     fireEvent.click(
