@@ -30,7 +30,12 @@ backend_verify:
       --python .venv/bin/python
       --default-index https://mirrors.aliyun.com/pypi/simple/
       /tmp/mme-ci-requirements.txt
-    - uv pip install --python .venv/bin/python --no-deps --editable .
+    - >-
+      uv pip install
+      --python .venv/bin/python
+      --default-index https://mirrors.aliyun.com/pypi/simple/
+      --no-deps
+      --editable .
     - .venv/bin/pytest -q
 
 frontend_verify:
