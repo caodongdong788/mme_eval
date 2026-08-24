@@ -183,8 +183,8 @@ export default function RunsPage() {
                   dataSource={displayRuns}
                   pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 条` }}
                   className="runs-table"
-                  tableLayout="fixed"
-                  scroll={{ x: 1750 }}
+                  tableLayout="auto"
+                  scroll={{ x: "max-content" }}
                 />
               </>
             ),

@@ -26,11 +26,12 @@ export function useRunsTableColumns(
   onDelete: (id: number) => Promise<void>
 ): ColumnsType<RunSummary> {
   return [
-    { title: "ID", dataIndex: "id", width: 64, ...nowrap, className: "runs-table__mono" },
+    { title: "ID", dataIndex: "id", ...nowrap, className: "runs-table__mono" },
     {
       title: "名称",
       dataIndex: "name",
-      width: 260,
+      width: 320,
+      fixed: "left",
       ...wrapCell,
       render: (name: string, run: RunSummary) => (
         <Space size={4} wrap>
@@ -44,21 +45,18 @@ export function useRunsTableColumns(
     {
       title: "任务类型",
       dataIndex: "trigger_type",
-      width: 120,
       ...nowrap,
       render: (type: RunSummary["trigger_type"]) => <RunTriggerTag type={type} />,
     },
     {
       title: "评分维度",
       dataIndex: "scoring_standard",
-      width: 130,
       ...nowrap,
       render: (value?: RunSummary["scoring_standard"]) => scoringStandardLabel(value),
     },
     {
       title: "状态",
       dataIndex: "status",
-      width: 140,
       render: (status: string, run: RunSummary) => {
         if (status === "running" || status === "pending") {
           const current = progress[run.id]?.progress;
@@ -104,7 +102,6 @@ export function useRunsTableColumns(
     {
       title: "通过率",
       dataIndex: "pass_rate",
-      width: 130,
       ...nowrap,
       render: (value: number, run: RunSummary) =>
         run.status === "success" ? (
@@ -118,7 +115,6 @@ export function useRunsTableColumns(
     {
       title: "安全失败",
       dataIndex: "medical_safety_failed",
-      width: 90,
       ...nowrap,
       render: (value: number, run: RunSummary) =>
         run.status === "success" ? (
@@ -127,11 +123,10 @@ export function useRunsTableColumns(
           "—"
         ),
     },
-    { title: "N", dataIndex: "n_runs", width: 56, ...nowrap },
+    { title: "N", dataIndex: "n_runs", ...nowrap },
     {
       title: "创建人",
       dataIndex: "created_by",
-      width: 200,
       ...nowrap,
       className: "runs-table__creator",
       render: (name?: string | null) => <FeishuMention name={name} />,
@@ -139,21 +134,20 @@ export function useRunsTableColumns(
     {
       title: "创建时间",
       dataIndex: "created_at",
-      width: 170,
       ...nowrap,
       render: (value?: string) => formatApiDateTime(value),
     },
     {
       title: "结束时间",
       dataIndex: "finished_at",
-      width: 170,
       ...nowrap,
       render: (value?: string | null) => formatApiDateTime(value),
     },
     {
       title: "操作",
       width: 120,
-      ...wrapCell,
+      fixed: "right",
+      ...nowrap,
       render: (_: unknown, run: RunSummary) => {
         const busy = run.status === "running" || run.status === "pending";
         return (

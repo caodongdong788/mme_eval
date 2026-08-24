@@ -2175,21 +2175,22 @@ a.ant-typography-secondary:hover {
 .runs-table {
   max-width: 100%;
   min-width: 0;
-  overflow: hidden;
 }
 .runs-table .ant-table,
-.runs-table .ant-table-container,
-.runs-table .ant-table-content {
+.runs-table .ant-table-container {
   max-width: 100%;
   min-width: 0;
-  overflow: hidden;
+}
+.runs-table .ant-table-content {
+  overflow-x: auto !important;
+  overflow-y: hidden;
 }
 .runs-table .ant-table table {
-  table-layout: fixed !important;
-  width: 100% !important;
+  table-layout: auto !important;
+  min-width: 100% !important;
 }
 .runs-table .ant-table-cell {
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 .dash-table-card__head,
 .runs-table-card__head {
@@ -2431,6 +2432,9 @@ a.ant-typography-secondary:hover {
   flex-wrap: wrap;
   gap: 12px;
 }
+.runs-table .dash-table-actions {
+  flex-wrap: nowrap;
+}
 .dash-table-actions .dash-table__link,
 .dash-table-actions .dash-table__danger-link {
   font-size: 13px;
@@ -2482,17 +2486,6 @@ a.ant-typography-secondary:hover {
 .feishu-mention--empty {
   color: var(--runs-text-muted);
 }
-.runs-table__creator {
-  overflow: hidden !important;
-}
-.runs-table__creator .feishu-mention {
-  overflow: hidden;
-}
-.runs-table__creator .feishu-mention > span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 /* Dashboard 表单卡内控件 */
 .dash-form-card .ant-select-selector {
   border-radius: 8px !important;
