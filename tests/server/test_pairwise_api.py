@@ -205,7 +205,9 @@ def test_run_pairwise_comparison_aggregates(session, monkeypatch):
     session.commit()
 
     monkeypatch.setattr(
-        pairwise_job, "_build_comparator", lambda _id: (_FakeComparator(), "m", 4)
+        pairwise_job,
+        "_build_comparator",
+        lambda _id, _standard: (_FakeComparator(), "m", 4),
     )
     asyncio.run(pairwise_job.run_pairwise_comparison(comp_id, judge_model_id=999))
 
@@ -270,7 +272,9 @@ def test_run_pairwise_only_compares_cases_where_b_really_triggered_rag(
     session.commit()
 
     monkeypatch.setattr(
-        pairwise_job, "_build_comparator", lambda _id: (_FakeComparator(), "m", 4)
+        pairwise_job,
+        "_build_comparator",
+        lambda _id, _standard: (_FakeComparator(), "m", 4),
     )
     asyncio.run(pairwise_job.run_pairwise_comparison(comp_id, judge_model_id=999))
 
@@ -337,7 +341,9 @@ def test_run_pairwise_auto_detects_a_as_rag_side(session, monkeypatch):
     session.commit()
 
     monkeypatch.setattr(
-        pairwise_job, "_build_comparator", lambda _id: (_FakeComparator(), "m", 4)
+        pairwise_job,
+        "_build_comparator",
+        lambda _id, _standard: (_FakeComparator(), "m", 4),
     )
     asyncio.run(pairwise_job.run_pairwise_comparison(comp_id, judge_model_id=999))
 

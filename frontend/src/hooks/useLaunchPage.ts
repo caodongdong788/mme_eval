@@ -101,6 +101,9 @@ export function useLaunchPage() {
       benchmark_id: values.benchmark_id as number,
       run_name: (values.run_name as string) || undefined,
       evaluation_mode: (values.evaluation_mode as "single_turn" | "multi_turn") || "single_turn",
+      scoring_standard:
+        (values.scoring_standard as "cx_eight_dimension" | "model_comparison") ||
+        "cx_eight_dimension",
       levels: (values.levels as string[]) || [],
       limit: (values.limit as number) || 0,
       repeat: (values.repeat as number) || undefined,

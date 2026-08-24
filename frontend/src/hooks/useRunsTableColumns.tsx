@@ -12,6 +12,7 @@ import { RunStatusTag } from "../components/RunStatusTag";
 import { RunTriggerTag } from "../components/RunTriggerTag";
 import { humanizeErrorText } from "../utils/apiError";
 import { formatApiDateTime } from "../utils/datetime";
+import { scoringStandardLabel } from "../utils/scoringStandards";
 
 const nowrap = { onCell: () => ({ style: { whiteSpace: "nowrap" as const } }) };
 const wrapCell = {
@@ -25,11 +26,11 @@ export function useRunsTableColumns(
   onDelete: (id: number) => Promise<void>
 ): ColumnsType<RunSummary> {
   return [
-    { title: "ID", dataIndex: "id", width: "7%", ...nowrap, className: "runs-table__mono" },
+    { title: "ID", dataIndex: "id", width: 64, ...nowrap, className: "runs-table__mono" },
     {
       title: "名称",
       dataIndex: "name",
-      width: "18%",
+      width: 260,
       ...wrapCell,
       render: (name: string, run: RunSummary) => (
         <Space size={4} wrap>
@@ -43,14 +44,21 @@ export function useRunsTableColumns(
     {
       title: "任务类型",
       dataIndex: "trigger_type",
-      width: "10%",
+      width: 120,
       ...nowrap,
       render: (type: RunSummary["trigger_type"]) => <RunTriggerTag type={type} />,
     },
     {
+      title: "评分维度",
+      dataIndex: "scoring_standard",
+      width: 130,
+      ...nowrap,
+      render: (value?: RunSummary["scoring_standard"]) => scoringStandardLabel(value),
+    },
+    {
       title: "状态",
       dataIndex: "status",
-      width: "11%",
+      width: 140,
       render: (status: string, run: RunSummary) => {
         if (status === "running" || status === "pending") {
           const current = progress[run.id]?.progress;
@@ -96,7 +104,7 @@ export function useRunsTableColumns(
     {
       title: "通过率",
       dataIndex: "pass_rate",
-      width: "11%",
+      width: 130,
       ...nowrap,
       render: (value: number, run: RunSummary) =>
         run.status === "success" ? (
@@ -110,7 +118,7 @@ export function useRunsTableColumns(
     {
       title: "安全失败",
       dataIndex: "medical_safety_failed",
-      width: "8%",
+      width: 90,
       ...nowrap,
       render: (value: number, run: RunSummary) =>
         run.status === "success" ? (
@@ -119,7 +127,7 @@ export function useRunsTableColumns(
           "—"
         ),
     },
-    { title: "N", dataIndex: "n_runs", width: "4%", ...nowrap },
+    { title: "N", dataIndex: "n_runs", width: 56, ...nowrap },
     {
       title: "创建人",
       dataIndex: "created_by",
@@ -131,20 +139,20 @@ export function useRunsTableColumns(
     {
       title: "创建时间",
       dataIndex: "created_at",
-      width: "10%",
+      width: 170,
       ...nowrap,
       render: (value?: string) => formatApiDateTime(value),
     },
     {
       title: "结束时间",
       dataIndex: "finished_at",
-      width: "10%",
+      width: 170,
       ...nowrap,
       render: (value?: string | null) => formatApiDateTime(value),
     },
     {
       title: "操作",
-      width: "10%",
+      width: 120,
       ...wrapCell,
       render: (_: unknown, run: RunSummary) => {
         const busy = run.status === "running" || run.status === "pending";

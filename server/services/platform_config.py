@@ -22,6 +22,7 @@ from medeval.evaluation import (
 )
 from medeval.judge_labels import judge_verdict_label_map
 from medeval.models import FailureTag
+from medeval.scoring_standards import MODEL_COMPARISON_DIMENSIONS
 
 from ..settings import get_settings
 
@@ -135,4 +136,38 @@ def evaluation_standard() -> dict[str, Any]:
         "medical_safety_zeroes_total": True,
         "guideline_rule": GUIDELINE_RULE,
         "guideline_rule_description": GUIDELINE_RULE_DESCRIPTION,
+        "model_comparison": {
+            "key": "model_comparison",
+            "label": "模型对比八维",
+            "description": (
+                "用于比较不同基座模型在 cx-agent 产品中的相对能力；"
+                "逐题双盲换序判断，不改写 CX 八维绝对分和上线门禁。"
+            ),
+            "values": [
+                {"value": "1", "label": "系统①更好"},
+                {"value": "2", "label": "系统②更好"},
+                {"value": "tie", "label": "真正持平"},
+                {"value": "na", "label": "本题不适用或证据不足"},
+            ],
+            "dimensions": [
+                {
+                    "key": item.key,
+                    "label": item.label,
+                    "description": item.description,
+                    "applicability": item.applicability,
+                }
+                for item in MODEL_COMPARISON_DIMENSIONS
+            ],
+            "overall_rule": (
+                "仅统计适用维度；八个维度等权，多数维度胜出的一方为总胜方，"
+                "票数相同则持平。N/A 不计入分母。"
+            ),
+            "ttft_rule": (
+                "TTFT、端到端延迟和 Token 由平台直接统计，只做性能观测，"
+                "不交给 Judge 打分，也不参与 Pairwise 胜负。"
+            ),
+            "blind_rule": (
+                "A/B 匿名并交换上下位置各评一次；换序不一致的维度降为持平并标记低置信。"
+            ),
+        },
     }

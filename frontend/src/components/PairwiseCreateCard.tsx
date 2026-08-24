@@ -55,6 +55,17 @@ export function PairwiseCreateCard({
   | "onSubmit"
   | "judgeModels"
 >) {
+  const standardA = runOptions.find((option) => option.value === runA)?.scoringStandard;
+  const standardB = runOptions.find((option) => option.value === runB)?.scoringStandard;
+  const optionsForA = runOptions.map((option) => ({
+    ...option,
+    disabled: option.disabled || Boolean(standardB && option.scoringStandard !== standardB),
+  }));
+  const optionsForB = runOptions.map((option) => ({
+    ...option,
+    disabled: option.disabled || Boolean(standardA && option.scoringStandard !== standardA),
+  }));
+
   return (
     <div className="dash-form-card">
       <h3 className="dash-form-card__title">
@@ -71,7 +82,7 @@ export function PairwiseCreateCard({
             <Select
               style={{ width: 320 }}
               placeholder="选择基线 run"
-              options={runOptions}
+              options={optionsForA}
               value={runA}
               onChange={setRunA}
               showSearch
@@ -86,7 +97,7 @@ export function PairwiseCreateCard({
             <Select
               style={{ width: 320 }}
               placeholder="选择本次 run"
-              options={runOptions}
+              options={optionsForB}
               value={runB}
               onChange={setRunB}
               showSearch

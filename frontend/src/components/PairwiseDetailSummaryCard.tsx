@@ -1,8 +1,12 @@
 import { Alert, Col, Row, Space, Tag, Typography } from "antd";
 import type { ReactNode } from "react";
-import { DIM_LABEL } from "../labels";
-import { EVALUATION_DIMENSIONS } from "../labels";
 import type { PairwiseDetail } from "../api/index";
+import {
+  normalizeScoringStandard,
+  pairwiseDimensionKeys,
+  pairwiseDimensionLabel,
+  scoringStandardLabel,
+} from "../utils/scoringStandards";
 import { DashPanel } from "./DashPanel";
 import { RunsKpi } from "./RunsKpi";
 
@@ -118,16 +122,19 @@ export function PairwiseDetailSummaryCard({
   orderSensitiveN: number;
   safetyDoubtN: number;
   humanCalibratedN: number;
-  byDim: Record<string, { A: number; B: number; tie: number }>;
+  byDim: Record<string, { A: number; B: number; tie: number; na?: number }>;
   diffKeys: string[];
 }) {
+  const isModelComparison = normalizeScoringStandard(detail.scoring_standard) === "model_comparison";
   const kpiItems = [
     { label: "B 更好（改善）", value: bWins, accent: "var(--runs-purple)" },
     { label: "持平", value: ties },
     { label: "A 更好（回退）", value: aWins, accent: "var(--runs-red)" },
     { label: "B 胜率", value: total ? `${Math.round((bWins / total) * 100)}%` : "0%" },
     { label: "低置信 · 顺序敏感", value: orderSensitiveN, accent: "var(--warn)" },
-    { label: "低置信 · 安全存疑", value: safetyDoubtN, accent: "var(--runs-red)" },
+    ...(!isModelComparison
+      ? [{ label: "低置信 · 安全存疑", value: safetyDoubtN, accent: "var(--runs-red)" }]
+      : []),
     { label: "人工校准", value: humanCalibratedN, accent: "var(--runs-purple)" },
   ];
   const latencyA = detail.run_a_observability?.latency_summary || {};
@@ -178,6 +185,7 @@ export function PairwiseDetailSummaryCard({
         <Space size={8} wrap style={{ marginBottom: 4 }}>
           <Tag color="default">A（基线）= {runAName} · run #{detail.run_a_id}</Tag>
           <Tag color="green">B（本次）= {runBName} · run #{detail.run_b_id}</Tag>
+          <Tag color="purple">{scoringStandardLabel(detail.scoring_standard)}</Tag>
         </Space>
         <div>
           <Text type="secondary">
@@ -233,11 +241,11 @@ export function PairwiseDetailSummaryCard({
       </DashPanel>
 
       <Row gutter={14}>
-        {EVALUATION_DIMENSIONS.map((dim) => {
-          const d = byDim[dim] || { A: 0, B: 0, tie: 0 };
+        {pairwiseDimensionKeys(detail.scoring_standard).map((dim) => {
+          const d = byDim[dim] || { A: 0, B: 0, tie: 0, na: 0 };
           return (
             <Col xs={24} sm={12} xl={6} key={dim}>
-              <DashPanel title={`${DIM_LABEL[dim]}维度`}>
+              <DashPanel title={pairwiseDimensionLabel(dim)}>
                 <Space size={16}>
                   <RunsKpi
                     title="B 胜"
@@ -250,6 +258,7 @@ export function PairwiseDetailSummaryCard({
                     value={d.A}
                     valueStyle={{ color: "var(--runs-red)" }}
                   />
+                  {isModelComparison && <RunsKpi title="不适用" value={d.na || 0} />}
                 </Space>
               </DashPanel>
             </Col>

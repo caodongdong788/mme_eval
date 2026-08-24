@@ -11,6 +11,7 @@ export type RunFilterField =
   | "id"
   | "name"
   | "trigger_type"
+  | "scoring_standard"
   | "status"
   | "pass_rate"
   | "medical_safety_failed"
@@ -26,6 +27,12 @@ export const RUN_FILTER_FIELDS: FilterFieldDefinition<RunFilterField>[] = [
   {
     value: "trigger_type", label: "任务类型", kind: "select", options: [
       { value: "manual", label: "人工触发" }, { value: "scheduled", label: "定时任务触发" }, { value: "open_api", label: "Open API 触发" },
+    ],
+  },
+  {
+    value: "scoring_standard", label: "评分维度", kind: "select", options: [
+      { value: "cx_eight_dimension", label: "CX 八维评分" },
+      { value: "model_comparison", label: "模型对比八维" },
     ],
   },
   {
@@ -45,6 +52,7 @@ function actual(row: RunSummary, field: RunFilterField): string | number | null 
     case "id": return row.id;
     case "name": return row.name || row.run_slug;
     case "trigger_type": return row.trigger_type || "manual";
+    case "scoring_standard": return row.scoring_standard || "cx_eight_dimension";
     case "status": return row.status;
     case "pass_rate": return Number((row.pass_rate * 100).toFixed(4));
     case "medical_safety_failed": return row.medical_safety_failed;

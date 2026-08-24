@@ -59,6 +59,17 @@ def check_pairwise_comparable(
     if run_a.id == run_b.id:
         reasons.append("不能和自己对比，请选两个不同的评测。")
         return reasons
+    if (run_a.scoring_standard or "cx_eight_dimension") != (
+        run_b.scoring_standard or "cx_eight_dimension"
+    ):
+        from medeval.scoring_standards import scoring_standard_label
+
+        reasons.append(
+            "两次评测选择的评分维度不同："
+            f"A 为「{scoring_standard_label(run_a.scoring_standard)}」，"
+            f"B 为「{scoring_standard_label(run_b.scoring_standard)}」。"
+            "请只对比采用同一评分标准的评测。"
+        )
     if not same_benchmark(run_a, run_b):
         reasons.append("两次评测用的题库（benchmark）不一样，题目都不同，没法对比。")
     ids_a, ids_b = _sample_ids(session, run_a.id), _sample_ids(session, run_b.id)

@@ -13,7 +13,11 @@ from typing import Any
 
 from sqlalchemy import select
 
-from medeval.evaluation import EvaluationDimension
+from medeval.scoring_standards import (
+    ScoringStandard,
+    normalize_scoring_standard,
+    scoring_dimension_keys,
+)
 
 from .compare import pairwise_rag_side
 from .constants import PAIRWISE_JOB_USER_ERROR
@@ -30,18 +34,28 @@ from .services.case_query import RAG_TRIGGERED_STATUSES, case_rag_status_from_de
 
 log = logging.getLogger(__name__)
 
-_DIMENSIONS = tuple(dimension.value for dimension in EvaluationDimension)
 CONFIDENCE_KINDS = frozenset({"high", "order", "safety", "human"})
 
 
-def _machine_confidence_kind(v: PairwiseCaseVerdict) -> str:
+def _machine_confidence_kind(
+    v: PairwiseCaseVerdict, scoring_standard: str
+) -> str:
     """机器判定的 confidence_kind（非人工）。"""
     if v.confidence == "high":
         return "high"
-    return "safety" if v.swap_consistent else "order"
+    if (
+        normalize_scoring_standard(scoring_standard)
+        == ScoringStandard.CX_EIGHT_DIMENSION.value
+        and v.swap_consistent
+    ):
+        return "safety"
+    return "order"
 
 
-def verdict_effective_row(v: PairwiseCaseVerdict) -> dict[str, Any]:
+def verdict_effective_row(
+    v: PairwiseCaseVerdict,
+    scoring_standard: str = ScoringStandard.CX_EIGHT_DIMENSION.value,
+) -> dict[str, Any]:
     """逐用例有效值（汇总/展示单一信任源）。"""
     if v.human_calibrated:
         return {
@@ -57,7 +71,7 @@ def verdict_effective_row(v: PairwiseCaseVerdict) -> dict[str, Any]:
         "winner": v.winner,
         "dimension_winners": dict(v.dimension_winners or {}),
         "reason": (v.reason or "").strip(),
-        "confidence_kind": _machine_confidence_kind(v),
+        "confidence_kind": _machine_confidence_kind(v, scoring_standard),
         "human_calibrated": False,
     }
 
@@ -78,7 +92,10 @@ def reconcile_orphaned_pairwise() -> int:
     return count
 
 
-def _build_comparator(judge_model_id: int):
+def _build_comparator(
+    judge_model_id: int,
+    scoring_standard: str = ScoringStandard.CX_EIGHT_DIMENSION.value,
+):
     """从判分模型库解析连接配置，构造 PairwiseComparator。
 
     返回 (comparator, 模型显示名, 题间并发度)。并发度仅作用于对比，缺省/非法回落为 4。
@@ -105,7 +122,9 @@ def _build_comparator(judge_model_id: int):
         )
         label = jm.model or jm.name
         concurrency = max(1, int(jm.pairwise_concurrency or 4))
-    return PairwiseComparator(**cfg), label, concurrency
+    return PairwiseComparator(
+        **cfg, scoring_standard=scoring_standard
+    ), label, concurrency
 
 
 def _detail_map(session, run_id: int) -> dict[str, dict[str, Any]]:
@@ -135,7 +154,10 @@ def _detail_map(session, run_id: int) -> dict[str, dict[str, Any]]:
 
 
 def _derive_confidence(
-    winner: str, swap_consistent: bool, dimension_winners: dict[str, Any] | None
+    winner: str,
+    swap_consistent: bool,
+    dimension_winners: dict[str, Any] | None,
+    scoring_standard: str = ScoringStandard.CX_EIGHT_DIMENSION.value,
 ) -> str:
     """按「换序稳健」口径从已存字段重导 confidence（不重调 LLM）。
 
@@ -151,7 +173,10 @@ def _derive_confidence(
     if not swap_consistent:
         return "low"
     dims = dimension_winners or {}
-    any_decisive = any(dims.get(d) in ("A", "B") for d in _DIMENSIONS)
+    any_decisive = any(
+        dims.get(d) in ("A", "B")
+        for d in scoring_dimension_keys(scoring_standard)
+    )
     return "low" if any_decisive else "high"
 
 
@@ -172,23 +197,17 @@ def backfill_pairwise_confidence() -> dict[str, int]:
             comp_changed = False
             for v in comp.verdicts:
                 new_conf = _derive_confidence(
-                    v.winner, v.swap_consistent, v.dimension_winners
+                    v.winner,
+                    v.swap_consistent,
+                    v.dimension_winners,
+                    comp.scoring_standard,
                 )
                 if new_conf != v.confidence:
                     v.confidence = new_conf
                     changed_verdicts += 1
                     comp_changed = True
-                rows.append(
-                    {
-                        "sample_id": v.sample_id,
-                        "winner": v.winner,
-                        "confidence": v.confidence,
-                        "swap_consistent": v.swap_consistent,
-                        "dimension_winners": v.dimension_winners,
-                        "reason": v.reason,
-                    }
-                )
-            new_summary = _summarize(rows)
+                rows.append(verdict_effective_row(v, comp.scoring_standard))
+            new_summary = _summarize(rows, comp.scoring_standard)
             preserved_rag_scope = dict(comp.summary or {}).get("rag_scope")
             if preserved_rag_scope:
                 new_summary["rag_scope"] = preserved_rag_scope
@@ -231,7 +250,10 @@ def backfill_pairwise_display() -> dict[str, int]:
     return {"scenario_filled": filled_scenario}
 
 
-def _summarize(verdicts: list[dict[str, Any]]) -> dict[str, Any]:
+def _summarize(
+    verdicts: list[dict[str, Any]],
+    scoring_standard: str = ScoringStandard.CX_EIGHT_DIMENSION.value,
+) -> dict[str, Any]:
     """按有效值汇总（verdicts 每项须含 winner / dimension_winners / confidence_kind）。"""
     a_wins = sum(1 for v in verdicts if v["winner"] == "A")
     b_wins = sum(1 for v in verdicts if v["winner"] == "B")
@@ -242,14 +264,19 @@ def _summarize(verdicts: list[dict[str, Any]]) -> dict[str, Any]:
     low_conf = order_sensitive + safety_doubt
     total = len(verdicts)
 
+    dimensions = scoring_dimension_keys(scoring_standard)
+    buckets = ("A", "B", "tie", "na") if normalize_scoring_standard(
+        scoring_standard
+    ) == ScoringStandard.MODEL_COMPARISON.value else ("A", "B", "tie")
     by_dim: dict[str, dict[str, int]] = {
-        d: {"A": 0, "B": 0, "tie": 0} for d in _DIMENSIONS
+        d: {bucket: 0 for bucket in buckets} for d in dimensions
     }
     for v in verdicts:
         dw = v.get("dimension_winners") or {}
-        for d in _DIMENSIONS:
+        for d in dimensions:
             side = dw.get(d, "tie")
-            by_dim[d][side if side in ("A", "B") else "tie"] += 1
+            bucket = side if side in buckets else "tie"
+            by_dim[d][bucket] += 1
 
     overall = "tie"
     if b_wins > a_wins:
@@ -279,11 +306,12 @@ def pairwise_verdict_to_out(
     *,
     rag_status_a: str = "unknown",
     rag_status_b: str = "unknown",
+    scoring_standard: str = ScoringStandard.CX_EIGHT_DIMENSION.value,
 ):
     """ORM → API 有效值（避免 from_attributes 直出机器字段）。"""
     from .schemas import PairwiseCaseVerdictOut
 
-    eff = verdict_effective_row(v)
+    eff = verdict_effective_row(v, scoring_standard)
     payload: dict[str, Any] = {
         "sample_id": v.sample_id,
         "scenario": v.scenario or "",
@@ -317,9 +345,9 @@ def recompute_pairwise_summary(session, comparison_id: int) -> dict[str, Any]:
             PairwiseCaseVerdict.comparison_id == comparison_id
         )
     ).scalars().all()
-    rows = [verdict_effective_row(v) for v in verdicts]
+    rows = [verdict_effective_row(v, comp.scoring_standard) for v in verdicts]
     preserved_rag_scope = dict(comp.summary or {}).get("rag_scope")
-    summary = _summarize(rows)
+    summary = _summarize(rows, comp.scoring_standard)
     if preserved_rag_scope:
         summary["rag_scope"] = preserved_rag_scope
     comp.summary = summary
@@ -338,6 +366,7 @@ async def run_pairwise_comparison(comparison_id: int, judge_model_id: int) -> No
                 return
             run_a_id, run_b_id = comp.run_a_id, comp.run_b_id
             scope = comp.scope or "all"
+            scoring_standard = normalize_scoring_standard(comp.scoring_standard)
             run_a = session.get(EvalRun, run_a_id)
             run_b = session.get(EvalRun, run_b_id)
             rag_side = (
@@ -346,7 +375,9 @@ async def run_pairwise_comparison(comparison_id: int, judge_model_id: int) -> No
             map_a = _detail_map(session, run_a_id)
             map_b = _detail_map(session, run_b_id)
 
-        comparator, model_label, concurrency = _build_comparator(judge_model_id)
+        comparator, model_label, concurrency = _build_comparator(
+            judge_model_id, scoring_standard
+        )
         with session_scope() as session:
             comp = session.get(PairwiseComparison, comparison_id)
             comp.judge_fingerprint = comparator.fingerprint()

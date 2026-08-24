@@ -250,6 +250,117 @@ def test_prompt_is_double_blind():
         assert p.index("系统①") < p.index("系统②")
 
 
+def test_model_comparison_prompt_includes_shared_context_and_runtime_evidence():
+    cmp = PairwiseComparator(
+        provider="openai",
+        model="gpt-4o-mini",
+        api_key="dummy",
+        scoring_standard="model_comparison",
+    )
+    prompts: list[str] = []
+    _stub(
+        cmp,
+        [
+            {"winner": "tie", "dimensions": {}, "reason": "相当"},
+            {"winner": "tie", "dimensions": {}, "reason": "相当"},
+        ],
+        counter=prompts,
+    )
+    case = TestCase(
+        schema_version="2.0",
+        sample_id="t_evidence",
+        scenario="报告解读",
+        level="L2",
+        initial_state={"user_profile": {"年龄": 42}, "Timeline": [{"检查": "血常规"}]},
+        turns=[{"role": "user", "content": "请帮我看看", "images": ["images/report.png"]}],
+        evaluation={
+            "dimension_criteria": {
+                "professional_accuracy": {"criteria": ["准确解释异常指标"]}
+            }
+        },
+    )
+    trace_a = ConversationTrace(
+        messages=[
+            ChatMessage(role="user", content="请帮我看看"),
+            ChatMessage(role="assistant", content="A 回复"),
+        ],
+        duration_ms=654321,
+        turn_token_usage=[{"total_tokens": 98765}],
+        agent_chain={
+            "nodes": [
+                {
+                    "id": "internal-node-123",
+                    "type": "TOOL",
+                    "name": "tool.read_medical_metrics",
+                    "duration_ms": 333,
+                    "usage": {"total": 100},
+                    "input": {"report": "血常规", "session_id": "hidden-session"},
+                    "output": {"白细胞": "偏低", "trace_id": "hidden-trace"},
+                }
+            ]
+        },
+        cx_literature_audits=[
+            {
+                "rewritten_query": "白细胞偏低",
+                "selected_sources": [
+                    {"rank": 1, "title": "血常规解读", "content": "需结合症状复核。"}
+                ],
+            }
+        ],
+    )
+    trace_b = _trace("B 回复")
+    asyncio.run(cmp.compare_case(case, trace_a, trace_b))
+
+    assert len(prompts) == 2
+    prompt = prompts[0]
+    assert "年龄" in prompt and "血常规" in prompt
+    assert "附件1" in prompt
+    assert "images/report.png" not in prompt
+    assert "准确解释异常指标" in prompt
+    assert "read_medical_metrics" in prompt and "白细胞" in prompt
+    assert "血常规解读" in prompt and "需结合症状复核" in prompt
+    assert "654321" not in prompt and "98765" not in prompt
+    assert "internal-node-123" not in prompt
+    assert "hidden-session" not in prompt and "hidden-trace" not in prompt
+
+
+def test_model_comparison_marks_inapplicable_dimension_na_without_safety_priority():
+    cmp = PairwiseComparator(
+        provider="openai",
+        model="gpt-4o-mini",
+        api_key="dummy",
+        scoring_standard="model_comparison",
+    )
+    _stub(
+        cmp,
+        [
+            {
+                "winner": "2",
+                "dimensions": {
+                    "medical_knowledge_reasoning": "2",
+                    "tool_use": "na",
+                    "multimodal_understanding": "na",
+                },
+                "reason": "系统②医学推理更完整",
+            },
+            {
+                "winner": "1",
+                "dimensions": {
+                    "medical_knowledge_reasoning": "1",
+                    "tool_use": "na",
+                    "multimodal_understanding": "na",
+                },
+                "reason": "系统①医学推理更完整",
+            },
+        ],
+    )
+    result = _run(cmp)
+    assert result.winner == "B"
+    assert result.dimension_winners["medical_knowledge_reasoning"] == "B"
+    assert result.dimension_winners["tool_use"] == "na"
+    assert result.dimension_winners["multimodal_understanding"] == "na"
+
+
 # ---------------------------------------------------------------------------
 # 题内并行
 

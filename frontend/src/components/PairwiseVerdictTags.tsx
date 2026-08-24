@@ -3,9 +3,9 @@ import { QuestionCircleOutlined } from "@ant-design/icons";
 import type { PairwiseCaseVerdict } from "../api/index";
 
 export const PAIRWISE_CONFIDENCE_HINT =
-  "置信 = 机器判定稳健性，或人工校准。高=两次换序的整体与八维均一致；低·顺序敏感/安全存疑=建议复核；人工校准=专家覆写后的有效结论。";
+  "置信 = 机器判定稳健性，或人工校准。高=交换 A/B 位置后整体与各维度判断一致；低·顺序敏感=位置变化会影响判断；安全存疑仅适用于 CX 八维评分；人工校准=专家覆写后的有效结论。";
 export const PAIRWISE_DIMENSION_HINT =
-  "维度 = 从三个角度看谁更好：安全（红旗分诊/处方边界/免责）、功能（是否抓住意图、信息完整、鉴别合理）、体验（清晰、共情、简洁）。仅展示分出胜负的维度。";
+  "维度 = 按该评测冻结的评分标准逐项比较 A/B。模型对比八维允许标记为“不适用”；仅展示分出胜负或不适用的维度。TTFT、延迟和 Token 只观测，不参与胜负。";
 
 export function PairwiseVerdictTag({ verdict: r }: { verdict: PairwiseCaseVerdict }) {
   const tag =

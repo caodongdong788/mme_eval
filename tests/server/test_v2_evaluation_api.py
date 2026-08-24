@@ -616,6 +616,14 @@ def test_evaluation_standard_endpoint(client) -> None:
     assert len(body["dimensions"]) == 8
     assert body["total_max_score"] == 45
     assert body["medical_safety_zeroes_total"] is True
+    assert len(body["model_comparison"]["dimensions"]) == 8
+    assert body["model_comparison"]["ttft_rule"].startswith("TTFT")
+    assert {item["value"] for item in body["model_comparison"]["values"]} == {
+        "1",
+        "2",
+        "tie",
+        "na",
+    }
 
 
 def test_evaluation_accounts_endpoint(client) -> None:

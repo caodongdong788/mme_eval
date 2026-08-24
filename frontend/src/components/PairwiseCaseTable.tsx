@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Button, Select, Space, Table, Tag, Typography } from "antd";
 import { EyeOutlined, FilterOutlined } from "@ant-design/icons";
 import type { PairwiseCaseVerdict, PairwiseDetail } from "../api/index";
-import { DIM_LABEL } from "../labels";
 import type { usePairwiseDetail } from "../hooks/usePairwiseDetail";
+import { normalizeScoringStandard, pairwiseDimensionLabel } from "../utils/scoringStandards";
 import { DashTableLink } from "./DashTableActions";
 import { DashPanel } from "./DashPanel";
 import { PairwiseCaseDetailDrawer } from "./PairwiseCaseDetailDrawer";
@@ -70,6 +70,7 @@ export function PairwiseCaseTable({
   | "runBName"
 > & { onSaved: () => void }) {
   const [detailVerdict, setDetailVerdict] = useState<PairwiseCaseVerdict | null>(null);
+  const isModelComparison = normalizeScoringStandard(detail.scoring_standard) === "model_comparison";
 
   return (
     <DashPanel title="逐用例对比" bodyClassName="dash-panel__body--flush">
@@ -108,7 +109,7 @@ export function PairwiseCaseTable({
           options={[
             { value: "high", label: "高" },
             { value: "order", label: "低 · 顺序敏感" },
-            { value: "safety", label: "低 · 安全存疑" },
+            ...(!isModelComparison ? [{ value: "safety", label: "低 · 安全存疑" }] : []),
             { value: "human", label: "人工校准" },
           ]}
         />
@@ -169,7 +170,7 @@ export function PairwiseCaseTable({
                     .filter(([, w]) => w !== "tie")
                     .map(([dim, w]) => (
                       <Tag key={dim} color={w === "B" ? "green" : "default"}>
-                        {DIM_LABEL[dim] || dim}={w}
+                        {pairwiseDimensionLabel(dim)}={w === "A" ? "A 更好" : w === "B" ? "B 更好" : "不适用"}
                       </Tag>
                     ))}
                 </Space>
@@ -196,6 +197,7 @@ export function PairwiseCaseTable({
         runBId={detail.run_b_id}
         runAName={runAName}
         runBName={runBName}
+        scoringStandard={detail.scoring_standard}
         onClose={() => setDetailVerdict(null)}
         onSaved={onSaved}
       />

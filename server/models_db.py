@@ -123,6 +123,11 @@ class EvalRun(Base):
     status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
     # manual（页面发起） | scheduled（定时任务） | open_api（开放接口）。
     trigger_type: Mapped[str] = mapped_column(String(20), default="manual", index=True)
+    # Run 创建时冻结评分标准。主评测仍按 CX 八维产出绝对分；该字段决定后续
+    # Pairwise 使用哪一套相对能力维度，避免历史 Run 随平台配置漂移。
+    scoring_standard: Mapped[str] = mapped_column(
+        String(40), default="cx_eight_dimension", index=True
+    )
     error_msg: Mapped[str] = mapped_column(Text, default="")
 
     benchmark_id: Mapped[Optional[int]] = mapped_column(
@@ -338,6 +343,9 @@ class ScheduledEvaluation(Base):
     weekdays: Mapped[list[int]] = mapped_column(JSON, default=list)
 
     evaluation_mode: Mapped[str] = mapped_column(String(20), default="single_turn")
+    scoring_standard: Mapped[str] = mapped_column(
+        String(40), default="cx_eight_dimension", index=True
+    )
     levels: Mapped[list[str]] = mapped_column(JSON, default=list)
     limit: Mapped[int] = mapped_column(Integer, default=0)
     repeat: Mapped[int] = mapped_column(Integer, default=1)
@@ -499,6 +507,10 @@ class PairwiseComparison(Base):
     )
     judge_model: Mapped[str] = mapped_column(String(200), default="")
     judge_fingerprint: Mapped[str] = mapped_column(String(40), default="")
+    # 从两个 Run 的冻结标准复制；Pairwise 执行和历史展示均以此为准。
+    scoring_standard: Mapped[str] = mapped_column(
+        String(40), default="cx_eight_dimension", index=True
+    )
     # 自由文本备注：本次对比目的，可二次编辑（不影响判分/汇总/可比性）。
     note: Mapped[str] = mapped_column(Text, default="")
     # running | done | failed

@@ -65,6 +65,7 @@ export default function LaunchPage() {
             enable_system_prompt: true,
             repeat: 1,
             limit: 0,
+            scoring_standard: "cx_eight_dimension",
           }}
           requiredMark
         >
@@ -238,6 +239,25 @@ export default function LaunchPage() {
               <p className="dash-form-card__desc">
                 配置 LLM-as-Judge 打分模型；关闭后仅跑 bot 留痕，不做自动判分。
               </p>
+
+              <Form.Item
+                name="scoring_standard"
+                label="评分维度"
+                extra={
+                  <FieldHint>
+                    选择后会冻结在本次评测中，并决定后续 Pairwise 使用哪套八维。CX 八维用于产品质量与上线门禁；模型对比八维用于比较不同基座能力。TTFT、延迟和 Token 始终只观测，不参与打分。
+                  </FieldHint>
+                }
+              >
+                <Radio.Group
+                  className="dash-option-cards dash-evaluation-mode"
+                  optionType="button"
+                  buttonStyle="solid"
+                >
+                  <Radio.Button value="cx_eight_dimension">CX 八维评分</Radio.Button>
+                  <Radio.Button value="model_comparison">模型对比八维</Radio.Button>
+                </Radio.Group>
+              </Form.Item>
 
               <div className="dash-toggle-card">
                 <div>

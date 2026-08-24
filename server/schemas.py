@@ -213,6 +213,9 @@ class RunCreate(BaseModel):
     run_name: Optional[str] = None
     # single_turn = main 的固定 turns 逻辑；multi_turn = 动态用户模拟逻辑。
     evaluation_mode: Literal["single_turn", "multi_turn"] = "single_turn"
+    scoring_standard: Literal["cx_eight_dimension", "model_comparison"] = (
+        "cx_eight_dimension"
+    )
     # 按 level 过滤（如 ["L1","L3"]）；为空 = 全部 level。
     levels: list[str] = Field(default_factory=list)
     limit: int = 0
@@ -234,6 +237,9 @@ class ScheduledEvaluationCreate(BaseModel):
     schedule_time: str = "09:00"
     weekdays: list[int] = Field(default_factory=list)
     evaluation_mode: Literal["single_turn", "multi_turn"] = "single_turn"
+    scoring_standard: Literal["cx_eight_dimension", "model_comparison"] = (
+        "cx_eight_dimension"
+    )
     levels: list[str] = Field(default_factory=list)
     limit: int = Field(default=0, ge=0)
     repeat: int = Field(default=1, ge=1)
@@ -295,6 +301,9 @@ class ScheduledEvaluationUpdate(BaseModel):
     schedule_time: Optional[str] = None
     weekdays: Optional[list[int]] = None
     evaluation_mode: Optional[Literal["single_turn", "multi_turn"]] = None
+    scoring_standard: Optional[
+        Literal["cx_eight_dimension", "model_comparison"]
+    ] = None
     levels: Optional[list[str]] = None
     limit: Optional[int] = Field(default=None, ge=0)
     repeat: Optional[int] = Field(default=None, ge=1)
@@ -523,6 +532,13 @@ class OpenEvaluationCreate(BaseModel):
     evaluation_mode: Literal["single_turn", "multi_turn"] = Field(
         default="single_turn", description="single_turn=固定对话；multi_turn=动态多轮对话"
     )
+    scoring_standard: Literal["cx_eight_dimension", "model_comparison"] = Field(
+        default="cx_eight_dimension",
+        description=(
+            "本次 Run 冻结的评分维度；cx_eight_dimension 用于 CX 质量评估，"
+            "model_comparison 用于后续不同基座模型的 Pairwise 对比"
+        ),
+    )
     enable_rag: bool = Field(default=False, description="是否向被测 CX Agent 开放医学文献 RAG")
     repeat: int = Field(default=1, ge=1, description="每个用例重复评测次数")
     levels: list[Literal["L1", "L2", "L3", "L4"]] = Field(
@@ -608,6 +624,9 @@ class OpenEvaluationOut(BaseModel):
     status: str
     benchmark_id: int
     evaluation_mode: Literal["single_turn", "multi_turn"]
+    scoring_standard: Literal["cx_eight_dimension", "model_comparison"] = (
+        "cx_eight_dimension"
+    )
     repeat: int
     enable_rag: bool
     enable_judge: bool
@@ -976,6 +995,9 @@ class RunSummaryOut(BaseModel):
     name: str
     status: str
     trigger_type: Literal["manual", "scheduled", "open_api"] = "manual"
+    scoring_standard: Literal["cx_eight_dimension", "model_comparison"] = (
+        "cx_eight_dimension"
+    )
     benchmark_id: Optional[int] = None
     benchmark_name: Optional[str] = None
     scheduled_evaluation_id: Optional[int] = None
@@ -1185,6 +1207,9 @@ class PairwiseComparisonOut(BaseModel):
     note: str = ""
     judge_model: str
     judge_fingerprint: str
+    scoring_standard: Literal["cx_eight_dimension", "model_comparison"] = (
+        "cx_eight_dimension"
+    )
     status: str
     error_msg: str
     scope: str
@@ -1200,15 +1225,19 @@ class PairwiseCalibrateUpdate(BaseModel):
     """人工校准覆写：结论 A|B|tie、八维度、理由。"""
 
     winner: Literal["A", "B", "tie"]
-    dimension_winners: dict[str, Literal["A", "B", "tie"]] = Field(default_factory=dict)
+    dimension_winners: dict[str, Literal["A", "B", "tie", "na"]] = Field(
+        default_factory=dict
+    )
     reason: str = ""
 
     @field_validator("dimension_winners")
     @classmethod
     def _only_eight_dimensions(
-        cls, value: dict[str, Literal["A", "B", "tie"]]
-    ) -> dict[str, Literal["A", "B", "tie"]]:
-        allowed = {dimension.value for dimension in EvaluationDimension}
+        cls, value: dict[str, Literal["A", "B", "tie", "na"]]
+    ) -> dict[str, Literal["A", "B", "tie", "na"]]:
+        from medeval.scoring_standards import all_scoring_dimension_keys
+
+        allowed = all_scoring_dimension_keys()
         unknown = sorted(set(value) - allowed)
         if unknown:
             raise ValueError(f"未知维度：{', '.join(unknown)}")

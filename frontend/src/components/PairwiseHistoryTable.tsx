@@ -1,6 +1,7 @@
 import { DeleteOutlined } from "@ant-design/icons";
 import { Popconfirm, Progress, Space, Table, Tag, Tooltip, Typography } from "antd";
 import type { PairwiseComparison } from "../api/index";
+import { scoringStandardLabel } from "../utils/scoringStandards";
 import { DashTableActions, DashTableDangerLink, DashTableNavLink } from "./DashTableActions";
 
 const { Text } = Typography;
@@ -39,6 +40,14 @@ export function PairwiseHistoryTable({
                   #{r.run_a_id} vs #{r.run_b_id}
                 </Text>
               </Tooltip>
+            ),
+          },
+          {
+            title: "评分维度",
+            dataIndex: "scoring_standard",
+            width: 140,
+            render: (value: PairwiseComparison["scoring_standard"]) => (
+              <Tag color="purple">{scoringStandardLabel(value)}</Tag>
             ),
           },
           { title: "裁判", dataIndex: "judge_model" },

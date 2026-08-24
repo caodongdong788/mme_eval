@@ -9,6 +9,7 @@ import { api, type Benchmark, type JudgeModel, type ScheduledEvaluation, type Sc
 import { formatApiDateTime } from "../utils/datetime";
 import { formatApiError } from "../utils/apiError";
 import { DashTableActions, DashTableDangerLink, DashTableLink } from "./DashTableActions";
+import { scoringStandardLabel } from "../utils/scoringStandards";
 
 const weekOptions = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"].map((label, value) => ({ label, value }));
 function clockValue(value: string) {
@@ -60,6 +61,7 @@ export function ScheduledEvaluationsPanel() {
     form.setFieldsValue({
       enabled: true, schedule_kind: "daily", schedule_time: clockValue("09:00"),
       evaluation_mode: "single_turn", levels: [], limit: 0, repeat: 1,
+      scoring_standard: "cx_eight_dimension",
       enable_rag: false, enable_system_prompt: true, enable_judge: true, weekdays: [],
       auto_attribution_enabled: false, auto_attribution_grades: ["不合格"], auto_attribution_model_id: null,
     });
@@ -82,6 +84,7 @@ export function ScheduledEvaluationsPanel() {
       schedule_time: (values.schedule_time as dayjs.Dayjs).format("HH:mm"),
       weekdays: (values.schedule_kind === "weekly" ? values.weekdays : []) as number[],
       evaluation_mode: values.evaluation_mode as "single_turn" | "multi_turn",
+      scoring_standard: (values.scoring_standard as "cx_eight_dimension" | "model_comparison") || "cx_eight_dimension",
       levels: (values.levels as string[]) || [], limit: Number(values.limit || 0), repeat: Number(values.repeat || 1),
       enable_rag: Boolean(values.enable_rag),
       enable_system_prompt: Boolean(values.enable_system_prompt),
@@ -129,7 +132,7 @@ export function ScheduledEvaluationsPanel() {
     { title: "Benchmark", dataIndex: "benchmark_id", render: (id: number) => benchmarks.find((item) => item.id === id)?.name || `#${id}` },
     { title: "触发频率", width: 190, render: (_: unknown, row: ScheduledEvaluation) => scheduleLabel(row) },
     { title: "状态", width: 110, render: (_: unknown, row: ScheduledEvaluation) => <Switch checked={row.enabled} checkedChildren="启用" unCheckedChildren="停用" onChange={(checked) => void toggle(row, checked)} /> },
-    { title: "运行参数", width: 390, render: (_: unknown, row: ScheduledEvaluation) => <Space size={4} wrap><Tag>{row.evaluation_mode === "multi_turn" ? "多轮" : "单轮"}</Tag><Tag color={row.enable_system_prompt ? "blue" : "default"}>系统提示词 {row.enable_system_prompt ? "开" : "关"}</Tag><Tag color={row.enable_rag ? "green" : "default"}>RAG {row.enable_rag ? "开" : "关"}</Tag><Tag>N={row.repeat}</Tag>{row.enable_judge && <Tag color="purple">判分</Tag>}{row.auto_attribution_enabled && <Tag color="gold">自动归因：不合格</Tag>}</Space> },
+    { title: "运行参数", width: 450, render: (_: unknown, row: ScheduledEvaluation) => <Space size={4} wrap><Tag color="geekblue">{scoringStandardLabel(row.scoring_standard)}</Tag><Tag>{row.evaluation_mode === "multi_turn" ? "多轮" : "单轮"}</Tag><Tag color={row.enable_system_prompt ? "blue" : "default"}>系统提示词 {row.enable_system_prompt ? "开" : "关"}</Tag><Tag color={row.enable_rag ? "green" : "default"}>RAG {row.enable_rag ? "开" : "关"}</Tag><Tag>N={row.repeat}</Tag>{row.enable_judge && <Tag color="purple">判分</Tag>}{row.auto_attribution_enabled && <Tag color="gold">自动归因：不合格</Tag>}</Space> },
     { title: "下次执行", dataIndex: "next_run_at", width: 170, render: (value: string) => formatApiDateTime(value) },
     { title: "上次执行", dataIndex: "last_run_at", width: 170, render: (value: string, row: ScheduledEvaluation) => row.last_error ? <Tooltip title={row.last_error}><span className="runs-table__danger">触发失败</span></Tooltip> : formatApiDateTime(value) },
     {
@@ -162,6 +165,20 @@ export function ScheduledEvaluationsPanel() {
         <Space align="start" size={24} wrap><Form.Item name="schedule_kind" label="执行频率"><Radio.Group options={[{ value: "daily", label: "每天" }, { value: "weekly", label: "每周" }]} optionType="button" /></Form.Item><Form.Item name="schedule_time" label="执行时间" rules={[{ required: true }]}><TimePicker format="HH:mm" minuteStep={5} allowClear={false} /></Form.Item></Space>
         {scheduleKind === "weekly" && <Form.Item name="weekdays" label="执行日" rules={[{ required: true, message: "至少选择一天" }]}><Checkbox.Group options={weekOptions} /></Form.Item>}
         <Form.Item name="evaluation_mode" label="对话评测模式"><Radio.Group options={[{ value: "single_turn", label: "单轮对话" }, { value: "multi_turn", label: "多轮对话" }]} optionType="button" /></Form.Item>
+        <Form.Item
+          name="scoring_standard"
+          label="评分维度"
+          extra="每次执行都会冻结该标准；Pairwise 只允许使用同一评分维度的评测任务进行对比。TTFT、延迟和 Token 仅观测。"
+        >
+          <Radio.Group
+            options={[
+              { value: "cx_eight_dimension", label: "CX 八维评分" },
+              { value: "model_comparison", label: "模型对比八维" },
+            ]}
+            optionType="button"
+            buttonStyle="solid"
+          />
+        </Form.Item>
         {evaluationMode === "multi_turn" && <Form.Item name="user_simulator_model_id" label="语义追问模型"><Select allowClear options={models.map((item) => ({ value: item.id, label: `${item.name} · ${item.model}${item.has_api_key ? "" : "（未配 Key）"}` }))} /></Form.Item>}
         <Form.Item name="levels" label="Level 筛选（不选则全部）"><Checkbox.Group options={(selectedBenchmark?.levels || []).map((value) => ({ value, label: value }))} /></Form.Item>
         <Space size={24} wrap><Form.Item name="repeat" label="重复次数（N）"><InputNumber min={1} /></Form.Item><Form.Item name="limit" label="限制条数（0=全部）"><InputNumber min={0} /></Form.Item></Space>

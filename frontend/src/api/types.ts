@@ -164,7 +164,11 @@ export interface RunSummary {
   pinned: boolean;
   parent_run_id?: number | null;
   evaluation_mode: "single_turn" | "multi_turn";
+  /** 本次 Run 冻结的评分维度；用于列表筛选与 Pairwise 可比性判断。 */
+  scoring_standard?: ScoringStandard;
 }
+
+export type ScoringStandard = "cx_eight_dimension" | "model_comparison";
 
 export interface ScheduledEvaluation {
   id: number;
@@ -175,6 +179,7 @@ export interface ScheduledEvaluation {
   schedule_time: string;
   weekdays: number[];
   evaluation_mode: "single_turn" | "multi_turn";
+  scoring_standard?: ScoringStandard;
   levels: string[];
   limit: number;
   repeat: number;
@@ -579,6 +584,7 @@ export interface RunCreatePayload {
   benchmark_id: number;
   run_name?: string;
   evaluation_mode?: "single_turn" | "multi_turn";
+  scoring_standard?: ScoringStandard;
   levels?: string[];
   limit?: number;
   repeat?: number;
@@ -678,6 +684,21 @@ export interface EvaluationStandard {
   medical_safety_zeroes_total: boolean;
   guideline_rule: string;
   guideline_rule_description: string;
+  model_comparison: {
+    key: "model_comparison";
+    label: string;
+    description: string;
+    values: Array<{ value: "1" | "2" | "tie" | "na"; label: string }>;
+    dimensions: Array<{
+      key: string;
+      label: string;
+      description: string;
+      applicability: string;
+    }>;
+    overall_rule: string;
+    ttft_rule: string;
+    blind_rule: string;
+  };
 }
 
 export interface JudgeModel {
@@ -757,7 +778,7 @@ export interface PairwiseSummary {
   human_calibrated_count?: number;
   b_win_rate: number;
   overall_winner: "A" | "B" | "tie";
-  by_dimension: Record<string, { A: number; B: number; tie: number }>;
+  by_dimension: Record<string, { A: number; B: number; tie: number; na?: number }>;
   regressions: string[];
   improvements: string[];
   rag_scope?: {
@@ -779,6 +800,7 @@ export interface PairwiseComparison {
   note: string;
   judge_model: string;
   judge_fingerprint: string;
+  scoring_standard: ScoringStandard;
   status: string;
   error_msg: string;
   scope: string;
@@ -808,7 +830,7 @@ export interface PairwiseCaseVerdict {
     top: "A" | "B";
     winner: "A" | "B" | "tie";
     /** 单次换序的八维结果；旧对比没有该留痕。 */
-    dimension_winners?: Record<string, "A" | "B" | "tie">;
+    dimension_winners?: Record<string, "A" | "B" | "tie" | "na">;
     reason: string;
   }[];
   auto_winner?: "A" | "B" | "tie" | null;
@@ -820,7 +842,7 @@ export interface PairwiseCaseVerdict {
 
 export interface PairwiseCalibratePayload {
   winner: "A" | "B" | "tie";
-  dimension_winners: Record<string, "A" | "B" | "tie">;
+  dimension_winners: Record<string, "A" | "B" | "tie" | "na">;
   reason: string;
 }
 

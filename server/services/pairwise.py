@@ -11,6 +11,12 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from medeval.scoring_standards import (
+    ScoringStandard,
+    normalize_scoring_standard,
+    scoring_dimension_keys,
+)
+
 from ..compare import check_pairwise_comparable, pairwise_rag_side, pairwise_subject_diff
 from ..models_db import (
     CaseResultRow,
@@ -20,7 +26,6 @@ from ..models_db import (
     PairwiseComparison,
 )
 from ..pairwise_job import (
-    _DIMENSIONS,
     pairwise_verdict_to_out,
     recompute_pairwise_summary,
 )
@@ -147,6 +152,7 @@ def create_pairwise_record(
         run_a_id=run_a.id,
         run_b_id=run_b.id,
         judge_model=jm.model or jm.name,
+        scoring_standard=run_a.scoring_standard or "cx_eight_dimension",
         note=(payload.note or "").strip(),
         status="running",
         scope=payload.scope,
@@ -313,6 +319,7 @@ def get_pairwise_detail(session: Session, comparison_id: int) -> PairwiseDetailO
                 v,
                 rag_status_a=rag_a.get(v.sample_id, "unknown"),
                 rag_status_b=rag_b.get(v.sample_id, "unknown"),
+                scoring_standard=comp.scoring_standard,
             )
             for v in verdicts
         ],
@@ -336,10 +343,21 @@ def calibrate_pairwise_verdict(
         raise HTTPException(status_code=422, detail="仅已完成的对比可人工校准")
     row = _get_verdict_or_404(session, comparison_id, sample_id)
 
+    dimensions = scoring_dimension_keys(comp.scoring_standard)
+    unknown = sorted(set(payload.dimension_winners) - set(dimensions))
+    if unknown:
+        raise HTTPException(
+            status_code=422,
+            detail=f"当前评分标准不包含维度：{', '.join(unknown)}",
+        )
+    allow_na = normalize_scoring_standard(
+        comp.scoring_standard
+    ) == ScoringStandard.MODEL_COMPARISON.value
+    valid_values = ("A", "B", "tie", "na") if allow_na else ("A", "B", "tie")
     dims: dict[str, str] = {}
-    for dim in _DIMENSIONS:
+    for dim in dimensions:
         val = (payload.dimension_winners or {}).get(dim, "tie")
-        if val not in ("A", "B", "tie"):
+        if val not in valid_values:
             val = "tie"
         dims[dim] = val
 
@@ -351,7 +369,7 @@ def calibrate_pairwise_verdict(
     row.human_calibrated_at = datetime.utcnow()
     session.flush()
     recompute_pairwise_summary(session, comparison_id)
-    return pairwise_verdict_to_out(row)
+    return pairwise_verdict_to_out(row, scoring_standard=comp.scoring_standard)
 
 
 def reset_pairwise_calibration(
@@ -369,4 +387,4 @@ def reset_pairwise_calibration(
     row.human_calibrated_at = None
     session.flush()
     recompute_pairwise_summary(session, comparison_id)
-    return pairwise_verdict_to_out(row)
+    return pairwise_verdict_to_out(row, scoring_standard=comp.scoring_standard)

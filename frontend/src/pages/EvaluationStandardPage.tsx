@@ -5,8 +5,9 @@ import {
   SafetyCertificateOutlined,
   SyncOutlined,
 } from "@ant-design/icons";
-import { Alert, Collapse, Spin } from "antd";
-import type { ReactNode } from "react";
+import { Alert, Card, Col, Collapse, Row, Spin, Tabs, Tag } from "antd";
+import { useState, type ReactNode } from "react";
+import type { EvaluationStandard } from "../api";
 import { AsyncLoadError } from "../components/AsyncLoadError";
 import { DashboardPageShell } from "../components/DashboardPageShell";
 import { useEvaluationStandardPage } from "../hooks/useEvaluationStandardPage";
@@ -59,8 +60,112 @@ const ENHANCEMENTS = [
   },
 ];
 
+function ModelComparisonStandard({
+  standard,
+}: {
+  standard: EvaluationStandard["model_comparison"];
+}) {
+  return (
+    <div className="evaluation-standard-comparison">
+      <section className="evaluation-standard-hero" aria-label="模型对比评分体系总览">
+        <div className="evaluation-standard-total">
+          <span className="evaluation-standard-eyebrow">PAIRWISE STANDARD</span>
+          <strong className="evaluation-standard-total__value mono">8</strong>
+          <span className="evaluation-standard-total__unit">维</span>
+          <p>逐题相对比较；不覆盖 CX 八维绝对分与上线门禁。</p>
+        </div>
+        <div className="evaluation-standard-roles">
+          <article className="evaluation-standard-role-summary">
+            <div className="evaluation-standard-role-icon evaluation-standard-role-icon--doctor">
+              <SyncOutlined />
+            </div>
+            <div>
+              <span>双盲换序</span>
+              <strong>交换 A / B 再评一次</strong>
+              <small>换序不一致时降低置信</small>
+            </div>
+          </article>
+          <article className="evaluation-standard-role-summary">
+            <div className="evaluation-standard-role-icon evaluation-standard-role-icon--nurse">
+              <CheckCircleFilled />
+            </div>
+            <div>
+              <span>等权决策</span>
+              <strong>A / B / 持平 / N/A</strong>
+              <small>N/A 不计入分母</small>
+            </div>
+          </article>
+          <article className="evaluation-standard-role-summary">
+            <div className="evaluation-standard-role-icon evaluation-standard-role-icon--user">
+              <HeartOutlined />
+            </div>
+            <div>
+              <span>性能观测</span>
+              <strong>TTFT / 延迟 / Token</strong>
+              <small>仅展示，不参与胜负</small>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <Alert
+        type="info"
+        showIcon
+        className="evaluation-standard-gate-alert"
+        message="模型能力与响应性能分开判断"
+        description={standard.ttft_rule}
+      />
+
+      <Row gutter={[16, 16]}>
+        {standard.dimensions.map((dimension, index) => (
+          <Col xs={24} lg={12} key={dimension.key}>
+            <Card className="evaluation-standard-comparison-card">
+              <div className="evaluation-standard-dimension__identity">
+                <span className="evaluation-standard-dimension__number mono">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <div>
+                  <h3>{dimension.label}</h3>
+                  <Tag color={dimension.applicability === "所有用例" ? "blue" : "default"}>
+                    {dimension.applicability}
+                  </Tag>
+                </div>
+              </div>
+              <p>{dimension.description}</p>
+            </Card>
+          </Col>
+        ))}
+      </Row>
+
+      <section className="evaluation-standard-enhancements">
+        <div>
+          <span className="evaluation-standard-eyebrow">DECISION RULE</span>
+          <h2>严谨对比规则</h2>
+          <p>{standard.overall_rule}</p>
+        </div>
+        <Collapse
+          ghost
+          expandIconPosition="end"
+          items={[
+            { key: "blind", label: "双盲换序与位置偏差控制", children: <p>{standard.blind_rule}</p> },
+            { key: "ttft", label: "TTFT 与资源消耗", children: <p>{standard.ttft_rule}</p> },
+            {
+              key: "values",
+              label: "逐维结论",
+              children: (
+                <p>{standard.values.map((item) => `${item.label}`).join("、")}；只有具备充分证据时才判一侧更好。</p>
+              ),
+            },
+          ]}
+        />
+      </section>
+    </div>
+  );
+}
+
 export default function EvaluationStandardPage() {
   const { data, error, loading, reload } = useEvaluationStandardPage();
+  const [activeStandard, setActiveStandard] = useState("cx_eight_dimension");
 
   if (loading) {
     return (
@@ -84,8 +189,8 @@ export default function EvaluationStandardPage() {
 
   return (
     <DashboardPageShell
-      title="八维评分标准"
-      sub="实际判分、Pairwise 对比和本页面共用同一份标准；服务端更新后，页面会自动同步。"
+      title="评分标准"
+      sub="CX 八维用于产品质量与上线门禁；模型对比八维用于公平比较不同基座能力。"
       extra={
         <span className="status-dot status-dot--pass evaluation-standard-sync">
           <SyncOutlined />
@@ -93,6 +198,19 @@ export default function EvaluationStandardPage() {
         </span>
       }
     >
+      <Tabs
+        activeKey={activeStandard}
+        onChange={setActiveStandard}
+        items={[
+          { key: "cx_eight_dimension", label: "CX 八维评分" },
+          { key: "model_comparison", label: "模型对比八维" },
+        ]}
+      />
+
+      {activeStandard === "model_comparison" ? (
+        <ModelComparisonStandard standard={data.model_comparison} />
+      ) : (
+        <>
       <section className="evaluation-standard-hero" aria-label="评分体系总览">
         <div className="evaluation-standard-total">
           <span className="evaluation-standard-eyebrow">TOTAL SCORE</span>
@@ -266,6 +384,8 @@ export default function EvaluationStandardPage() {
         <CheckCircleFilled />
         页面内容由服务端当前评分定义实时生成，无需在前端重复维护判据文案。
       </p>
+        </>
+      )}
     </DashboardPageShell>
   );
 }

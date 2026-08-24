@@ -272,6 +272,7 @@ async def launch_scheduled_evaluation(
                 benchmark_id=task.benchmark_id,
                 run_name=" · ".join(run_name_parts),
                 evaluation_mode=task.evaluation_mode,
+                scoring_standard=task.scoring_standard,
                 levels=task.levels or [],
                 limit=task.limit,
                 repeat=task.repeat,

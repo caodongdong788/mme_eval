@@ -8,6 +8,7 @@ import {
   type RunSummary,
 } from "../api/index";
 import { formatApiError } from "../utils/apiError";
+import { normalizeScoringStandard, scoringStandardLabel } from "../utils/scoringStandards";
 import { useAsyncData } from "./useAsyncData";
 import { usePollingTask } from "./usePollingTask";
 
@@ -21,7 +22,7 @@ export const PAIRWISE_SUBJECT_LABELS: Record<string, string> = {
 };
 
 function runLabel(r: RunSummary): string {
-  return `#${r.id} · ${r.name}`;
+  return `#${r.id} · ${r.name} · ${scoringStandardLabel(r.scoring_standard)}`;
 }
 
 export function usePairwisePage() {
@@ -68,7 +69,12 @@ export function usePairwisePage() {
   }, [runA, runB]);
 
   const runOptions = useMemo(
-    () => runs.map((r) => ({ value: r.id, label: runLabel(r), disabled: !r.has_traces })),
+    () => runs.map((r) => ({
+      value: r.id,
+      label: runLabel(r),
+      disabled: !r.has_traces,
+      scoringStandard: normalizeScoringStandard(r.scoring_standard),
+    })),
     [runs]
   );
 

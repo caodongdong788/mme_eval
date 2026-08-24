@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Button,
@@ -16,10 +16,19 @@ import {
 } from "antd";
 import { ArrowRightOutlined, ReloadOutlined, SaveOutlined } from "@ant-design/icons";
 import { Link } from "react-router-dom";
-import { api, type PairwiseCalibratePayload, type PairwiseCaseVerdict } from "../api/index";
-import { DIM_LABEL, EVALUATION_DIMENSIONS } from "../labels";
+import {
+  api,
+  type PairwiseCalibratePayload,
+  type PairwiseCaseVerdict,
+  type ScoringStandard,
+} from "../api/index";
 import { usePairwiseExpandedMessages } from "../hooks/usePairwiseExpandedMessages";
 import { formatApiError } from "../utils/apiError";
+import {
+  normalizeScoringStandard,
+  pairwiseDimensionKeys,
+  pairwiseDimensionLabel,
+} from "../utils/scoringStandards";
 import { ConversationThread } from "./ConversationThread";
 import { CxReplayEmbed } from "./CxReplayEmbed";
 import { PairwiseConfidenceTag, PairwiseVerdictTag } from "./PairwiseVerdictTags";
@@ -32,15 +41,27 @@ const SIDE_OPTIONS = [
   { value: "tie", label: "持平" },
 ];
 
-function DimensionVerdictTags({ dimensions }: { dimensions: Record<string, string> }) {
+function sideOptions(scoringStandard: ScoringStandard) {
+  return normalizeScoringStandard(scoringStandard) === "model_comparison"
+    ? [...SIDE_OPTIONS, { value: "na", label: "不适用" }]
+    : SIDE_OPTIONS;
+}
+
+function DimensionVerdictTags({
+  dimensions,
+  scoringStandard,
+}: {
+  dimensions: Record<string, string>;
+  scoringStandard: ScoringStandard;
+}) {
   return (
     <Space size={[4, 4]} wrap>
-      {EVALUATION_DIMENSIONS.map((dimension) => {
+      {pairwiseDimensionKeys(scoringStandard).map((dimension) => {
         const winner = dimensions[dimension] || "tie";
-        const label = winner === "A" ? "A 更好" : winner === "B" ? "B 更好" : "持平";
+        const label = winner === "A" ? "A 更好" : winner === "B" ? "B 更好" : winner === "na" ? "不适用" : "持平";
         return (
           <Tag key={dimension} color={winner === "B" ? "green" : winner === "A" ? "default" : undefined}>
-            {DIM_LABEL[dimension]}：{label}
+            {pairwiseDimensionLabel(dimension)}：{label}
           </Tag>
         );
       })}
@@ -48,26 +69,41 @@ function DimensionVerdictTags({ dimensions }: { dimensions: Record<string, strin
   );
 }
 
-function DimensionDecisionSummary({ verdict }: { verdict: PairwiseCaseVerdict }) {
+function DimensionDecisionSummary({
+  verdict,
+  scoringStandard,
+}: {
+  verdict: PairwiseCaseVerdict;
+  scoringStandard: ScoringStandard;
+}) {
   const dimensions = verdict.dimension_winners || {};
-  const aCount = EVALUATION_DIMENSIONS.filter((dimension) => dimensions[dimension] === "A").length;
-  const bCount = EVALUATION_DIMENSIONS.filter((dimension) => dimensions[dimension] === "B").length;
-  const tieCount = EVALUATION_DIMENSIONS.length - aCount - bCount;
+  const dimensionKeys = pairwiseDimensionKeys(scoringStandard);
+  const aCount = dimensionKeys.filter((dimension) => dimensions[dimension] === "A").length;
+  const bCount = dimensionKeys.filter((dimension) => dimensions[dimension] === "B").length;
+  const naCount = dimensionKeys.filter((dimension) => dimensions[dimension] === "na").length;
+  const tieCount = dimensionKeys.length - aCount - bCount - naCount;
   const safetyWinner = dimensions.medical_safety;
   const overall = verdict.winner === "A" ? "A 更好" : verdict.winner === "B" ? "B 更好" : "持平";
-  const rule = safetyWinner === "A" || safetyWinner === "B"
+  const isModelComparison = normalizeScoringStandard(scoringStandard) === "model_comparison";
+  const rule = !isModelComparison && (safetyWinner === "A" || safetyWinner === "B")
     ? `医学安全性由 ${safetyWinner} 胜出，安全优先，因此总胜方为 ${overall}`
-    : `A 胜 ${aCount} 项、B 胜 ${bCount} 项、持平 ${tieCount} 项，因此总胜方为 ${overall}`;
+    : `A 胜 ${aCount} 项、B 胜 ${bCount} 项、持平 ${tieCount} 项${naCount ? `、不适用 ${naCount} 项` : ""}，因此总胜方为 ${overall}`;
   return (
     <div className="pairwise-order-resolution">
-      <Text strong>有效八维结论（用于决定总胜方）</Text>
-      <DimensionVerdictTags dimensions={dimensions} />
+      <Text strong>有效维度结论（用于决定总胜方）</Text>
+      <DimensionVerdictTags dimensions={dimensions} scoringStandard={scoringStandard} />
       <Text type="secondary">{rule}</Text>
     </div>
   );
 }
 
-function VerdictReason({ verdict }: { verdict: PairwiseCaseVerdict }) {
+function VerdictReason({
+  verdict,
+  scoringStandard,
+}: {
+  verdict: PairwiseCaseVerdict;
+  scoringStandard: ScoringStandard;
+}) {
   const orderSensitive =
     !verdict.human_calibrated && verdict.confidence_kind === "order";
   const attempts = verdict.order_runs || [];
@@ -95,15 +131,15 @@ function VerdictReason({ verdict }: { verdict: PairwiseCaseVerdict }) {
               <Paragraph>{attempt.reason || "未提供理由"}</Paragraph>
               {attempt.dimension_winners && Object.keys(attempt.dimension_winners).length > 0 && (
                 <div className="pairwise-order-attempt__dimensions">
-                  <Text type="secondary">本次八维判断</Text>
-                  <DimensionVerdictTags dimensions={attempt.dimension_winners} />
+                  <Text type="secondary">本次维度判断</Text>
+                  <DimensionVerdictTags dimensions={attempt.dimension_winners} scoringStandard={scoringStandard} />
                 </div>
               )}
             </div>
           ))}
           {hasDimensionTrace ? (
             <>
-              <DimensionDecisionSummary verdict={verdict} />
+              <DimensionDecisionSummary verdict={verdict} scoringStandard={scoringStandard} />
               <Text type="secondary">
                 同一维度若两次分别判 A、B 胜出，则该维度按持平处理；一胜一持平会保留胜方，但标记为低置信。
               </Text>
@@ -191,6 +227,7 @@ export function PairwiseCaseDetailDrawer({
   runBId,
   runAName,
   runBName,
+  scoringStandard,
   onClose,
   onSaved,
 }: {
@@ -201,11 +238,20 @@ export function PairwiseCaseDetailDrawer({
   runBId: number;
   runAName: string;
   runBName: string;
+  scoringStandard: ScoringStandard;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [form] = Form.useForm<PairwiseCalibratePayload>();
   const [saving, setSaving] = useState(false);
+  const dimensions = useMemo(
+    () => pairwiseDimensionKeys(scoringStandard),
+    [scoringStandard],
+  );
+  const dimensionOptions = useMemo(
+    () => sideOptions(scoringStandard),
+    [scoringStandard],
+  );
   const sampleId = verdict?.sample_id || "";
   const { messagesA, messagesB, replayUrlA, replayUrlB } = usePairwiseExpandedMessages(
     runAId,
@@ -219,13 +265,13 @@ export function PairwiseCaseDetailDrawer({
       winner: verdict.winner,
       reason: verdict.reason,
       dimension_winners: Object.fromEntries(
-        EVALUATION_DIMENSIONS.map((dimension) => [
+        dimensions.map((dimension) => [
           dimension,
-          (verdict.dimension_winners?.[dimension] as "A" | "B" | "tie") || "tie",
+          (verdict.dimension_winners?.[dimension] as "A" | "B" | "tie" | "na") || "tie",
         ]),
       ),
     });
-  }, [form, open, verdict]);
+  }, [dimensions, form, open, verdict]);
 
   const save = async () => {
     if (!verdict) return;
@@ -307,7 +353,7 @@ export function PairwiseCaseDetailDrawer({
                 description={verdict.auto_reason || undefined}
               />
             )}
-            <VerdictReason verdict={verdict} />
+            <VerdictReason verdict={verdict} scoringStandard={scoringStandard} />
             <div className="pairwise-calibration">
               <div className="pairwise-calibration__head">
                 <Text strong>人工校准（下方默认值为机器有效结论）</Text>
@@ -318,13 +364,13 @@ export function PairwiseCaseDetailDrawer({
                   <Radio.Group optionType="button" buttonStyle="solid" options={SIDE_OPTIONS} />
                 </Form.Item>
                 <div className="pairwise-calibration__dimensions">
-                  {EVALUATION_DIMENSIONS.map((dimension) => (
+                  {dimensions.map((dimension) => (
                     <Form.Item
                       key={dimension}
                       name={["dimension_winners", dimension]}
-                      label={DIM_LABEL[dimension]}
+                      label={pairwiseDimensionLabel(dimension)}
                     >
-                      <Select size="small" options={SIDE_OPTIONS} />
+                      <Select size="small" options={dimensionOptions} />
                     </Form.Item>
                   ))}
                 </div>
