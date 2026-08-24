@@ -17,6 +17,7 @@ export const PAIRWISE_SUBJECT_LABELS: Record<string, string> = {
   system_prompt: "系统提示",
   adapter_type: "适配器类型",
   enable_rag: "医学文献 RAG 开关",
+  enable_system_prompt: "cx-agent 系统提示词开关",
 };
 
 function runLabel(r: RunSummary): string {

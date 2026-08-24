@@ -30,6 +30,7 @@ def test_real_config_uses_only_new_judges() -> None:
 def test_repository_cx_agent_uses_current_sit_origin() -> None:
     cfg = load_config(REPO_ROOT / "config.yaml")
     assert cfg.adapter.cx_agent.base_url == "https://sit-cx.senzco.com"
+    assert cfg.adapter.cx_agent.enable_system_prompt is True
 
 
 def test_minimal_config_fills_new_defaults() -> None:

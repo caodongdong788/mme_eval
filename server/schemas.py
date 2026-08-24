@@ -199,6 +199,8 @@ class AdapterOverride(BaseModel):
     temperature: Optional[float] = None
     # cx-agent 专用：本次评测是否暴露医学文献 RAG 工具。
     enable_rag: Optional[bool] = None
+    # cx-agent 专用：本次评测是否启用系统提示词；默认由配置决定。
+    enable_system_prompt: Optional[bool] = None
 
     def public_dict(self) -> dict[str, Any]:
         d = self.model_dump(exclude_none=True)
@@ -236,6 +238,7 @@ class ScheduledEvaluationCreate(BaseModel):
     limit: int = Field(default=0, ge=0)
     repeat: int = Field(default=1, ge=1)
     enable_rag: bool = False
+    enable_system_prompt: bool = True
     enable_judge: bool = True
     judge_model_id: Optional[int] = None
     user_simulator_model_id: Optional[int] = None
@@ -296,6 +299,7 @@ class ScheduledEvaluationUpdate(BaseModel):
     limit: Optional[int] = Field(default=None, ge=0)
     repeat: Optional[int] = Field(default=None, ge=1)
     enable_rag: Optional[bool] = None
+    enable_system_prompt: Optional[bool] = None
     enable_judge: Optional[bool] = None
     judge_model_id: Optional[int] = None
     user_simulator_model_id: Optional[int] = None

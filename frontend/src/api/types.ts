@@ -179,6 +179,7 @@ export interface ScheduledEvaluation {
   limit: number;
   repeat: number;
   enable_rag: boolean;
+  enable_system_prompt: boolean;
   enable_judge: boolean;
   judge_model_id?: number | null;
   user_simulator_model_id?: number | null;
@@ -597,6 +598,7 @@ export interface RunCreatePayload {
     system_prompt?: string;
     api_key?: string;
     enable_rag?: boolean;
+    enable_system_prompt?: boolean;
   };
   judge_model_id?: number;
   user_simulator_model_id?: number;

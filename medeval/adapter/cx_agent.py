@@ -189,6 +189,7 @@ class CxAgentAdapter(BaseAdapter):
         stateful_account_capacity: int = 8,
         per_run_account_limit: int = 2,
         enable_rag: bool = False,
+        enable_system_prompt: bool = True,
     ):
         token = test_token or os.environ.get(test_token_env, "")
         if not token:
@@ -202,6 +203,7 @@ class CxAgentAdapter(BaseAdapter):
         self._sessions: dict[str, str] = {}
         self._isolated_accounts = isolated_accounts
         self._enable_rag = enable_rag
+        self._enable_system_prompt = enable_system_prompt
         self._leases: dict[str, dict[str, Any]] = {}
         self._account_slots: dict[str, tuple[AccountPool, str]] = {}
         self._lease_locks: dict[str, asyncio.Lock] = {}
@@ -279,7 +281,11 @@ class CxAgentAdapter(BaseAdapter):
             return ChatResponse(reply="", error=f"cx_agent account lease error: {e}")
 
         # 明确携带开关，保证 RAG / 非 RAG 两次 run 的请求语义可追溯、可复现。
-        body: dict[str, Any] = {"content": content, "enableRag": self._enable_rag}
+        body: dict[str, Any] = {
+            "content": content,
+            "enableRag": self._enable_rag,
+            "enableSystemPrompt": self._enable_system_prompt,
+        }
         if req.images:
             body["images"] = list(req.images)
         if cx_session_id:
@@ -341,6 +347,7 @@ class CxAgentAdapter(BaseAdapter):
             raw = {
                 "input_sanitization": input_sanitization,
                 "rag_enabled": self._enable_rag,
+                "system_prompt_enabled": self._enable_system_prompt,
             }
             return ChatResponse(reply="", raw=raw, error=f"cx_agent error: {e}")
 
@@ -350,6 +357,7 @@ class CxAgentAdapter(BaseAdapter):
                 raw={
                     "input_sanitization": input_sanitization,
                     "rag_enabled": self._enable_rag,
+                    "system_prompt_enabled": self._enable_system_prompt,
                 },
                 error="cx_agent error: empty SSE response",
             )
@@ -387,6 +395,7 @@ class CxAgentAdapter(BaseAdapter):
             "events": raw_events,
             "cx_session_id": cx_session_id,
             "rag_enabled": self._enable_rag,
+            "system_prompt_enabled": self._enable_system_prompt,
         }
         if ttft_ms is not None:
             raw["ttft_ms"] = ttft_ms
@@ -426,6 +435,12 @@ class CxAgentAdapter(BaseAdapter):
             return ChatResponse(reply="", raw=raw, error=error)
         if not saw_message_end:
             return ChatResponse(reply="", raw=raw, error="cx_agent error: missing message_end")
+        if not self._enable_system_prompt and evaluation_context.get("enableSystemPrompt") is not False:
+            return ChatResponse(
+                reply="",
+                raw=raw,
+                error="cx_agent error: system prompt switch was not acknowledged",
+            )
         # 与 CX 页面一致：内部标题分类标签不属于最终用户可见回答，也不应进入
         # 后续的八维/指南判分或作为下一轮上下文。
         return ChatResponse(

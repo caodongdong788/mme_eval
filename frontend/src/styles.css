@@ -2284,10 +2284,19 @@ a.ant-typography-secondary:hover {
   color: var(--runs-text-muted);
   font-size: 13px;
 }
+.scheduled-evaluation-switches {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
 @media (max-width: 720px) {
   .scheduled-evaluation-head {
     align-items: flex-start;
     flex-direction: column;
+  }
+  .scheduled-evaluation-switches {
+    grid-template-columns: 1fr;
+    gap: 0;
   }
 }
 

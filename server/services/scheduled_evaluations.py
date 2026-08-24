@@ -276,7 +276,10 @@ async def launch_scheduled_evaluation(
                 limit=task.limit,
                 repeat=task.repeat,
                 judge=JudgeOverride(enabled=task.enable_judge),
-                adapter=AdapterOverride(enable_rag=task.enable_rag),
+                adapter=AdapterOverride(
+                    enable_rag=task.enable_rag,
+                    enable_system_prompt=task.enable_system_prompt,
+                ),
                 judge_model_id=task.judge_model_id,
                 user_simulator_model_id=(
                     task.user_simulator_model_id if task.evaluation_mode == "multi_turn" else None

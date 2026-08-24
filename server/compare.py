@@ -94,7 +94,7 @@ def pairwise_subject_diff(run_a: EvalRun, run_b: EvalRun) -> dict[str, Any]:
     diff: dict[str, Any] = {}
     ov_a = run_a.adapter_overrides or {}
     ov_b = run_b.adapter_overrides or {}
-    for key in ("model", "base_url", "system_prompt", "enable_rag"):
+    for key in ("model", "base_url", "system_prompt", "enable_rag", "enable_system_prompt"):
         va, vb = ov_a.get(key), ov_b.get(key)
         if va != vb:
             diff[key] = {"a": va, "b": vb}

@@ -105,7 +105,10 @@ export function useLaunchPage() {
       limit: (values.limit as number) || 0,
       repeat: (values.repeat as number) || undefined,
       judge: { enabled: values.judge_enabled as boolean },
-      adapter: { enable_rag: values.enable_rag as boolean },
+      adapter: {
+        enable_rag: values.enable_rag as boolean,
+        enable_system_prompt: values.enable_system_prompt as boolean,
+      },
       judge_model_id: (values.judge_model_id as number) || undefined,
       user_simulator_model_id:
         values.evaluation_mode === "multi_turn"

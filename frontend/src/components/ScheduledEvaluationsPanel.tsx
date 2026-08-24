@@ -60,7 +60,7 @@ export function ScheduledEvaluationsPanel() {
     form.setFieldsValue({
       enabled: true, schedule_kind: "daily", schedule_time: clockValue("09:00"),
       evaluation_mode: "single_turn", levels: [], limit: 0, repeat: 1,
-      enable_rag: false, enable_judge: true, weekdays: [],
+      enable_rag: false, enable_system_prompt: true, enable_judge: true, weekdays: [],
       auto_attribution_enabled: false, auto_attribution_grades: ["不合格"], auto_attribution_model_id: null,
     });
     setOpen(true);
@@ -83,7 +83,9 @@ export function ScheduledEvaluationsPanel() {
       weekdays: (values.schedule_kind === "weekly" ? values.weekdays : []) as number[],
       evaluation_mode: values.evaluation_mode as "single_turn" | "multi_turn",
       levels: (values.levels as string[]) || [], limit: Number(values.limit || 0), repeat: Number(values.repeat || 1),
-      enable_rag: Boolean(values.enable_rag), enable_judge: Boolean(values.enable_judge),
+      enable_rag: Boolean(values.enable_rag),
+      enable_system_prompt: Boolean(values.enable_system_prompt),
+      enable_judge: Boolean(values.enable_judge),
       judge_model_id: values.enable_judge ? Number(values.judge_model_id) || null : null,
       user_simulator_model_id: values.evaluation_mode === "multi_turn" ? Number(values.user_simulator_model_id) || null : null,
       auto_attribution_enabled: Boolean(values.auto_attribution_enabled && values.enable_judge),
@@ -127,7 +129,7 @@ export function ScheduledEvaluationsPanel() {
     { title: "Benchmark", dataIndex: "benchmark_id", render: (id: number) => benchmarks.find((item) => item.id === id)?.name || `#${id}` },
     { title: "触发频率", width: 190, render: (_: unknown, row: ScheduledEvaluation) => scheduleLabel(row) },
     { title: "状态", width: 110, render: (_: unknown, row: ScheduledEvaluation) => <Switch checked={row.enabled} checkedChildren="启用" unCheckedChildren="停用" onChange={(checked) => void toggle(row, checked)} /> },
-    { title: "运行参数", width: 330, render: (_: unknown, row: ScheduledEvaluation) => <Space size={4} wrap><Tag>{row.evaluation_mode === "multi_turn" ? "多轮" : "单轮"}</Tag><Tag color={row.enable_rag ? "green" : "default"}>RAG {row.enable_rag ? "开" : "关"}</Tag><Tag>N={row.repeat}</Tag>{row.enable_judge && <Tag color="purple">判分</Tag>}{row.auto_attribution_enabled && <Tag color="gold">自动归因：不合格</Tag>}</Space> },
+    { title: "运行参数", width: 390, render: (_: unknown, row: ScheduledEvaluation) => <Space size={4} wrap><Tag>{row.evaluation_mode === "multi_turn" ? "多轮" : "单轮"}</Tag><Tag color={row.enable_system_prompt ? "blue" : "default"}>系统提示词 {row.enable_system_prompt ? "开" : "关"}</Tag><Tag color={row.enable_rag ? "green" : "default"}>RAG {row.enable_rag ? "开" : "关"}</Tag><Tag>N={row.repeat}</Tag>{row.enable_judge && <Tag color="purple">判分</Tag>}{row.auto_attribution_enabled && <Tag color="gold">自动归因：不合格</Tag>}</Space> },
     { title: "下次执行", dataIndex: "next_run_at", width: 170, render: (value: string) => formatApiDateTime(value) },
     { title: "上次执行", dataIndex: "last_run_at", width: 170, render: (value: string, row: ScheduledEvaluation) => row.last_error ? <Tooltip title={row.last_error}><span className="runs-table__danger">触发失败</span></Tooltip> : formatApiDateTime(value) },
     {
@@ -163,8 +165,11 @@ export function ScheduledEvaluationsPanel() {
         {evaluationMode === "multi_turn" && <Form.Item name="user_simulator_model_id" label="语义追问模型"><Select allowClear options={models.map((item) => ({ value: item.id, label: `${item.name} · ${item.model}${item.has_api_key ? "" : "（未配 Key）"}` }))} /></Form.Item>}
         <Form.Item name="levels" label="Level 筛选（不选则全部）"><Checkbox.Group options={(selectedBenchmark?.levels || []).map((value) => ({ value, label: value }))} /></Form.Item>
         <Space size={24} wrap><Form.Item name="repeat" label="重复次数（N）"><InputNumber min={1} /></Form.Item><Form.Item name="limit" label="限制条数（0=全部）"><InputNumber min={0} /></Form.Item></Space>
-        <Form.Item name="enable_rag" label="启用医学文献 RAG" valuePropName="checked"><Switch /></Form.Item>
-        <Form.Item name="enable_judge" label="启用 LLM 判分" valuePropName="checked"><Switch /></Form.Item>
+        <div className="scheduled-evaluation-switches">
+          <Form.Item name="enable_system_prompt" label="启用 cx-agent 系统提示词" valuePropName="checked" extra="关闭后不向模型发送系统角色提示词；默认开启。"><Switch /></Form.Item>
+          <Form.Item name="enable_rag" label="启用医学文献 RAG" valuePropName="checked"><Switch /></Form.Item>
+          <Form.Item name="enable_judge" label="启用 LLM 判分" valuePropName="checked"><Switch /></Form.Item>
+        </div>
         <Form.Item name="judge_model_id" label="打分模型"><Select allowClear disabled={!judgeEnabled} placeholder={judgeEnabled ? "不选则使用平台默认" : "已关闭 LLM 判分"} options={models.map((item) => ({ value: item.id, label: `${item.name} · ${item.model}${item.has_api_key ? "" : "（未配 Key）"}` }))} /></Form.Item>
         <Form.Item name="auto_attribution_enabled" label="自动归因不合格 Case" valuePropName="checked" extra="仅定时评测生效。归因模型与判分模型不同时，每完成一个不合格 Case 就立即加入同一个归因任务；合格、良好、优秀自动跳过。"><Switch disabled={!judgeEnabled} /></Form.Item>
         {autoAttributionEnabled && <Form.Item name="auto_attribution_model_id" label="归因模型" rules={[{ required: true, message: "请选择归因模型" }]}><Select options={models.map((item) => ({ value: item.id, label: `${item.name} · ${item.model}${item.has_api_key ? "" : "（未配 Key）"}` }))} placeholder="选择用于归因分析的模型" /></Form.Item>}

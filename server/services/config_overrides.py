@@ -26,6 +26,7 @@ ADAPTER_OVERRIDE_KEYS = (
     "api_key",
     "temperature",
     "enable_rag",
+    "enable_system_prompt",
 )
 
 
@@ -54,11 +55,13 @@ def apply_user_simulator_overrides(
 def apply_adapter_overrides(config: Config, adapter: dict[str, Any] | None) -> None:
     if not adapter:
         return
-    # cx-agent 的 RAG 开关属于测试路由能力，不应混入 OpenAI 兼容 adapter。
+    # cx-agent 的 RAG / 系统提示词开关属于测试路由能力，不应混入 OpenAI 兼容 adapter。
     if config.adapter.type == "cx_agent":
         cx_agent = config.adapter.cx_agent
         if cx_agent is not None and isinstance(adapter.get("enable_rag"), bool):
             cx_agent.enable_rag = adapter["enable_rag"]
+        if cx_agent is not None and isinstance(adapter.get("enable_system_prompt"), bool):
+            cx_agent.enable_system_prompt = adapter["enable_system_prompt"]
         return
 
     oc = config.adapter.openai_compat

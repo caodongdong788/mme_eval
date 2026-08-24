@@ -32,6 +32,7 @@ def test_scheduled_evaluation_crud_and_next_run(client, session):
         "limit": 0,
         "repeat": 2,
         "enable_rag": True,
+        "enable_system_prompt": False,
         "enable_judge": False,
     }
     response = client.post("/api/scheduled-evaluations", json=payload)
@@ -39,6 +40,7 @@ def test_scheduled_evaluation_crud_and_next_run(client, session):
     task = response.json()
     assert task["enabled"] is True
     assert task["schedule_time"] == "09:30"
+    assert task["enable_system_prompt"] is False
     assert task["next_run_at"]
 
     response = client.patch(f"/api/scheduled-evaluations/{task['id']}", json={"enabled": False})
@@ -63,7 +65,12 @@ def test_schedule_can_run_immediately_as_a_regression_task(client, session, monk
     session.add(benchmark)
     session.commit()
     task = ScheduledEvaluation(
-        name="立即回归", benchmark_id=benchmark.id, enable_judge=False, enable_rag=True, repeat=2
+        name="立即回归",
+        benchmark_id=benchmark.id,
+        enable_judge=False,
+        enable_rag=True,
+        enable_system_prompt=False,
+        repeat=2,
     )
     session.add(task)
     session.commit()
@@ -93,6 +100,7 @@ def test_schedule_can_run_immediately_as_a_regression_task(client, session, monk
     assert run.scheduled_evaluation_id == task.id
     assert run.n_runs == 2
     assert run.adapter_overrides["enable_rag"] is True
+    assert run.adapter_overrides["enable_system_prompt"] is False
     assert captured["run_id"] == run.id
 
 

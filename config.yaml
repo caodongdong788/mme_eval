@@ -49,6 +49,7 @@ adapter:
     test_token: ""             # 本地临时调试可填；不要提交真实 token
     timeout_s: 120
     isolated_accounts: true     # 普通/长期记忆 Case 分别使用独立的 8 个账号池
+    enable_system_prompt: true  # 默认携带 cx-agent 系统提示词；每次评测可单独关闭
     # 账号租约由 cx-agent 服务实际发放；MME 按以下容量全局排队，防止多个任务抢空账号池。
     stateless_account_capacity: 8
     stateful_account_capacity: 8

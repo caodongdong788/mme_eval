@@ -342,6 +342,7 @@ class ScheduledEvaluation(Base):
     limit: Mapped[int] = mapped_column(Integer, default=0)
     repeat: Mapped[int] = mapped_column(Integer, default=1)
     enable_rag: Mapped[bool] = mapped_column(Boolean, default=False)
+    enable_system_prompt: Mapped[bool] = mapped_column(Boolean, default=True)
     enable_judge: Mapped[bool] = mapped_column(Boolean, default=True)
     judge_model_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     user_simulator_model_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

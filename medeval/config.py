@@ -137,6 +137,8 @@ class CxAgentCfg(_Strict):
     per_run_account_limit: int = Field(default=2, ge=1)
     # 仅影响 cx-agent 测试接口是否向模型暴露医学文献 RAG 工具；不影响画像、长期记忆或聊天历史。
     enable_rag: bool = False
+    # 仅影响 cx-agent 测试接口是否携带系统角色提示词；默认开启以保持历史评测行为。
+    enable_system_prompt: bool = True
 
 
 class AdapterCfg(_Strict):

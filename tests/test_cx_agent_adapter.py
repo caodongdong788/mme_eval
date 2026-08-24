@@ -69,7 +69,9 @@ def test_cx_agent_adapter_parses_sse_reply_and_session():
     assert resp.raw["cx_evaluation_share_url"] == (
         "http://cx.local/s/11111111-1111-1111-1111-111111111111?cx_ui_release=current"
     )
-    assert seen == [{"content": "乳房疼痛怎么办", "enableRag": False}]
+    assert seen == [
+        {"content": "乳房疼痛怎么办", "enableRag": False, "enableSystemPrompt": True}
+    ]
     asyncio.run(adapter.close())
 
 
@@ -161,8 +163,13 @@ def test_cx_agent_adapter_reuses_cx_session_for_same_mme_session():
     assert asyncio.run(adapter.chat(first)).reply == "reply-1"
     assert asyncio.run(adapter.chat(second)).reply == "reply-2"
     assert bodies == [
-        {"content": "第一轮", "enableRag": False},
-        {"content": "第二轮", "enableRag": False, "sessionId": "cx-new"},
+        {"content": "第一轮", "enableRag": False, "enableSystemPrompt": True},
+        {
+            "content": "第二轮",
+            "enableRag": False,
+            "enableSystemPrompt": True,
+            "sessionId": "cx-new",
+        },
     ]
     asyncio.run(adapter.close())
 
@@ -235,6 +242,7 @@ def test_cx_agent_adapter_sends_turn_images_in_dedicated_field():
         {
             "content": "请解读这份报告",
             "enableRag": False,
+            "enableSystemPrompt": True,
             "images": ["data:image/jpeg;base64,aGVsbG8="],
         }
     ]
@@ -499,6 +507,7 @@ def test_cx_agent_adapter_leases_blank_account_and_exposes_trace_context(
             {
                 "content": "这是全新账户吗",
                 "enableRag": False,
+                "enableSystemPrompt": True,
                 "testUserId": "00000000-0000-0000-0000-000000000201",
                 "evaluationLeaseId": "mme-isolated-1",
                 "evalRunId": "run-1",
@@ -583,19 +592,58 @@ def test_cx_agent_adapter_sends_explicit_rag_flag_and_records_it():
             200,
             text=_sse(
                 ("session", {"sessionId": "cx-rag-1"}),
+                ("evaluation_context", {"enableSystemPrompt": False}),
                 ("text_delta", {"content": "已检索"}),
                 ("message_end", {}),
             ),
         )
 
-    adapter = CxAgentAdapter(base_url="http://cx.local", test_token="token-1", enable_rag=True)
+    adapter = CxAgentAdapter(
+        base_url="http://cx.local",
+        test_token="token-1",
+        enable_rag=True,
+        enable_system_prompt=False,
+    )
     adapter._client = httpx.AsyncClient(transport=httpx.MockTransport(handler), timeout=10)
     response = asyncio.run(
         adapter.chat(ChatRequest(messages=[{"role": "user", "content": "药物说明书"}], session_id="mme-rag-1"))
     )
 
-    assert seen == [{"content": "药物说明书", "enableRag": True}]
+    assert seen == [
+        {
+            "content": "药物说明书",
+            "enableRag": True,
+            "enableSystemPrompt": False,
+        }
+    ]
     assert response.raw["rag_enabled"] is True
+    assert response.raw["system_prompt_enabled"] is False
+    asyncio.run(adapter.close())
+
+
+def test_cx_agent_adapter_rejects_unacknowledged_disabled_system_prompt():
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            text=_sse(
+                ("session", {"sessionId": "cx-old-service"}),
+                ("text_delta", {"content": "旧服务仍返回了回答"}),
+                ("message_end", {}),
+            ),
+        )
+
+    adapter = CxAgentAdapter(
+        base_url="http://cx.local",
+        test_token="token-1",
+        enable_system_prompt=False,
+    )
+    adapter._client = httpx.AsyncClient(transport=httpx.MockTransport(handler), timeout=10)
+    response = asyncio.run(
+        adapter.chat(ChatRequest(messages=[{"role": "user", "content": "你好"}], session_id="mme-old-1"))
+    )
+
+    assert response.reply == ""
+    assert response.error == "cx_agent error: system prompt switch was not acknowledged"
     asyncio.run(adapter.close())
 
 

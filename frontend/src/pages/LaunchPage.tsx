@@ -62,6 +62,7 @@ export default function LaunchPage() {
             judge_enabled: true,
             evaluation_mode: "single_turn",
             enable_rag: false,
+            enable_system_prompt: true,
             repeat: 1,
             limit: 0,
           }}
@@ -146,6 +147,21 @@ export default function LaunchPage() {
                   />
                 </Form.Item>
               )}
+
+              <Form.Item
+                name="enable_system_prompt"
+                label="cx-agent 系统提示词"
+                extra={
+                  <FieldHint>
+                    关闭后 cx-agent 不向模型发送系统角色提示词，用于对照验证模型原生能力；默认开启。
+                  </FieldHint>
+                }
+              >
+                <Radio.Group className="dash-option-cards" optionType="button" buttonStyle="solid">
+                  <Radio.Button value={true}>启用系统提示词</Radio.Button>
+                  <Radio.Button value={false}>不启用系统提示词</Radio.Button>
+                </Radio.Group>
+              </Form.Item>
 
               <Form.Item
                 name="enable_rag"
