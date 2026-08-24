@@ -306,6 +306,54 @@ def test_in_place_resume_passes_persisted_results_to_evaluator(
     assert set(captured["completed_results"]) == {"bc_001", "bc_002"}
 
 
+def test_automatic_resume_restarts_cleanly_when_adapter_fingerprint_changes(
+    initialized_db, settings, monkeypatch
+):
+    """部署期间配置变化时，自动恢复必须完整重跑而非混用旧留痕。"""
+    src_id = _seed_source_run(settings, with_traces=True, n_runs=1)
+    report = make_report("src_2026-06-04_1")
+    with session_scope() as session:
+        attach_case_results(session, src_id, report)
+
+    captured: dict = {}
+
+    async def fake_eval(
+        config,
+        cases,
+        adapter,
+        judges,
+        *,
+        out_dir=None,
+        resume_dir=None,
+        completed_results=None,
+        run_name=None,
+        **kwargs,
+    ):
+        captured["resume_dir"] = resume_dir
+        captured["completed_results"] = completed_results
+        captured["stale_traces_removed"] = not (
+            out_dir / "traces.jsonl.gz"
+        ).exists()
+        return report.model_copy(update={"run_name": run_name})
+
+    monkeypatch.setattr("server.eval_job.evaluate", fake_eval)
+    monkeypatch.setattr("server.eval_job.build_adapter", lambda *a, **k: object())
+
+    job = build_resume_job(
+        src_id,
+        source_run_id=src_id,
+        run_name="源评测",
+        in_place=True,
+        restart_on_fingerprint_mismatch=True,
+        settings=settings,
+    )
+    asyncio.run(job(InMemoryProgress()))
+
+    assert captured["resume_dir"] is None
+    assert captured["completed_results"] == {}
+    assert captured["stale_traces_removed"] is True
+
+
 # ---------------------------------------------------------------------------
 # 4.5 单 Case 重试：真实调用+判分后原位替换，并同步 report.json
 

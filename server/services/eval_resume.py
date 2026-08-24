@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+import logging
 from typing import TYPE_CHECKING
 
 from fastapi import HTTPException
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from medeval import trace_store
 from medeval.run_slug import make_run_slug
 from medeval.service import resolve_diff_target
 
-from ..models_db import EvalRun
+from ..db import session_scope
+from ..models_db import CaseResultRow, EvalRun
 from ..job_specs import attach_job_spec
 from ..jobs import commit_and_submit_job
 from ..progress import InMemoryProgress
@@ -30,6 +33,44 @@ from .runs import get_run_or_404, source_out_dir
 
 if TYPE_CHECKING:
     from ..jobs import JobRunner
+
+
+logger = logging.getLogger(__name__)
+
+
+def _reset_incompatible_checkpoint(run_id: int, out_dir) -> None:
+    """丢弃不能安全复用的中断留痕，以下次尝试的当前配置完整重跑。
+
+    自动恢复绝不能把不同 adapter 配置生成的对话、判分或聚合混在同一个 Run 中。
+    保留 Run 本身与审计信息，仅清除可重新生成的中间产物和阶段性结果。
+    """
+    for name in (trace_store.PARTIAL, trace_store.TRACES_GZ, "report.json", "transcripts.xlsx"):
+        (out_dir / name).unlink(missing_ok=True)
+
+    with session_scope() as session:
+        session.execute(
+            delete(CaseResultRow).where(CaseResultRow.run_id == run_id)
+        )
+        row = session.get(EvalRun, run_id)
+        if row is None:
+            return
+        row.has_traces = False
+        row.total = 0
+        row.passed = 0
+        row.pass_rate = 0.0
+        row.medical_safety_failed = 0
+        row.grading = {}
+        row.stability_distribution = {}
+        row.latency_summary = {}
+        row.ttft_summary = {}
+        row.token_summary = {}
+        row.pass_rate_ci = {}
+        row.guideline_match = {}
+        row.failure_tag_counter = {}
+        row.judge_fingerprints = {}
+        row.by_level = {}
+        row.by_scenario = {}
+        row.by_case_type = {}
 
 
 def validate_resume_preconditions(source: EvalRun) -> None:
@@ -91,6 +132,7 @@ def build_resume_job(
     source_run_id: int,
     run_name: str | None = None,
     in_place: bool = False,
+    restart_on_fingerprint_mismatch: bool = False,
     settings: Settings | None = None,
 ) -> Callable[[InMemoryProgress], Awaitable[None]]:
     settings = settings or get_settings()
@@ -121,9 +163,27 @@ def build_resume_job(
         if out_dir != src_dir:
             copy_case_image_snapshot(src_dir, out_dir)
         sample_ids = [case.sample_id for case in cases]
-        completed_results = (
-            load_persisted_case_results(run_id, sample_ids) if in_place else {}
-        )
+        resume_dir = src_dir
+        completed_results = load_persisted_case_results(run_id, sample_ids) if in_place else {}
+
+        if restart_on_fingerprint_mismatch:
+            bundle = trace_store.read_traces(src_dir)
+            saved_fingerprint = (bundle.meta.get("adapter_fingerprint") if bundle else "") or ""
+            current_fingerprint = trace_store.adapter_fingerprint(
+                config.adapter.type,
+                config.adapter.model_dump(),
+            )
+            if saved_fingerprint and saved_fingerprint != current_fingerprint:
+                logger.warning(
+                    "run %s 自动恢复时 adapter 指纹不一致（当前 %s，留痕 %s），"
+                    "将清理中断留痕并按当前配置完整重跑",
+                    run_id,
+                    current_fingerprint,
+                    saved_fingerprint,
+                )
+                _reset_incompatible_checkpoint(run_id, out_dir)
+                resume_dir = None
+                completed_results = {}
         progress.set_case_complete_callback(
             IncrementalRunPersister(
                 run_id,
@@ -146,7 +206,7 @@ def build_resume_job(
             run_name=new_slug,
             account_owner=str(run_id),
             out_dir=out_dir,
-            resume_dir=src_dir,
+            resume_dir=resume_dir,
             completed_results=completed_results,
         )
 

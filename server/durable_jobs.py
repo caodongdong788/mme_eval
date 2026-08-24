@@ -70,6 +70,7 @@ def build_job_from_payload(
                 source_run_id=run_id,
                 run_name=run_name,
                 in_place=True,
+                restart_on_fingerprint_mismatch=True,
                 settings=settings,
             )
         from .services.eval_launch import build_eval_job

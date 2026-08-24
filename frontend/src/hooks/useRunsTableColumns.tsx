@@ -123,7 +123,7 @@ export function useRunsTableColumns(
     {
       title: "创建人",
       dataIndex: "created_by",
-      width: "10%",
+      width: 200,
       ...nowrap,
       className: "runs-table__creator",
       render: (name?: string | null) => <FeishuMention name={name} />,
