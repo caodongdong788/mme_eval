@@ -53,4 +53,21 @@ describe("RunAttributionCategoryCharts", () => {
     expect(filterSecondLevelCategories(rows, "rag")).toEqual([rows[0]]);
     expect(filterSecondLevelCategories(rows, null)).toEqual(rows);
   });
+
+  it("keeps the current charts visible during a background refresh", () => {
+    const { container } = renderWithProviders(
+      <RunAttributionCategoryCharts
+        loading
+        stats={{
+          attributed_case_count: 3,
+          first_level: [{ key: "rag", label: "RAG 优化", case_count: 2 }],
+          second_level: [],
+        }}
+      />
+    );
+
+    expect(container).toHaveTextContent("归因一级分类");
+    expect(container).toHaveTextContent("归因二级分类");
+    expect(container.querySelector(".ant-spin")).not.toBeInTheDocument();
+  });
 });

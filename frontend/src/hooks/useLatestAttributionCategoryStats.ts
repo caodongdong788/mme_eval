@@ -9,11 +9,17 @@ import {
 export function useLatestAttributionCategoryStats(runs: RunSummary[]) {
   const [stats, setStats] = useState<RunAttributionCategoryStats | null>(null);
   const [loading, setLoading] = useState(false);
-  const latestRuns = useMemo(() => selectLatestAttributedRunsByBenchmark(runs), [runs]);
+  const latestRunIdsKey = useMemo(
+    () => selectLatestAttributedRunsByBenchmark(runs).map((run) => run.id).join(","),
+    [runs],
+  );
 
   useEffect(() => {
     let cancelled = false;
-    if (latestRuns.length === 0) {
+    const latestRunIds = latestRunIdsKey
+      ? latestRunIdsKey.split(",").map((value) => Number(value))
+      : [];
+    if (latestRunIds.length === 0) {
       setStats(null);
       setLoading(false);
       return () => {
@@ -21,20 +27,20 @@ export function useLatestAttributionCategoryStats(runs: RunSummary[]) {
       };
     }
     setLoading(true);
-    Promise.all(latestRuns.map((run) => api.getAttributionCategoryStats(run.id)))
+    Promise.all(latestRunIds.map((runId) => api.getAttributionCategoryStats(runId)))
       .then((items) => {
         if (!cancelled) setStats(mergeAttributionCategoryStats(items));
       })
-      .catch(() => {
-        if (!cancelled) setStats(null);
-      })
+      // 后台刷新失败时保留上一版图表，避免瞬间清空；下一次 Run ID
+      // 变化后仍会再次请求。
+      .catch(() => undefined)
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [latestRuns]);
+  }, [latestRunIdsKey]);
 
   return { stats, loading };
 }

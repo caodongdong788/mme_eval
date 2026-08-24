@@ -159,7 +159,8 @@ export function RunAttributionCategoryCharts({
     setSelectedFirstLevel((current) => current === key ? null : key);
   };
 
-  if (loading) {
+  // 首次没有数据时展示加载态；已有统计的后台更新保持原图，避免轮询时闪烁。
+  if (loading && !stats) {
     return (
       <section className="runs-attribution-panel" aria-label="归因问题分类">
         <div className="runs-attribution-panel__head">
