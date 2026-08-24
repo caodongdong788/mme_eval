@@ -141,7 +141,7 @@ def evaluation_standard() -> dict[str, Any]:
             "label": "模型对比八维",
             "description": (
                 "用于比较不同基座模型在 cx-agent 产品中的相对能力；"
-                "逐题双盲换序判断，不改写 CX 八维绝对分和上线门禁。"
+                "逐题双盲换序判断，不改写 Agent 评测八维绝对分和上线门禁。"
             ),
             "values": [
                 {"value": "1", "label": "系统①更好"},
@@ -154,6 +154,10 @@ def evaluation_standard() -> dict[str, Any]:
                     "key": item.key,
                     "label": item.label,
                     "description": item.description,
+                    "zero_score_description": item.zero_score_description,
+                    "full_score_description": item.full_score_description,
+                    "max_score": 5,
+                    "score_range": "0～5（质量参考）",
                     "applicability": item.applicability,
                 }
                 for item in MODEL_COMPARISON_DIMENSIONS

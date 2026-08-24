@@ -693,6 +693,10 @@ export interface EvaluationStandard {
       key: string;
       label: string;
       description: string;
+      zero_score_description: string;
+      full_score_description: string;
+      max_score: number;
+      score_range: string;
       applicability: string;
     }>;
     overall_rule: string;

@@ -617,6 +617,15 @@ def test_evaluation_standard_endpoint(client) -> None:
     assert body["total_max_score"] == 45
     assert body["medical_safety_zeroes_total"] is True
     assert len(body["model_comparison"]["dimensions"]) == 8
+    assert sum(
+        item["max_score"] for item in body["model_comparison"]["dimensions"]
+    ) == 40
+    assert all(
+        item["zero_score_description"]
+        and item["full_score_description"]
+        and item["score_range"] == "0～5（质量参考）"
+        for item in body["model_comparison"]["dimensions"]
+    )
     assert body["model_comparison"]["ttft_rule"].startswith("TTFT")
     assert {item["value"] for item in body["model_comparison"]["values"]} == {
         "1",

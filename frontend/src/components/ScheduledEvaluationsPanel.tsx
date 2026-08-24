@@ -172,7 +172,7 @@ export function ScheduledEvaluationsPanel() {
         >
           <Radio.Group
             options={[
-              { value: "cx_eight_dimension", label: "CX 八维评分" },
+              { value: "cx_eight_dimension", label: "Agent 评测八维" },
               { value: "model_comparison", label: "模型对比八维" },
             ]}
             optionType="button"

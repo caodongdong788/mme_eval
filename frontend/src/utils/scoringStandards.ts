@@ -2,7 +2,7 @@ import { DIM_LABEL, EVALUATION_DIMENSIONS } from "../labels";
 import type { ScoringStandard } from "../api/types";
 
 export const SCORING_STANDARD_LABELS: Record<ScoringStandard, string> = {
-  cx_eight_dimension: "CX 八维评分",
+  cx_eight_dimension: "Agent 评测八维",
   model_comparison: "模型对比八维",
 };
 
@@ -50,4 +50,3 @@ export function pairwiseDimensionLabel(key: string): string {
     key as keyof typeof MODEL_COMPARISON_DIMENSION_LABELS
   ] || DIM_LABEL[key] || key;
 }
-

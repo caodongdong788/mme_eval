@@ -5,7 +5,7 @@ import {
   SafetyCertificateOutlined,
   SyncOutlined,
 } from "@ant-design/icons";
-import { Alert, Card, Col, Collapse, Row, Spin, Tabs, Tag } from "antd";
+import { Alert, Collapse, Spin, Tabs, Tag } from "antd";
 import { useState, type ReactNode } from "react";
 import type { EvaluationStandard } from "../api";
 import { AsyncLoadError } from "../components/AsyncLoadError";
@@ -60,19 +60,94 @@ const ENHANCEMENTS = [
   },
 ];
 
+type StandardDimensionCardProps = {
+  index: number;
+  label: string;
+  description: string;
+  zeroScoreDescription: string;
+  fullScoreDescription: string;
+  scoreRange: string;
+  applicability?: string;
+  gate?: boolean;
+};
+
+function StandardDimensionCard({
+  index,
+  label,
+  description,
+  zeroScoreDescription,
+  fullScoreDescription,
+  scoreRange,
+  applicability,
+  gate = false,
+}: StandardDimensionCardProps) {
+  return (
+    <article
+      className={
+        gate
+          ? "evaluation-standard-dimension evaluation-standard-dimension--gate"
+          : "evaluation-standard-dimension"
+      }
+    >
+      <div className="evaluation-standard-dimension__identity">
+        <span className="evaluation-standard-dimension__number mono">
+          {String(index).padStart(2, "0")}
+        </span>
+        <div>
+          <h3>{label}</h3>
+          <div className="evaluation-standard-dimension__meta">
+            <span className="evaluation-standard-score-range mono">{scoreRange}</span>
+            {applicability ? (
+              <Tag color={applicability === "所有用例" ? "blue" : "default"}>
+                {applicability}
+              </Tag>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      <div className="evaluation-standard-dimension__criteria">
+        <span className="evaluation-standard-criteria-label">检查说明</span>
+        <p className="evaluation-standard-dimension__description">{description}</p>
+        <div className="evaluation-standard-boundaries">
+          <div>
+            <span className="evaluation-standard-boundary-label evaluation-standard-boundary-label--zero">
+              0 分边界
+            </span>
+            <p>{zeroScoreDescription}</p>
+          </div>
+          <div>
+            <span className="evaluation-standard-boundary-label evaluation-standard-boundary-label--full">
+              5 分满分
+            </span>
+            <p>{fullScoreDescription}</p>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 function ModelComparisonStandard({
   standard,
 }: {
   standard: EvaluationStandard["model_comparison"];
 }) {
+  const totalReferenceScore = standard.dimensions.reduce(
+    (total, dimension) => total + dimension.max_score,
+    0,
+  );
+
   return (
     <div className="evaluation-standard-comparison">
       <section className="evaluation-standard-hero" aria-label="模型对比评分体系总览">
         <div className="evaluation-standard-total">
           <span className="evaluation-standard-eyebrow">PAIRWISE STANDARD</span>
-          <strong className="evaluation-standard-total__value mono">8</strong>
-          <span className="evaluation-standard-total__unit">维</span>
-          <p>逐题相对比较；不覆盖 CX 八维绝对分与上线门禁。</p>
+          <strong className="evaluation-standard-total__value mono">
+            {totalReferenceScore}
+          </strong>
+          <span className="evaluation-standard-total__unit">分参考制</span>
+          <p>8 个维度 × 每维 5 分质量边界；最终仍按 A / B / 持平 / N/A 形成相对结论。</p>
         </div>
         <div className="evaluation-standard-roles">
           <article className="evaluation-standard-role-summary">
@@ -113,29 +188,38 @@ function ModelComparisonStandard({
         showIcon
         className="evaluation-standard-gate-alert"
         message="模型能力与响应性能分开判断"
-        description={standard.ttft_rule}
+        description={`0 分与 5 分用于统一解释每个候选回答的低、高质量边界，不作为 Pairwise 绝对分落库。${standard.ttft_rule}`}
       />
 
-      <Row gutter={[16, 16]}>
-        {standard.dimensions.map((dimension, index) => (
-          <Col xs={24} lg={12} key={dimension.key}>
-            <Card className="evaluation-standard-comparison-card">
-              <div className="evaluation-standard-dimension__identity">
-                <span className="evaluation-standard-dimension__number mono">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <div>
-                  <h3>{dimension.label}</h3>
-                  <Tag color={dimension.applicability === "所有用例" ? "blue" : "default"}>
-                    {dimension.applicability}
-                  </Tag>
-                </div>
-              </div>
-              <p>{dimension.description}</p>
-            </Card>
-          </Col>
-        ))}
-      </Row>
+      <section className="evaluation-standard-role" aria-labelledby="model-comparison-dimensions">
+        <header className="evaluation-standard-role__head">
+          <div>
+            <span className="evaluation-standard-role-icon evaluation-standard-role-icon--doctor">
+              <SyncOutlined />
+            </span>
+            <div>
+              <h2 id="model-comparison-dimensions">模型能力八维</h2>
+              <p>每个候选回答均参照相同的 0～5 分边界，再进行逐维相对比较</p>
+            </div>
+          </div>
+          <strong className="mono">8 维 · 5 分/维</strong>
+        </header>
+
+        <div className="evaluation-standard-dimensions">
+          {standard.dimensions.map((dimension, index) => (
+            <StandardDimensionCard
+              key={dimension.key}
+              index={index + 1}
+              label={dimension.label}
+              description={dimension.description}
+              zeroScoreDescription={dimension.zero_score_description}
+              fullScoreDescription={dimension.full_score_description}
+              scoreRange={dimension.score_range}
+              applicability={dimension.applicability}
+            />
+          ))}
+        </div>
+      </section>
 
       <section className="evaluation-standard-enhancements">
         <div>
@@ -190,7 +274,7 @@ export default function EvaluationStandardPage() {
   return (
     <DashboardPageShell
       title="评分标准"
-      sub="CX 八维用于产品质量与上线门禁；模型对比八维用于公平比较不同基座能力。"
+      sub="Agent 评测八维用于产品质量与上线门禁；模型对比八维用于公平比较不同基座能力。"
       extra={
         <span className="status-dot status-dot--pass evaluation-standard-sync">
           <SyncOutlined />
@@ -202,7 +286,7 @@ export default function EvaluationStandardPage() {
         activeKey={activeStandard}
         onChange={setActiveStandard}
         items={[
-          { key: "cx_eight_dimension", label: "CX 八维评分" },
+          { key: "cx_eight_dimension", label: "Agent 评测八维" },
           { key: "model_comparison", label: "模型对比八维" },
         ]}
       />
@@ -279,46 +363,16 @@ export default function EvaluationStandardPage() {
 
                 <div className="evaluation-standard-dimensions">
                   {dimensions.map((dimension) => (
-                    <article
-                      className={
-                        dimension.binary
-                          ? "evaluation-standard-dimension evaluation-standard-dimension--gate"
-                          : "evaluation-standard-dimension"
-                      }
+                    <StandardDimensionCard
                       key={dimension.key}
-                    >
-                      <div className="evaluation-standard-dimension__identity">
-                        <span className="evaluation-standard-dimension__number mono">
-                          {String(dimensionIndex.get(dimension.key)).padStart(2, "0")}
-                        </span>
-                        <div>
-                          <h3>{dimension.label}</h3>
-                          <span className="evaluation-standard-score-range mono">
-                            {dimension.score_range}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="evaluation-standard-dimension__criteria">
-                        <p className="evaluation-standard-dimension__description">
-                          {dimension.description}
-                        </p>
-                        <div className="evaluation-standard-boundaries">
-                          <div>
-                            <span className="evaluation-standard-boundary-label evaluation-standard-boundary-label--zero">
-                              0 分边界
-                            </span>
-                            <p>{dimension.zero_score_description}</p>
-                          </div>
-                          <div>
-                            <span className="evaluation-standard-boundary-label evaluation-standard-boundary-label--full">
-                              5 分满分
-                            </span>
-                            <p>{dimension.full_score_description}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </article>
+                      index={dimensionIndex.get(dimension.key) ?? 0}
+                      label={dimension.label}
+                      description={dimension.description}
+                      zeroScoreDescription={dimension.zero_score_description}
+                      fullScoreDescription={dimension.full_score_description}
+                      scoreRange={dimension.score_range}
+                      gate={dimension.binary}
+                    />
                   ))}
                 </div>
               </section>

@@ -31,7 +31,7 @@ export const RUN_FILTER_FIELDS: FilterFieldDefinition<RunFilterField>[] = [
   },
   {
     value: "scoring_standard", label: "评分维度", kind: "select", options: [
-      { value: "cx_eight_dimension", label: "CX 八维评分" },
+      { value: "cx_eight_dimension", label: "Agent 评测八维" },
       { value: "model_comparison", label: "模型对比八维" },
     ],
   },

@@ -19,6 +19,12 @@ def test_evaluation_standard_is_complete() -> None:
         DIMENSION_STANDARDS[EvaluationDimension.clinical_inquiry]["full_score"]
     )
     assert "重复或过度" in standard["dimensions"][2]["description"]
+    comparison = standard["model_comparison"]
+    assert len(comparison["dimensions"]) == 8
+    assert all(item["max_score"] == 5 for item in comparison["dimensions"])
+    assert all(item["score_range"] == "0～5（质量参考）" for item in comparison["dimensions"])
+    assert all(item["zero_score_description"] for item in comparison["dimensions"])
+    assert all(item["full_score_description"] for item in comparison["dimensions"])
 
 
 def test_new_judge_labels_are_exposed() -> None:
