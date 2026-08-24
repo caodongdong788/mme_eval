@@ -15,11 +15,26 @@ export function formatApiDateTime(value?: string | null): string {
   return Number.isNaN(d.getTime()) ? "-" : d.toLocaleString();
 }
 
-/** 人审卡片等紧凑展示：YYYY-MM-DD HH:mm（本地时区）。 */
+const SHANGHAI_SHORT_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Shanghai",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/** 人审卡片等紧凑展示：YYYY-MM-DD HH:mm（Asia/Shanghai）。 */
 export function formatApiDateTimeShort(value?: string | null): string {
   if (!value) return "";
   const d = parseApiDateTime(value);
   if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const parts = Object.fromEntries(
+    SHANGHAI_SHORT_FORMATTER.formatToParts(d).map((part) => [
+      part.type,
+      part.value,
+    ])
+  );
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
 }
