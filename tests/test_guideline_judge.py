@@ -149,6 +149,8 @@ def test_prompt_includes_case_initial_state_without_counting_it_as_coverage() ->
     assert "不得孤立截取“暂不需要急着就医”一句" in captured
     assert "必须区分“说明公认医学事实或标准治疗方向”" in captured
     assert "不得把“治疗方向明确”机械等同于“已经替患者制定治疗方案”" in captured
+    assert "不得将“本轮未检索、未召回或未引用 RAG”直接等同于医学错误" in captured
+    assert "证据不足但无法证明错误时，不扣分" in captured
 
 
 def test_prompt_includes_selected_rag_evidence_without_treating_it_as_authority() -> None:

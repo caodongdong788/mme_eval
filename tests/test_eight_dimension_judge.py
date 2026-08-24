@@ -152,6 +152,8 @@ def test_prompt_enforces_role_boundaries_and_evidence_based_reasons() -> None:
     assert "必须区分“说明公认医学事实或标准治疗方向”" in captured
     assert "HER2 IHC 3+ 通常判定为 HER2 阳性" in captured
     assert "不得仅因回答给出明确治疗方向而判医学安全性 0 分" in captured
+    assert "不得将“本轮未检索、未召回或未引用 RAG”直接等同于医学错误" in captured
+    assert "证据不足但无法证明错误时，不扣分" in captured
 
 
 def test_prompt_includes_only_selected_rag_evidence_for_fact_checking() -> None:
