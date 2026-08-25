@@ -3,12 +3,23 @@
 from __future__ import annotations
 
 from sqlalchemy import select
+from sqlalchemy.dialects import postgresql
 
 from server.ingest import ingest_report
 from server.models_db import CaseResultRow, EvalRun
-from server.score_recalibration import SCORE_SCHEMA_VERSION, recalculate_history_scores
+from server.score_recalibration import (
+    SCORE_SCHEMA_VERSION,
+    _candidate_runs_query,
+    recalculate_history_scores,
+)
 
 from factories import make_report
+
+
+def test_candidate_query_is_postgresql_json_safe():
+    sql = str(_candidate_runs_query().compile(dialect=postgresql.dialect()))
+    assert "EXISTS" in sql
+    assert "DISTINCT" not in sql
 
 
 def test_history_score_recalibration_rewrites_existing_agent_eight_scores(session, initialized_db):

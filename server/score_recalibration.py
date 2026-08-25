@@ -13,7 +13,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import Select, select
 
 from medeval.models import CaseResult
 from medeval.reporter.aggregator import build_report
@@ -36,19 +36,23 @@ def _snapshot(run: EvalRun) -> dict[str, Any]:
     return dict(run.config_snapshot) if isinstance(run.config_snapshot, dict) else {}
 
 
+def _candidate_runs_query() -> Select:
+    """构造跨 SQLite/PostgreSQL 可用的候选 Run 查询。"""
+    return (
+        select(EvalRun.id, EvalRun.config_snapshot)
+        .where(
+            EvalRun.status.in_(_FINAL_RUN_STATUSES),
+            EvalRun.scoring_standard == "cx_eight_dimension",
+            EvalRun.case_results.any(),
+        )
+        .order_by(EvalRun.id)
+    )
+
+
 def _candidate_run_ids() -> list[int]:
     """返回有已保存结果、但尚未按新口径重算的 Agent 八维 Run。"""
     with session_scope() as session:
-        rows = session.execute(
-            select(EvalRun.id, EvalRun.config_snapshot)
-            .join(CaseResultRow, CaseResultRow.run_id == EvalRun.id)
-            .where(
-                EvalRun.status.in_(_FINAL_RUN_STATUSES),
-                EvalRun.scoring_standard == "cx_eight_dimension",
-            )
-            .distinct()
-            .order_by(EvalRun.id)
-        ).all()
+        rows = session.execute(_candidate_runs_query()).all()
     return [
         int(run_id)
         for run_id, snapshot in rows
