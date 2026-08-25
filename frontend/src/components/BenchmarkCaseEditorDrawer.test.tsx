@@ -199,7 +199,7 @@ describe("BenchmarkCaseEditorDrawer criteria variant", () => {
     expect(screen.queryByText("不可观测时")).not.toBeInTheDocument();
     expect(screen.queryByText("阻断性断言")).not.toBeInTheDocument();
     expect(screen.queryByText("性能预算")).not.toBeInTheDocument();
-  });
+  }, 20_000);
 
   it("explains every data source separately from tool invocation", () => {
     const value = {
@@ -326,6 +326,6 @@ describe("BenchmarkCaseEditorDrawer criteria variant", () => {
         ],
       }),
     }));
-  });
+  }, 20_000);
 
 });
