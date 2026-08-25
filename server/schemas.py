@@ -287,7 +287,7 @@ class ScheduledEvaluationCreate(BaseModel):
                 raise ValueError("自动归因需要启用 LLM 判分")
             if not self.auto_attribution_model_id:
                 raise ValueError("自动归因需要选择归因模型")
-            # 自动归因只面向最终综合评价为“不合格”的 Case；其它等级不进入归因。
+            # 自动归因只面向最终结论为“不通过”的 Case；判分异常、执行失败不归因。
             self.auto_attribution_grades = ["不合格"]
         else:
             self.auto_attribution_grades = []

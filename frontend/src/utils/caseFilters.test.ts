@@ -116,6 +116,33 @@ describe("filterCaseRows", () => {
     ).toHaveLength(1);
   });
 
+  it("filters the final verdict based on both quality and runtime acceptance", () => {
+    const qualityFailedButRuntimePassed = { ...rows[0], id: 3, sample_id: "c", grade: "不合格" };
+    const judgingError = { ...rows[0], id: 4, sample_id: "d", judge_error: true };
+    const executionError = { ...rows[0], id: 5, sample_id: "e", failure_tags: ["adapter_error"] };
+    const allRows = [...rows, qualityFailedButRuntimePassed, judgingError, executionError];
+
+    expect(filterCaseRows(allRows, [condition("final_verdict", "equals", "通过")], new Set()))
+      .toEqual([rows[0]]);
+    expect(filterCaseRows(allRows, [condition("final_verdict", "equals", "不通过")], new Set()))
+      .toEqual([rows[1], qualityFailedButRuntimePassed]);
+    expect(filterCaseRows(allRows, [condition("final_verdict", "equals", "判分异常")], new Set()))
+      .toEqual([judgingError]);
+    expect(filterCaseRows(allRows, [condition("final_verdict", "equals", "执行失败")], new Set()))
+      .toEqual([executionError]);
+  });
+
+  it("filters runtime acceptance separately from the final verdict", () => {
+    const qualityFailedButRuntimePassed = { ...rows[0], id: 3, sample_id: "c", grade: "不合格" };
+    expect(
+      filterCaseRows(
+        [...rows, qualityFailedButRuntimePassed],
+        [condition("runtime_acceptance", "equals", "合格")],
+        new Set()
+      )
+    ).toEqual([rows[0], qualityFailedButRuntimePassed]);
+  });
+
   it("supports contains and not-contains for enum and multi-value fields", () => {
     expect(
       filterCaseRows(rows, [condition("rag_status", "contains", "hit")], new Set())
@@ -183,12 +210,19 @@ describe("buildCaseFilterValueOptions", () => {
       "总分",
       "指南得分",
       "医学文献 RAG",
-      "综合评价",
+      "质量评级",
+      "运行验收",
+      "最终结论",
       "稳定性",
       "失败标签",
       "人审结果",
     ]);
-    expect(CASE_FILTER_FIELDS.some((item) => item.label === "最终结论")).toBe(false);
+    expect(CASE_FILTER_FIELDS.find((item) => item.label === "最终结论")?.options).toEqual([
+      { value: "通过", label: "通过" },
+      { value: "不通过", label: "不通过" },
+      { value: "判分异常", label: "判分异常" },
+      { value: "执行失败", label: "执行失败" },
+    ]);
     expect(operatorsForField("grade", CASE_FILTER_FIELDS).map((item) => item.value)).toEqual([
       "contains",
       "not_contains",

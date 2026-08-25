@@ -91,6 +91,7 @@ describe("runsListOverview", () => {
       passPct: 86.7,
       passed: 130,
       total: 150,
+      benchmarkCount: 2,
     }));
     expect(trend.points[1]).toEqual(expect.objectContaining({
       label: "06-11",
@@ -108,14 +109,27 @@ describe("runsListOverview", () => {
     ]);
   });
 
-  it("buildPassRateTrend omits dates until every benchmark has a completed result", () => {
+  it("buildPassRateTrend keeps dates with a partial Benchmark coverage", () => {
     const trend = buildPassRateTrend([
       run({ id: 1, benchmark_id: 10, created_at: "2026-06-10T10:00:00Z" }),
       run({ id: 2, benchmark_id: 10, created_at: "2026-06-11T10:00:00Z" }),
       run({ id: 3, benchmark_id: 20, created_at: "2026-06-11T11:00:00Z" }),
     ]);
-    expect(trend.points).toHaveLength(1);
-    expect(trend.points[0].label).toBe("06-11");
+    expect(trend.points).toHaveLength(2);
+    expect(trend.points[0]).toEqual(expect.objectContaining({
+      label: "06-10",
+      passPct: 87,
+      passed: 80,
+      total: 92,
+      benchmarkCount: 1,
+    }));
+    expect(trend.points[1]).toEqual(expect.objectContaining({
+      label: "06-11",
+      passPct: 87,
+      passed: 160,
+      total: 184,
+      benchmarkCount: 2,
+    }));
   });
 
   it("computeRunsListKpis uses the same weighted daily latest benchmark pass rate", () => {

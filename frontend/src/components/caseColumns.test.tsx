@@ -40,13 +40,14 @@ describe("buildCaseColumns", () => {
     expect(screen.getByText("质量评级")).toBeInTheDocument();
     expect(screen.getByText("优秀")).toBeInTheDocument();
     expect(screen.getByText("运行验收")).toBeInTheDocument();
+    expect(screen.getByText("合格")).toBeInTheDocument();
+    expect(screen.getByText("最终结论")).toBeInTheDocument();
     expect(screen.getByText("通过")).toBeInTheDocument();
     expect(screen.getByText("稳定通过")).toBeInTheDocument();
     expect(screen.getByText("医学文献 RAG")).toBeInTheDocument();
     expect(screen.getByText("已触发并命中")).toBeInTheDocument();
     expect(screen.getByText("medical_consultation")).toBeInTheDocument();
     expect(screen.queryByText("症状识别")).not.toBeInTheDocument();
-    expect(screen.queryByText("最终结论")).not.toBeInTheDocument();
   });
 
   it("shows concise actionable problem tags instead of one ambiguous failure string", () => {
@@ -69,7 +70,7 @@ describe("buildCaseColumns", () => {
     );
 
     expect(screen.getAllByText("主要问题").length).toBeGreaterThan(0);
-    expect(screen.getByText("不通过")).toBeInTheDocument();
+    expect(screen.getAllByText("不通过").length).toBeGreaterThan(0);
     expect(screen.getByText("方案可行性不足")).toBeInTheDocument();
     expect(screen.getByText("行动指引不清")).toBeInTheDocument();
     expect(screen.queryByText("失败标签")).not.toBeInTheDocument();
@@ -94,7 +95,22 @@ describe("buildCaseColumns", () => {
     );
 
     expect(screen.getByText("未产生回答")).toBeInTheDocument();
-    expect(screen.getAllByText("执行失败")).toHaveLength(2);
+    expect(screen.getAllByText("执行失败")).toHaveLength(3);
     expect(screen.queryByText("40.0/40")).not.toBeInTheDocument();
+  });
+
+  it("only marks a case as passed when quality and runtime acceptance both pass", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <Table<CaseRow>
+          rowKey="id"
+          pagination={false}
+          columns={buildCaseColumns(1, (tag) => tag)}
+          dataSource={[{ ...row, grade: "不合格", release_passed: true }]}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getAllByText("不通过").length).toBeGreaterThan(0);
   });
 });

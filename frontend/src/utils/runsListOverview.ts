@@ -16,6 +16,8 @@ export interface RunsTrendPoint {
   passPct: number;
   passed: number;
   total: number;
+  /** 当天实际纳入聚合的 Benchmark 数量。不同日期的覆盖范围可能不同。 */
+  benchmarkCount: number;
 }
 
 export interface PassRateTrend {
@@ -161,10 +163,10 @@ function aggregateDailyPassRatePct(points: RunsTrendPoint[]): number | null {
 
 function buildDailyPassRatePoints(
   runs: RunSummary[],
-  expectedBenchmarkIds = passRateBenchmarkIds(runs)
+  requiredBenchmarkIds?: number[]
 ): RunsTrendPoint[] {
   const completed = runs.filter(isCompletedBenchmarkRun);
-  if (expectedBenchmarkIds.length === 0) return [];
+  if (completed.length === 0) return [];
 
   const latestByDay = new Map<number, Map<number, (typeof completed)[number]>>();
   for (const run of completed) {
@@ -183,14 +185,19 @@ function buildDailyPassRatePoints(
   }
 
   return [...latestByDay.entries()]
+    // 看趋势时不传 requiredBenchmarkIds：保留当天实际完成的结果，避免长周期
+    // 只有一个数据点。计算“较上周期”时传入：仅比较覆盖相同 Benchmark 的日期，
+    // 防止样本集合变化被误判为通过率变化。
     .filter(([, benchmarkRuns]) =>
-      expectedBenchmarkIds.every((benchmarkId) => benchmarkRuns.has(benchmarkId))
+      requiredBenchmarkIds == null
+        || requiredBenchmarkIds.every((benchmarkId) => benchmarkRuns.has(benchmarkId))
     )
     .sort(([dayA], [dayB]) => dayA - dayB)
     .flatMap(([timestamp, benchmarkRuns]) => {
-      const selected = expectedBenchmarkIds
-        .map((benchmarkId) => benchmarkRuns.get(benchmarkId))
-        .filter((run): run is (typeof completed)[number] => run != null);
+      // 每天只聚合当天实际完成的 Benchmark。此前要求当天覆盖当前范围内的
+      // 全部 Benchmark，会把只跑了部分 Benchmark 的历史日期完全丢弃，导致
+      // 选择较长周期时趋势图几乎只剩一个数据点。
+      const selected = [...benchmarkRuns.values()];
       const total = selected.reduce((sum, run) => sum + Number(run.total || 0), 0);
       if (total <= 0) return [];
       const passed = selected.reduce((sum, run) => sum + Number(run.passed || 0), 0);
@@ -201,13 +208,13 @@ function buildDailyPassRatePoints(
         passPct: Math.round((passed / total) * 1000) / 10,
         passed,
         total,
+        benchmarkCount: selected.length,
       }];
     });
 }
 
 export function buildPassRateTrend(runs: RunSummary[], limit = 7): PassRateTrend {
-  const benchmarkIds = passRateBenchmarkIds(runs);
-  const allPoints = buildDailyPassRatePoints(runs, benchmarkIds);
+  const allPoints = buildDailyPassRatePoints(runs);
   const points = allPoints.slice(-limit);
   const dateTicks = points.map((point) => point.timestamp);
   const xDomain = dateTicks.length

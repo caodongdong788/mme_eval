@@ -33,7 +33,20 @@ logger = logging.getLogger("mme.scheduled-evaluations")
 _SHANGHAI = ZoneInfo("Asia/Shanghai")
 _SCHEDULE_RETRY_DELAY = timedelta(minutes=5)
 _scheduler_task: asyncio.Task | None = None
-_AUTO_ATTRIBUTION_GRADE = "不合格"
+
+
+def _should_auto_attribute_case(row: CaseResultRow) -> bool:
+    """定时自动归因只接收最终结论为“不通过”的 Case。
+
+    ``release_passed`` 代表运行验收后的最终结论；但判分模型或 Agent
+    执行失败同样会令它为 ``False``。这些属于评测系统故障，不能归责为
+    cx-agent 问题，因此必须明确排除。
+    """
+    return bool(
+        not row.release_passed
+        and not row.judge_error
+        and "adapter_error" not in (row.failure_tags or [])
+    )
 
 
 def _version_items(payload: object) -> list[dict]:
@@ -386,7 +399,7 @@ def _prepare_configured_streaming_attribution_in_session(
 
 
 def prepare_configured_streaming_attribution(run_id: int) -> int | None:
-    """为满足条件的定时评测预建唯一的、不合格 Case 流水线归因任务。"""
+    """为定时评测预建唯一的“最终结论不通过” Case 流水线归因任务。"""
     try:
         with session_scope() as session:
             run = session.get(EvalRun, run_id)
@@ -416,7 +429,7 @@ def get_open_streaming_attribution_task_id(run_id: int) -> int | None:
 
 
 async def append_configured_streaming_attribution_case(run_id: int, sample_id: str) -> bool:
-    """评测完成一条后，仅把最终综合评价为“不合格”的 Case 追加进归因任务。"""
+    """评测完成一条后，仅把最终结论为“不通过”的 Case 追加进归因任务。"""
     from . import attribution_tasks
 
     task_id: int | None = None
@@ -428,7 +441,7 @@ async def append_configured_streaming_attribution_case(run_id: int, sample_id: s
                     CaseResultRow.sample_id == sample_id,
                 )
             )
-            if row is None or row.grade != _AUTO_ATTRIBUTION_GRADE:
+            if row is None or not _should_auto_attribute_case(row):
                 return False
             task = session.scalar(
                 select(AttributionTask)
@@ -483,7 +496,7 @@ def abort_configured_streaming_attribution(run_id: int, reason: str) -> None:
 async def start_configured_attribution(run_id: int) -> int | None:
     """按定时任务配置为本次已完成评测自动创建归因任务。
 
-    自动归因只处理综合评价为“不合格”的 Case。不同模型的定时任务在评测期间
+    自动归因只处理最终结论为“不通过”的 Case。不同模型的定时任务在评测期间
     已逐条追加，此处负责关闭接收并补提交；相同模型则在整批完成后一次性创建。
     """
     from . import attribution_tasks
@@ -524,16 +537,20 @@ async def start_configured_attribution(run_id: int) -> int | None:
                 if not should_start:
                     return attribution_task_id
             else:
-                sample_ids = list(session.scalars(
-                    select(CaseResultRow.sample_id)
+                # Case 数量受 benchmark 规模约束。这里复用同一判断函数，避免
+                # SQLite / PostgreSQL 对 JSON contains 的细节差异造成两条路径
+                # 对“判分异常、执行失败”的处理不一致。
+                failed_rows = session.scalars(
+                    select(CaseResultRow)
                     .where(
                         CaseResultRow.run_id == run.id,
-                        CaseResultRow.grade == _AUTO_ATTRIBUTION_GRADE,
+                        CaseResultRow.release_passed.is_(False),
                     )
                     .order_by(CaseResultRow.sample_id)
-                ))
+                )
+                sample_ids = [row.sample_id for row in failed_rows if _should_auto_attribute_case(row)]
                 if not sample_ids:
-                    logger.info("定时任务 #%s 本次无不合格 Case，已跳过自动归因", schedule.id)
+                    logger.info("定时任务 #%s 本次无最终结论不通过 Case，已跳过自动归因", schedule.id)
                     return None
                 task = attribution_tasks.create_attribution_task(
                     session,

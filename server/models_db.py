@@ -354,7 +354,7 @@ class ScheduledEvaluation(Base):
     enable_judge: Mapped[bool] = mapped_column(Boolean, default=True)
     judge_model_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     user_simulator_model_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    # 自动归因仅面向不合格 Case；模型不同时可在定时评测期间逐条流水线执行。
+    # 自动归因仅面向最终结论“不通过”的 Case；判分异常和执行失败不归因。
     auto_attribution_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     auto_attribution_grades: Mapped[list[str]] = mapped_column(JSON, default=list)
     auto_attribution_model_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)

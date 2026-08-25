@@ -193,7 +193,7 @@ def test_failed_due_schedule_is_retried_after_backoff(session, monkeypatch):
     assert refreshed.next_run_at <= datetime.utcnow() + timedelta(minutes=5, seconds=10)
 
 
-def test_scheduled_auto_attribution_only_uses_failed_grade(session, monkeypatch):
+def test_scheduled_auto_attribution_only_uses_final_verdict_failed_case(session, monkeypatch):
     from server.services import attribution_tasks, scheduled_evaluations as service
 
     benchmark = Benchmark(name="自动归因范围测试集", source="offline")
@@ -226,7 +226,11 @@ def test_scheduled_auto_attribution_only_uses_failed_grade(session, monkeypatch)
     session.add_all([
         CaseResultRow(run_id=run.id, sample_id="good", scenario="x", grade="良好", release_passed=True),
         CaseResultRow(run_id=run.id, sample_id="failed", scenario="x", grade="不合格", release_passed=False),
+        # 质量评级本身合格，但运行验收不通过，也应纳入自动归因。
+        CaseResultRow(run_id=run.id, sample_id="runtime-failed", scenario="x", grade="合格", release_passed=False, failure_tags=["assertion_failed"]),
         CaseResultRow(run_id=run.id, sample_id="pass", scenario="x", grade="合格", release_passed=True),
+        CaseResultRow(run_id=run.id, sample_id="judge-error", scenario="x", grade="判分异常", release_passed=False, judge_error=True),
+        CaseResultRow(run_id=run.id, sample_id="execution-error", scenario="x", grade="执行失败", release_passed=False, failure_tags=["adapter_error"]),
     ])
     session.commit()
     run_id = run.id
@@ -241,8 +245,8 @@ def test_scheduled_auto_attribution_only_uses_failed_grade(session, monkeypatch)
     session.expire_all()
     task = session.get(AttributionTask, task_id)
     assert task is not None
-    assert task.requested_count == 1
-    assert task.total_count == 1
+    assert task.requested_count == 2
+    assert task.total_count == 2
     assert task.skipped_count == 0
     assert started == [task_id]
 
@@ -304,6 +308,31 @@ def test_scheduled_streaming_attribution_appends_each_failed_case(session, monke
             grade="不合格",
             release_passed=False,
         ),
+        # 最终结论不通过但质量评级合格，也应按最终结论进入归因。
+        CaseResultRow(
+            run_id=run.id,
+            sample_id="runtime-failed",
+            scenario="x",
+            grade="合格",
+            release_passed=False,
+            failure_tags=["assertion_failed"],
+        ),
+        CaseResultRow(
+            run_id=run.id,
+            sample_id="judge-error",
+            scenario="x",
+            grade="判分异常",
+            release_passed=False,
+            judge_error=True,
+        ),
+        CaseResultRow(
+            run_id=run.id,
+            sample_id="execution-error",
+            scenario="x",
+            grade="执行失败",
+            release_passed=False,
+            failure_tags=["adapter_error"],
+        ),
     ])
     session.commit()
     started: list[int] = []
@@ -317,12 +346,21 @@ def test_scheduled_streaming_attribution_appends_each_failed_case(session, monke
     assert asyncio.run(
         service.append_configured_streaming_attribution_case(run.id, "failed")
     ) is True
+    assert asyncio.run(
+        service.append_configured_streaming_attribution_case(run.id, "runtime-failed")
+    ) is True
+    assert asyncio.run(
+        service.append_configured_streaming_attribution_case(run.id, "judge-error")
+    ) is False
+    assert asyncio.run(
+        service.append_configured_streaming_attribution_case(run.id, "execution-error")
+    ) is False
     session.expire_all()
     task = session.get(AttributionTask, task_id)
     assert task is not None
-    assert task.requested_count == 1
-    assert task.total_count == 1
-    assert started == [task_id]
+    assert task.requested_count == 2
+    assert task.total_count == 2
+    assert started == [task_id, task_id]
 
     # 重复完成回调必须幂等，不能重复增加同一 Case。
     assert asyncio.run(
@@ -330,13 +368,14 @@ def test_scheduled_streaming_attribution_appends_each_failed_case(session, monke
     ) is False
     session.expire_all()
     task = session.get(AttributionTask, task_id)
-    assert task is not None and task.total_count == 1
+    assert task is not None and task.total_count == 2
 
-    item = session.scalar(
+    items = list(session.scalars(
         select(AttributionTaskItem).where(AttributionTaskItem.task_id == task_id)
-    )
-    assert item is not None
-    item.status = "success"
+    ))
+    assert len(items) == 2
+    for item in items:
+        item.status = "success"
     task.status = "running"
     attribution_tasks._refresh_task_counts(session, task)
     session.commit()

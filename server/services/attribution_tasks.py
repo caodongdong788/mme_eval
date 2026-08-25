@@ -1,4 +1,4 @@
-"""批量 AI 归因任务：最多同时分析 3 个不合格 Case，并逐条落库。"""
+"""批量 AI 归因任务：最多同时分析 3 个最终结论不通过的 Case，并逐条落库。"""
 
 from __future__ import annotations
 
@@ -283,7 +283,15 @@ def create_attribution_task(
     target_ids = (
         ordered_ids
         if include_passed
-        else [sample_id for sample_id in ordered_ids if not by_sample[sample_id].release_passed]
+        else [
+            sample_id
+            for sample_id in ordered_ids
+            if (
+                not by_sample[sample_id].release_passed
+                and not by_sample[sample_id].judge_error
+                and "adapter_error" not in (by_sample[sample_id].failure_tags or [])
+            )
+        ]
     )
     if not target_ids:
         raise HTTPException(
@@ -321,7 +329,7 @@ def create_streaming_attribution_task(
     judge_model_id: int,
     created_by: str | None,
 ) -> AttributionTask:
-    """为定时评测预建一个持续接收不合格 Case 的归因任务。"""
+    """为定时评测预建一个持续接收最终结论不通过 Case 的归因任务。"""
     active = session.scalar(
         select(AttributionTask.id).where(
             AttributionTask.run_id == run.id,
@@ -360,7 +368,7 @@ def append_streaming_attribution_item(
     *,
     sample_id: str,
 ) -> bool:
-    """幂等追加一个已完成的不合格 Case；返回是否真的新增。"""
+    """幂等追加一个已完成、最终结论不通过的 Case；返回是否真的新增。"""
     if not task.is_streaming or not task.intake_open:
         return False
     exists = session.scalar(
@@ -742,7 +750,7 @@ async def run_attribution_task(task_id: int, *, recover_interrupted_items: bool 
             if item_ids:
                 await asyncio.gather(*(_run_item(task_id, item_id) for item_id in item_ids))
                 continue
-            # 评测尚未完成：保持同一个 Worker Job，等待下一个不合格 Case 追加。
+            # 评测尚未完成：保持同一个 Worker Job，等待下一个最终结论不通过 Case 追加。
             await asyncio.sleep(0.5)
     finally:
         reset_llm_rate_limit()

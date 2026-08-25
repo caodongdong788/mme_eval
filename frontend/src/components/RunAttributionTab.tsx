@@ -816,15 +816,19 @@ function moduleRecommendations(
 
 const PRIORITY_ORDER = ["P0", "P1", "P2"] as const;
 
-function priorityForDeduction(item: AttributionDeductionAnalysis) {
+function priorityForDeduction(
+  item: AttributionDeductionAnalysis
+): (typeof PRIORITY_ORDER)[number] {
   const recommendationPriorities = (item.recommendations || [])
     .map((recommendation) => String(recommendation.priority || "").toUpperCase())
-    .filter((priority) => PRIORITY_ORDER.includes(priority as (typeof PRIORITY_ORDER)[number]));
+    .filter(
+      (priority): priority is (typeof PRIORITY_ORDER)[number] =>
+        PRIORITY_ORDER.includes(priority as (typeof PRIORITY_ORDER)[number])
+    );
   if (recommendationPriorities.length) {
     return recommendationPriorities.sort(
       (left, right) =>
-        PRIORITY_ORDER.indexOf(left as (typeof PRIORITY_ORDER)[number]) -
-        PRIORITY_ORDER.indexOf(right as (typeof PRIORITY_ORDER)[number])
+        PRIORITY_ORDER.indexOf(left) - PRIORITY_ORDER.indexOf(right)
     )[0];
   }
   if (item.severity === "critical") return "P0";
@@ -960,6 +964,15 @@ function AttributionAnalysisModule({
     globalRecommendations
   );
   const [expanded, setExpanded] = useState(false);
+  const [selectedPriorities, setSelectedPriorities] = useState<
+    (typeof PRIORITY_ORDER)[number][]
+  >([...PRIORITY_ORDER]);
+  const visibleItems =
+    kind === "supported"
+      ? items.filter((item) =>
+          selectedPriorities.includes(priorityForDeduction(item))
+        )
+      : items;
   const reviewGroups = QUESTIONABLE_REVIEW_GROUPS.map((group) => ({
     ...group,
     items: items.filter(
@@ -986,7 +999,9 @@ function AttributionAnalysisModule({
     }));
   const supportedDimensionItems: NonNullable<CollapseProps["items"]> =
     EVALUATION_DIMENSIONS.flatMap((dimension, index) => {
-      const dimensionItems = items.filter((item) => item.dimension === dimension);
+      const dimensionItems = visibleItems.filter(
+        (item) => item.dimension === dimension
+      );
       if (!dimensionItems.length) return [];
       return [{
         key: dimension,
@@ -1004,7 +1019,7 @@ function AttributionAnalysisModule({
         children: <CxAgentDeductionPriorityGroups items={dimensionItems} />,
       }];
     });
-  const unassignedSupportedItems = items.filter(
+  const unassignedSupportedItems = visibleItems.filter(
     (item) => !EVALUATION_DIMENSIONS.includes(item.dimension as never)
   );
   if (unassignedSupportedItems.length) {
@@ -1032,26 +1047,51 @@ function AttributionAnalysisModule({
         <div>
           <Space size={8}>
             <h3>{title}</h3>
-            <Tag color={color}>{items.length} 项</Tag>
+            <Tag color={color}>{visibleItems.length} 项</Tag>
           </Space>
           <p>{description}</p>
         </div>
-        <Button
-          type="link"
-          size="small"
-          aria-label={`${title}${expanded ? "收起" : "展开"}`}
-          icon={expanded ? <UpOutlined /> : <DownOutlined />}
-          onClick={() => setExpanded((current) => !current)}
+        <Space
+          size={6}
+          wrap
+          className={kind === "supported" ? "attribution-priority-filter" : undefined}
         >
-          {expanded ? "收起列表" : "展开列表"}
-        </Button>
+          {kind === "supported" ? (
+            <Select
+              aria-label="按问题等级筛选单 Case cx-agent 优化点"
+              mode="multiple"
+              virtual={false}
+              value={selectedPriorities}
+              options={PRIORITY_ORDER.map((priority) => ({
+                label: priority,
+                value: priority,
+              }))}
+              maxTagCount="responsive"
+              placeholder="按问题等级筛选"
+              onChange={(values: (typeof PRIORITY_ORDER)[number][]) =>
+                setSelectedPriorities(
+                  values.length ? values : [...PRIORITY_ORDER]
+                )
+              }
+            />
+          ) : null}
+          <Button
+            type="link"
+            size="small"
+            aria-label={`${title}${expanded ? "收起" : "展开"}`}
+            icon={expanded ? <UpOutlined /> : <DownOutlined />}
+            onClick={() => setExpanded((current) => !current)}
+          >
+            {expanded ? "收起列表" : "展开列表"}
+          </Button>
+        </Space>
       </div>
       {expanded && kind === "supported" ? (
         <Collapse
           className="attribution-dimension-list"
           items={supportedDimensionItems}
         />
-      ) : expanded && kind === "questionable" && items.length ? (
+      ) : expanded && kind === "questionable" && visibleItems.length ? (
         <div className="attribution-review-groups">
           {reviewGroups.map((group) => (
             <section className="attribution-review-group" key={group.key}>
@@ -1073,10 +1113,10 @@ function AttributionAnalysisModule({
             </section>
           ))}
         </div>
-      ) : expanded && items.length ? (
+      ) : expanded && visibleItems.length ? (
         <Collapse
           className="attribution-collapse attribution-module__items"
-          items={deductionItems(items)}
+          items={deductionItems(visibleItems)}
         />
       ) : expanded ? (
         <Empty

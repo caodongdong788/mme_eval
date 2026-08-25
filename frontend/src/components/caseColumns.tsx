@@ -3,6 +3,7 @@ import { Space, Tag, Tooltip, Typography } from "antd";
 import { Link } from "react-router-dom";
 import { CaseRow } from "../api/index";
 import { failureTagHint } from "../hooks/useConfigLabelMap";
+import { getCaseFinalVerdict, getCaseRuntimeAcceptance } from "../utils/caseFilters";
 
 const RAG_STATUS: Record<NonNullable<CaseRow["rag_status"]>, { label: string; kind: string }> = {
   hit: { label: "已触发并命中", kind: "pass" },
@@ -25,7 +26,7 @@ export function buildCaseColumns(
   _scoringStandard?: string,
 ) {
   const totalMax = 40;
-  const executionFailed = (row: CaseRow) => (row.failure_tags || []).includes("adapter_error");
+  const executionFailed = (row: CaseRow) => getCaseFinalVerdict(row) === "执行失败";
   return [
     {
       title: "场景描述",
@@ -94,12 +95,27 @@ export function buildCaseColumns(
       },
     },
     {
+      key: "runtime_acceptance",
       title: "运行验收",
       dataIndex: "release_passed",
-      render: (passed: boolean, row: CaseRow) => {
-        if (executionFailed(row)) return dot("fail", "执行失败");
-        if (row.judge_error) return dot("warn", "判分异常");
-        return dot(passed ? "pass" : "fail", passed ? "通过" : "不通过");
+      render: (_passed: boolean, row: CaseRow) => {
+        const acceptance = getCaseRuntimeAcceptance(row);
+        return dot(
+          acceptance === "合格" ? "pass" : acceptance === "不合格" ? "fail" : "warn",
+          acceptance
+        );
+      },
+    },
+    {
+      key: "final_verdict",
+      title: "最终结论",
+      dataIndex: "release_passed",
+      render: (_passed: boolean, row: CaseRow) => {
+        const verdict = getCaseFinalVerdict(row);
+        return dot(
+          verdict === "通过" ? "pass" : verdict === "不通过" ? "fail" : "warn",
+          verdict
+        );
       },
     },
     {

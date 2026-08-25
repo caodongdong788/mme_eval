@@ -236,6 +236,14 @@ describe("AttributionCaseDetailPage", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "cx-agent 优化建议展开" })
     );
+    const priorityFilter = screen.getByRole("combobox", {
+      name: "按问题等级筛选单 Case cx-agent 优化点",
+    });
+    fireEvent.mouseDown(priorityFilter);
+    expect(screen.getByRole("option", { name: "P0" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "P1" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "P2" })).toBeInTheDocument();
+    fireEvent.keyDown(priorityFilter, { key: "Escape" });
     // 单 Case 与任务汇总使用同一层级：八维 → P0/P1/P2 → 问题 → 分类 → 怎么优化。
     fireEvent.click(screen.getByText("专业准确性与边界"));
     expect(screen.getByText("P1 · 较高优先级")).toBeInTheDocument();

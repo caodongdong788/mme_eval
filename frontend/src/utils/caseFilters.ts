@@ -13,6 +13,8 @@ export type CaseFilterField =
   | "guideline_score"
   | "rag_status"
   | "grade"
+  | "runtime_acceptance"
+  | "final_verdict"
   | "stability"
   | "failure_tags"
   | "review";
@@ -35,7 +37,7 @@ export interface FilterCondition<Field extends string = string> {
   operator: CaseFilterOperator;
   /**
    * `contains` / `not_contains` on an enum accept several values.  Values in
-   * the same condition use OR semantics: e.g. 综合评价「包含 优秀、良好」.
+   * the same condition use OR semantics: e.g. 质量评级「包含 优秀、良好」.
    */
   value?: string | string[];
 }
@@ -86,7 +88,7 @@ export const CASE_FILTER_FIELDS: CaseFilterFieldDefinition[] = [
   },
   {
     value: "grade",
-    label: "综合评价",
+    label: "质量评级",
     kind: "select",
     options: [
       { value: "优秀", label: "优秀" },
@@ -94,6 +96,28 @@ export const CASE_FILTER_FIELDS: CaseFilterFieldDefinition[] = [
       { value: "合格", label: "合格" },
       { value: "不合格", label: "不合格" },
       { value: "判分异常", label: "判分异常" },
+    ],
+  },
+  {
+    value: "runtime_acceptance",
+    label: "运行验收",
+    kind: "select",
+    options: [
+      { value: "合格", label: "合格" },
+      { value: "不合格", label: "不合格" },
+      { value: "判分异常", label: "判分异常" },
+      { value: "执行失败", label: "执行失败" },
+    ],
+  },
+  {
+    value: "final_verdict",
+    label: "最终结论",
+    kind: "select",
+    options: [
+      { value: "通过", label: "通过" },
+      { value: "不通过", label: "不通过" },
+      { value: "判分异常", label: "判分异常" },
+      { value: "执行失败", label: "执行失败" },
     ],
   },
   {
@@ -224,6 +248,28 @@ function expectedValues(value: FilterCondition["value"]): string[] {
   return values.map((item) => String(item ?? "").trim()).filter(Boolean);
 }
 
+export type CaseFinalVerdict = "通过" | "不通过" | "判分异常" | "执行失败";
+export type CaseRuntimeAcceptance = "合格" | "不合格" | "判分异常" | "执行失败";
+
+export function getCaseRuntimeAcceptance(row: CaseRow): CaseRuntimeAcceptance {
+  if ((row.failure_tags || []).includes("adapter_error")) return "执行失败";
+  if (row.judge_error) return "判分异常";
+  return row.release_passed ? "合格" : "不合格";
+}
+
+/**
+ * 列表中的最终结论口径：只有质量评级达到「合格」及以上，且运行验收通过，
+ * 才算最终通过。判分与执行异常优先单列，避免被普通不通过掩盖。
+ */
+export function getCaseFinalVerdict(row: CaseRow): CaseFinalVerdict {
+  const runtimeAcceptance = getCaseRuntimeAcceptance(row);
+  if (runtimeAcceptance === "执行失败" || runtimeAcceptance === "判分异常") {
+    return runtimeAcceptance;
+  }
+  const qualityPassed = ["优秀", "良好", "合格"].includes((row.grade || "").trim());
+  return qualityPassed && runtimeAcceptance === "合格" ? "通过" : "不通过";
+}
+
 function displayValue(
   row: CaseRow,
   field: CaseFilterField,
@@ -258,6 +304,10 @@ function displayValue(
       return row.judge_error
         ? "判分异常"
         : row.grade || (row.release_passed ? "合格" : "不合格");
+    case "runtime_acceptance":
+      return getCaseRuntimeAcceptance(row);
+    case "final_verdict":
+      return getCaseFinalVerdict(row);
     case "stability":
       return row.stability;
     case "failure_tags":

@@ -185,7 +185,7 @@ export function RunsListOverview({
         />
         <RunsKpi
           title="平均通过率"
-          tip={`每天取各 Benchmark 当天最新一次已完成评测，按通过 Case 数 ÷ Case 总数聚合${hasPeriod ? ` · ${PERIOD_COMPARE_TIP}` : ""}`}
+          tip={`每天取当天实际完成的各 Benchmark 最新一次评测，按通过 Case 数 ÷ Case 总数聚合；不同日期的 Benchmark 覆盖范围可能不同${hasPeriod ? ` · ${PERIOD_COMPARE_TIP}` : ""}`}
           value={kpis.avgPassPct != null ? kpis.avgPassPct.toFixed(1) : "—"}
           unit={kpis.avgPassPct != null ? "%" : undefined}
           trend={hasPeriod ? <PeriodDeltaBadge delta={passRateDelta} percent /> : undefined}
@@ -254,8 +254,8 @@ export function RunsListOverview({
           {trend.length === 0 ? (
             <div className="runs-chart-empty">
               {filter === "success" || filter === "all"
-                ? "当前范围内暂无两个 Benchmark 同日完成的评测，无法绘制聚合趋势"
-                : "当前筛选无两个 Benchmark 同日完成的评测，无法绘制聚合趋势"}
+                ? "当前范围内暂无已完成评测，无法绘制趋势"
+                : "当前筛选暂无已完成评测，无法绘制趋势"}
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
@@ -294,8 +294,11 @@ export function RunsListOverview({
                     return `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
                   }}
                   formatter={(value, _name, item) => {
-                    const point = item.payload as { passed: number; total: number };
-                    return [`${Number(value)}%（${point.passed}/${point.total}）`, "聚合通过率"];
+                    const point = item.payload as { passed: number; total: number; benchmarkCount: number };
+                    return [
+                      `${Number(value)}%（${point.passed}/${point.total}，覆盖 ${point.benchmarkCount} 个 Benchmark）`,
+                      "聚合通过率",
+                    ];
                   }}
                 />
                 <Area
