@@ -112,6 +112,37 @@ describe("JudgeVerdictTable", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders model-comparison dimensions with Chinese labels when the backend label map has no entry", () => {
+    const dimensions = [
+      ["medical_knowledge_reasoning", "医学知识与临床推理"],
+      ["factuality_hallucination", "事实可靠性与幻觉控制"],
+      ["instruction_following", "指令遵循与产品边界"],
+      ["context_personalization", "上下文利用与个性化"],
+      ["tool_use", "工具选择与调用执行"],
+      ["multimodal_understanding", "图像与多模态理解"],
+      ["empathy_communication", "共情与患者沟通"],
+      ["multi_turn_consistency", "多轮一致性与状态保持"],
+    ] as const;
+
+    renderWithProviders(
+      <JudgeVerdictTable
+        tagLabel={(tag) => tag}
+        verdicts={dimensions.map(([key]) => ({
+          name: `dimension.${key}`,
+          passed: true,
+          score: 5,
+          max_score: 5,
+          reason: "符合要求",
+          failure_tags: [],
+        }))}
+      />,
+    );
+
+    dimensions.forEach(([, label]) => {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    });
+  });
+
   it("renders audited deductions as plain numbered reasons with answer evidence", async () => {
     renderWithProviders(
       <JudgeVerdictTable

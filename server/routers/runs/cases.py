@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from medeval.assertions import refresh_result_assertions
 from medeval.models import CaseResult, ConversationTrace
 from medeval.reporter.aggregator import build_report
+from medeval.reporter.scoring import apply_grading
 
 from ...auth import get_current_user_optional
 from ...constants import LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX
@@ -246,6 +247,10 @@ async def sync_case_agent_chain(
     # 工具与数据命中断言必须基于刚同步到的真实链路重新判定；这可能
     # 改变 Case 的验收结论，回答要求绑定评分维度时也会同步反映在本次总分中。
     refresh_result_assertions(result)
+    # 断言 verdict 更新后必须立即重算最终运行验收。否则会出现断言已经变为
+    # “未通过/不可用”，但列表和详情仍保留同步前“合格”的旧 release_passed。
+    # 这一步仅基于已持久化的 Judge verdict 重算，不会再次调用评分模型。
+    apply_grading([result], run.scoring_standard)
 
     rows = session.query(CaseResultRow).filter_by(run_id=run_id).order_by(CaseResultRow.id).all()
     results = [

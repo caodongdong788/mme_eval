@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/index";
+import { pairwiseDimensionLabel } from "../utils/scoringStandards";
 
 const caches = new Map<string, Record<string, string>>();
 const inflights = new Map<string, Promise<Record<string, string>>>();
@@ -107,12 +108,24 @@ export function useFailureTagLabels(): (tag: string) => string {
   );
 }
 
-/** Judge verdict 全名 → 中文标签；未知值回退英文名。 */
+/**
+ * Judge verdict 全名 → 中文标签。
+ *
+ * 八维 Agent 评测和模型对比评测共用该表格。后端的标签接口只覆盖平台
+ * 配置中的默认八维；模型对比维度采用 `dimension.<key>` 形式返回，若直接
+ * 回退原字段会把内部英文 key 展示给用户。因此这里先保留后端配置优先级，
+ * 再使用统一的维度标签映射兜底。
+ */
 export function useJudgeVerdictLabels(): (name: string | undefined) => string {
   const resolve = useConfigLabelMap(
     CACHE_KEY_JUDGE,
     fetchJudgeVerdictLabels,
-    (labels, name) => labels[name] || name
+    (labels, name) => {
+      const dimensionKey = name.startsWith("dimension.")
+        ? name.slice("dimension.".length)
+        : null;
+      return labels[name] || (dimensionKey ? pairwiseDimensionLabel(dimensionKey) : name);
+    }
   );
   return (name: string | undefined) => (name ? resolve(name) : "-");
 }
