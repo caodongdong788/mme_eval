@@ -161,8 +161,8 @@ def test_answer_requirement_deducts_from_its_bound_dimension() -> None:
     assert item.release_passed is True
 
 
-def test_blocking_assertion_updates_single_run_stability_with_final_acceptance() -> None:
-    """质量评级与运行验收可不同，但单次稳定性必须以最终验收为准。"""
+def test_scored_transcript_assertion_does_not_block_single_run_acceptance() -> None:
+    """回答要求绑定维度后只扣分，不能额外把运行验收改为失败。"""
     raw = raw_case()
     raw["evaluation"]["assertions"] = [{
         "id": "must_mention_followup",
@@ -172,7 +172,7 @@ def test_blocking_assertion_updates_single_run_stability_with_final_acceptance()
         "scope": "assistant_final",
         "dimension": "executability",
         "deduction": 1,
-        "blocking": True,
+        "blocking": True,  # 兼容旧配置：模型层会归一为仅扣分的非门禁断言。
     }]
     item = result()
     item.case = TestCase.model_validate(raw)
@@ -184,7 +184,7 @@ def test_blocking_assertion_updates_single_run_stability_with_final_acceptance()
             score=0,
             max_score=1,
             reason="断言未满足：最终回答需提及复查",
-            details={"status": "fail", "blocking": True},
+            details={"status": "fail", "blocking": item.case.evaluation.assertions[0].blocking},
         )
     )
 
@@ -192,9 +192,9 @@ def test_blocking_assertion_updates_single_run_stability_with_final_acceptance()
 
     assert item.composite_score == 39
     assert item.grade == "优秀"
-    assert item.release_passed is False
-    assert item.per_run_passed == [False]
-    assert item.stability == "stable_fail"
+    assert item.release_passed is True
+    assert item.per_run_passed == [True]
+    assert item.stability == "stable_pass"
 
 
 def test_answer_requirement_cannot_bind_two_agent_dimensions() -> None:

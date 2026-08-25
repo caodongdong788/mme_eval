@@ -717,6 +717,14 @@ class EvaluationAssertion(BaseModel):
             and "model_comparison_deduction" not in normalized
         ):
             normalized["model_comparison_deduction"] = 1
+        # 回答要求一旦纳入维度扣分，就只应影响对应评分维度和总分。它与工具、
+        # 数据命中等运行门禁的职责不同；否则会出现「扣 1 分但运行验收不合格」
+        # 的矛盾结果。需要同时做文本门禁时，应另建一条未绑定评分维度的断言。
+        if normalized.get("type") == "transcript" and (
+            normalized.get("dimensions")
+            or normalized.get("model_comparison_dimensions")
+        ):
+            normalized["blocking"] = False
         return normalized
 
     @field_validator("dimensions", "model_comparison_dimensions")
