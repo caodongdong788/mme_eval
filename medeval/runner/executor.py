@@ -241,6 +241,15 @@ async def _run_one(
                             cx_session = context.get("sessionId")
                             if isinstance(cx_session, str):
                                 evaluation_identity["cx_session_id"] = cx_session
+                            system_prompt_enabled = context.get("enableSystemPrompt")
+                            if isinstance(system_prompt_enabled, bool):
+                                evaluation_identity["system_prompt_enabled"] = system_prompt_enabled
+                            injected_context = context.get("injectedContext")
+                            if isinstance(injected_context, dict):
+                                evaluation_identity["injected_context"] = injected_context
+                            response_preference = context.get("responsePreference")
+                            if isinstance(response_preference, dict):
+                                evaluation_identity["response_preference"] = response_preference
                         share_url = resp.raw.get("cx_evaluation_share_url")
                         if isinstance(share_url, str) and share_url:
                             # 多轮 Case 每轮都会冻结当时的完整会话，最后一轮即整段最终回放。

@@ -14,6 +14,18 @@ export interface JudgeVerdictTableProps {
   dimensionMax?: Record<string, number>;
   scoreDeductions?: string[];
   guidelineScores?: GuidelineScore[];
+  assertionScores?: AssertionScore[];
+}
+
+export interface AssertionScore {
+  id?: string;
+  standard?: string;
+  dimension?: string;
+  description?: string;
+  passed?: boolean;
+  deduction?: number;
+  applied_deduction?: number;
+  reason?: string;
 }
 
 function dimensionKey(name: string): string | null {
@@ -110,6 +122,7 @@ export function JudgeVerdictTable({
   dimensionMax = {},
   scoreDeductions = [],
   guidelineScores = [],
+  assertionScores = [],
 }: JudgeVerdictTableProps) {
   const judgeLabel = useJudgeVerdictLabels();
   const dimensionVerdicts = verdicts.filter((verdict) => dimensionKey(verdict.name));
@@ -117,9 +130,23 @@ export function JudgeVerdictTable({
     const key = dimensionKey(name);
     if (!key) return [];
     const prefix = new RegExp(`^${escapeRegExp(key)}(?:\\s+|[：:])`);
+    const structuredAssertionDeductions = assertionScores
+      .filter(
+        (item) =>
+          item.dimension === key &&
+          item.passed === false &&
+          Number(item.applied_deduction || 0) > 0,
+      )
+      .map((item) => {
+        const deduction = Number(item.applied_deduction || 0);
+        const reason = item.reason || item.description || "回答未满足要求";
+        return `回答要求 ${item.id || "—"} -${deduction}分：${reason}`;
+      });
     const legacyDeductions = scoreDeductions
       .filter((item) => prefix.test(item))
-      .map((item) => item.replace(prefix, ""));
+      .map((item) => item.replace(prefix, ""))
+      // 新结果优先使用 assertion_scores 的结构化数据；旧结果仍保留文案回退。
+      .filter((item) => !(structuredAssertionDeductions.length && item.includes("回答要求")));
     const structuredDeductions = guidelineScores
       .filter(
         (item) =>
@@ -131,7 +158,11 @@ export function JudgeVerdictTable({
         const deduction = Number(item.deduction ?? Math.max(0, item.max_score - item.score));
         return `指南 ${item.id} -${deduction}分：${item.reason || "未完整覆盖指南要求"}`;
       });
-    return Array.from(new Set([...structuredDeductions, ...legacyDeductions]));
+    return Array.from(new Set([
+      ...structuredDeductions,
+      ...structuredAssertionDeductions,
+      ...legacyDeductions,
+    ]));
   };
   const columns = [
     {
@@ -193,7 +224,7 @@ export function JudgeVerdictTable({
             <span>{`最终 ${finalScore}/${maxScore}`}</span>
             {guidelineDeduction > 0 ? (
               <Text type="secondary" style={{ fontSize: 11 }}>
-                {`维度原始 ${rawScore}/${maxScore} · 指南 -${guidelineDeduction}分`}
+                {`维度原始 ${rawScore}/${maxScore} · 附加扣分 -${guidelineDeduction}分`}
               </Text>
             ) : null}
           </Space>
@@ -210,7 +241,7 @@ export function JudgeVerdictTable({
             <StructuredDimensionReason verdict={{ ...verdict, reason }} />
             {deductions.length ? (
               <div className="judge-reason__deductions">
-                <strong>指南追加扣分</strong>
+                <strong>附加扣分</strong>
                 {deductions.map((item, index) => <div key={`${item}-${index}`}>{item}</div>)}
               </div>
             ) : null}

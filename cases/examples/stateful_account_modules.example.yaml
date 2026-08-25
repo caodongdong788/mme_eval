@@ -1,0 +1,142 @@
+schema_version: "2.1"
+sample_id: stateful_modules_example_001
+scenario: 复查指标与治疗背景联动
+case_type: 检查报告与指标解读
+is_bug: 链路验证
+level: L2
+source: offline
+initial_state:
+  user_profile:
+    出生日期: "1984-03-12"
+    治疗阶段: on_endocrine
+    肿瘤分型: luminal_b_her2_negative
+    当前用药: tamoxifen
+    用药时长: 6_to_12m
+    绝经状态: premenopausal
+  profile_memory:
+    - "[沟通] 偏好先给结论，再列数据"
+    - "[关注] 对复查指标变化容易焦虑"
+  response_preferences:
+    - preference: 先给结论，再说明数据依据
+      basis: 用户明确表达过该偏好
+  Timeline: []
+  medical_documents:
+    - ref: lab_20260704
+      title: 复查血液指标
+      document_date: "2026-07-04"
+      document_type: lab
+      metrics:
+        - name: CA15-3
+          value: 16
+          unit: U/mL
+          measured_at: "2026-07-04"
+        - name: 白细胞
+          value: 4.1
+          unit: 10^9/L
+          measured_at: "2026-07-04"
+    - ref: lab_20260718
+      title: 复查血液指标
+      document_date: "2026-07-18"
+      document_type: lab
+      metrics:
+        - name: CA15-3
+          value: 18
+          unit: U/mL
+          measured_at: "2026-07-18"
+        - name: 白细胞
+          value: 3.2
+          unit: 10^9/L
+          measured_at: "2026-07-18"
+  chat_history:
+    - ref: history_20260704
+      title: 上次复查指标咨询
+      started_at: "2026-07-04T10:00:00+08:00"
+      messages:
+        - role: user
+          content: 我这次 CA15-3 是 16，白细胞是 4.1，后面需要关注什么？
+          created_at: "2026-07-04T10:00:00+08:00"
+        - role: assistant
+          content: 建议结合后续趋势观察；如果白细胞继续下降或出现发热，应及时联系医生。
+          created_at: "2026-07-04T10:00:20+08:00"
+  tool_state:
+    scheduled_tasks:
+      - ref: review_reminder_20260901
+        task_name: 复查提醒
+        due_at: "2026-09-01T09:00:00+08:00"
+        message: 请按计划复查血常规和肿瘤标志物
+        purpose: review_reminder
+        time_source: user_explicit
+        schedule_type: once
+        timezone: Asia/Shanghai
+        route: /medical-records
+    check_ins:
+      - ref: temperature_20260820
+        category_key: temperature
+        category_name: 体温
+        title: 今日体温
+        recorded_at: "2026-08-20T08:00:00+08:00"
+        values:
+          temperature: 36.6
+          fever: false
+        fields:
+          - key: temperature
+            label: 体温
+            type: number
+            unit: ℃
+          - key: fever
+            label: 是否发热
+            type: boolean
+        tags: [复查观察]
+    undercurrent_tasks:
+      - ref: monitor_wbc_trend
+        kind: monitor
+        status: active
+        next_due_at: "2026-09-01T09:00:00+08:00"
+        priority: 10
+        payload:
+          metric_names: [白细胞]
+          reason: 白细胞较上次下降，需要关注后续趋势
+turns:
+  - role: user
+    content: 我想看看最近两次 CA15-3 和白细胞有什么变化。结合我现在的治疗情况和最近没有发热，帮我判断我该怎么安排，什么时候需要尽快就医？
+evaluation:
+  dimension_criteria:
+    professional_accuracy:
+      criteria:
+        - 应准确读取并比较两次 CA15-3 和白细胞结果
+      reference_answers: []
+  guidelines: []
+  assertions:
+    - id: read_metrics
+      type: tool_call
+      description: 必须读取结构化病例指标
+      name: read_medical_metrics
+      min_count: 1
+      blocking: true
+      on_unavailable: fail
+    - id: use_literature
+      type: tool_call
+      description: 应调用医学文献检索解释治疗期指标变化和就医边界
+      name: medical_literature_search
+      min_count: 1
+      blocking: true
+      on_unavailable: fail
+    - id: literature_rag_hit
+      type: retrieval
+      description: 医学文献检索应至少采用一条可用于回答的证据
+      name: literature_rag
+      min_count: 1
+      blocking: true
+      on_unavailable: fail
+    - id: mention_metric
+      type: transcript
+      description: 最终对话应提及用户询问的 CA15-3
+      contains: CA15-3
+      scope: assistant_final
+      dimensions: [professional_accuracy]
+      deduction: 1
+      model_comparison_dimensions: [context_personalization]
+      model_comparison_deduction: 1
+      blocking: false
+      on_unavailable: fail
+notes: 结构示例；正式 Case 上线前需临床专家审核。

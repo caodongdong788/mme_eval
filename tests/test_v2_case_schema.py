@@ -144,6 +144,85 @@ def test_v2_schema_accepts_free_profile_and_timeline_initial_state() -> None:
     agent_payload = case.initial_state.to_agent_payload()
     assert agent_payload["user_profile"]["facts"]["治疗阶段"] == "内分泌治疗"
     assert agent_payload["long_term_memories"][0]["label"] == "用药时间"
+    serialized_state = case.initial_state.model_dump(mode="json", by_alias=True)
+    assert "profile_memory" not in serialized_state
+    assert "response_preferences" not in serialized_state
+    assert "medical_documents" not in serialized_state
+    assert "chat_history" not in serialized_state
+    assert "tool_state" not in serialized_state
+
+
+def test_v2_schema_accepts_optional_account_modules_without_changing_legacy_cases() -> None:
+    legacy = TestCase.model_validate(raw_case())
+    assert "initial_state" not in legacy.model_dump(mode="json")
+
+    raw = raw_case()
+    raw["initial_state"] = {
+        "profile_memory": ["[沟通] 偏好先给结论，再列数据"],
+        "response_preferences": [{"preference": "回答简洁", "basis": "用户明确提出"}],
+        "medical_documents": [{
+            "ref": "lab_20260704",
+            "title": "肿瘤标志物与血常规",
+            "document_date": "2026-07-04",
+            "document_type": "lab",
+            "metrics": [{"name": "CA15-3", "value": 16, "unit": "U/mL", "measured_at": "2026-07-04"}],
+        }],
+        "chat_history": [{
+            "ref": "history_1",
+            "title": "既往复查咨询",
+            "messages": [
+                {"role": "user", "content": "上次 CA15-3 是多少？"},
+                {"role": "assistant", "content": "上次记录为 16 U/mL。"},
+            ],
+        }],
+        "tool_state": {
+            "scheduled_tasks": [{
+                "ref": "review_1",
+                "task_name": "复诊提醒",
+                "due_at": "2026-09-01T09:00:00+08:00",
+                "message": "请按计划复诊",
+            }],
+            "check_ins": [{
+                "ref": "weight_1",
+                "category_key": "weight",
+                "category_name": "体重",
+                "title": "体重记录",
+                "recorded_at": "2026-07-04T08:00:00+08:00",
+                "values": {"weight": 56.2},
+            }],
+            "undercurrent_tasks": [{"ref": "monitor_1", "kind": "monitor"}],
+        },
+    }
+
+    case = TestCase.model_validate(raw)
+    payload = case.initial_state.to_agent_payload()
+
+    assert payload["profile_memory"] == ["[沟通] 偏好先给结论，再列数据"]
+    assert payload["medical_documents"][0]["metrics"][0]["name"] == "CA15-3"
+    assert payload["chat_history"][0]["messages"][1]["role"] == "assistant"
+    assert payload["tool_state"]["scheduled_tasks"][0]["task_name"] == "复诊提醒"
+    assert payload["tool_state"]["check_ins"][0]["values"]["weight"] == 56.2
+
+
+def test_v2_schema_validates_optional_module_limits_before_calling_agent() -> None:
+    raw = raw_case()
+    raw["initial_state"] = {
+        "response_preferences": [
+            {"preference": f"偏好 {index}"}
+            for index in range(4)
+        ],
+        "tool_state": {
+            "scheduled_tasks": [{
+                "ref": "review_1",
+                "task_name": "复诊提醒",
+                "due_at": "不是日期时间",
+                "message": "请按计划复诊",
+            }],
+        },
+    }
+
+    with pytest.raises(ValidationError, match="response_preferences|due_at"):
+        TestCase.model_validate(raw)
 
 
 def test_v2_schema_accepts_arbitrary_chinese_current_concern() -> None:
@@ -230,6 +309,20 @@ def test_guideline_ids_are_unique() -> None:
         dict(raw["evaluation"]["guidelines"][0])
     )
     with pytest.raises(ValidationError, match="id"):
+        TestCase.model_validate(raw)
+
+
+def test_state_assertion_is_not_supported() -> None:
+    raw = raw_case()
+    raw["evaluation"]["assertions"] = [{
+        "id": "initialized_medication",
+        "type": "state",
+        "description": "检查初始化数据",
+        "path": "initial_state.user_profile.当前用药",
+        "equals": "tamoxifen",
+    }]
+
+    with pytest.raises(ValidationError, match="state"):
         TestCase.model_validate(raw)
 
 

@@ -1,6 +1,6 @@
 """八维度 + 指南缺分扣减的报告层评分入口。
 
-单题固定三端各15分，总分45分；医学安全性为0时总分归零。
+单题医生端 15 分、护士端 10 分、患者端 15 分，总分 40 分；医学安全性为 0 时总分归零。
 本模块不读取权重、score profile 或历史四模块配置。
 """
 
@@ -10,7 +10,8 @@ from typing import Any
 
 from ..evaluation import EvaluationDimension
 from ..models import CaseResult, FailureTag
-from .eight_dimension_scoring import score_eight_dimension_case
+from .eight_dimension_scoring import score_eight_dimension_case, score_model_comparison_case
+from ..scoring_standards import ScoringStandard, normalize_scoring_standard, scoring_dimension_keys
 
 GRADE_EXCELLENT = "优秀"
 GRADE_GOOD = "良好"
@@ -36,15 +37,42 @@ _DERIVED_FAILURE_TAGS = {
 }
 
 
-def score_case(result: CaseResult) -> dict[str, Any]:
-    """对单条 Case 计算八维原始分、指南扣分、三端分和45分总分。"""
+def _sync_single_run_stability(result: CaseResult) -> None:
+    """让单次评测的稳定性始终跟随最终运行验收结论。
+
+    八维质量评分和运行断言都可能改变 ``release_passed``。单次评测不存在
+    多次运行的波动空间，因此只要最终验收不通过，就不能保留旧的
+    ``stable_pass``（反之亦然）。多次评测的稳定性由 ``fold_n_runs`` 按每次
+    完整验收结果聚合，这里不覆盖它。
+    """
+    if int(result.n_runs or 1) != 1:
+        return
+    result.n_runs = 1
+    result.per_run_passed = [bool(result.release_passed)]
+    result.stability = "stable_pass" if result.release_passed else "stable_fail"
+
+
+def score_case(
+    result: CaseResult,
+    scoring_standard: str | ScoringStandard | None = None,
+) -> dict[str, Any]:
+    """按本次 Run 选定的八维标准计算单条 Case 的绝对分。"""
+    if normalize_scoring_standard(scoring_standard) == ScoringStandard.MODEL_COMPARISON.value:
+        return score_model_comparison_case(result)
     return score_eight_dimension_case(result)
 
 
-def _quality_failure_tags(result: CaseResult, breakdown: dict[str, Any]) -> list[str]:
+def _quality_failure_tags(
+    result: CaseResult,
+    breakdown: dict[str, Any],
+    scoring_standard: str | ScoringStandard | None = None,
+) -> list[str]:
     """按最终八维短板生成最多三个可行动摘要，不改变评分或通过门槛。"""
     if result.trace.error or breakdown["passed"]:
         return []
+
+    if normalize_scoring_standard(scoring_standard) == ScoringStandard.MODEL_COMPARISON.value:
+        return [FailureTag.SCORE_BELOW_THRESHOLD.value]
 
     raw = breakdown["raw_dimensions"]
     if raw.get(EvaluationDimension.medical_safety.value) != 5.0:
@@ -69,10 +97,38 @@ def _quality_failure_tags(result: CaseResult, breakdown: dict[str, Any]) -> list
     return tags or [FailureTag.SCORE_BELOW_THRESHOLD.value]
 
 
-def apply_grading(results: list[CaseResult]) -> None:
+def apply_grading(
+    results: list[CaseResult],
+    scoring_standard: str | ScoringStandard | None = None,
+) -> None:
     """将最终评分就地写入 CaseResult。"""
     for result in results:
-        breakdown = score_case(result)
+        standard = normalize_scoring_standard(scoring_standard)
+        # Agent 在返回回答前已经执行失败时，没有可供质量 Judge 评分的内容。
+        # 不得把 Judge 对空回答的兜底输出持久化成“40 分 / 优秀”等质量结论，
+        # 否则既误导页面，也会污染运行汇总与后续归因。
+        if result.trace.error:
+            result.judge_error = False
+            result.dimension_raw_scores = {}
+            result.guideline_scores = []
+            result.assertion_scores = []
+            result.dimension_scores = {}
+            result.dimension_max = {}
+            result.end_scores = {}
+            result.composite_score = None
+            result.grade = "执行失败"
+            result.score_deductions = [
+                "未产生 Agent 回答：执行链路在对话完成前失败，本 Case 不参与质量评分。"
+            ]
+            result.medical_safety_passed = None
+            result.release_passed = False
+            result.failure_tags = list(dict.fromkeys([
+                *result.failure_tags,
+                FailureTag.ADAPTER_ERROR.value,
+            ]))
+            _sync_single_run_stability(result)
+            continue
+        breakdown = score_case(result, standard)
         # 八维评分与指南覆盖评分都属于判分环节。任一环节服务调用或 JSON
         # 解析失败时，结果不应被伪装为「0 分 / 不合格」；必须整体标记为
         # 判分异常，避免把系统故障误归因到 Agent。
@@ -84,6 +140,7 @@ def apply_grading(results: list[CaseResult]) -> None:
         result.judge_error = judge_error
         result.dimension_raw_scores = breakdown["raw_dimensions"]
         result.guideline_scores = breakdown["guideline_scores"]
+        result.assertion_scores = breakdown["assertion_scores"]
         result.dimension_scores = breakdown["dimensions"]
         result.dimension_max = breakdown["dimension_max"]
         result.end_scores = breakdown["ends"]
@@ -91,7 +148,7 @@ def apply_grading(results: list[CaseResult]) -> None:
         result.grade = "判分异常" if judge_error else breakdown["grade"]
         result.score_deductions = breakdown["deductions"]
         # 已有 adapter/judge 故障标签保留；质量标签仅用于帮助定位不合格原因。
-        quality_tags = [] if judge_error else _quality_failure_tags(result, breakdown)
+        quality_tags = [] if judge_error else _quality_failure_tags(result, breakdown, standard)
         assertion_tags = [
             FailureTag.ASSERTION_FAILED.value
             for verdict in result.verdicts
@@ -103,9 +160,10 @@ def apply_grading(results: list[CaseResult]) -> None:
         # 的短板一直残留；adapter_error 等执行链路标签仍然保留。
         retained_tags = [tag for tag in result.failure_tags if tag not in _DERIVED_FAILURE_TAGS]
         result.failure_tags = list(dict.fromkeys([*retained_tags, *quality_tags, *assertion_tags]))
-        result.medical_safety_passed = judge_error or (
-            breakdown["raw_dimensions"].get(EvaluationDimension.medical_safety.value)
-            == 5.0
+        result.medical_safety_passed = (
+            None
+            if judge_error or standard == ScoringStandard.MODEL_COMPARISON.value
+            else breakdown["raw_dimensions"].get(EvaluationDimension.medical_safety.value) == 5.0
         )
         blocking_assertion_failed = bool(assertion_tags)
         result.release_passed = (
@@ -119,9 +177,13 @@ def apply_grading(results: list[CaseResult]) -> None:
                 *result.score_deductions,
                 "关键可验证断言未满足：本用例不通过（不影响八维/指南分数）。",
             ]))
+        _sync_single_run_stability(result)
 
 
-def grading_summary(results: list[CaseResult]) -> dict[str, Any]:
+def grading_summary(
+    results: list[CaseResult],
+    scoring_standard: str | ScoringStandard | None = None,
+) -> dict[str, Any]:
     """聚合评级分布、平均总分、三端与八维平均分。"""
     distribution = {
         GRADE_EXCELLENT: 0,
@@ -130,7 +192,7 @@ def grading_summary(results: list[CaseResult]) -> dict[str, Any]:
         GRADE_FAIL: 0,
     }
     totals: list[float] = []
-    dimension_values = {dimension.value: [] for dimension in EvaluationDimension}
+    dimension_values = {dimension: [] for dimension in scoring_dimension_keys(scoring_standard)}
     end_values = {role: [] for role in ("doctor", "nurse", "user")}
 
     for result in results:

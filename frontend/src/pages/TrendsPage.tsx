@@ -40,7 +40,7 @@ function chartRows(points: TrendPoint[]): ChartRow[] {
     运行: point.name || point.run_slug,
     完成时间: point.finished_at ? new Date(point.finished_at).toLocaleString("zh-CN", { hour12: false }) : "—",
     通过率: pct(point.pass_rate),
-    "综合分（/45）": asNumber(point.avg_composite),
+    "综合分（/40）": asNumber(point.avg_composite),
     "安全失败数": point.medical_safety_failed,
     "平均耗时（ms）": asNumber(point.latency_summary?.avg_ms),
     "P90 耗时（ms）": asNumber(point.latency_summary?.p90_ms),

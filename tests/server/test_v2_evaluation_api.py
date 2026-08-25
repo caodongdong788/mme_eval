@@ -42,6 +42,10 @@ def upload(client, text: str, name: str = "v2-api"):
     )
 
 
+def single_case_yaml() -> str:
+    return yaml.safe_dump(yaml.safe_load(V2_YAML)[0], allow_unicode=True, sort_keys=False)
+
+
 def _reset_benchmark_updated_at(benchmark_id: int) -> datetime:
     baseline = datetime(2000, 1, 1)
     with session_scope() as session:
@@ -95,6 +99,61 @@ def test_upload_and_read_v2_benchmark(client, settings) -> None:
     assert parsed["case_type"] == "医学诊疗类"
     assert parsed["is_bug"] == "产品优化"
     assert parsed["evaluation"]["guidelines"][0]["max_score"] == 3
+
+
+def test_single_case_yaml_can_be_edited_and_deleted(client, settings) -> None:
+    created = upload(client, single_case_yaml(), name="single-case-yaml")
+    assert created.status_code == 201, created.text
+    benchmark_id = created.json()["id"]
+    source_path = settings.uploads_dir / str(benchmark_id) / "cases.yaml"
+    assert isinstance(yaml.safe_load(source_path.read_text(encoding="utf-8")), dict)
+
+    content = client.get(
+        f"/api/benchmarks/{benchmark_id}/cases/api_v2_001/content"
+    )
+    assert content.status_code == 200, content.text
+    edited_case = content.json()["case"]
+    edited_case["notes"] = "单对象 YAML 可保存"
+    saved = client.put(
+        f"/api/benchmarks/{benchmark_id}/cases/api_v2_001/content",
+        json={"case": edited_case},
+    )
+    assert saved.status_code == 200, saved.text
+    saved_source = yaml.safe_load(source_path.read_text(encoding="utf-8"))
+    assert isinstance(saved_source, dict)
+    assert saved_source["notes"] == "单对象 YAML 可保存"
+
+    # 单条 Case 的 Level 修改后，Benchmark 外层列表的 levels 汇总也必须同步刷新。
+    edited_case["level"] = "L1"
+    level_saved = client.put(
+        f"/api/benchmarks/{benchmark_id}/cases/api_v2_001/content",
+        json={"case": edited_case},
+    )
+    assert level_saved.status_code == 200, level_saved.text
+    benchmark = client.get(f"/api/benchmarks/{benchmark_id}")
+    assert benchmark.status_code == 200, benchmark.text
+    assert benchmark.json()["levels"] == ["L1"]
+
+    # 列表直接读取保存时同步的汇总，避免每次请求都重新解析全部 YAML。
+    listed = client.get("/api/benchmarks")
+    assert next(item for item in listed.json() if item["id"] == benchmark_id)["levels"] == ["L1"]
+
+    saved_source["scenario"] = "单对象 YAML 直接编辑"
+    saved_yaml = client.put(
+        f"/api/benchmarks/{benchmark_id}/cases/api_v2_001/yaml",
+        json={
+            "yaml_text": yaml.safe_dump(
+                saved_source, allow_unicode=True, sort_keys=False
+            )
+        },
+    )
+    assert saved_yaml.status_code == 200, saved_yaml.text
+    assert yaml.safe_load(source_path.read_text(encoding="utf-8"))["scenario"] == "单对象 YAML 直接编辑"
+
+    deleted = client.delete(f"/api/benchmarks/{benchmark_id}/cases/api_v2_001")
+    assert deleted.status_code == 204, deleted.text
+    assert yaml.safe_load(source_path.read_text(encoding="utf-8")) == []
+    assert client.get(f"/api/benchmarks/{benchmark_id}/cases").json() == []
 
 
 def test_append_yaml_cases_to_existing_benchmark(client, settings) -> None:
@@ -614,7 +673,7 @@ def test_evaluation_standard_endpoint(client) -> None:
     assert response.status_code == 200
     body = response.json()
     assert len(body["dimensions"]) == 8
-    assert body["total_max_score"] == 45
+    assert body["total_max_score"] == 40
     assert body["medical_safety_zeroes_total"] is True
     assert len(body["model_comparison"]["dimensions"]) == 8
     assert sum(
@@ -623,15 +682,12 @@ def test_evaluation_standard_endpoint(client) -> None:
     assert all(
         item["zero_score_description"]
         and item["full_score_description"]
-        and item["score_range"] == "0～5（质量参考）"
+            and item["score_range"] == "0～5（整数）"
         for item in body["model_comparison"]["dimensions"]
     )
     assert body["model_comparison"]["ttft_rule"].startswith("TTFT")
     assert {item["value"] for item in body["model_comparison"]["values"]} == {
-        "1",
-        "2",
-        "tie",
-        "na",
+        "0", "1", "2", "3", "4", "5"
     }
 
 

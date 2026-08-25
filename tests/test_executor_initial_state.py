@@ -21,6 +21,29 @@ class _AuditCaptureAdapter(_CaptureAdapter):
         return []
 
 
+class _ResponsePreferenceContextAdapter(_CaptureAdapter):
+    async def chat(self, req: ChatRequest) -> ChatResponse:
+        self.requests.append(req)
+        return ChatResponse(
+            reply="先说结论：指标需要继续观察。下面说明数据依据。",
+            raw={
+                "evaluation_context": {
+                    "sessionId": "cx-session-preference",
+                    "enableSystemPrompt": True,
+                    "injectedContext": {
+                        "initializedModules": {"responsePreferences": 1},
+                    },
+                    "responsePreference": {
+                        "status": "success",
+                        "configuredCount": 1,
+                        "loaded": True,
+                        "effective": True,
+                    },
+                }
+            },
+        )
+
+
 def test_runner_passes_same_initial_state_through_multiturn_metadata() -> None:
     case = TestCase.model_validate(
         {
@@ -100,3 +123,36 @@ def test_runner_marks_successful_empty_literature_audit_as_fetched() -> None:
 
     assert trace.cx_literature_audits == []
     assert trace.cx_literature_audit_fetched is True
+
+
+def test_runner_records_actual_response_preference_runtime_status() -> None:
+    case = TestCase.model_validate(
+        {
+            "schema_version": "2.1",
+            "sample_id": "response_preference_runtime",
+            "scenario": "回复偏好",
+            "level": "L2",
+            "initial_state": {
+                "response_preferences": [
+                    {"preference": "先给结论，再说明数据依据", "basis": "用户明确表达"}
+                ]
+            },
+            "turns": [{"role": "user", "content": "这次检查结果怎么样？"}],
+            "evaluation": {},
+        }
+    )
+
+    trace = asyncio.run(
+        _run_one(case, _ResponsePreferenceContextAdapter(), timeout_s=5, retry=0)
+    )
+
+    assert trace.evaluation_identity["system_prompt_enabled"] is True
+    assert trace.evaluation_identity["injected_context"] == {
+        "initializedModules": {"responsePreferences": 1}
+    }
+    assert trace.evaluation_identity["response_preference"] == {
+        "status": "success",
+        "configuredCount": 1,
+        "loaded": True,
+        "effective": True,
+    }

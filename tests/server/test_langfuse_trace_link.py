@@ -189,6 +189,48 @@ def test_case_agent_chain_sync_persists_fail_soft_snapshot(
     assert reloaded["trace"]["agent_chain"]["trace_ids"] == ["cx-trace-1"]
 
 
+def test_case_agent_chain_sync_refreshes_assertion_outcome(
+    client, settings, monkeypatch
+):
+    rid = _seed(settings)
+    with session_scope() as session:
+        row = session.query(CaseResultRow).filter_by(run_id=rid, sample_id="bc_with").one()
+        detail = dict(row.detail_json)
+        detail["case"] = {
+            **detail["case"],
+            "evaluation": {
+                **detail["case"].get("evaluation", {}),
+                "assertions": [{
+                    "id": "literature_hit",
+                    "type": "retrieval",
+                    "description": "医学文献至少命中一次",
+                    "name": "literature_rag",
+                    "min_count": 1,
+                }],
+            },
+        }
+        detail["trace"] = {**detail["trace"], "langfuse_trace_ids": ["cx-trace-assertion"]}
+        row.detail_json = detail
+
+    async def synced_trace(trace, _settings):
+        trace.agent_chain = {
+            "status": "synced",
+            "trace_ids": trace.langfuse_trace_ids,
+            "nodes": [],
+            "summary": {
+                "sources": [{"key": "literature_rag", "status": "hit", "calls": 1, "count": 1}],
+            },
+        }
+
+    monkeypatch.setattr("server.routers.runs.cases.sync_conversation_trace", synced_trace)
+    response = client.post(f"/api/runs/{rid}/cases/bc_with/agent-chain/sync")
+
+    assert response.status_code == 200
+    verdict = next(item for item in response.json()["verdicts"] if item["name"] == "assertion.literature_hit")
+    assert verdict["details"]["status"] == "pass"
+    assert verdict["details"]["count"] == 1
+
+
 def test_post_run_backfill_updates_delayed_langfuse_chain(
     settings, initialized_db, monkeypatch
 ):

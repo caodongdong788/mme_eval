@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPassRateTrend,
   buildCxAgentOptimizationTrend,
+  computeCxAgentOptimizationPeriodDeltas,
   computeRunsListKpis,
   computeRunsPeriodDeltas,
   countRunsByFilter,
@@ -222,6 +223,32 @@ describe("runsListOverview", () => {
       avgComposite: 6,
       medicalSafetyFailed: -1,
     });
+  });
+
+  it("compares cx-agent optimization points by the selected period and its previous period", () => {
+    const current = [
+      run({ id: 1, benchmark_id: 10, created_at: "2026-06-11T10:00:00Z", cx_agent_optimization_count: 5, cx_agent_p0_optimization_count: 2 }),
+      run({ id: 2, benchmark_id: 10, created_at: "2026-06-11T11:00:00Z", cx_agent_optimization_count: 6, cx_agent_p0_optimization_count: 2 }),
+      run({ id: 3, benchmark_id: 20, created_at: "2026-06-11T10:00:00Z", cx_agent_optimization_count: 12, cx_agent_p0_optimization_count: 4 }),
+    ];
+    const previous = [
+      run({ id: 4, benchmark_id: 10, created_at: "2026-06-10T10:00:00Z", cx_agent_optimization_count: 4, cx_agent_p0_optimization_count: 1 }),
+      run({ id: 5, benchmark_id: 20, created_at: "2026-06-10T10:00:00Z", cx_agent_optimization_count: 10, cx_agent_p0_optimization_count: 3 }),
+    ];
+
+    expect(computeCxAgentOptimizationPeriodDeltas(current, previous)).toEqual({ total: 4, p0Total: 2 });
+  });
+
+  it("does not compare cx-agent optimization points when a benchmark is missing in either period", () => {
+    const current = [
+      run({ id: 1, benchmark_id: 10, created_at: "2026-06-11T10:00:00Z", cx_agent_optimization_count: 6 }),
+      run({ id: 2, benchmark_id: 20, created_at: "2026-06-11T10:00:00Z", cx_agent_optimization_count: 12 }),
+    ];
+    const previous = [
+      run({ id: 3, benchmark_id: 10, created_at: "2026-06-10T10:00:00Z", cx_agent_optimization_count: 4 }),
+    ];
+
+    expect(computeCxAgentOptimizationPeriodDeltas(current, previous)).toBeNull();
   });
 
   it("does not compare pass rates when one period lacks a benchmark", () => {

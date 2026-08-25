@@ -50,7 +50,7 @@ def evaluation_accounts(
 
 @router.get("/evaluation-standard")
 def evaluation_standard() -> dict[str, Any]:
-    """回传固定八维、三端和45分评级口径，供前端展示。"""
+    """回传固定八维、三端和40分评级口径，供前端展示。"""
     return config_service.evaluation_standard()
 
 

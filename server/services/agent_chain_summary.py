@@ -4,25 +4,23 @@ from __future__ import annotations
 
 from copy import deepcopy
 import json
+from pathlib import Path
 import re
 from typing import Any, Iterable
 
 
-_SOURCE_DEFINITIONS = (
-    ("medical_records", "病例夹"),
-    ("medical_metrics", "报告指标"),
-    ("timeline", "健康 Timeline"),
-    ("chat_history", "历史对话"),
-    ("literature_rag", "医学文献 RAG"),
-    ("current_report", "当前报告"),
+_CAPABILITIES = json.loads(
+    (Path(__file__).resolve().parents[2] / "shared" / "agent_capabilities.json").read_text(
+        encoding="utf-8"
+    )
 )
-
+_SOURCE_DEFINITIONS = tuple(
+    (item["name"], item["title"]) for item in _CAPABILITIES["retrieval_sources"]
+)
 _SOURCE_TOOL_KEYS = {
-    "read_medical_metrics": "medical_metrics",
-    "read_timeline": "timeline",
-    "search_chat_history": "chat_history",
-    "medical_literature_search": "literature_rag",
-    "medical_report_consultation_board": "current_report",
+    item["tool"]: item["name"]
+    for item in _CAPABILITIES["retrieval_sources"]
+    if item.get("tool")
 }
 
 _ACTION_LABELS = {
@@ -225,8 +223,11 @@ def _summarize_source(
     output_text = _text(output)
     failed = _failed(node)
     if failed:
-        source["status"] = "failed"
-        source["summary"] = node.get("status_message") or "调用失败"
+        # 数据来源按“是否至少成功命中过一次”判断。后续某次调用失败时，
+        # 不应覆盖同一来源在此前调用中已经取得的可用数据。
+        if not source["count"]:
+            source["status"] = "failed"
+            source["summary"] = node.get("status_message") or "调用失败"
         return
 
     if tool == "saved_content":
@@ -253,15 +254,34 @@ def _summarize_source(
         if isinstance(names, str):
             names = [names]
         source["query"] = [str(item) for item in names]
-        missed = "暂时没有" in output_text or "没有找到" in output_text
-        source["status"] = "miss" if missed else "hit"
-        source["summary"] = "未命中结构化报告指标" if missed else "命中病历夹结构化指标"
+        missed = not output_text or "暂时没有" in output_text or "没有找到" in output_text
+        if missed:
+            if not source["count"]:
+                source["status"] = "miss"
+                source["summary"] = "未命中结构化报告指标"
+        else:
+            source["status"] = "hit"
+            source["count"] += 1
+            source["summary"] = f"成功读取 {source['count']} 次结构化报告指标"
         source["details"] = [_compact(output_text, 180)] if output_text else []
         return
 
     if tool == "read_timeline":
-        source["status"] = "queried"
-        source["summary"] = "读取健康 Timeline"
+        missed = (
+            not output_text
+            or "没有找到" in output_text
+            or "暂无记录" in output_text
+            or "无记录" in output_text
+            or "暂时还没有任何 timeline 记录" in output_text
+        )
+        if missed:
+            if not source["count"]:
+                source["status"] = "miss"
+                source["summary"] = "未命中过往事实数据"
+        else:
+            source["status"] = "hit"
+            source["count"] += 1
+            source["summary"] = f"成功读取 {source['count']} 次过往事实"
         source["query"] = {
             key: input_value[key]
             for key in ("keys", "query", "dateRange", "mode", "subject")
@@ -271,8 +291,15 @@ def _summarize_source(
         return
 
     if tool == "search_chat_history":
-        source["status"] = "hit" if output_text else "queried"
-        source["summary"] = "检索历史对话" + ("并返回结果" if output_text else "")
+        missed = not output_text or "没有找到匹配的历史对话" in output_text
+        if missed:
+            if not source["count"]:
+                source["status"] = "miss"
+                source["summary"] = "未命中历史对话"
+        else:
+            source["status"] = "hit"
+            source["count"] += 1
+            source["summary"] = f"成功命中 {source['count']} 次历史对话检索"
         source["query"] = {
             key: input_value[key]
             for key in ("query", "dateRange", "sessionTitle", "limit")
@@ -291,9 +318,16 @@ def _summarize_source(
             "threshold": get_metric("scoreThreshold"),
         }
         selected = metrics["selected"]
-        source["status"] = "hit" if selected is None or selected > 0 else "miss"
+        if selected is None:
+            if not source["count"]:
+                source["status"] = "queried"
+        elif selected > 0:
+            source["status"] = "hit"
+            source["count"] += int(selected)
+        elif not source["count"]:
+            source["status"] = "miss"
         source["summary"] = (
-            f"检索 {metrics['searched']} 条，采用 {selected} 条"
+            f"检索 {metrics['searched']} 条，累计采用 {source['count']} 条"
             if metrics["searched"] is not None and selected is not None
             else "完成医学文献检索"
         )
@@ -305,8 +339,13 @@ def _summarize_source(
         return
 
     if tool == "medical_report_consultation_board":
-        source["status"] = "read"
-        source["summary"] = "读取并分析当前会话中的医学报告"
+        if output_text:
+            source["status"] = "read"
+            source["count"] += 1
+            source["summary"] = f"成功读取并分析 {source['count']} 次当前医学报告"
+        elif not source["count"]:
+            source["status"] = "miss"
+            source["summary"] = "当前报告未返回可用解读结果"
         source["details"] = [_compact(output_text, 180)] if output_text else []
 
 

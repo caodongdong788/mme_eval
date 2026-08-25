@@ -11,11 +11,14 @@ from fastapi import Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from medeval.models import ConversationTrace
+from medeval.assertions import refresh_result_assertions
+from medeval.models import CaseResult, ConversationTrace
+from medeval.reporter.aggregator import build_report
 
 from ...auth import get_current_user_optional
 from ...constants import LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX
 from ...db import get_session
+from ...ingest import build_case_row, populate_run_summary, update_case_row
 from ...models_db import Benchmark, CaseResultRow, FeishuUser
 from ...paths import safe_join
 from ...schemas import CasePageOut, CasesYamlOut
@@ -27,7 +30,6 @@ from ...services.case_export import (
 )
 from ...services.case_query import (
     attach_review_summary,
-    case_rag_status_from_detail,
     filtered_case_page,
 )
 from ...services.case_query import case_row_or_404, next_case_sample_id
@@ -233,13 +235,35 @@ def get_case_image(
 async def sync_case_agent_chain(
     run_id: int, sample_id: str, session: Session = Depends(get_session)
 ) -> dict[str, Any]:
-    """重新从 Langfuse 拉取该 Case 的 cx-agent 内部调用链；失败不改评分。"""
+    """重新从 Langfuse 拉取链路，并刷新依赖真实运行证据的断言结果。"""
+    run = get_run_or_404(session, run_id)
     row = case_row_or_404(session, run_id, sample_id)
     detail = dict(row.detail_json or {})
-    trace = ConversationTrace.model_validate(detail.get("trace") or {"messages": []})
+    result = CaseResult.model_validate(detail)
+    trace = result.trace
     await sync_conversation_trace(trace, get_settings())
-    detail["trace"] = trace.model_dump(mode="json")
-    row.detail_json = detail
-    row.rag_status = case_rag_status_from_detail(detail)
+    result.trace = trace
+    # 工具与数据命中断言必须基于刚同步到的真实链路重新判定；这可能
+    # 改变 Case 的验收结论，回答要求绑定评分维度时也会同步反映在本次总分中。
+    refresh_result_assertions(result)
+
+    rows = session.query(CaseResultRow).filter_by(run_id=run_id).order_by(CaseResultRow.id).all()
+    results = [
+        result if candidate.id == row.id else CaseResult.model_validate(candidate.detail_json)
+        for candidate in rows
+    ]
+    snapshot = {**(run.config_snapshot or {}), "scoring_standard": run.scoring_standard}
+    report = build_report(
+        run_name=run.run_slug,
+        results=results,
+        adapter_type=run.adapter_type,
+        config_snapshot=snapshot,
+        description=run.description,
+        started_at=run.started_at,
+        n_runs=run.n_runs or 1,
+    )
+    replacement = build_case_row(row.run_id, result, snapshot.get("cost"))
+    update_case_row(row, replacement)
+    populate_run_summary(run, report)
     session.flush()
     return get_case_detail_json(session, run_id, sample_id)

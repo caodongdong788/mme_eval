@@ -737,7 +737,7 @@ def _migrate_case_judge_error(engine, *, backfill_existing: bool = True) -> None
                 detail["judge_error"] = True
                 detail["grade"] = "判分异常"
                 detail["composite_score"] = None
-                detail["medical_safety_passed"] = True
+                detail["medical_safety_passed"] = None
                 detail["release_passed"] = False
                 detail["failure_tags"] = []
                 for score in detail.get("guideline_scores") or []:
@@ -750,7 +750,7 @@ def _migrate_case_judge_error(engine, *, backfill_existing: bool = True) -> None
                 row.detail_json = detail
                 row.grade = "判分异常"
                 row.composite_score = None
-                row.medical_safety_passed = True
+                row.medical_safety_passed = None
                 row.release_passed = False
                 row.failure_tags = []
                 touched_run_ids.add(row.run_id)
@@ -766,7 +766,7 @@ def _migrate_case_judge_error(engine, *, backfill_existing: bool = True) -> None
             run.passed = sum(int(row.release_passed) for row in run_rows)
             run.pass_rate = (run.passed / run.total) if run.total else 0.0
             run.medical_safety_failed = sum(
-                int(not row.medical_safety_passed) for row in run_rows
+                int(row.medical_safety_passed is False) for row in run_rows
             )
 
 

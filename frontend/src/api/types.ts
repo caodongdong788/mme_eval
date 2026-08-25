@@ -81,7 +81,7 @@ export interface PreviewRejudgePayload {
 }
 
 export interface CaseScores {
-  medical_safety_passed: boolean;
+  medical_safety_passed: boolean | null;
   release_passed: boolean;
   judge_error?: boolean;
   composite_score?: number | null;
@@ -91,6 +91,7 @@ export interface CaseScores {
   dimension_max: Record<string, number>;
   end_scores: Record<string, number>;
   guideline_scores: GuidelineScore[];
+  assertion_scores: JsonObject[];
   score_deductions: string[];
   failure_tags: string[];
   verdicts: Array<{
@@ -149,7 +150,7 @@ export interface RunSummary {
   pass_rate: number;
   medical_safety_failed: number;
   n_runs: number;
-  /** 已完成评测的用例总分均值，满分 45。 */
+  /** 已完成评测的用例总分均值，满分 40。 */
   avg_composite?: number | null;
   /** 归因页口径的 cx-agent 通用优化点数量；尚未归因时为空。 */
   cx_agent_optimization_count?: number | null;
@@ -230,7 +231,7 @@ export interface CaseRow {
   case_type: string;
   sub_scenario: string;
   level: string;
-  medical_safety_passed: boolean;
+  medical_safety_passed: boolean | null;
   release_passed: boolean;
   judge_error?: boolean;
   composite_score?: number | null;

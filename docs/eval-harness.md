@@ -13,28 +13,20 @@ evaluation:
       type: tool_call
       description: 用户明确询问既往用药时，应读取病例夹
       name: saved_content
-      on_unavailable: warn   # Langfuse 不可用时仅提示，不误判 Agent 失败
     - id: rag_has_source
       type: retrieval
       description: 报告解读应有知识库检索来源
-      name: rag
+      name: literature_rag
       min_count: 1
-      on_unavailable: fail   # 该追踪是本 Case 的发布前置条件
     - id: reply_mentions_plan
       type: transcript
       description: 回复应明确包含复查计划
       contains: 复查
-    - id: memory_injected
-      type: state
-      description: Case 的画像已注入本轮 Agent
-      path: initial_state.user_profile
-    - id: response_budget
-      type: performance
-      description: 单题耗时不能超过两分钟
-      max_duration_ms: 120000
+      dimensions: [executability]
+      deduction: 1
 ```
 
-`tool_call`、`retrieval` 在 Langfuse/Agent 链路同步后才最终判定。平台不要求固定的工具调用顺序，只核验 Case 声明的高风险结果。`blocking: false` 可把断言作为观测项；`on_unavailable: warn` 则不会因观测系统不可用而卡住发布。
+`tool_call`、`retrieval` 在 Langfuse/Agent 链路同步后最终判定，未满足时用例不通过但不修改八维分；`transcript` 可绑定当前评分标准的一个维度并按配置扣分。平台不要求固定的工具调用顺序。
 
 多轮动态 Case 可以补充模拟用户目标和隐藏事实：
 

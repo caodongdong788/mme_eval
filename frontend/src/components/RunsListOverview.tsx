@@ -37,6 +37,7 @@ import {
   computeRunsListKpis,
   countRunsByFilter,
   type RunsListFilter,
+  type CxAgentOptimizationPeriodDeltas,
   type RunsPeriodDeltas,
 } from "../utils/runsListOverview";
 import { PeriodDeltaBadge, PERIOD_COMPARE_TIP, RunsKpi } from "./RunsKpi";
@@ -69,6 +70,7 @@ export function RunsListOverview({
   periodBounds,
   previousBounds,
   periodDeltas,
+  cxAgentOptimizationPeriodDeltas,
   attributionCategoryStats,
   attributionCategoryStatsLoading,
 }: {
@@ -81,6 +83,7 @@ export function RunsListOverview({
   periodBounds: RunsPeriodBounds | null;
   previousBounds: RunsPeriodBounds | null;
   periodDeltas: RunsPeriodDeltas | null;
+  cxAgentOptimizationPeriodDeltas: CxAgentOptimizationPeriodDeltas | null;
   attributionCategoryStats: RunAttributionCategoryStats | null;
   attributionCategoryStatsLoading: boolean;
 }) {
@@ -92,6 +95,8 @@ export function RunsListOverview({
   const bars = buildRecentPassBars(filteredRuns);
   const statusPie = buildStatusDistribution(filteredRuns);
   const passRateDelta = periodDeltas?.passRatePct ?? null;
+  const cxAgentOptimizationDelta = cxAgentOptimizationPeriodDeltas?.total ?? null;
+  const cxAgentOptimizationP0Delta = cxAgentOptimizationPeriodDeltas?.p0Total ?? null;
   const latestPass = trend.length ? trend[trend.length - 1].passPct : null;
   const hasPeriod = periodBounds != null && previousBounds != null;
 
@@ -198,9 +203,9 @@ export function RunsListOverview({
         />
         <RunsKpi
           title="平均分"
-          tip={`仅统计当前筛选中已完成评测的总分均值（每个评测任务等权，满分 45 分）${hasPeriod ? ` · ${PERIOD_COMPARE_TIP}` : ""}`}
+          tip={`仅统计当前筛选中已完成评测的总分均值（每个评测任务等权；不同评分标准的满分可能不同）${hasPeriod ? ` · ${PERIOD_COMPARE_TIP}` : ""}`}
           value={kpis.avgComposite != null ? kpis.avgComposite.toFixed(1) : "—"}
-          unit={kpis.avgComposite != null ? "/45" : undefined}
+          unit={kpis.avgComposite != null ? "分" : undefined}
           trend={
             hasPeriod && periodDeltas ? (
               <PeriodDeltaBadge delta={periodDeltas.avgComposite} unit="分" />
@@ -330,18 +335,18 @@ export function RunsListOverview({
               </div>
             </div>
             <div>
-              <div className="runs-mini-kpi__label">P0 较上次评测</div>
+              <div className="runs-mini-kpi__label">P0 较上周期</div>
               <div className="runs-mini-kpi__val" style={{ color: D.purpleLine }}>
-                {cxAgentOptimizationTrend.p0Delta != null
-                  ? `${cxAgentOptimizationTrend.p0Delta >= 0 ? "+" : ""}${cxAgentOptimizationTrend.p0Delta} 个`
+                {cxAgentOptimizationP0Delta != null
+                  ? `${cxAgentOptimizationP0Delta >= 0 ? "+" : ""}${cxAgentOptimizationP0Delta} 个`
                   : "—"}
               </div>
             </div>
             <div>
-              <div className="runs-mini-kpi__label">较上次评测</div>
+              <div className="runs-mini-kpi__label">较上周期</div>
               <div className="runs-mini-kpi__val" style={{ color: D.purpleLine }}>
-                {cxAgentOptimizationTrend.delta != null
-                  ? `${cxAgentOptimizationTrend.delta >= 0 ? "+" : ""}${cxAgentOptimizationTrend.delta} 个`
+                {cxAgentOptimizationDelta != null
+                  ? `${cxAgentOptimizationDelta >= 0 ? "+" : ""}${cxAgentOptimizationDelta} 个`
                   : "—"}
               </div>
             </div>

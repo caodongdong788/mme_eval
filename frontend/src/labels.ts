@@ -38,7 +38,7 @@ export const EVALUATION_DIMENSION_ROLE: Record<(typeof EVALUATION_DIMENSIONS)[nu
 };
 
 export const STABILITY_LABEL: Record<string, string> = {
-  stable_pass: "稳过",
-  flaky: "抖动",
-  stable_fail: "稳挂",
+  stable_pass: "稳定通过",
+  flaky: "结果波动",
+  stable_fail: "稳定失败",
 };

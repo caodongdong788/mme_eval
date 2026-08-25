@@ -148,6 +148,15 @@ for _ in $(seq 1 18); do
       echo "MME deployment failed: worker readiness check failed" >&2
       exit 1
     fi
+    # 护士端评分由归一化 15 分调整为原始 10 分后，发布时一次性重算已完成
+    # Agent 八维 Run。每个 Run 自带评分版本标记，后续发布会快速跳过。
+    # 若迁移异常，保留新应用运行以便修复后断点重试，避免旧应用按旧分制展示
+    # 已部分更新的数据；本次发布仍以失败退出，方便流水线明确告警。
+    if ! "${COMPOSE[@]}" exec -T app python -m server.score_recalibration; then
+      "${COMPOSE[@]}" logs --tail=100 app >&2
+      echo "MME deployment failed: historical score recalibration needs retry" >&2
+      exit 1
+    fi
     "${COMPOSE[@]}" ps
     echo "MME deployment succeeded: $(git rev-parse --short HEAD)"
     exit 0

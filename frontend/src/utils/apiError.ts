@@ -91,7 +91,12 @@ export function humanizeErrorText(
   if (status === 401 || /unauthorized/i.test(text)) return "登录已过期，请重新登录";
   if (status === 403 || /forbidden/i.test(text)) return "当前账号没有执行此操作的权限";
   if (status === 404 || /^not found$/i.test(text)) return "没有找到对应的数据，可能已被删除或链接已失效";
-  if (status === 409) return "当前数据状态已发生变化，请刷新页面后重试";
+  // 409 在平台中通常附带可行动的中文原因（例如名称重复、已有进行中的任务）。
+  // 不能用一条泛化的“数据状态变化”覆盖它，否则用户无法判断下一步该怎么做。
+  if (status === 409) {
+    if (text && /[\u4e00-\u9fff]/.test(text)) return text;
+    return "当前操作暂时无法完成，相关内容可能已被更新；请刷新页面后重试";
+  }
   if (status === 429 || /rate limit|too many requests/i.test(text)) return "请求过于频繁，请稍后重试";
   if (status === 502 || /bad gateway|httpexception:\s*502/i.test(text)) return "上游服务暂时不可用，请稍后重试";
   if (status === 503 || /service unavailable/i.test(text)) return "服务正在启动或维护中，请稍后重试";

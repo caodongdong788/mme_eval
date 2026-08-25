@@ -8,13 +8,13 @@ def test_evaluation_standard_is_complete() -> None:
         dimension.value for dimension in EvaluationDimension
     ]
     assert standard["dimensions"][0]["binary"] is True
-    assert standard["end_max_scores"] == {"doctor": 15, "nurse": 15, "user": 15}
-    assert standard["total_max_score"] == 45
+    assert standard["end_max_scores"] == {"doctor": 15, "nurse": 10, "user": 15}
+    assert standard["total_max_score"] == 40
     assert standard["guideline_rule"] == "untriggered=0; missing=max_score-score; final=max(0, raw-missing)"
     assert [item["score"] for item in standard["score_anchors"]] == list(SCORE_ANCHORS)
     assert [item["key"] for item in standard["roles"]] == ["doctor", "nurse", "user"]
     assert standard["roles"][1]["raw_max_score"] == 10
-    assert standard["roles"][1]["normalized"] is True
+    assert standard["roles"][1]["normalized"] is False
     assert standard["dimensions"][2]["full_score_description"] == (
         DIMENSION_STANDARDS[EvaluationDimension.clinical_inquiry]["full_score"]
     )
@@ -22,7 +22,7 @@ def test_evaluation_standard_is_complete() -> None:
     comparison = standard["model_comparison"]
     assert len(comparison["dimensions"]) == 8
     assert all(item["max_score"] == 5 for item in comparison["dimensions"])
-    assert all(item["score_range"] == "0～5（质量参考）" for item in comparison["dimensions"])
+    assert all(item["score_range"] == "0～5（整数）" for item in comparison["dimensions"])
     assert all(item["zero_score_description"] for item in comparison["dimensions"])
     assert all(item["full_score_description"] for item in comparison["dimensions"])
 

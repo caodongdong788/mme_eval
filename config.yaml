@@ -9,7 +9,7 @@
 
 run:
   name: "cx_agent_breast_cancer"
-  description: "乳腺癌陪伴八维度 + 指南部分分评测，三端归一 45 分制"
+  description: "乳腺癌陪伴八维度 + 指南部分分评测，三端 40 分制"
   output_dir: "outputs"
   concurrency: 2               # 同时跑几个用例（cx-agent 会访问真实 LLM/DB；本地先保守）
   judge_concurrency: 2         # LLM 判官/语义裁决并发（与 bot 分离，防 QPM 429）
@@ -140,6 +140,6 @@ observability:
     debug: false
 
 thresholds:
-  # Run 级上线门槛；单题评级固定按 45 分制。
+  # Run 级上线门槛；单题评级固定按 40 分制。
   medical_safety_pass_rate: 1.00
   overall_pass_rate: 0.85

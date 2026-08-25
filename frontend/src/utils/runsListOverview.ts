@@ -53,6 +53,12 @@ export interface CxAgentOptimizationTrend {
   delta: number | null;
 }
 
+/** 当前周期与等长上一周期的 cx-agent 优化点差值。 */
+export interface CxAgentOptimizationPeriodDeltas {
+  total: number | null;
+  p0Total: number | null;
+}
+
 const SUCCESS = "success";
 const RUNNING = new Set(["running", "pending"]);
 
@@ -344,6 +350,87 @@ export function buildCxAgentOptimizationTrend(
         : null,
     delta:
       latestTotal != null && previousTotal != null ? latestTotal - previousTotal : null,
+  };
+}
+
+function isCompletedAttributedRun(
+  run: RunSummary
+): run is RunSummary & { cx_agent_optimization_count: number } {
+  return (
+    run.status === SUCCESS
+    && typeof run.cx_agent_optimization_count === "number"
+    && Number.isFinite(run.cx_agent_optimization_count)
+    && evaluationTimestamp(run) > 0
+  );
+}
+
+function attributionBenchmarkKey(run: RunSummary): string {
+  return run.benchmark_id == null ? "unassigned" : String(run.benchmark_id);
+}
+
+function periodOptimizationAverage(
+  runs: RunSummary[],
+  expectedBenchmarkKeys: string[]
+): { total: number; p0Total: number } | null {
+  const completed = runs.filter(isCompletedAttributedRun);
+  if (!completed.length || !expectedBenchmarkKeys.length) return null;
+
+  const latestByDay = new Map<number, Map<string, (typeof completed)[number]>>();
+  for (const run of completed) {
+    const evaluatedAt = evaluationTimestamp(run);
+    const day = dayStartTimestamp(evaluatedAt);
+    const benchmarkRuns = latestByDay.get(day) || new Map();
+    const key = attributionBenchmarkKey(run);
+    const existing = benchmarkRuns.get(key);
+    if (
+      existing == null
+      || evaluatedAt > evaluationTimestamp(existing)
+      || (evaluatedAt === evaluationTimestamp(existing) && run.id > existing.id)
+    ) {
+      benchmarkRuns.set(key, run);
+    }
+    latestByDay.set(day, benchmarkRuns);
+  }
+
+  const dailyTotals = [...latestByDay.values()]
+    .filter((benchmarkRuns) => expectedBenchmarkKeys.every((key) => benchmarkRuns.has(key)))
+    .map((benchmarkRuns) => expectedBenchmarkKeys.reduce(
+      (sum, key) => sum + Number(benchmarkRuns.get(key)?.cx_agent_optimization_count || 0),
+      0
+    ));
+  const dailyP0Totals = [...latestByDay.values()]
+    .filter((benchmarkRuns) => expectedBenchmarkKeys.every((key) => benchmarkRuns.has(key)))
+    .map((benchmarkRuns) => expectedBenchmarkKeys.reduce(
+      (sum, key) => sum + Number(benchmarkRuns.get(key)?.cx_agent_p0_optimization_count || 0),
+      0
+    ));
+  if (!dailyTotals.length) return null;
+
+  const average = (values: number[]) =>
+    Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10;
+  return { total: average(dailyTotals), p0Total: average(dailyP0Totals) };
+}
+
+/**
+ * 按与通过率趋势相同的口径比较：每个自然日仅取每个 Benchmark 最后一次
+ * 已完成归因；只有两个周期均覆盖相同 Benchmark 时才计算环比，避免因样本
+ * 集合变化把“新增/缺失 Benchmark”误当作优化点变化。
+ */
+export function computeCxAgentOptimizationPeriodDeltas(
+  current: RunSummary[],
+  previous: RunSummary[]
+): CxAgentOptimizationPeriodDeltas | null {
+  const attributed = [...current, ...previous].filter(isCompletedAttributedRun);
+  const expectedBenchmarkKeys = [...new Set(attributed.map(attributionBenchmarkKey))].sort();
+  if (!expectedBenchmarkKeys.length) return null;
+
+  const currentAverage = periodOptimizationAverage(current, expectedBenchmarkKeys);
+  const previousAverage = periodOptimizationAverage(previous, expectedBenchmarkKeys);
+  if (!currentAverage || !previousAverage) return null;
+
+  return {
+    total: Math.round((currentAverage.total - previousAverage.total) * 10) / 10,
+    p0Total: Math.round((currentAverage.p0Total - previousAverage.p0Total) * 10) / 10,
   };
 }
 

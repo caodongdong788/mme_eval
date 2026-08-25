@@ -9,6 +9,8 @@ __pycache__/
 # 平台运行期产物
 medeval_platform.db
 *.db
+*.db-wal
+*.db-shm
 uploads/
 outputs/
 

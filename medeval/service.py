@@ -28,6 +28,7 @@ from .config import Config, JudgesCfg
 from .judges import (
     EightDimensionJudge,
     GuidelineJudge,
+    ModelComparisonDimensionJudge,
     judge_all,
 )
 from .models import (
@@ -91,12 +92,31 @@ async def _notify_case_completed(
 # 构造器：从 typed config 装配判官（迁自 cli）。
 
 
-def build_judges(jcfg: JudgesCfg, *, trigger_aware: bool = True) -> list:
+def build_judges(
+    jcfg: JudgesCfg,
+    *,
+    trigger_aware: bool = True,
+    scoring_standard: str = "cx_eight_dimension",
+) -> list:
+    """构造本次 Run 的判分器。
+
+    两套八维均为单次评测的绝对评分标准；模型对比八维不加载 Agent 指南扣分器。
+    """
     judges: list = []
-    for cfg, judge_type in (
-        (jcfg.eight_dimension, EightDimensionJudge),
-        (jcfg.guideline, GuidelineJudge),
-    ):
+    from .scoring_standards import ScoringStandard, normalize_scoring_standard
+
+    standard = normalize_scoring_standard(scoring_standard)
+    judge_specs = [
+        (
+            jcfg.eight_dimension,
+            ModelComparisonDimensionJudge
+            if standard == ScoringStandard.MODEL_COMPARISON.value
+            else EightDimensionJudge,
+        )
+    ]
+    if standard != ScoringStandard.MODEL_COMPARISON.value:
+        judge_specs.append((jcfg.guideline, GuidelineJudge))
+    for cfg, judge_type in judge_specs:
         if cfg.enabled:
             options = {
                 "enabled": True,
@@ -307,6 +327,7 @@ async def judge_traces(
     started_at: datetime | None = None,
     run_name: str | None = None,
     declare_plan: bool = True,
+    scoring_standard: str = "cx_eight_dimension",
 ) -> RunReport:
     """judge 阶段：对每次冻结会话运行八维和指南判分，再折叠多次结果。
 
@@ -339,7 +360,7 @@ async def judge_traces(
         for trace in runs:
             async with judge_sem:
                 r = await judge_all(case, trace, judges)
-                apply_grading([r])
+                apply_grading([r], scoring_standard)
             for judge in judges:
                 progress.advance(f"judge_{judge.name}")
             run_results.append(r)
@@ -365,11 +386,13 @@ async def judge_traces(
         raise RuntimeError("judge_traces 未生成完整的用例结果")
     folded = [result for result in folded_results if result is not None]
 
+    snapshot = config.public_snapshot()
+    snapshot["scoring_standard"] = scoring_standard
     return build_report(
         run_name=run_name or make_run_slug(config.run.name),
         results=folded,
         adapter_type=config.adapter.type,
-        config_snapshot=config.public_snapshot(),
+        config_snapshot=snapshot,
         description=config.run.description,
         started_at=started_at,
         n_runs=n_runs,
@@ -388,6 +411,7 @@ async def evaluate(
     out_dir: Path | None = None,
     resume_dir: Path | None = None,
     completed_results: Mapping[str, CaseResult] | None = None,
+    scoring_standard: str = "cx_eight_dimension",
 ) -> RunReport:
     """完整评测编排：run_traces + judge_traces。不打印、不退出。
 
@@ -491,7 +515,7 @@ async def evaluate(
                     run_results: list[CaseResult] = []
                     for trace in traces:
                         result = await judge_all(case, trace, judges)
-                        apply_grading([result])
+                        apply_grading([result], scoring_standard)
                         for judge in judges:
                             progress.advance(f"judge_{judge.name}")
                         run_results.append(result)
@@ -551,7 +575,7 @@ async def evaluate(
                 judge_error=is_judge_timeout,
                 failure_tags=([] if is_judge_timeout else [FailureTag.ADAPTER_ERROR.value]),
             )
-            apply_grading([result])
+            apply_grading([result], scoring_standard)
             folded_results[index] = result
             await _notify_case_completed(progress, result)
 
@@ -572,11 +596,13 @@ async def evaluate(
         )
         if any(result is None for result in folded_results):
             raise RuntimeError("evaluate 未生成完整的用例结果")
+        snapshot = config.public_snapshot()
+        snapshot["scoring_standard"] = scoring_standard
         report = build_report(
             run_name=run_name or make_run_slug(config.run.name),
             results=[result for result in folded_results if result is not None],
             adapter_type=config.adapter.type,
-            config_snapshot=config.public_snapshot(),
+            config_snapshot=snapshot,
             description=config.run.description,
             started_at=started_at,
             n_runs=n_runs,

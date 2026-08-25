@@ -10,7 +10,7 @@ openpyxl 的 sheet / 列宽 / 行高 / 冻结窗格 / 样式写入。
 文件结构（两个 sheet）：
   * Sheet 1 ``概览``：每行 1 个 case，列 sample_id / level / depth / scenario / passed / stability / failure_tags
   * Sheet 2 ``对话流水``：**每行 1 个 case** 的宽表。前缀列为
-    测试内容、八维原始分与最终分、三端分、总分（满分45）、评级、指南逐项分、
+    测试内容、八维原始分与最终分、三端分、总分（满分40）、评级、指南逐项分、
     扣分原因、轮数与总耗时(ms)，
     其后按轮次展开 ``第N轮（用户+Bot）`` 与 ``第N轮耗时(ms)`` 成对的列。
 
@@ -138,7 +138,7 @@ def _write_transcripts(ws, results: list[CaseResult]) -> None:
             f"{r.end_scores.get('doctor', 0):g}/15",
             f"{r.end_scores.get('nurse', 0):g}/15",
             f"{r.end_scores.get('user', 0):g}/15",
-            f"{(r.composite_score or 0):g}/45",
+            f"{(r.composite_score or 0):g}/40",
             r.grade or "—",
             _deduction_text(r),
             guideline_detail,

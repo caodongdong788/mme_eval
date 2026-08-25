@@ -141,6 +141,11 @@ def build_resume_job(
         from .. import eval_job as ej
 
         src_slug, bm_id, judge_ov, adapter_ov = load_source_run(settings, source_run_id)
+        with session_scope() as session:
+            source = session.get(EvalRun, source_run_id)
+            if source is None:
+                raise ValueError(f"source run {source_run_id} 不存在")
+            scoring_standard = source.scoring_standard
         src_dir = settings.outputs_dir / src_slug
         cases, _per_case_traces, n_runs = resume_cases_and_traces(
             src_dir, settings, bm_id
@@ -155,7 +160,7 @@ def build_resume_job(
         )
 
         adapter = build_eval_adapter(config)
-        judges = build_judge_stack(config)
+        judges = build_judge_stack(config, scoring_standard=scoring_standard)
 
         new_slug = src_slug if in_place else make_run_slug(config.run.name)
         out_dir = src_dir if in_place else settings.outputs_dir / new_slug
@@ -189,7 +194,7 @@ def build_resume_job(
                 run_id,
                 run_name=new_slug,
                 adapter_type=config.adapter.type,
-                config_snapshot=config.public_snapshot(),
+                config_snapshot={**config.public_snapshot(), "scoring_standard": scoring_standard},
                 description=config.run.description,
                 n_runs=n_runs,
                 sample_order=sample_ids,
@@ -208,6 +213,7 @@ def build_resume_job(
             out_dir=out_dir,
             resume_dir=resume_dir,
             completed_results=completed_results,
+            scoring_standard=scoring_standard,
         )
 
         prev = resolve_diff_target("auto", settings.outputs_dir, out_dir)

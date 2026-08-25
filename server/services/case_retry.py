@@ -24,6 +24,7 @@ from ..progress import InMemoryProgress
 from ..settings import Settings, get_settings
 from .eval_launch import enrich_report_agent_chains
 from medeval.assertions import refresh_result_assertions
+from medeval.reporter.scoring import apply_grading
 from medeval.reporter.aggregator import refresh_report
 from .eval_source import load_source_run
 from .eval_stack import build_eval_adapter, build_judge_stack, prepare_run_config
@@ -77,6 +78,7 @@ class IncrementalRetryPersister:
                     )
 
                 pricing = (run.config_snapshot or {}).get("cost")
+                report_snapshot = {**(run.config_snapshot or {}), "scoring_standard": run.scoring_standard}
                 _replace_case_row(target, result, pricing)
                 rows = session.execute(
                     select(CaseResultRow)
@@ -87,7 +89,7 @@ class IncrementalRetryPersister:
                     run_name=run.run_slug,
                     results=[CaseResult.model_validate(row.detail_json) for row in rows],
                     adapter_type=run.adapter_type,
-                    config_snapshot=run.config_snapshot or {},
+                    config_snapshot=report_snapshot,
                     description=run.description,
                     started_at=run.started_at,
                     n_runs=run.n_runs or 1,
@@ -352,8 +354,13 @@ def build_retry_cases_job(
             judge_ov=judge_ov,
             adapter_ov=adapter_ov,
         )
+        with session_scope() as session:
+            source_run = session.get(EvalRun, run_id)
+            if source_run is None:
+                raise ValueError(f"run {run_id} 不存在")
+            scoring_standard = source_run.scoring_standard
         adapter = build_eval_adapter(config)
-        judges = build_judge_stack(config)
+        judges = build_judge_stack(config, scoring_standard=scoring_standard)
         # 每条 Case 判完立即写入。前端轮询 case_result 后会看到新的分数/结论，
         # 不必等待整批 Case 都结束。
         progress.set_case_complete_callback(IncrementalRetryPersister(run_id))
@@ -365,10 +372,12 @@ def build_retry_cases_job(
             progress=progress,
             run_name=src_slug,
             account_owner=str(run_id),
+            scoring_standard=scoring_standard,
         )
         await enrich_report_agent_chains(retried, settings)
         for result in retried.results:
             refresh_result_assertions(result)
+        apply_grading(retried.results, scoring_standard)
         refresh_report(retried)
         with session_scope() as db_session:
             run = db_session.get(EvalRun, run_id)

@@ -37,8 +37,11 @@ describe("buildCaseColumns", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("综合评价")).toBeInTheDocument();
+    expect(screen.getByText("质量评级")).toBeInTheDocument();
     expect(screen.getByText("优秀")).toBeInTheDocument();
+    expect(screen.getByText("运行验收")).toBeInTheDocument();
+    expect(screen.getByText("通过")).toBeInTheDocument();
+    expect(screen.getByText("稳定通过")).toBeInTheDocument();
     expect(screen.getByText("医学文献 RAG")).toBeInTheDocument();
     expect(screen.getByText("已触发并命中")).toBeInTheDocument();
     expect(screen.getByText("medical_consultation")).toBeInTheDocument();
@@ -66,8 +69,32 @@ describe("buildCaseColumns", () => {
     );
 
     expect(screen.getAllByText("主要问题").length).toBeGreaterThan(0);
+    expect(screen.getByText("不通过")).toBeInTheDocument();
     expect(screen.getByText("方案可行性不足")).toBeInTheDocument();
     expect(screen.getByText("行动指引不清")).toBeInTheDocument();
     expect(screen.queryByText("失败标签")).not.toBeInTheDocument();
+  });
+
+  it("shows execution failure instead of a misleading quality score", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <Table<CaseRow>
+          rowKey="id"
+          pagination={false}
+          columns={buildCaseColumns(1, (tag) => tag)}
+          dataSource={[{
+            ...row,
+            composite_score: 40,
+            grade: "优秀",
+            release_passed: false,
+            failure_tags: ["adapter_error"],
+          }]}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("未产生回答")).toBeInTheDocument();
+    expect(screen.getAllByText("执行失败")).toHaveLength(2);
+    expect(screen.queryByText("40.0/40")).not.toBeInTheDocument();
   });
 });

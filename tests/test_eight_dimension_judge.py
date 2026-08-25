@@ -96,6 +96,136 @@ def test_prompt_includes_case_initial_state_as_scoring_truth() -> None:
     assert "先确定日期锚点并逐步计算" in captured
 
 
+def test_prompt_checks_effective_response_preference_in_personalization() -> None:
+    raw = raw_case()
+    raw["initial_state"] = {
+        "response_preferences": [
+            {"preference": "先给结论，再说明数据依据", "basis": "用户明确表达"}
+        ]
+    }
+    current_trace = ConversationTrace(
+        messages=[ChatMessage(role="assistant", content="结论是需要继续观察。依据如下。")],
+        evaluation_identity={
+            "response_preference": {
+                "status": "success",
+                "configuredCount": 1,
+                "loaded": True,
+                "effective": True,
+            }
+        },
+    )
+    judge = EightDimensionJudge(enabled=False)
+    judge.enabled = True
+    captured = ""
+
+    async def fake_call(prompt: str):
+        nonlocal captured
+        captured = prompt
+        scores = {dimension.value: 5 for dimension in EvaluationDimension}
+        return scores, {key: "stub" for key in scores}
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    asyncio.run(judge.judge(TestCase.model_validate(raw), current_trace))
+
+    assert "回复偏好已由 cx-agent 成功加载" in captured
+    assert (
+        "- personalization 评测要求：应遵守用户明确的回复偏好："
+        "先给结论，再说明数据依据"
+    ) in captured
+
+
+def test_prompt_does_not_score_response_preference_when_system_prompt_is_off() -> None:
+    raw = raw_case()
+    raw["initial_state"] = {
+        "response_preferences": [
+            {"preference": "先给结论，再说明数据依据", "basis": "用户明确表达"}
+        ]
+    }
+    current_trace = ConversationTrace(
+        messages=[ChatMessage(role="assistant", content="需要继续观察。")],
+        evaluation_identity={
+            "response_preference": {
+                "status": "inactive_system_prompt",
+                "configuredCount": 1,
+                "loaded": True,
+                "effective": False,
+            }
+        },
+    )
+    judge = EightDimensionJudge(enabled=False)
+    judge.enabled = True
+    captured = ""
+
+    async def fake_call(prompt: str):
+        nonlocal captured
+        captured = prompt
+        scores = {dimension.value: 5 for dimension in EvaluationDimension}
+        return scores, {key: "stub" for key in scores}
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    asyncio.run(judge.judge(TestCase.model_validate(raw), current_trace))
+
+    assert "回复偏好未生效：本轮关闭了 cx-agent 系统提示词" in captured
+    assert "不得因 bot 未遵守该偏好而在任何维度扣分" in captured
+    assert "- personalization 评测要求：应遵守用户明确的回复偏好" not in captured
+
+
+def test_effective_response_preference_can_be_scored_in_personalization() -> None:
+    raw = raw_case()
+    raw["initial_state"] = {
+        "response_preferences": [
+            {"preference": "先给结论，再说明数据依据", "basis": "用户明确表达"}
+        ]
+    }
+    requirement = "应遵守用户明确的回复偏好：先给结论，再说明数据依据"
+    answer = "我先解释一下各项数据。CA15-3 是 18，白细胞是 3.2。最后说结论：建议继续观察。"
+    current_trace = ConversationTrace(
+        messages=[ChatMessage(role="assistant", content=answer)],
+        evaluation_identity={
+            "response_preference": {
+                "status": "success",
+                "configuredCount": 1,
+                "loaded": True,
+                "effective": True,
+            }
+        },
+    )
+    judge = EightDimensionJudge(enabled=False)
+    judge.enabled = True
+    scores = {dimension.value: 5 for dimension in EvaluationDimension}
+    scores["personalization"] = 3
+
+    async def fake_call(prompt: str):
+        return (
+            scores,
+            {key: "stub" for key in scores},
+            {
+                "personalization": {
+                    "satisfied_points": ["使用了用户给出的检查数据"],
+                    "issues": [{
+                        "type": "contradicted",
+                        "requirement": requirement,
+                        "reason": "先解释数据，最后才给出结论，与用户要求的顺序相反",
+                        "owner_dimension": "personalization",
+                        "root_cause_key": "response_preference_order",
+                        "independent_effect": "",
+                        "evidence": [answer],
+                        "context_evidence": ["先给结论，再说明数据依据"],
+                        "searched_terms": [],
+                    }],
+                }
+            },
+        )
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdicts = asyncio.run(judge.judge(TestCase.model_validate(raw), current_trace))
+    verdict = next(v for v in verdicts if v.name == "dimension.personalization")
+
+    assert verdict.score == 3
+    assert verdict.details["score_rejected"] is False
+    assert "与用户要求的顺序相反" in verdict.reason
+
+
 def test_prompt_includes_reference_answers_as_non_literal_quality_reference() -> None:
     raw = raw_case()
     raw["evaluation"]["dimension_criteria"]["professional_accuracy"] = {

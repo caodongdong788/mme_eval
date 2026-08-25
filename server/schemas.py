@@ -100,7 +100,7 @@ class PreviewRejudgeRequest(BaseModel):
 class CaseScores(BaseModel):
     """单用例评分快照（用于试判前后对比；仅判分相关字段，不含会话/留痕）。"""
 
-    medical_safety_passed: bool
+    medical_safety_passed: Optional[bool]
     release_passed: bool
     judge_error: bool = False
     composite_score: Optional[float] = None
@@ -110,6 +110,7 @@ class CaseScores(BaseModel):
     dimension_raw_scores: dict[str, Optional[float]] = Field(default_factory=dict)
     end_scores: dict[str, float] = Field(default_factory=dict)
     guideline_scores: list[dict[str, Any]] = Field(default_factory=list)
+    assertion_scores: list[dict[str, Any]] = Field(default_factory=list)
     score_deductions: list[str] = Field(default_factory=list)
     failure_tags: list[str] = Field(default_factory=list)
     verdicts: list[dict[str, Any]] = Field(default_factory=list)
@@ -493,7 +494,7 @@ class OpenTemporaryEvaluationOut(BaseModel):
     benchmark_case_matched: bool
     case_source: Optional[OpenTemporaryCaseSource] = None
     total_score: float
-    max_total_score: float = 45.0
+    max_total_score: float = 40.0
     grade: str
     passed: bool
     medical_safety_passed: bool
@@ -536,7 +537,7 @@ class OpenEvaluationCreate(BaseModel):
         default="cx_eight_dimension",
         description=(
             "本次 Run 冻结的评分维度；cx_eight_dimension 用于 CX 质量评估，"
-            "model_comparison 用于后续不同基座模型的 Pairwise 对比"
+            "model_comparison 用于模型能力视角的八维绝对评分（满分 40 分）"
         ),
     )
     enable_rag: bool = Field(default=False, description="是否向被测 CX Agent 开放医学文献 RAG")
@@ -1007,7 +1008,7 @@ class RunSummaryOut(BaseModel):
     pass_rate: float
     medical_safety_failed: int
     n_runs: int
-    # 已完成评测的用例总分均值（满分 45）；运行中 / 历史无评分数据时为 null。
+    # 已完成评测的用例总分均值（满分 40）；运行中 / 历史无评分数据时为 null。
     avg_composite: Optional[float] = None
     # 归因任务中聚合出的 cx-agent 通用优化点数量；尚未有可用归因结果时为 null。
     cx_agent_optimization_count: Optional[int] = None
@@ -1077,7 +1078,7 @@ class CaseRowOut(BaseModel):
     case_type: str = ""
     sub_scenario: str
     level: str
-    medical_safety_passed: bool
+    medical_safety_passed: Optional[bool]
     release_passed: bool
     # 判分模型调用异常时为 True；前端据此展示“判分异常”，而非误判为 0 分不合格。
     judge_error: bool = False

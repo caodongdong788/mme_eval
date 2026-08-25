@@ -43,10 +43,11 @@ def prepare_run_config(
     return config
 
 
-def build_judge_stack(config: Config):
+def build_judge_stack(config: Config, *, scoring_standard: str = "cx_eight_dimension"):
     return build_judges(
         config.judges,
         trigger_aware=config.run.evaluation_mode == "multi_turn",
+        scoring_standard=scoring_standard,
     )
 
 

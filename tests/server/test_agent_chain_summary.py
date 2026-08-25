@@ -153,7 +153,14 @@ def test_ensure_agent_chain_summary_hydrates_old_detail_without_mutating_input()
         "trace": {
             "agent_chain": {
                 "status": "synced",
-                "nodes": [_tool("timeline", "tool.read_timeline", input={"keys": ["复查"]})],
+                "nodes": [
+                    _tool(
+                        "timeline",
+                        "tool.read_timeline",
+                        input={"keys": ["复查"]},
+                        output="2026-08-20：复查白细胞 3.2×10^9/L",
+                    )
+                ],
             }
         }
     }
@@ -161,7 +168,68 @@ def test_ensure_agent_chain_summary_hydrates_old_detail_without_mutating_input()
     hydrated = ensure_agent_chain_summary(detail)
 
     assert "summary" not in detail["trace"]["agent_chain"]
-    assert hydrated["trace"]["agent_chain"]["summary"]["sources"][2]["status"] == "queried"
+    timeline = hydrated["trace"]["agent_chain"]["summary"]["sources"][2]
+    assert timeline["status"] == "hit"
+    assert timeline["count"] == 1
+
+
+def test_summarizes_empty_source_results_as_misses():
+    summary = summarize_agent_chain(
+        [
+            _tool(
+                "metrics",
+                "tool.read_medical_metrics",
+                input={"names": ["CA15-3"]},
+                output="结构化指标索引里暂时没有找到 CA15-3。",
+            ),
+            _tool(
+                "timeline",
+                "tool.read_timeline",
+                input={"keys": ["wbc"]},
+                output="（这些 key 下暂无记录）",
+            ),
+            _tool(
+                "history",
+                "tool.search_chat_history",
+                input={"query": "复查"},
+                output="没有找到匹配的历史对话。",
+            ),
+        ]
+    )
+
+    sources = {item["key"]: item for item in summary["sources"]}
+    assert sources["medical_metrics"]["status"] == "miss"
+    assert sources["timeline"]["status"] == "miss"
+    assert sources["chat_history"]["status"] == "miss"
+    assert sources["medical_metrics"]["count"] == 0
+    assert sources["timeline"]["count"] == 0
+    assert sources["chat_history"]["count"] == 0
+
+
+def test_later_source_failure_does_not_erase_an_earlier_data_hit():
+    summary = summarize_agent_chain(
+        [
+            _tool(
+                "metrics-hit",
+                "tool.read_medical_metrics",
+                input={"names": ["CA15-3"]},
+                output="CA15-3：18 U/mL",
+            ),
+            _tool(
+                "metrics-failed",
+                "tool.read_medical_metrics",
+                input={"names": ["白细胞"]},
+                output="网关超时",
+                metadata={"ok": False},
+            ),
+        ]
+    )
+
+    source = next(
+        item for item in summary["sources"] if item["key"] == "medical_metrics"
+    )
+    assert source["status"] == "hit"
+    assert source["count"] == 1
 
 
 def test_cx_agent_literature_audit_snapshot_keeps_raw_top_k_chunks_when_langfuse_is_truncated():

@@ -1,7 +1,7 @@
 """评测 Run 与 Pairwise 共用的评分标准定义。
 
-``cx_eight_dimension`` 继续服务 Agent 上线质量判断；
-``model_comparison`` 只服务不同基座模型的相对能力对比，不改写主评测分数或门禁。
+两套八维都是单次评测的绝对评分标准：每条结果都有分维分数与总分。Pairwise
+在此基础上对两个或多个已完成评测结果进行横向比较，不会改写任一 Run 的分数。
 """
 
 from __future__ import annotations

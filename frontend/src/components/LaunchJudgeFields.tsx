@@ -48,9 +48,9 @@ export function LaunchJudgeFields({
         label="评分维度"
         extra={
           <FieldHint>
-            选择后会冻结在本次评测中，并决定后续 Pairwise 使用哪套八维。Agent
-            评测八维用于产品质量与上线门禁；模型对比八维用于比较不同基座能力。TTFT、延迟和
-            Token 始终只观测，不参与打分。
+            选择后会冻结在本次评测中。两套八维都会对当前回答给出分维分数和总分：
+            Agent 评测八维用于产品质量与上线门禁；模型对比八维用于模型能力评分。Pairwise
+            仅对已完成的评测结果做横向比较。TTFT、延迟和 Token 始终只观测，不参与打分。
           </FieldHint>
         }
       >

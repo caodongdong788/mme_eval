@@ -44,6 +44,9 @@ _PROMPT = """\
 {initial_state}
 以上内容是 Case 明确提供的真实背景，与用户在对话中亲口说出的信息具有同等事实效力。bot 可以直接使用这些事实，不得因“当前用户消息未重复该信息”判定 bot 编造或扣分。它们只不能被当成 bot 已经说出的回答内容。
 
+【回复偏好运行状态】
+{response_preference_runtime}
+
 【所有角色共同要求】
 1. 只评价本人负责维度，不代替其他角色作专业判断，也不要因一个维度的好坏机械抬高或降低另一个维度。
 2. 必须检查幻觉：编造患者未提供的信息；无依据推断病情、检查、治疗或经历；或与 Case 已知事实相矛盾。在使用“用户未提及”“无依据”“编造”等理由前，必须先逐项检索完整对话和上方 Case 已知事实；只要任一来源已提供该信息，就不得按幻觉扣分。发现真实幻觉后只在职责范围内扣分：医学事实/安全问题由医生评，是否紧扣已有信息由护士评，患者不评价医学专业正确性。
@@ -211,13 +214,64 @@ def _ownership_text() -> str:
     )
 
 
-def _criteria_text(case: TestCase) -> str:
+def _response_preference_requirement(case: TestCase) -> str:
+    preferences = [
+        item.preference.strip()
+        for item in case.initial_state.response_preferences
+        if item.preference.strip()
+    ]
+    if not preferences:
+        return ""
+    return "应遵守用户明确的回复偏好：" + "；".join(preferences)
+
+
+def _response_preference_status(trace: ConversationTrace) -> dict[str, object]:
+    value = trace.evaluation_identity.get("response_preference", {})
+    return value if isinstance(value, dict) else {}
+
+
+def _response_preference_is_effective(trace: ConversationTrace) -> bool:
+    status = _response_preference_status(trace)
+    return status.get("status") == "success" and status.get("effective") is True
+
+
+def _response_preference_runtime_text(case: TestCase, trace: ConversationTrace) -> str:
+    requirement = _response_preference_requirement(case)
+    if not requirement:
+        return "本 Case 未配置回复偏好，不检查偏好遵守情况。"
+    status = _response_preference_status(trace)
+    runtime_status = str(status.get("status") or "")
+    if _response_preference_is_effective(trace):
+        return (
+            "回复偏好已由 cx-agent 成功加载并注入本轮系统提示词。"
+            f"请仅在个性化相关性维度检查：{requirement}；语义等价即可，不要求逐字复述。"
+        )
+    if runtime_status == "inactive_system_prompt":
+        return (
+            "回复偏好未生效：本轮关闭了 cx-agent 系统提示词。"
+            "不得因 bot 未遵守该偏好而在任何维度扣分。"
+        )
+    if runtime_status == "failed":
+        return (
+            "回复偏好初始化失败，未形成可供 bot 使用的有效上下文。"
+            "不得因 bot 未遵守该偏好而在任何维度扣分。"
+        )
+    return (
+        "本轮缺少回复偏好实际加载成功的运行证据。"
+        "不得仅根据 YAML 中配置了回复偏好就对 bot 扣分。"
+    )
+
+
+def _criteria_text(case: TestCase, trace: ConversationTrace) -> str:
     lines: list[str] = []
     for dimension, details in case.evaluation.dimension_criteria.items():
         line = f"- {dimension.value} 评测要求：" + "；".join(details.criteria)
         if details.reference_answers:
             line += "\n  好答案参考（仅作质量参考，不要求逐字一致）：" + "；".join(details.reference_answers)
         lines.append(line)
+    preference_requirement = _response_preference_requirement(case)
+    if preference_requirement and _response_preference_is_effective(trace):
+        lines.append(f"- personalization 评测要求：{preference_requirement}")
     return "\n".join(lines) or "无，使用固定标准"
 
 
@@ -280,10 +334,11 @@ class EightDimensionJudge(BaseJudge):
             conversation=format_conversation(trace),
             rag_evidence=format_rag_evidence(trace),
             initial_state=initial_state,
+            response_preference_runtime=_response_preference_runtime_text(case, trace),
             dimensions=_dimension_text(),
             ownership=_ownership_text(),
             cross_dimension_rule=CROSS_DIMENSION_DEDUCTION_RULE,
-            criteria=_criteria_text(case),
+            criteria=_criteria_text(case, trace),
         )
         try:
             call_result = await self._call(prompt)
@@ -304,7 +359,7 @@ class EightDimensionJudge(BaseJudge):
                 dimension=dimension,
                 trace=trace,
                 initial_state=initial_state,
-                requirement_sources=self._requirement_sources(case, dimension),
+                requirement_sources=self._requirement_sources(case, trace, dimension),
             )
         self._suppress_cross_dimension_duplicates(cleaned_audits)
 
@@ -553,11 +608,22 @@ class EightDimensionJudge(BaseJudge):
             ))
 
     @staticmethod
-    def _requirement_sources(case: TestCase, dimension: EvaluationDimension) -> list[str]:
+    def _requirement_sources(
+        case: TestCase,
+        trace: ConversationTrace,
+        dimension: EvaluationDimension,
+    ) -> list[str]:
         sources = [dimension_standard_text(dimension)]
         details = case.evaluation.dimension_criteria.get(dimension)
         if details:
             sources.extend(details.criteria)
+        if (
+            dimension == EvaluationDimension.personalization
+            and _response_preference_is_effective(trace)
+        ):
+            preference_requirement = _response_preference_requirement(case)
+            if preference_requirement:
+                sources.append(preference_requirement)
         return sources
 
     def _zero_verdicts(self, reason: str) -> list[JudgeVerdict]:

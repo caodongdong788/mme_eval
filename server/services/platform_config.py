@@ -140,15 +140,10 @@ def evaluation_standard() -> dict[str, Any]:
             "key": "model_comparison",
             "label": "模型对比八维",
             "description": (
-                "用于比较不同基座模型在 cx-agent 产品中的相对能力；"
-                "逐题双盲换序判断，不改写 Agent 评测八维绝对分和上线门禁。"
+                "用于从模型能力视角评估单次 Agent 回答；每个维度按 0～5 分评分，"
+                "八维满分 40 分。Pairwise 只用于后续比较多个已完成评测结果。"
             ),
-            "values": [
-                {"value": "1", "label": "系统①更好"},
-                {"value": "2", "label": "系统②更好"},
-                {"value": "tie", "label": "真正持平"},
-                {"value": "na", "label": "本题不适用或证据不足"},
-            ],
+            "values": [{"value": str(score), "label": f"{score} 分"} for score in range(6)],
             "dimensions": [
                 {
                     "key": item.key,
@@ -157,21 +152,16 @@ def evaluation_standard() -> dict[str, Any]:
                     "zero_score_description": item.zero_score_description,
                     "full_score_description": item.full_score_description,
                     "max_score": 5,
-                    "score_range": "0～5（质量参考）",
+                    "score_range": "0～5（整数）",
                     "applicability": item.applicability,
                 }
                 for item in MODEL_COMPARISON_DIMENSIONS
             ],
-            "overall_rule": (
-                "仅统计适用维度；八个维度等权，多数维度胜出的一方为总胜方，"
-                "票数相同则持平。N/A 不计入分母。"
-            ),
+            "overall_rule": "八个维度等权，每维满分 5 分，总分满分 40 分；60% 及以上为合格。",
             "ttft_rule": (
                 "TTFT、端到端延迟和 Token 由平台直接统计，只做性能观测，"
                 "不交给 Judge 打分，也不参与 Pairwise 胜负。"
             ),
-            "blind_rule": (
-                "A/B 匿名并交换上下位置各评一次；换序不一致的维度降为持平并标记低置信。"
-            ),
+            "blind_rule": "Pairwise 可在后续对两个或多个已完成结果进行匿名横向比较；不会改写单次评测的分数。",
         },
     }

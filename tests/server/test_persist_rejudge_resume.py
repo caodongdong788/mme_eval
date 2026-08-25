@@ -86,7 +86,8 @@ def test_eval_job_persists_traces_and_runs_retention(
         bid, rid = bm.id, run.id
 
     async def fake_eval(config, cases, adapter, judges, *, progress=None,
-                        run_name=None, account_owner="", out_dir=None, resume_dir=None):
+                        run_name=None, account_owner="", out_dir=None, resume_dir=None,
+                        **kwargs):
         # 模拟内核落盘：在给定 out_dir 写下 traces.jsonl.gz。
         assert out_dir is not None and run_name is not None
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -243,7 +244,7 @@ def test_resume_job_passes_resume_dir(initialized_db, settings, monkeypatch):
 
     async def fake_eval(config, cases, adapter, judges, *, progress=None,
                         run_name=None, account_owner="", out_dir=None, resume_dir=None,
-                        completed_results=None):
+                        completed_results=None, **kwargs):
         captured["resume_dir"] = resume_dir
         captured["out_dir"] = out_dir
         captured["sample_ids"] = [c.sample_id for c in cases]
@@ -423,7 +424,7 @@ def test_retry_case_job_uses_current_benchmark_case_and_replaces_only_target_cas
         lambda *args, **kwargs: [current_case],
     )
     monkeypatch.setattr("server.services.case_retry.build_eval_adapter", lambda config: object())
-    monkeypatch.setattr("server.services.case_retry.build_judge_stack", lambda config: [])
+    monkeypatch.setattr("server.services.case_retry.build_judge_stack", lambda config, **kwargs: [])
     monkeypatch.setattr("server.services.case_retry.enrich_report_agent_chains", no_agent_chain)
 
     job = build_retry_case_job(run_id, sample_id=target_id, settings=settings)

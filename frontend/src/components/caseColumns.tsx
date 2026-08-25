@@ -19,7 +19,13 @@ function dot(kind: string, children: ReactNode) {
 }
 
 // 用例明细表列定义工厂；依赖 runId（详情跳转）与 tagLabel（失败标签中文化）。
-export function buildCaseColumns(runId: number, tagLabel: (k: string) => string) {
+export function buildCaseColumns(
+  runId: number,
+  tagLabel: (k: string) => string,
+  _scoringStandard?: string,
+) {
+  const totalMax = 40;
+  const executionFailed = (row: CaseRow) => (row.failure_tags || []).includes("adapter_error");
   return [
     {
       title: "场景描述",
@@ -64,7 +70,9 @@ export function buildCaseColumns(runId: number, tagLabel: (k: string) => string)
       title: "总分",
       dataIndex: "composite_score",
       render: (v: number | undefined, row: CaseRow) =>
-        row.judge_error ? dot("warn", "判分异常") : (v == null ? "-" : `${v.toFixed(1)}/45`),
+        executionFailed(row)
+          ? dot("fail", "未产生回答")
+          : row.judge_error ? dot("warn", "判分异常") : (v == null ? "-" : `${v.toFixed(1)}/${totalMax}`),
     },
     {
       title: "指南得分",
@@ -75,9 +83,10 @@ export function buildCaseColumns(runId: number, tagLabel: (k: string) => string)
       },
     },
     {
-      title: "综合评价",
+      title: "质量评级",
       dataIndex: "grade",
       render: (grade: string, row: CaseRow) => {
+        if (executionFailed(row)) return dot("fail", "执行失败");
         if (row.judge_error) return dot("warn", "判分异常");
         const label = grade || (row.release_passed ? "合格" : "不合格");
         const kind = label.includes("不合格") ? "fail" : label === "合格" ? "warn" : "pass";
@@ -85,15 +94,24 @@ export function buildCaseColumns(runId: number, tagLabel: (k: string) => string)
       },
     },
     {
+      title: "运行验收",
+      dataIndex: "release_passed",
+      render: (passed: boolean, row: CaseRow) => {
+        if (executionFailed(row)) return dot("fail", "执行失败");
+        if (row.judge_error) return dot("warn", "判分异常");
+        return dot(passed ? "pass" : "fail", passed ? "通过" : "不通过");
+      },
+    },
+    {
       title: "稳定性",
       dataIndex: "stability",
       render: (s: string) =>
         s === "stable_pass" ? (
-          dot("pass", "稳过")
+          dot("pass", "稳定通过")
         ) : s === "flaky" ? (
-          dot("warn", "抖动")
+          dot("warn", "结果波动")
         ) : (
-          dot("fail", "稳挂")
+          dot("fail", "稳定失败")
         ),
     },
     {

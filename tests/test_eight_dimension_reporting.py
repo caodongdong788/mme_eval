@@ -11,10 +11,10 @@ def report():
     return build_report("v2", [result(guideline_score=2)], "stub")
 
 
-def test_markdown_uses_45_point_eight_dimension_language() -> None:
+def test_markdown_uses_40_point_eight_dimension_language() -> None:
     text = render_markdown(report())
     assert "八维与三端评分" in text
-    assert "/45" in text
+    assert "/40" in text
     assert "医学安全性" in text
     assert "指南得分率（缺分已扣入对应维度）" in text
     assert "四模块" not in text
@@ -27,7 +27,7 @@ def test_excel_contains_dimensions_ends_and_guidelines(tmp_path) -> None:
     for name in ("医学安全性", "专业准确性与边界", "医生端", "护士端", "患者端", "指南评分"):
         assert name in headers
     values = [cell.value for cell in sheet[2]]
-    assert any(value == "44/45" for value in values)
+    assert any(value == "39/40" for value in values)
     assert any(isinstance(value, str) and "risk: 2/3" in value for value in values)
     reason = sheet.cell(row=2, column=headers.index("扣分原因") + 1).value
     assert "professional_accuracy 指南 risk -1分：stub" in reason

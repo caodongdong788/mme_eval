@@ -12,6 +12,7 @@ from typing import Any
 from medeval.run_slug import make_run_slug
 from medeval.service import resolve_diff_target
 from medeval.assertions import refresh_result_assertions
+from medeval.reporter.scoring import apply_grading
 from medeval.reporter.aggregator import refresh_report
 
 from ..db import session_scope
@@ -72,8 +73,12 @@ def build_eval_job(
 
         with session_scope() as session:
             bm = session.get(Benchmark, benchmark_id)
+            run_row = session.get(EvalRun, run_id)
             if bm is None:
                 raise ValueError(f"benchmark {benchmark_id} 不存在")
+            if run_row is None:
+                raise ValueError(f"run {run_id} 不存在")
+            scoring_standard = run_row.scoring_standard
             cases = ej.load_benchmark_cases(bm, settings=settings)
             benchmark_root = Path(bm.storage_path)
             benchmark_meta = {
@@ -98,7 +103,7 @@ def build_eval_job(
         })
 
         adapter = build_eval_adapter(config)
-        judges = build_judge_stack(config)
+        judges = build_judge_stack(config, scoring_standard=scoring_standard)
 
         # 首次启动就固定 slug 并落库。Worker 若在第一条 Case 完成前退出，下一实例仍能
         # 定位同一个 partial trace 目录，而不会另建目录丢失断点。
@@ -117,6 +122,7 @@ def build_eval_job(
         snapshot_case_images(out_dir, cases, benchmark_root)
 
         partial_config = config.public_snapshot()
+        partial_config["scoring_standard"] = scoring_standard
         partial_config["benchmark"] = benchmark_meta
         with session_scope() as session:
             run_row = session.get(EvalRun, run_id)
@@ -176,11 +182,13 @@ def build_eval_job(
             run_name=run_slug,
             account_owner=str(run_id),
             out_dir=out_dir,
+            scoring_standard=scoring_standard,
         )
         await enrich_report_agent_chains(report, settings)
         # 工具/RAG 断言以同步后的真实 Agent 链路为准；随后重算 release gate 和聚合。
         for result in report.results:
             refresh_result_assertions(result)
+        apply_grading(report.results, scoring_standard)
         refresh_report(report)
         report.config_snapshot["benchmark"] = benchmark_meta
 

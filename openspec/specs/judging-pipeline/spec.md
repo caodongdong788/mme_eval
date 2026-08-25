@@ -35,7 +35,7 @@
 
 ### Requirement: 多次运行按完整单题结论折叠
 
-每个 trace MUST 独立运行八维和指南 Judge并完成 45 分评级。N-runs MUST 按每次 `release_passed` 多数结果折叠，并保留 `per_run_passed` 与稳定性。
+每个 trace MUST 独立运行八维和指南 Judge 并完成 40 分评级。N-runs MUST 按每次 `release_passed` 多数结果折叠，并保留 `per_run_passed` 与稳定性。
 
 #### Scenario: 三次运行两次合格
 

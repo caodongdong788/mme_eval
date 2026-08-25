@@ -45,7 +45,7 @@ export default function RunDashboardPage() {
     );
   }
 
-  const columns = buildCaseColumns(id, tagLabel);
+  const columns = buildCaseColumns(id, tagLabel, dash.run.scoring_standard);
   const retryContext = dash.progress?.progress?.context;
   const retryingCaseCount =
     retryContext?.kind === "cases_retry"

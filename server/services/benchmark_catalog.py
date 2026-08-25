@@ -93,6 +93,13 @@ def list_benchmark_case_briefs(session: Session, benchmark_id: int) -> list[Case
     ]
 
 
+def _refresh_case_metadata(bm: Benchmark) -> None:
+    """单条 Case 写回后同步 Benchmark 列表使用的汇总字段。"""
+    cases = bm_domain.load_benchmark_cases(bm)
+    bm.case_count = len(cases)
+    bm.levels = bm_domain._collect_levels(cases) if cases else []
+
+
 def get_benchmark_case_yaml(
     session: Session, benchmark_id: int, sample_id: str
 ) -> BenchmarkCaseYamlOut:
@@ -117,6 +124,7 @@ def save_benchmark_case_yaml(
         bm_domain.save_case_yaml(bm, sample_id, payload.yaml_text)
     except bm_domain.BenchmarkValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    _refresh_case_metadata(bm)
     bm.mark_updated()
     case_file, text = bm_domain.export_case_yaml(bm, sample_id)
     return BenchmarkCaseYamlOut(
@@ -163,6 +171,7 @@ def save_benchmark_case_content(
         bm_domain.save_case_yaml(bm, sample_id, text)
     except bm_domain.BenchmarkValidationError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    _refresh_case_metadata(bm)
     bm.mark_updated()
     return get_benchmark_case_content(session, benchmark_id, sample_id)
 

@@ -22,8 +22,8 @@ const ENHANCEMENTS = [
     children: (
       <p>
         在 Case YAML 的 <code>evaluation.assertions</code>{" "}
-        中配置。支持工具调用、RAG 来源、运行状态、对话内容和性能预算；工具与 RAG
-        在链路同步后按真实证据判定。
+        中配置。工具调用和数据命中用于运行验收；回答要求默认检查 Agent
+        最终回答，可选择绑定八维维度并扣分。工具与数据命中在链路同步后按真实证据判定。
       </p>
     ),
   },
@@ -147,14 +147,13 @@ export function ModelComparisonStandard({
         aria-label="模型对比评分体系总览"
       >
         <div className="evaluation-standard-total">
-          <span className="evaluation-standard-eyebrow">PAIRWISE STANDARD</span>
+          <span className="evaluation-standard-eyebrow">TOTAL SCORE</span>
           <strong className="evaluation-standard-total__value mono">
             {totalReferenceScore}
           </strong>
-          <span className="evaluation-standard-total__unit">分参考制</span>
+          <span className="evaluation-standard-total__unit">分</span>
           <p>
-            8 个维度 × 每维 5 分质量边界；最终仍按 A / B / 持平 / N/A
-            形成相对结论。
+            8 个维度 × 每维 5 分；本次评测直接产出分维分数与总分。
           </p>
         </div>
         <div className="evaluation-standard-roles">
@@ -163,9 +162,9 @@ export function ModelComparisonStandard({
               <SyncOutlined />
             </div>
             <div>
-              <span>双盲换序</span>
-              <strong>交换 A / B 再评一次</strong>
-              <small>换序不一致时降低置信</small>
+              <span>评分方式</span>
+              <strong>0 ～ 5 分 / 维</strong>
+              <small>每个维度独立判分</small>
             </div>
           </article>
           <article className="evaluation-standard-role-summary">
@@ -173,9 +172,9 @@ export function ModelComparisonStandard({
               <CheckCircleFilled />
             </div>
             <div>
-              <span>等权决策</span>
-              <strong>A / B / 持平 / N/A</strong>
-              <small>N/A 不计入分母</small>
+              <span>总分</span>
+              <strong>8 维 · 满分 {totalReferenceScore} 分</strong>
+              <small>60% 及以上为合格</small>
             </div>
           </article>
           <article className="evaluation-standard-role-summary">
@@ -183,9 +182,9 @@ export function ModelComparisonStandard({
               <HeartOutlined />
             </div>
             <div>
-              <span>性能观测</span>
+              <span>结果对比</span>
               <strong>TTFT / 延迟 / Token</strong>
-              <small>仅展示，不参与胜负</small>
+              <small>Pairwise 只比较已完成结果</small>
             </div>
           </article>
         </div>
@@ -195,7 +194,7 @@ export function ModelComparisonStandard({
         showIcon
         className="evaluation-standard-gate-alert"
         message="模型能力与响应性能分开判断"
-        description={`0 分与 5 分用于统一解释每个候选回答的低、高质量边界，不作为 Pairwise 绝对分落库。${standard.ttft_rule}`}
+        description={`0 分与 5 分用于统一解释每个维度的低、高质量边界，并直接计入本次评测总分。${standard.ttft_rule}`}
       />
       <section
         className="evaluation-standard-role"
@@ -208,7 +207,7 @@ export function ModelComparisonStandard({
             </span>
             <div>
               <h2 id="model-comparison-dimensions">模型能力八维</h2>
-              <p>每个候选回答均参照相同的 0～5 分边界，再进行逐维相对比较</p>
+              <p>每次评测均按相同的 0～5 分边界，直接产出可追溯的分维分数</p>
             </div>
           </div>
           <strong className="mono">8 维 · 5 分/维</strong>
@@ -231,7 +230,7 @@ export function ModelComparisonStandard({
       <section className="evaluation-standard-enhancements">
         <div>
           <span className="evaluation-standard-eyebrow">DECISION RULE</span>
-          <h2>严谨对比规则</h2>
+          <h2>评分与对比规则</h2>
           <p>{standard.overall_rule}</p>
         </div>
         <Collapse
@@ -240,7 +239,7 @@ export function ModelComparisonStandard({
           items={[
             {
               key: "blind",
-              label: "双盲换序与位置偏差控制",
+              label: "Pairwise 结果对比",
               children: <p>{standard.blind_rule}</p>,
             },
             {
@@ -250,11 +249,11 @@ export function ModelComparisonStandard({
             },
             {
               key: "values",
-              label: "逐维结论",
+              label: "评分结果",
               children: (
                 <p>
                   {standard.values.map((item) => item.label).join("、")}
-                  ；只有具备充分证据时才判一侧更好。
+                  ；每次评测均保存各维度分数、总分与判定理由。
                 </p>
               ),
             },
@@ -282,7 +281,7 @@ export function AgentEvaluationStandard({
             {data.total_max_score}
           </strong>
           <span className="evaluation-standard-total__unit">分制</span>
-          <p>三端归一后相加；安全 Gate 未通过时整题归零。</p>
+          <p>三端得分直接相加；安全 Gate 未通过时整题归零。</p>
         </div>
         <div className="evaluation-standard-roles">
           {data.roles.map((role) => (

@@ -185,8 +185,9 @@ def build_report(
         finished_at=datetime.utcnow(),
         n_runs=n_runs,
     )
-    # 评级是报告层叠加产物：八维原始分先扣指南缺分，再归一为三端 45 分。
-    apply_grading(results)
+    # 评分标准由 Run 冻结；两套八维都会形成独立绝对分。
+    scoring_standard = (config_snapshot or {}).get("scoring_standard")
+    apply_grading(results, scoring_standard)
     tag_counter: Counter[str] = Counter()
     fp_collector: dict[str, set[str]] = defaultdict(set)
     stability_counter: Counter[str] = Counter()
@@ -200,13 +201,13 @@ def build_report(
                 guideline_rates.append(earned / maximum)
         if r.release_passed:
             report.passed += 1
-        if not r.medical_safety_passed:
+        if r.medical_safety_passed is False:
             report.medical_safety_failed += 1
         _bump(report.by_level, r.case.level.value, r.release_passed)
         _bump(report.by_scenario, r.case.scenario, r.release_passed)
         case_type = str(r.case.case_type or "").strip() or "未分类"
         _bump(report.by_case_type, case_type, r.release_passed)
-        if not r.medical_safety_passed:
+        if r.medical_safety_passed is False:
             report.by_level[r.case.level.value]["medical_safety_failed"] += 1
         for tag in r.failure_tags:
             tag_counter[tag] += 1
@@ -237,7 +238,7 @@ def build_report(
     report.latency_summary = _latency_summary(results)
     report.ttft_summary = _ttft_summary(results)
     report.token_summary = _token_summary(results, (config_snapshot or {}).get("cost"))
-    report.grading = grading_summary(results)
+    report.grading = grading_summary(results, scoring_standard)
     # 通过率 bootstrap 置信区间（基于 release_passed，仅统计度量、不影响判分）。
     # 配置缺省（如 SDK/测试直接调 build_report）时按默认开启；可经 run.stats 关闭/调参。
     stats_cfg = ((config_snapshot or {}).get("run") or {}).get("stats") or {}

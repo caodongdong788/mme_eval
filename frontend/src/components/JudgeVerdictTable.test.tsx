@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { JudgeVerdictTable } from "./JudgeVerdictTable";
 import { renderWithProviders } from "../test/renderWithProviders";
@@ -61,8 +61,8 @@ describe("JudgeVerdictTable", () => {
     );
 
     expect(screen.getByText("最终 3/5")).toBeInTheDocument();
-    expect(screen.getByText("维度原始 4/5 · 指南 -1分")).toBeInTheDocument();
-    expect(screen.getByText("指南追加扣分")).toBeInTheDocument();
+    expect(screen.getByText("维度原始 4/5 · 附加扣分 -1分")).toBeInTheDocument();
+    expect(screen.getByText("附加扣分")).toBeInTheDocument();
     expect(screen.getByText("指南 warm_response -1分：缺少针对性情绪承接")).toBeInTheDocument();
     expect(screen.getByText("维度评分")).toBeInTheDocument();
     expect(screen.getByText("维度")).toBeInTheDocument();
@@ -70,6 +70,46 @@ describe("JudgeVerdictTable", () => {
     expect(screen.queryByText("guideline.seek_care")).not.toBeInTheDocument();
     expect(screen.queryByText("1/3")).not.toBeInTheDocument();
     await waitFor(() => expect(mockedApi.getJudgeVerdictLabels).toHaveBeenCalled());
+  });
+
+  it("shows a model-comparison answer requirement deduction in its dimension row", async () => {
+    const { container } = renderWithProviders(
+      <JudgeVerdictTable
+        tagLabel={(tag) => tag}
+        dimensionRawScores={{ context_utilization: 4 }}
+        dimensionScores={{ context_utilization: 3 }}
+        dimensionMax={{ context_utilization: 5 }}
+        assertionScores={[{
+          id: "mention_metric",
+          standard: "model_comparison",
+          dimension: "context_utilization",
+          description: "最终回答应提及 CA15-3",
+          passed: false,
+          deduction: 1,
+          applied_deduction: 1,
+          reason: "断言未满足：最终回答应提及 CA15-3",
+        }]}
+        // 旧版模型对比结果使用中文维度名记录扣分；结构化数据不依赖该文案匹配。
+        scoreDeductions={[
+          "上下文利用与个性化 回答要求 mention_metric：扣 1 分；断言未满足：最终回答应提及 CA15-3",
+        ]}
+        verdicts={[{
+          name: "dimension.context_utilization",
+          passed: true,
+          score: 4,
+          max_score: 5,
+          reason: "基本使用了上下文",
+          failure_tags: [],
+        }]}
+      />,
+    );
+
+    const view = within(container);
+    expect(view.getByText("最终 3/5")).toBeInTheDocument();
+    expect(view.getByText("维度原始 4/5 · 附加扣分 -1分")).toBeInTheDocument();
+    expect(
+      view.getByText("回答要求 mention_metric -1分：断言未满足：最终回答应提及 CA15-3"),
+    ).toBeInTheDocument();
   });
 
   it("renders audited deductions as plain numbered reasons with answer evidence", async () => {
@@ -160,7 +200,7 @@ describe("JudgeVerdictTable", () => {
 
     expect(screen.getAllByText("FAIL")).toHaveLength(2);
     expect(screen.getByText("最终 0/5")).toBeInTheDocument();
-    expect(screen.getByText("维度原始 5/5 · 指南 -5分")).toBeInTheDocument();
+    expect(screen.getByText("维度原始 5/5 · 附加扣分 -5分")).toBeInTheDocument();
     expect(
       screen.getByText("指南 g05_medical_safety -5分：直接推荐负重运动，未评估骨折和跌倒风险"),
     ).toBeInTheDocument();

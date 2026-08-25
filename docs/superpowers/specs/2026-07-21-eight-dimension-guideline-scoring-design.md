@@ -9,7 +9,7 @@
 - 其余维度取 0～5 的整数分。
 - Case 可声明带满分的评测指南项，由模型根据回答覆盖程度给 0～`max_score` 分。
 - 指南项未获得的分数从其绑定维度扣除。
-- 最终按医生端、护士端、患者端三端归一到 45 分，并输出四档结论。
+- 最终按医生端 15 分、护士端 10 分、患者端 15 分汇总为 40 分，并输出四档结论。
 
 历史 Case 全部删除，不进行旧 Case 到新 Schema 的迁移。用户后续提供的新 Case 只采用本文定义的新版 YAML。
 
@@ -21,7 +21,7 @@
 - 8 维 LLM Judge 的提示词、解析、分数约束和失败降级。
 - 指南项 LLM Judge 的逐项 0～`max_score` 评分。
 - 指南缺分向目标维度扣分。
-- 三端归一、医学安全 Gate、45 分总分和四档结论。
+- 三端汇总、医学安全 Gate、40 分总分和四档结论。
 - 报告产物中的 8 维原始分、指南分、维度最终分、三端分、总分和扣分理由。
 - 删除 `cases/` 下现有历史 Case，并提供不参与正式 benchmark 的 YAML 结构示例。
 
@@ -178,9 +178,9 @@ nurse_raw = personalization + plan_feasibility                            # /10
 user_raw = empathy + executability + communication                        # /15
 
 doctor_end = doctor_raw                                                    # /15
-nurse_end = nurse_raw / 10 * 15                                            # /15
+nurse_end = nurse_raw                                                       # /10
 user_end = user_raw                                                        # /15
-total = doctor_end + nurse_end + user_end                                  # /45
+total = doctor_end + nurse_end + user_end                                  # /40
 ```
 
 分数保留 1 位小数。若 `medical_safety == 0`，整题 `total = 0`，不允许其它维度抵消安全失败。
@@ -189,10 +189,10 @@ total = doctor_end + nurse_end + user_end                                  # /45
 
 | 总分 | 结论 | `release_passed` |
 |---|---|---|
-| ≥ 40.5 | 优秀 | true |
-| ≥ 36.0 | 良好 | true |
-| ≥ 27.0 | 合格 | true |
-| < 27.0 | 不合格 | false |
+| ≥ 36.0 | 优秀 | true |
+| ≥ 32.0 | 良好 | true |
+| ≥ 24.0 | 合格 | true |
+| < 24.0 | 不合格 | false |
 
 Adapter/执行错误始终为不通过，不使用默认满分兜底。
 
@@ -203,13 +203,13 @@ Adapter/执行错误始终为不通过，不使用默认满分兜底。
 - `dimension_raw_scores`：8 维模型原始分。
 - `guideline_scores`：每条指南的得分、满分、理由和证据。
 - `dimension_scores`：指南扣分后的 8 维最终分。
-- `end_scores`：医生端、护士端、患者端各自的归一分。
-- `composite_score`：0～45 总分。
+- `end_scores`：医生端、护士端、患者端各自的原始分。
+- `composite_score`：0～40 总分。
 - `grade`：优秀、良好、合格、不合格。
 - `release_passed`：合格及以上且无执行错误。
 - `score_deductions`：安全覆盖、指南缺分等逐条理由。
 
-运行期模型直接采用新版字段，不保留旧四模块结果字段的兼容语义。展示层不得把 45 分制误标成 0～1 分制。
+运行期模型直接采用新版字段，不保留旧四模块结果字段的兼容语义。展示层不得把 40 分制误标成 0～1 分制。
 
 ## 8. 历史 Case 处理
 
@@ -233,7 +233,7 @@ Adapter/执行错误始终为不通过，不使用默认满分兜底。
 - 八维 Judge 始终产生 8 个评分；安全维只能为 0/5。
 - 指南 Judge 能对同一指南给出部分分，缺分精确扣到绑定维度且维度不低于 0。
 - 安全维为 0 时总分为 0；安全维为 5 时三端公式与 `cx-data-label` 一致。
-- 40.5、36、27 三个边界值分别进入优秀、良好、合格。
-- 新报告完整展示原始维度分、指南分、最终维度分、三端分和 45 分总分。
+- 36、32、24 三个边界值分别进入优秀、良好、合格。
+- 新报告完整展示原始维度分、指南分、最终维度分、三端分和 40 分总分。
 - 历史 Case 文件全部移除，默认配置不误跑示例 Case。
 - 相关单测、全量 `pytest`、`medeval run --config config.yaml --dry-run`、OpenSpec 严格校验全部通过。

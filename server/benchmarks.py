@@ -1377,15 +1377,41 @@ def _parse_single_case_yaml(yaml_text: str, *, expected_sample_id: str) -> dict[
         data = yaml.safe_load(yaml_text)
     except yaml.YAMLError as exc:
         raise BenchmarkValidationError("YAML 解析失败，请检查缩进、冒号和列表格式") from exc
-    if not isinstance(data, list) or len(data) != 1:
-        raise BenchmarkValidationError("YAML 须为仅含一条用例的列表")
-    item = data[0]
+    if isinstance(data, dict) and "cases" not in data:
+        item = data
+    elif isinstance(data, list) and len(data) == 1:
+        item = data[0]
+    else:
+        raise BenchmarkValidationError("YAML 须为单条用例对象或仅含一条用例的列表")
     if not isinstance(item, dict):
         raise BenchmarkValidationError("用例须为 mapping")
     sid = str(item.get("sample_id") or "").strip()
     if sid != expected_sample_id:
         raise BenchmarkValidationError(f"sample_id 须为 {expected_sample_id}，实际为 {sid or '(空)'}")
     return item
+
+
+def _source_case_entries(raw: Any) -> tuple[list[Any], str]:
+    """返回源 YAML 的用例条目及顶层布局，兼容 loader 支持的三种格式。"""
+    if isinstance(raw, list):
+        return raw, "list"
+    if isinstance(raw, dict) and "cases" in raw:
+        entries = raw.get("cases")
+        if not isinstance(entries, list):
+            raise BenchmarkValidationError("源 YAML 的 cases 须为用例列表")
+        return entries, "suite"
+    if isinstance(raw, dict):
+        return [raw], "single"
+    raise BenchmarkValidationError("源 YAML 顶层须为单条用例、用例列表或含 cases 的用例集")
+
+
+def _rebuild_source_root(raw: Any, entries: list[Any], layout: str) -> Any:
+    """按源 YAML 原有布局重建顶层，避免编辑一条 Case 改写整个文件格式。"""
+    if layout == "list":
+        return entries
+    if layout == "suite":
+        return {**raw, "cases": entries}
+    return entries[0] if entries else []
 
 
 def _validate_case_dict(
@@ -1438,10 +1464,13 @@ def export_case_yaml(
     if benchmark.source == "online":
         path = _locate_case_file(benchmark, sample_id, settings)
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-        if not isinstance(raw, list):
-            raise BenchmarkValidationError("源 YAML 须为用例列表")
-        for entry in raw:
+        entries, layout = _source_case_entries(raw)
+        for entry in entries:
             if isinstance(entry, dict) and entry.get("sample_id") == sample_id:
+                # defaults + cases 形式的条目可能依赖顶层默认值，导出完整校验结果。
+                if layout == "suite":
+                    entry = case.model_dump(mode="json")
+                    entry.pop("case_file", None)
                 text = yaml.safe_dump(
                     [_literalize_turn_content(entry)],
                     allow_unicode=True,
@@ -1468,11 +1497,10 @@ def save_case_yaml(
     path = _locate_case_file(benchmark, sample_id, settings)
     case = _validate_case_dict(item, settings, yaml_dir=path.parent)
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(raw, list):
-        raise BenchmarkValidationError("源 YAML 须为用例列表")
+    entries, layout = _source_case_entries(raw)
     updated: list[Any] = []
     found = False
-    for entry in raw:
+    for entry in entries:
         if isinstance(entry, dict) and entry.get("sample_id") == sample_id:
             updated.append(item)
             found = True
@@ -1480,8 +1508,9 @@ def save_case_yaml(
             updated.append(entry)
     if not found:
         raise BenchmarkValidationError(f"源文件中未找到用例 {sample_id}")
+    rebuilt = _rebuild_source_root(raw, updated, layout)
     path.write_text(
-        yaml.safe_dump(updated, allow_unicode=True, sort_keys=False), encoding="utf-8"
+        yaml.safe_dump(rebuilt, allow_unicode=True, sort_keys=False), encoding="utf-8"
     )
     _invalidate_cases_cache(benchmark.storage_path)
     return case
@@ -1499,12 +1528,11 @@ def delete_case(
         raise BenchmarkValidationError("内置 benchmark 不可删除单个用例")
     path = _locate_case_file(benchmark, sample_id, settings)
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(raw, list):
-        raise BenchmarkValidationError("源 YAML 须为用例列表")
+    entries, layout = _source_case_entries(raw)
 
     updated: list[Any] = []
     found = False
-    for entry in raw:
+    for entry in entries:
         if isinstance(entry, dict) and entry.get("sample_id") == sample_id:
             found = True
             continue
@@ -1512,8 +1540,9 @@ def delete_case(
     if not found:
         raise BenchmarkValidationError(f"源文件中未找到用例 {sample_id}")
 
+    rebuilt = _rebuild_source_root(raw, updated, layout)
     path.write_text(
-        yaml.safe_dump(updated, allow_unicode=True, sort_keys=False), encoding="utf-8"
+        yaml.safe_dump(rebuilt, allow_unicode=True, sort_keys=False), encoding="utf-8"
     )
     _invalidate_cases_cache(benchmark.storage_path)
     return load_benchmark_cases(benchmark, settings=settings)

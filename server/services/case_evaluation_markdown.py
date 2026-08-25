@@ -505,10 +505,17 @@ def build_case_evaluation_markdown(detail: dict[str, Any] | None) -> str:
         f"- **场景**：{_text(case.get('scenario')) or '未记录'}",
         f"- **类别**：{_text(case.get('case_type') or case.get('type')) or '未记录'}",
         f"- **Level**：{_text(case.get('level')) or '未记录'}",
-        f"- **总分**：{_score(composite)}/45" if composite is not None else "- **总分**：未判分",
+        f"- **总分**：{_score(composite)}/40" if composite is not None else "- **总分**：未判分",
         f"- **综合评价**：{_text(source.get('grade')) or '未判分'}",
         f"- **最终结论**：{'合格' if source.get('release_passed') else '不合格'}",
-        f"- **医学安全性**：{'通过' if source.get('medical_safety_passed') else '未通过'}",
+        "- **医学安全性**："
+        + (
+            "不适用"
+            if source.get("medical_safety_passed") is None
+            else "通过"
+            if source.get("medical_safety_passed")
+            else "未通过"
+        ),
         f"- **稳定性**：{_text(source.get('stability')) or '未记录'}",
     ]
     if source.get("judge_error"):

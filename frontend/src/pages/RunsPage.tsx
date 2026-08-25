@@ -20,6 +20,7 @@ import {
   toPeriodBounds,
 } from "../utils/runsDateRange";
 import {
+  computeCxAgentOptimizationPeriodDeltas,
   computeRunsPeriodDeltas,
   filterRuns,
   type RunsListFilter,
@@ -85,13 +86,20 @@ export default function RunsPage() {
   const { stats: attributionCategoryStats, loading: attributionCategoryStatsLoading } =
     useLatestAttributionCategoryStats(runs);
 
-  const { displayRuns, periodBounds, previousBounds, periodDeltas } = useMemo(() => {
+  const {
+    displayRuns,
+    periodBounds,
+    previousBounds,
+    periodDeltas,
+    cxAgentOptimizationPeriodDeltas,
+  } = useMemo(() => {
     if (!dateRange) {
       return {
         displayRuns: conditionFiltered,
         periodBounds: null,
         previousBounds: null,
         periodDeltas: null,
+        cxAgentOptimizationPeriodDeltas: null,
       };
     }
     const bounds = toPeriodBounds(dateRange);
@@ -103,6 +111,7 @@ export default function RunsPage() {
       periodBounds: bounds,
       previousBounds: prevBounds,
       periodDeltas: computeRunsPeriodDeltas(current, previous),
+      cxAgentOptimizationPeriodDeltas: computeCxAgentOptimizationPeriodDeltas(current, previous),
     };
   }, [conditionFiltered, dateRange]);
 
@@ -144,6 +153,7 @@ export default function RunsPage() {
         periodBounds={periodBounds}
         previousBounds={previousBounds}
         periodDeltas={periodDeltas}
+        cxAgentOptimizationPeriodDeltas={cxAgentOptimizationPeriodDeltas}
         attributionCategoryStats={attributionCategoryStats}
         attributionCategoryStatsLoading={attributionCategoryStatsLoading}
       />

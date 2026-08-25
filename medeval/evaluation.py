@@ -82,13 +82,14 @@ ROLE_LABELS: dict[str, str] = {
     "user": "患者端",
 }
 
-ROLE_MAX_SCORES: dict[str, int] = {"doctor": 15, "nurse": 15, "user": 15}
+# 护士端仅含两个维度，按原始 0～5 分直接计 10 分；不再人为归一到 15 分。
+ROLE_MAX_SCORES: dict[str, int] = {"doctor": 15, "nurse": 10, "user": 15}
 TOTAL_MAX_SCORE = sum(ROLE_MAX_SCORES.values())
 
 GRADE_THRESHOLDS: tuple[dict[str, str | float | bool], ...] = (
-    {"grade": "优秀", "min_score": 40.5, "passed": True},
-    {"grade": "良好", "min_score": 36.0, "passed": True},
-    {"grade": "合格", "min_score": 27.0, "passed": True},
+    {"grade": "优秀", "min_score": 36.0, "passed": True},
+    {"grade": "良好", "min_score": 32.0, "passed": True},
+    {"grade": "合格", "min_score": 24.0, "passed": True},
     {"grade": "不合格", "min_score": 0.0, "passed": False},
 )
 

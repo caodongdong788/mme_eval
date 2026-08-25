@@ -11,7 +11,7 @@ FastAPI 后端负责 Benchmark v2 管理、评测任务执行、结果持久化�
 - `guideline_scores`
 - `dimension_scores`
 - `end_scores`
-- `composite_score`（0～45）
+- `composite_score`（0～40）
 - `grade`
 - `release_passed`
 

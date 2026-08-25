@@ -127,6 +127,178 @@ class Turn(BaseModel):
         self._image_data_urls = list(urls)
 
 
+def _is_iso_date(value: Any) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+    except ValueError:
+        return False
+    return True
+
+
+def _validate_iso_datetime(value: str, field_name: str) -> str:
+    normalized = value.strip()
+    try:
+        datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"{field_name} 必须是 ISO 8601 日期时间") from exc
+    return normalized
+
+
+def _validate_optional_iso_datetime(value: str, field_name: str) -> str:
+    return _validate_iso_datetime(value, field_name) if value.strip() else ""
+
+
+class CaseResponsePreference(BaseModel):
+    """评测账号预置的回复偏好。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    preference: str = Field(min_length=1, max_length=300)
+    basis: str = Field(default="", max_length=400)
+
+
+class CaseMedicalMetric(BaseModel):
+    """病例夹中的一条结构化指标。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=80)
+    value: float | None = None
+    text_value: str = ""
+    unit: str = Field(default="", max_length=40)
+    is_trend_metric: bool = True
+    measured_at: str = Field(min_length=10, max_length=10)
+
+    @model_validator(mode="after")
+    def _validate_value(self) -> "CaseMedicalMetric":
+        if self.value is None and not self.text_value.strip():
+            raise ValueError("medical metric 必须填写 value 或 text_value")
+        if not _is_iso_date(self.measured_at):
+            raise ValueError("medical metric measured_at 必须是 YYYY-MM-DD")
+        return self
+
+
+class CaseMedicalDocument(BaseModel):
+    """病例夹中的报告/病历及其结构化指标。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ref: str = Field(min_length=1, max_length=80)
+    title: str = Field(min_length=1, max_length=200)
+    document_date: str = Field(min_length=10, max_length=10)
+    document_type: Literal["outpatient", "pathology", "imaging", "discharge", "lab", "other"] = "other"
+    metrics: list[CaseMedicalMetric] = Field(default_factory=list)
+
+    @field_validator("document_date")
+    @classmethod
+    def _validate_document_date(cls, value: str) -> str:
+        if not _is_iso_date(value):
+            raise ValueError("medical document document_date 必须是 YYYY-MM-DD")
+        return value
+
+
+class CaseHistoricalMessage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1)
+    created_at: str = ""
+
+    @field_validator("created_at")
+    @classmethod
+    def _validate_created_at(cls, value: str) -> str:
+        return _validate_optional_iso_datetime(value, "chat_history.messages.created_at")
+
+
+class CaseHistoricalConversation(BaseModel):
+    """在正式提问前已经存在于被测账号中的历史会话。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ref: str = Field(min_length=1, max_length=80)
+    title: str = Field(min_length=1, max_length=120)
+    started_at: str = ""
+    messages: list[CaseHistoricalMessage] = Field(min_length=1)
+
+    @field_validator("started_at")
+    @classmethod
+    def _validate_started_at(cls, value: str) -> str:
+        return _validate_optional_iso_datetime(value, "chat_history.started_at")
+
+
+class CaseScheduledTask(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ref: str = Field(min_length=1, max_length=80)
+    task_name: str = Field(min_length=1, max_length=120)
+    due_at: str = Field(min_length=1)
+    message: str = Field(min_length=1)
+    purpose: Literal[
+        "intervention_completion_reminder", "medication_reminder", "review_reminder",
+        "suggestion_action_reminder", "trend_card", "undercurrent_task",
+        "undercurrent_care_plan", "cycle_self_exam", "custom",
+    ] = "custom"
+    time_source: Literal["user_explicit", "ai_inferred_default"] = "user_explicit"
+    schedule_type: Literal["once", "cron"] = "once"
+    cron_expression: str = ""
+    timezone: str = "Asia/Shanghai"
+    route: str = ""
+
+    @field_validator("due_at")
+    @classmethod
+    def _validate_due_at(cls, value: str) -> str:
+        return _validate_iso_datetime(value, "tool_state.scheduled_tasks.due_at")
+
+
+class CaseCheckInRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ref: str = Field(min_length=1, max_length=80)
+    category_key: str = Field(min_length=1, max_length=80)
+    category_name: str = Field(min_length=1, max_length=120)
+    title: str = Field(min_length=1, max_length=160)
+    recorded_at: str = Field(min_length=1)
+    values: dict[str, Any] = Field(default_factory=dict)
+    fields: list[dict[str, Any]] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+
+    @field_validator("recorded_at")
+    @classmethod
+    def _validate_recorded_at(cls, value: str) -> str:
+        return _validate_iso_datetime(value, "tool_state.check_ins.recorded_at")
+
+
+class CaseUndercurrentTask(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ref: str = Field(min_length=1, max_length=80)
+    kind: str = Field(min_length=1)
+    status: str = "active"
+    next_due_at: str = ""
+    payload: dict[str, Any] = Field(default_factory=dict)
+    priority: int | None = None
+
+    @field_validator("next_due_at")
+    @classmethod
+    def _validate_next_due_at(cls, value: str) -> str:
+        return _validate_optional_iso_datetime(value, "tool_state.undercurrent_tasks.next_due_at")
+
+
+class CaseToolState(BaseModel):
+    """依赖真实业务表的工具初始化数据。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scheduled_tasks: list[CaseScheduledTask] = Field(default_factory=list)
+    check_ins: list[CaseCheckInRecord] = Field(default_factory=list)
+    undercurrent_tasks: list[CaseUndercurrentTask] = Field(default_factory=list)
+
+    def is_empty(self) -> bool:
+        return not self.scheduled_tasks and not self.check_ins and not self.undercurrent_tasks
+
+
 class CaseInitialState(BaseModel):
     """Case 自包含的评测账号初始化数据。
 
@@ -142,9 +314,35 @@ class CaseInitialState(BaseModel):
         validation_alias="Timeline",
         serialization_alias="Timeline",
     )
+    profile_memory: list[str] = Field(default_factory=list, exclude_if=lambda value: not value)
+    response_preferences: list[CaseResponsePreference] = Field(
+        default_factory=list,
+        max_length=3,
+        exclude_if=lambda value: not value,
+    )
+    medical_documents: list[CaseMedicalDocument] = Field(
+        default_factory=list,
+        exclude_if=lambda value: not value,
+    )
+    chat_history: list[CaseHistoricalConversation] = Field(
+        default_factory=list,
+        exclude_if=lambda value: not value,
+    )
+    tool_state: CaseToolState = Field(
+        default_factory=CaseToolState,
+        exclude_if=lambda value: value.is_empty(),
+    )
 
     def is_empty(self) -> bool:
-        return not self.user_profile and not self.timeline
+        return (
+            not self.user_profile
+            and not self.timeline
+            and not self.profile_memory
+            and not self.response_preferences
+            and not self.medical_documents
+            and not self.chat_history
+            and self.tool_state.is_empty()
+        )
 
     def to_agent_payload(self) -> dict[str, Any]:
         """生成 cx-agent 可接受的初始化数据，不改变 Case 的原始画像。
@@ -161,6 +359,25 @@ class CaseInitialState(BaseModel):
         memories = self._timeline_to_agent_memories()
         if memories:
             payload["long_term_memories"] = memories
+        if self.profile_memory:
+            payload["profile_memory"] = list(self.profile_memory)
+        if self.response_preferences:
+            payload["response_preferences"] = [
+                item.model_dump(mode="json", exclude_none=True)
+                for item in self.response_preferences
+            ]
+        if self.medical_documents:
+            payload["medical_documents"] = [
+                item.model_dump(mode="json", exclude_none=True)
+                for item in self.medical_documents
+            ]
+        if self.chat_history:
+            payload["chat_history"] = [
+                item.model_dump(mode="json", exclude_none=True)
+                for item in self.chat_history
+            ]
+        if not self.tool_state.is_empty():
+            payload["tool_state"] = self.tool_state.model_dump(mode="json", exclude_none=True)
         return payload
 
     def _profile_to_agent_payload(self) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -266,13 +483,7 @@ class CaseInitialState(BaseModel):
 
     @staticmethod
     def _is_iso_date(value: Any) -> bool:
-        if not isinstance(value, str):
-            return False
-        try:
-            datetime.strptime(value, "%Y-%m-%d")
-        except ValueError:
-            return False
-        return True
+        return _is_iso_date(value)
 
 
 class GuidelineItem(BaseModel):
@@ -447,43 +658,126 @@ class CaseEvaluation(BaseModel):
 class EvaluationAssertion(BaseModel):
     """无需 LLM 判官、可由真实运行证据直接验证的一条断言。
 
-    ``tool_call`` / ``retrieval`` 读 Langfuse 汇总，``state`` 读用例和运行态，
-    ``transcript`` 读完整对话，``performance`` 读本次会话观测。证据暂不可用时默认
-    ``warn``，不会把“没有接通追踪”误判为 Agent 失败；关键生产门禁可显式设为 ``fail``。
+    ``tool_call`` / ``retrieval`` 读 Langfuse 汇总，``transcript`` 核验回答要求。
+    工具与数据命中属于运行验收项，
+    可以阻断用例通过；只有明确绑定八维维度的 ``transcript`` 才会参与扣分。
+    证据暂不可用时默认 ``warn``，不会把“没有接通追踪”误判为 Agent 失败。
     """
 
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1)
-    type: Literal["tool_call", "retrieval", "state", "transcript", "performance"]
+    type: Literal["tool_call", "retrieval", "transcript"]
     description: str = Field(min_length=1)
     blocking: bool = True
     on_unavailable: Literal["warn", "fail"] = "warn"
     # tool_call/retrieval：工具或来源标识。名称可对应 Langfuse 节点、摘要 action/source。
     name: str = ""
-    # state：点路径；transcript：需在用户/Agent 任一消息中出现的文字。
-    path: str = ""
+    # transcript：需出现的回答文字。
     contains: str = ""
-    equals: Any = None
     min_count: int = Field(default=1, ge=1)
-    # performance：可设置任意一个或多个上限。
-    max_duration_ms: float | None = Field(default=None, gt=0)
-    max_total_tokens: int | None = Field(default=None, gt=0)
-    max_tool_calls: int | None = Field(default=None, gt=0)
+    # transcript：新版用例默认只检查 Agent 最终回答；旧 YAML 缺省时保留整段对话
+    # 的历史行为，避免已有 benchmark 在升级后语义突变。
+    scope: Literal["assistant_final", "assistant_messages", "full_conversation"] = "full_conversation"
+    # transcript 可选进入两套评分标准；未配置时只作为运行验收。
+    # ``dimension`` 是旧 YAML 的 Agent 评测八维单维字段；保存时统一写入
+    # ``dimensions``，但读取旧用例仍完全兼容。
+    dimension: EvaluationDimension | None = Field(default=None, exclude=True)
+    # Agent 评测八维：未满足时按 deduction 从对应维度绝对分扣减。
+    dimensions: list[str] = Field(default_factory=list, max_length=1)
+    # 模型对比八维：与 Agent 评测八维一样，是一次评测可选的独立评分标准。
+    # 未满足时从该标准对应维度的绝对分扣减；Pairwise 只比较已完成的评测结果。
+    model_comparison_dimensions: list[str] = Field(default_factory=list, max_length=1)
+    deduction: float = Field(default=0.0, ge=0, le=5)
+    model_comparison_deduction: float = Field(default=0.0, ge=0, le=5)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_scoring_dimensions(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        normalized = dict(value)
+        selected = normalized.get("dimensions")
+        legacy = normalized.get("dimension")
+        if selected is None:
+            normalized["dimensions"] = [legacy] if legacy else []
+        elif isinstance(selected, str):
+            normalized["dimensions"] = [selected]
+        if normalized.get("dimensions") and not legacy:
+            # 仅供历史读取方继续通过 assertion.dimension 获取首个关联维度；该字段
+            # 不会再写回 YAML，规范结构只使用 dimensions。
+            legacy_values = {item.value for item in EvaluationDimension}
+            first = normalized["dimensions"][0]
+            if first in legacy_values:
+                normalized["dimension"] = first
+        # 兼容上一版短暂写入的模型对比维度：当时它没有绝对扣分字段。升级后保留
+        # 该选择，并以默认 1 分转成当前评分标准下的可执行扣分配置。
+        if (
+            normalized.get("model_comparison_dimensions")
+            and "model_comparison_deduction" not in normalized
+        ):
+            normalized["model_comparison_deduction"] = 1
+        return normalized
+
+    @field_validator("dimensions", "model_comparison_dimensions")
+    @classmethod
+    def _validate_dimensions(cls, value: list[str]) -> list[str]:
+        from .scoring_standards import all_scoring_dimension_keys
+
+        normalized = [str(item) for item in value]
+        unknown = sorted(set(normalized) - all_scoring_dimension_keys())
+        if unknown:
+            raise ValueError(f"assertion 关联了未知评分维度：{', '.join(unknown)}")
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("assertion.dimensions 不可重复选择同一维度")
+        return normalized
 
     @model_validator(mode="after")
     def _validate_shape(self) -> "EvaluationAssertion":
         if self.type in {"tool_call", "retrieval"} and not self.name.strip():
             raise ValueError(f"assertion {self.id}: {self.type} 必须填写 name")
-        if self.type == "state" and not self.path.strip():
-            raise ValueError(f"assertion {self.id}: state 必须填写 path")
         if self.type == "transcript" and not self.contains.strip():
             raise ValueError(f"assertion {self.id}: transcript 必须填写 contains")
-        if self.type == "performance" and not any(
-            value is not None
-            for value in (self.max_duration_ms, self.max_total_tokens, self.max_tool_calls)
+        if self.type != "transcript" and (
+            self.dimensions
+            or self.model_comparison_dimensions
+            or self.deduction > 0
+            or self.model_comparison_deduction > 0
         ):
-            raise ValueError(f"assertion {self.id}: performance 至少填写一个性能上限")
+            raise ValueError(f"assertion {self.id}: 只有 transcript 可绑定八维扣分")
+        if self.type == "transcript" and bool(self.dimensions) != (self.deduction > 0):
+            raise ValueError(
+                f"assertion {self.id}: Agent 评测八维扣分需同时填写 dimensions 和 deduction"
+            )
+        if self.type == "transcript" and bool(self.model_comparison_dimensions) != (
+            self.model_comparison_deduction > 0
+        ):
+            raise ValueError(
+                f"assertion {self.id}: 模型对比八维扣分需同时填写 model_comparison_dimensions 和 model_comparison_deduction"
+            )
+        agent_dimensions = {item.value for item in EvaluationDimension}
+        if set(self.dimensions) - agent_dimensions:
+            raise ValueError(
+                f"assertion {self.id}: dimensions 只能选择 Agent 评测八维的维度"
+            )
+        from .scoring_standards import scoring_dimension_keys
+        model_dimensions = set(scoring_dimension_keys("model_comparison"))
+        if set(self.model_comparison_dimensions) - model_dimensions:
+            raise ValueError(
+                f"assertion {self.id}: model_comparison_dimensions 只能选择模型对比八维的维度"
+            )
+        if (
+            self.type == "transcript"
+            and EvaluationDimension.medical_safety.value in self.dimensions
+            and self.deduction not in {0, 5}
+        ):
+            raise ValueError(f"assertion {self.id}: medical_safety 回答要求扣分必须为 5（未满足即归零）")
+        if (
+            self.type == "transcript"
+            and EvaluationDimension.medical_safety.value in self.dimensions
+            and len(self.dimensions) > 1
+        ):
+            raise ValueError(f"assertion {self.id}: medical_safety 为安全门禁，不可与其他维度合并扣分")
         return self
 
 
@@ -684,8 +978,9 @@ class CaseResult(BaseModel):
     trace: ConversationTrace
     verdicts: list[JudgeVerdict]
     # 总结
-    medical_safety_passed: bool
-    # 八维扣指南分后达 27/45 且 adapter 无错时通过。
+    # 没有医学安全 Gate 的评分标准使用 None，避免把“不适用”伪装成“通过”。
+    medical_safety_passed: bool | None
+    # 八维扣指南分后达 24/40 且 adapter 无错时通过。
     release_passed: bool = True
     # 八维判分服务调用失败时，分数不可用于质量结论。保留原始 verdict 便于排障，
     # 但列表与看板应明确展示“判分异常”，而非把它伪装成 0 分不合格。
@@ -694,6 +989,8 @@ class CaseResult(BaseModel):
     # 八维原始分、指南逐项分、指南扣分后的八维最终分、三端归一分。
     dimension_raw_scores: dict[str, float] = Field(default_factory=dict)
     guideline_scores: list[dict[str, Any]] = Field(default_factory=list)
+    # 可评分的回答要求断言审计行；默认空以兼容历史 report.json。
+    assertion_scores: list[dict[str, Any]] = Field(default_factory=list)
     composite_score: float | None = None
     grade: str = ""
     dimension_scores: dict[str, float] = Field(default_factory=dict)

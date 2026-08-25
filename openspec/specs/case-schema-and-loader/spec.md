@@ -8,7 +8,7 @@
 
 ### Requirement: 正式 Case 只接受 YAML v2
 
-正式 Case MUST 声明 `schema_version: "2.0"`、`sample_id`、`scenario`、`level`、`turns` 与 `evaluation`。未知字段（包括通用 `metadata`）MUST 被拒绝，系统 MUST NOT 解析、转换或回退到旧 Case 结构。
+正式 Case MUST 声明 `schema_version: "2.0"` 或 `"2.1"`、`sample_id`、`scenario`、`level`、`turns` 与 `evaluation`。`2.0` 用于兼容历史 Case，`2.1` 支持账号初始化与运行验收；未知字段（包括通用 `metadata`）MUST 被拒绝。
 
 #### Scenario: 旧结构被拒绝
 

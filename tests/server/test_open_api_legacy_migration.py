@@ -80,4 +80,4 @@ def test_alembic_upgrade_encrypts_existing_recoverable_key(settings):
         ).scalar_one()
     assert stored.startswith("fernet:v1:")
     assert decrypt_recoverable_secret(stored) == "plain-before-upgrade"
-    assert revision == "20260824_0006"
+    assert revision == "20260825_0007"

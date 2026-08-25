@@ -45,4 +45,21 @@ describe("apiError 中文错误说明", () => {
       humanizeErrorText("AI 归因生成失败：InternalServerError: An internal error has occurred"),
     ).toBe("模型服务内部处理失败，请稍后重试；如持续出现，请更换模型或检查模型配置");
   });
+
+  it("保留 409 返回的具体中文原因", () => {
+    expect(
+      formatApiError({
+        response: {
+          status: 409,
+          data: { detail: "评测名称「账号初始化与断言示例」已存在，请换一个名称" },
+        },
+      }),
+    ).toBe("评测名称「账号初始化与断言示例」已存在，请换一个名称");
+  });
+
+  it("没有具体原因的 409 使用可理解的兜底提示", () => {
+    expect(humanizeErrorText("Conflict", "操作失败", 409)).toBe(
+      "当前操作暂时无法完成，相关内容可能已被更新；请刷新页面后重试",
+    );
+  });
 });

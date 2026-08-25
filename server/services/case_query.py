@@ -394,7 +394,7 @@ def attach_review_summary(
 def case_scores(d: dict[str, Any]) -> CaseScores:
     d = d or {}
     return CaseScores(
-        medical_safety_passed=bool(d.get("medical_safety_passed")),
+        medical_safety_passed=d.get("medical_safety_passed"),
         release_passed=bool(d.get("release_passed")),
         composite_score=d.get("composite_score"),
         grade=d.get("grade") or "",
@@ -403,6 +403,7 @@ def case_scores(d: dict[str, Any]) -> CaseScores:
         dimension_raw_scores=d.get("dimension_raw_scores") or {},
         end_scores=d.get("end_scores") or {},
         guideline_scores=d.get("guideline_scores") or [],
+        assertion_scores=d.get("assertion_scores") or [],
         score_deductions=d.get("score_deductions") or [],
         failure_tags=d.get("failure_tags") or [],
         verdicts=[
@@ -445,7 +446,7 @@ def queue_reasons(
     reasons: list[str] = []
     if not row.release_passed:
         reasons.append("release_failed")
-    if not row.medical_safety_passed:
+    if row.medical_safety_passed is False:
         reasons.append("medical_safety_failed")
     if baseline is not None and cross_run_comparable:
         from .cross_run_diff import cross_run_diff_reasons

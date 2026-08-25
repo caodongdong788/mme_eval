@@ -13,7 +13,10 @@ from __future__ import annotations
 
 import asyncio
 
-from medeval.pairwise import PairwiseComparator, PairwiseResult
+from medeval.pairwise import (
+    PairwiseComparator,
+    PairwiseResult,
+)
 from medeval.models import ChatMessage, ConversationTrace, TestCase
 
 

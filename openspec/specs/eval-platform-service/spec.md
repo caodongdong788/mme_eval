@@ -17,7 +17,7 @@
 
 ### Requirement: 平台必须持久化新评分结构
 
-评测完成后，平台 MUST 持久化 `medical_safety_passed`、八维原始分、指南逐项分、八维最终分、三端分、45 分总分、评级和 `release_passed`。`detail_json` MUST 无损保留 Case、trace 与 verdict。
+评测完成后，平台 MUST 持久化 `medical_safety_passed`、八维原始分、指南逐项分、八维最终分、三端分、40 分总分、评级和 `release_passed`。`detail_json` MUST 无损保留 Case、trace 与 verdict。
 
 #### Scenario: 读回 Case 明细
 
@@ -35,12 +35,12 @@
 
 ### Requirement: 平台必须公开统一评测标准
 
-`GET /api/config/evaluation-standard` MUST 返回固定八维、角色端、每端满分、45 分总分、四档阈值、医学安全归零规则与指南扣分公式。
+`GET /api/config/evaluation-standard` MUST 返回固定八维、角色端、每端满分、40 分总分、四档阈值、医学安全归零规则与指南扣分公式。
 
 #### Scenario: 前端读取评测标准
 
 - **WHEN** 客户端请求标准接口
-- **THEN** 响应 MUST 含恰好八个维度且 `total_max_score=45`
+- **THEN** 响应 MUST 含恰好八个维度且 `total_max_score=40`
 
 ### Requirement: 重判和预览只能覆盖 evaluation
 

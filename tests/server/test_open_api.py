@@ -520,7 +520,7 @@ def test_open_api_temporary_evaluation_uses_supplied_context_and_case_contract(
         "scenario": "化疗后发热",
         "match_type": "normalized_exact_question",
     }
-    assert body["total_score"] == 43
+    assert body["total_score"] == 38
     assert body["grade"] == "优秀"
     assert body["passed"] is True
     assert len(body["dimensions"]) == 8

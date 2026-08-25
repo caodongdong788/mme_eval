@@ -14,7 +14,7 @@ from medeval.visible_response import normalize_cx_agent_visible_trace
 
 from ..benchmarks import _apply_case_overrides
 from ..db import session_scope
-from ..models_db import Benchmark
+from ..models_db import Benchmark, EvalRun
 from ..job_specs import attach_job_spec, without_api_keys
 from ..progress import InMemoryProgress
 from ..settings import Settings, get_settings
@@ -46,6 +46,11 @@ def build_rejudge_job(
         from .. import eval_job as ej
 
         src_slug, _bm_id, judge_ov, adapter_ov = load_source_run(settings, source_run_id)
+        with session_scope() as session:
+            source = session.get(EvalRun, source_run_id)
+            if source is None:
+                raise ValueError(f"source run {source_run_id} 不存在")
+            scoring_standard = source.scoring_standard
         src_dir = settings.outputs_dir / src_slug
         cases, per_case_traces, n_runs = frozen_cases_and_traces(
             src_dir, require_traces=True
@@ -77,7 +82,7 @@ def build_rejudge_job(
                 for traces in per_case_traces
             ]
 
-        judges = build_judge_stack(config)
+        judges = build_judge_stack(config, scoring_standard=scoring_standard)
 
         new_slug = make_run_slug(config.run.name)
         out_dir = settings.outputs_dir / new_slug
@@ -106,7 +111,7 @@ def build_rejudge_job(
                     run_id,
                     run_name=new_slug,
                     adapter_type=config.adapter.type,
-                    config_snapshot=config.public_snapshot(),
+                    config_snapshot={**config.public_snapshot(), "scoring_standard": scoring_standard},
                     description=config.run.description,
                     n_runs=n_runs,
                     sample_order=[case.sample_id for case in sub_cases],
@@ -120,6 +125,7 @@ def build_rejudge_job(
                 progress=progress,
                 run_name=new_slug,
                 declare_plan=True,
+                scoring_standard=scoring_standard,
             )
             new_by_id = {r.case.sample_id: r for r in partial.results}
             merged = [
@@ -132,7 +138,7 @@ def build_rejudge_job(
                 run_name=new_slug,
                 results=merged,
                 adapter_type=config.adapter.type,
-                config_snapshot=config.public_snapshot(),
+                config_snapshot={**config.public_snapshot(), "scoring_standard": scoring_standard},
                 description=config.run.description,
                 n_runs=n_runs,
             )
@@ -142,7 +148,7 @@ def build_rejudge_job(
                     run_id,
                     run_name=new_slug,
                     adapter_type=config.adapter.type,
-                    config_snapshot=config.public_snapshot(),
+                    config_snapshot={**config.public_snapshot(), "scoring_standard": scoring_standard},
                     description=config.run.description,
                     n_runs=n_runs,
                     sample_order=[case.sample_id for case in cases],
@@ -156,6 +162,7 @@ def build_rejudge_job(
                 progress=progress,
                 run_name=new_slug,
                 declare_plan=True,
+                scoring_standard=scoring_standard,
             )
 
         try:
@@ -216,6 +223,11 @@ async def preview_rejudge_case(
 
     settings = settings or get_settings()
     src_slug, _bm_id, judge_ov, adapter_ov = load_source_run(settings, source_run_id)
+    with session_scope() as session:
+        source = session.get(EvalRun, source_run_id)
+        if source is None:
+            raise ValueError(f"source run {source_run_id} 不存在")
+        scoring_standard = source.scoring_standard
     src_dir = settings.outputs_dir / src_slug
     cases, per_case_traces, n_runs = frozen_cases_and_traces(src_dir, require_traces=True)
 
@@ -237,12 +249,13 @@ async def preview_rejudge_case(
         adapter_ov=adapter_ov,
     )
 
-    judges = build_judge_stack(config)
+    judges = build_judge_stack(config, scoring_standard=scoring_standard)
     report = await ej.judge_traces(
         config,
         sub_cases,
         sub_traces,
         judges,
         declare_plan=False,
+        scoring_standard=scoring_standard,
     )
     return report.results[0]

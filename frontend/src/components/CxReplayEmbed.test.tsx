@@ -24,12 +24,13 @@ describe("CxReplayEmbed", () => {
 
   it("falls back to the saved conversation when CX does not confirm iframe readiness", () => {
     vi.useFakeTimers();
-    renderWithProviders(<CxReplayEmbed {...props} />);
+    const onFallbackChange = vi.fn();
+    renderWithProviders(<CxReplayEmbed {...props} onFallbackChange={onFallbackChange} />);
 
     act(() => vi.advanceTimersByTime(4_000));
 
-    expect(screen.getByText("CX 原生回放暂不可嵌入，已切换为本地回放")).toBeInTheDocument();
     expect(screen.getByText("已保存的本地回放")).toBeInTheDocument();
+    expect(onFallbackChange).toHaveBeenLastCalledWith(true);
   });
 
   it("keeps the native iframe when CX confirms readiness from the expected origin", () => {
@@ -45,7 +46,6 @@ describe("CxReplayEmbed", () => {
       vi.advanceTimersByTime(4_000);
     });
 
-    expect(screen.queryByText("CX 原生回放暂不可嵌入，已切换为本地回放")).not.toBeInTheDocument();
     expect(screen.getByTitle("CX 完整回放")).toBeInTheDocument();
   });
 });

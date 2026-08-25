@@ -123,8 +123,8 @@ class EvalRun(Base):
     status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
     # manual（页面发起） | scheduled（定时任务） | open_api（开放接口）。
     trigger_type: Mapped[str] = mapped_column(String(20), default="manual", index=True)
-    # Run 创建时冻结评分标准。主评测仍按 CX 八维产出绝对分；该字段决定后续
-    # Pairwise 使用哪一套相对能力维度，避免历史 Run 随平台配置漂移。
+    # Run 创建时冻结评分标准。两套八维都会产出本次 Run 的绝对分；Pairwise
+    # 可沿用该标准横向比较结果，避免历史 Run 随平台配置漂移。
     scoring_standard: Mapped[str] = mapped_column(
         String(40), default="cx_eight_dimension", index=True
     )
@@ -394,7 +394,9 @@ class CaseResultRow(Base):
     source: Mapped[str] = mapped_column(String(40), default="")
     tags: Mapped[list[str]] = mapped_column(JSON, default=list)
 
-    medical_safety_passed: Mapped[bool] = mapped_column(Boolean, default=True)
+    medical_safety_passed: Mapped[Optional[bool]] = mapped_column(
+        Boolean, default=True, nullable=True
+    )
     release_passed: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     judge_error: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
 

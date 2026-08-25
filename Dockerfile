@@ -10,6 +10,7 @@ RUN npm install --global npm@11.16.0
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
+COPY shared/ /shared/
 RUN npm run build
 
 # --- Stage 2: Python 运行时 ---
@@ -53,6 +54,7 @@ RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
 COPY README.md ./
 COPY medeval/ medeval/
 COPY server/ server/
+COPY shared/ shared/
 COPY migrations/ migrations/
 COPY alembic.ini ./alembic.ini
 COPY cases/ cases/
