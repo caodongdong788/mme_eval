@@ -35,7 +35,7 @@
   ],
   "retrieval_sources": [
     {"name":"medical_records","title":"病例夹","description":"确认 Agent 通过 saved_content 实际读取了病例、诊断、用药或报告原文；只查看目录不算命中。","category":"账号数据","tool":"saved_content","aliases":[]},
-    {"name":"medical_metrics","title":"报告指标","description":"确认 read_medical_metrics 返回了结构化指标；未找到指标不算命中。","category":"账号数据","tool":"read_medical_metrics","aliases":[]},
+    {"name":"medical_metrics","title":"报告指标","description":"确认 read_medical_metrics 或病例夹读取直接返回了结构化指标；未找到指标不算命中。","category":"账号数据","tool":"read_medical_metrics","aliases":[]},
     {"name":"timeline","title":"过往事实","description":"确认 read_timeline 返回了历史健康事件或长期事实。","category":"账号数据","tool":"read_timeline","aliases":[]},
     {"name":"chat_history","title":"历史对话","description":"确认 search_chat_history 找到了与查询匹配的既往对话。","category":"账号数据","tool":"search_chat_history","aliases":[]},
     {"name":"literature_rag","title":"医学文献 RAG","description":"确认 medical_literature_search 最终采用了可用于回答的论文、指南、药品说明书或专家 QA 证据。","category":"医学 RAG","tool":"medical_literature_search","aliases":["medical_literature"]},

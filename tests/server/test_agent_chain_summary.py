@@ -60,6 +60,40 @@ def test_summarizes_medical_sources_without_treating_history_as_rag():
     assert sources["literature_rag"]["status"] == "unused"
 
 
+def test_treats_structured_metrics_returned_by_a_read_report_as_a_metric_hit():
+    summary = summarize_agent_chain(
+        [
+            _tool(
+                "pathology",
+                "tool.saved_content",
+                input={"action": "read", "type": "C", "id": "C-1"},
+                output={
+                    "title": "合成病理报告",
+                    "metrics": [
+                        {"name": "ER", "value": 90, "unit": "%"},
+                        {"name": "PR", "value": 60, "unit": "%"},
+                        {"name": "HER2 IHC", "value": 0},
+                        {"name": "Ki-67", "value": 25, "unit": "%"},
+                    ],
+                },
+            )
+        ]
+    )
+
+    sources = {item["key"]: item for item in summary["sources"]}
+    assert sources["medical_records"]["status"] == "read"
+    assert sources["medical_metrics"] == {
+        "key": "medical_metrics",
+        "label": "报告指标",
+        "status": "hit",
+        "summary": "随病例夹读取 1 次结构化报告指标",
+        "calls": 1,
+        "count": 1,
+        "details": ["ER", "PR", "HER2 IHC", "Ki-67"],
+        "evidence": "saved_content.read",
+    }
+
+
 def test_summarizes_literature_recall_risk_actions_and_chain_quality():
     summary = summarize_agent_chain(
         [

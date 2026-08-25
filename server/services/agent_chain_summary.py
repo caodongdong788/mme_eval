@@ -212,6 +212,49 @@ def _append_unique(items: list[str], value: str) -> None:
         items.append(value)
 
 
+def _document_metric_names(value: Any) -> list[str]:
+    """Extract structured metric names returned while reading a saved document.
+
+    病例夹 ``saved_content.read`` 会在同一份报告中返回正文、附件和结构化指标。
+    它不是 ``read_medical_metrics`` 的调用，但对“是否取得了报告指标”而言同样是
+    可追溯的有效来源。只识别明确的 metrics 数组，避免从自然语言正文猜测指标。
+    """
+    if isinstance(value, str):
+        parsed = _json_object(value)
+        value = parsed if parsed else None
+    if not isinstance(value, dict):
+        return []
+
+    names: list[str] = []
+    for key in ("metrics", "medicalMetrics", "structuredMetrics"):
+        metrics = value.get(key)
+        if not isinstance(metrics, list):
+            continue
+        for metric in metrics:
+            name = str(_record(metric).get("name") or "").strip()
+            _append_unique(names, name)
+    for key in ("document", "content", "data", "result"):
+        nested = value.get(key)
+        if isinstance(nested, dict):
+            for name in _document_metric_names(nested):
+                _append_unique(names, name)
+    return names
+
+
+def _summarize_document_metrics(
+    source: dict[str, Any], names: list[str]
+) -> None:
+    """Record structured metrics delivered as part of a successful report read."""
+    if not names:
+        return
+    source["calls"] += 1
+    source["status"] = "hit"
+    source["count"] += 1
+    source["summary"] = f"随病例夹读取 {source['count']} 次结构化报告指标"
+    source["details"] = names[:12]
+    source["evidence"] = "saved_content.read"
+
+
 def _summarize_source(
     source: dict[str, Any],
     node: dict[str, Any],
@@ -543,6 +586,13 @@ def summarize_agent_chain(nodes: Iterable[dict[str, Any]]) -> dict[str, Any]:
             source_key = "medical_records"
         if source_key:
             _summarize_source(source_by_key[source_key], node, tool)
+            if tool == "saved_content":
+                input_value = _record(node.get("input"))
+                if str(input_value.get("action") or "").lower() == "read" and not _failed(node):
+                    _summarize_document_metrics(
+                        source_by_key["medical_metrics"],
+                        _document_metric_names(node.get("output")),
+                    )
             continue
         if tool == "grade_medical_risk":
             risks.append(
