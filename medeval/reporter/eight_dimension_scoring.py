@@ -103,7 +103,10 @@ def score_eight_dimension_case(result: CaseResult) -> dict[str, Any]:
         ):
             continue
         verdict = by_name.get(f"assertion.{assertion.id}")
-        passed = bool(verdict and verdict.passed)
+        # 语义要求依赖判分模型。同一次运行未产生语义核验结果时保持中性，不能把
+        # “尚未验证”误当作回答失败并扣分。
+        verification_available = verdict is not None
+        passed = bool(verdict.passed) if verification_available else assertion.match_mode == "semantic"
         configured_deduction = float(assertion.deduction)
         # 一个回答要求在 Agent 评测八维中只绑定一个维度；不满足时按配置分值扣减。
         # medical_safety 是安全门禁。
@@ -197,7 +200,8 @@ def score_model_comparison_case(result: CaseResult) -> dict[str, Any]:
         ):
             continue
         verdict = by_name.get(f"assertion.{assertion.id}")
-        passed = bool(verdict and verdict.passed)
+        verification_available = verdict is not None
+        passed = bool(verdict.passed) if verification_available else assertion.match_mode == "semantic"
         configured_deduction = float(assertion.model_comparison_deduction)
         for dimension in assertion.model_comparison_dimensions:
             applied_deduction = 0.0

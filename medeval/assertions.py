@@ -173,6 +173,8 @@ def evaluate_assertion(case: TestCase, trace: ConversationTrace, assertion: Eval
         details.update({"expected": assertion.name, "count": count, "min_count": assertion.min_count})
 
     elif assertion.type == "transcript":
+        if assertion.match_mode == "semantic":
+            return _unavailable(assertion, "语义回答要求需由判分模型核验")
         transcript, checked_message_count = _transcript_scope(trace, assertion.scope)
         passed = assertion.contains.casefold() in transcript.casefold()
         details.update({
@@ -196,10 +198,24 @@ def evaluate_assertion(case: TestCase, trace: ConversationTrace, assertion: Eval
 
 
 def evaluate_assertions(case: TestCase, trace: ConversationTrace) -> list[JudgeVerdict]:
-    return [evaluate_assertion(case, trace, item) for item in case.evaluation.assertions]
+    return [
+        evaluate_assertion(case, trace, item)
+        for item in case.evaluation.assertions
+        if not (item.type == "transcript" and item.match_mode == "semantic")
+    ]
 
 
 def refresh_result_assertions(result: CaseResult) -> None:
     """在 Langfuse 同步后替换断言 verdict，使工具/RAG 证据为真实最终结果。"""
-    retained = [verdict for verdict in result.verdicts if not verdict.name.startswith("assertion.")]
+    semantic_ids = {
+        item.id
+        for item in result.case.evaluation.assertions
+        if item.type == "transcript" and item.match_mode == "semantic"
+    }
+    retained = [
+        verdict
+        for verdict in result.verdicts
+        if not verdict.name.startswith("assertion.")
+        or verdict.name.removeprefix("assertion.") in semantic_ids
+    ]
     result.verdicts = [*retained, *evaluate_assertions(result.case, result.trace)]

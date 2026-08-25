@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from medeval.assertions import evaluate_assertion
+from medeval.assertions import evaluate_assertion, evaluate_assertions
 from medeval.models import ConversationTrace, EvaluationAssertion, TestCase
 
 
@@ -258,3 +258,29 @@ def test_legacy_transcript_assertion_keeps_full_conversation_scope() -> None:
 
     assert assertion.scope == "full_conversation"
     assert result.passed is True
+
+
+def test_semantic_transcript_assertion_is_deferred_to_judge() -> None:
+    case = _case()
+    case.evaluation.assertions = [
+        EvaluationAssertion(
+            id="semantic_answer",
+            type="transcript",
+            description="说明需要复查血常规及其目的",
+            contains="提醒用户复查血常规，并说明用于评估治疗安全性",
+            scope="assistant_final",
+            match_mode="semantic",
+            dimension="professional_accuracy",
+            deduction=1,
+        )
+    ]
+    trace = ConversationTrace(
+        messages=[
+            {
+                "role": "assistant",
+                "content": "建议复查血常规，用于确认当前治疗是否安全。",
+            }
+        ]
+    )
+
+    assert evaluate_assertions(case, trace) == []

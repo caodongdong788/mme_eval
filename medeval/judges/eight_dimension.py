@@ -27,6 +27,7 @@ from .evidence import (
     text_occurs,
 )
 from .llm_backend import JUDGE_REQUEST_TIMEOUT_S, LLMBackend
+from .semantic_assertions import format_semantic_assertions, semantic_assertion_verdicts
 
 log = logging.getLogger(__name__)
 
@@ -97,6 +98,11 @@ _PROMPT = """\
 【本题补充关注点】
 {criteria}
 
+【回答语义要求】
+{semantic_assertions}
+这些要求核验回答是否达到目标，不要求逐字复述。只检查指定范围内的 Agent 回答；
+passed=true 时 evidence 必须逐字引用能够证明满足要求的 Agent 原文，不能引用用户消息、Case 背景或要求本身。
+
 【输出要求】
 - 必须给出全部 8 个 dimension_key，不能漏项、不能新增 key。
 - reasons 只作为模型原始总评留痕；平台会根据 audits 中通过证据核验的内容重新生成面向用户的判定理由。因此 reasons 不得增加 audits 中不存在的扣分点。
@@ -108,8 +114,9 @@ _PROMPT = """\
 - audits 必须给出全部 8 个维度。低于 5 分时 issues 至少一项；5 分时 issues 必须为空。
 - issue.type 只能是 partial、missing、contradicted、hallucination、other；requirement 必须逐字摘录当前维度评分细则或本题补充关注点中的对应要求，不能自行发明判据；evidence 只能放 bot 原文；context_evidence 只能放用户原话或 Case 已知事实。owner_dimension 必须是唯一主责维度 key；root_cause_key 使用简短稳定的英文标识表示原子根因；independent_effect 仅在确有不同证据和独立后果时填写，否则留空。
 - missing 的 searched_terms 必填、evidence 可放最相关原文；hallucination 的 searched_terms 必填，用于核对用户对话和 Case 已知事实。
+- assertions 必须逐条返回上述语义要求的 id；没有语义要求时返回空对象。passed 表示是否语义满足，reason 用中文具体说明，evidence 只能引用 Agent 原文。
 - 仅输出 JSON，不要 Markdown，不要额外解释：
-{{"scores": {{"medical_safety": 0, "professional_accuracy": 0, "clinical_inquiry": 0, "personalization": 0, "plan_feasibility": 0, "empathy": 0, "executability": 0, "communication": 0}}, "reasons": {{"dimension_key": "理由"}}, "audits": {{"dimension_key": {{"satisfied_points": ["已满足点"], "issues": [{{"type": "partial", "requirement": "对应要求", "reason": "具体问题", "owner_dimension": "dimension_key", "root_cause_key": "atomic_root_cause", "independent_effect": "", "evidence": ["bot原文"], "context_evidence": ["触发该要求的用户原话"], "searched_terms": ["实际检索词"]}}]}}}}}}
+{{"scores": {{"medical_safety": 0, "professional_accuracy": 0, "clinical_inquiry": 0, "personalization": 0, "plan_feasibility": 0, "empathy": 0, "executability": 0, "communication": 0}}, "reasons": {{"dimension_key": "理由"}}, "audits": {{"dimension_key": {{"satisfied_points": ["已满足点"], "issues": [{{"type": "partial", "requirement": "对应要求", "reason": "具体问题", "owner_dimension": "dimension_key", "root_cause_key": "atomic_root_cause", "independent_effect": "", "evidence": ["bot原文"], "context_evidence": ["触发该要求的用户原话"], "searched_terms": ["实际检索词"]}}]}}}}, "assertions": {{"assertion_id": {{"passed": true, "reason": "语义满足说明", "evidence": ["Agent原文"]}}}}}}
 """
 
 
@@ -339,6 +346,7 @@ class EightDimensionJudge(BaseJudge):
             ownership=_ownership_text(),
             cross_dimension_rule=CROSS_DIMENSION_DEDUCTION_RULE,
             criteria=_criteria_text(case, trace),
+            semantic_assertions=format_semantic_assertions(case),
         )
         try:
             call_result = await self._call(prompt)
@@ -346,8 +354,12 @@ class EightDimensionJudge(BaseJudge):
             if len(call_result) == 2:
                 scores, reasons = call_result
                 audits = {}
-            else:
+                assertion_results = {}
+            elif len(call_result) == 3:
                 scores, reasons, audits = call_result
+                assertion_results = {}
+            else:
+                scores, reasons, audits, assertion_results = call_result
         except Exception as exc:
             log.exception("EightDimensionJudge failed: %s", exc)
             return self._zero_verdicts(f"八维判分失败：{exc}")
@@ -411,6 +423,7 @@ class EightDimensionJudge(BaseJudge):
                     },
                 )
             )
+        verdicts.extend(semantic_assertion_verdicts(case, trace, assertion_results))
         return verdicts
 
     @staticmethod
@@ -641,7 +654,7 @@ class EightDimensionJudge(BaseJudge):
 
     async def _call(
         self, prompt: str
-    ) -> tuple[dict[str, int], dict[str, str], dict[str, dict]]:
+    ) -> tuple[dict[str, int], dict[str, str], dict[str, dict], dict[str, dict]]:
         assert self._backend is not None
         data = await self._backend.chat_json(
             self.model,
@@ -653,4 +666,5 @@ class EightDimensionJudge(BaseJudge):
             data.get("scores", {}) or {},
             data.get("reasons", {}) or {},
             data.get("audits", {}) or {},
+            data.get("assertions", {}) or {},
         )

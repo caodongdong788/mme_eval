@@ -675,6 +675,8 @@ class EvaluationAssertion(BaseModel):
     name: str = ""
     # transcript：需出现的回答文字。
     contains: str = ""
+    # exact 保留旧用例的逐字包含行为；semantic 由判分模型结合完整回答做语义核验。
+    match_mode: Literal["exact", "semantic"] = "exact"
     min_count: int = Field(default=1, ge=1)
     # transcript：新版用例默认只检查 Agent 最终回答；旧 YAML 缺省时保留整段对话
     # 的历史行为，避免已有 benchmark 在升级后语义突变。

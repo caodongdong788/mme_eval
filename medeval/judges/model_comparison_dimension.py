@@ -14,6 +14,7 @@ from .base import BaseJudge, stable_hash
 from .case_context import format_initial_state
 from .conversation import format_conversation, format_rag_evidence
 from .llm_backend import JUDGE_REQUEST_TIMEOUT_S, LLMBackend
+from .semantic_assertions import format_semantic_assertions, semantic_assertion_verdicts
 
 log = logging.getLogger(__name__)
 
@@ -31,13 +32,17 @@ _PROMPT = """你是医疗 Agent 质量评测员。请只评估当前 Agent 的�
 【评分标准】
 {dimensions}
 
+【回答语义要求】
+{semantic_assertions}
+这些要求不要求逐字复述。请在 assertions 中逐条给出是否满足；passed=true 时 evidence 必须逐字引用指定范围内的 Agent 原文。
+
 每个维度给 0～5 的整数分。0 分表示该维度严重不满足；5 分表示完全满足该维度的满分边界。
 若工具、多模态或多轮场景对本题确实不适用，给 5 分并在理由中写“本题不适用，不扣分”，不能因为 Case 未提供该场景扣分。
 不得将“本轮未检索、未召回或未引用 RAG”直接等同于医学错误、幻觉或模型编造；只有与可靠医学共识、Case 已知事实或权威证据明确冲突，或会实质影响诊疗、用药、分诊和患者安全时，才可扣分。
 每个扣分理由必须引用 Agent 原文的具体内容；不能核实的问题不要扣分。
 
 仅输出 JSON：
-{{"scores": {{"dimension_key": 0}}, "reasons": {{"dimension_key": "可读的评分理由"}}}}
+{{"scores": {{"dimension_key": 0}}, "reasons": {{"dimension_key": "可读的评分理由"}}, "assertions": {{"assertion_id": {{"passed": true, "reason": "语义满足说明", "evidence": ["Agent原文"]}}}}}}
 """
 
 
@@ -94,6 +99,7 @@ class ModelComparisonDimensionJudge(BaseJudge):
             initial_state=format_initial_state(case),
             rag_evidence=format_rag_evidence(trace),
             dimensions=scoring_dimension_criteria("model_comparison"),
+            semantic_assertions=format_semantic_assertions(case),
         )
         try:
             data = await self._backend.chat_json(
@@ -101,6 +107,7 @@ class ModelComparisonDimensionJudge(BaseJudge):
             )
             scores = data.get("scores", {}) or {}
             reasons = data.get("reasons", {}) or {}
+            assertion_results = data.get("assertions", {}) or {}
         except Exception as exc:  # noqa: BLE001 - convert judge faults to auditable verdicts
             log.exception("ModelComparisonDimensionJudge failed: %s", exc)
             return self._zero_verdicts(f"模型对比八维判分失败：{exc}")
@@ -118,6 +125,7 @@ class ModelComparisonDimensionJudge(BaseJudge):
                 reason=(str(reasons.get(dimension.key, "")).strip() if valid else f"模型返回非法分数 {raw!r}，保守记 0 分"),
                 details={"judge_error": False, "model_score": raw},
             ))
+        verdicts.extend(semantic_assertion_verdicts(case, trace, assertion_results))
         return verdicts
 
     @staticmethod

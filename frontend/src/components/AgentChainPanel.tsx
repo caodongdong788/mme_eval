@@ -163,6 +163,7 @@ export interface CaseEvaluationAssertion {
   contains?: string;
   min_count?: number;
   scope?: string;
+  match_mode?: "exact" | "semantic";
   dimensions?: string[];
   deduction?: number;
   model_comparison_dimensions?: string[];
@@ -601,7 +602,9 @@ function assertionExpected(assertion: CaseEvaluationAssertion): string {
     return `${assertion.name || "指定数据来源"} 至少命中 ${Number(assertion.min_count || 1)} 次`;
   }
   if (assertion.type === "transcript") {
-    return `回答应包含“${assertion.contains || "指定内容"}”`;
+    return assertion.match_mode === "semantic"
+      ? `回答应在语义上满足“${assertion.contains || "指定要求"}”`
+      : `回答应包含“${assertion.contains || "指定内容"}”`;
   }
   return assertion.description || "满足性能限制";
 }

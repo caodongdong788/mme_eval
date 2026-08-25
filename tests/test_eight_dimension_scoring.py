@@ -161,6 +161,29 @@ def test_answer_requirement_deducts_from_its_bound_dimension() -> None:
     assert item.release_passed is True
 
 
+def test_unavailable_semantic_answer_requirement_does_not_deduct() -> None:
+    raw = raw_case()
+    raw["evaluation"]["assertions"] = [{
+        "id": "semantic_followup",
+        "type": "transcript",
+        "description": "说明复查安排及其目的",
+        "contains": "提醒复查并解释复查目的",
+        "scope": "assistant_final",
+        "match_mode": "semantic",
+        "dimension": "professional_accuracy",
+        "deduction": 2,
+        "blocking": False,
+    }]
+    item = result()
+    item.case = TestCase.model_validate(raw)
+
+    breakdown = score_eight_dimension_case(item)
+
+    assert breakdown["dimensions"]["professional_accuracy"] == 5
+    assert breakdown["assertion_scores"][0]["passed"] is True
+    assert breakdown["assertion_scores"][0]["applied_deduction"] == 0
+
+
 def test_scored_transcript_assertion_does_not_block_single_run_acceptance() -> None:
     """回答要求绑定维度后只扣分，不能额外把运行验收改为失败。"""
     raw = raw_case()

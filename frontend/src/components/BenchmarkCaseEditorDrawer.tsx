@@ -724,7 +724,7 @@ function AssertionsEditor({ value, onChange }: { value: unknown; onChange: (next
     while (used.has(id)) id = `a${String(++sequence).padStart(2, "0")}`;
     const expected = type === "tool_call" || type === "retrieval"
       ? { name: "", min_count: 1 }
-      : { contains: "", scope: "assistant_final", dimensions: [], deduction: 0 };
+      : { contains: "", scope: "assistant_final", match_mode: "semantic", dimensions: [], deduction: 0 };
     onChange([...assertions, { id, type, description: "", ...expected }]);
   };
   const assertionCard = (assertion: CaseData, index: number) => {
@@ -848,6 +848,17 @@ function AssertionsEditor({ value, onChange }: { value: unknown; onChange: (next
             <>
               <div className="case-editor-assertion-grid">
                 <label className="case-editor-input-field">
+                  <span className="case-editor-input-field__label">核验方式</span>
+                  <Select
+                    value={String(assertion.match_mode || "exact")}
+                    options={[
+                      { value: "semantic", label: "语义满足（推荐）" },
+                      { value: "exact", label: "原文逐字包含" },
+                    ]}
+                    onChange={(match_mode) => update(index, { match_mode })}
+                  />
+                </label>
+                <label className="case-editor-input-field">
                   <span className="case-editor-input-field__label">检查范围</span>
                   <Select
                     value={checkScope}
@@ -859,8 +870,8 @@ function AssertionsEditor({ value, onChange }: { value: unknown; onChange: (next
                   />
                 </label>
                 <label className="case-editor-input-field">
-                  <span className="case-editor-input-field__label">回答必须包含的内容</span>
-                  <Input value={String(assertion.contains || "")} placeholder="例如：建议复查血常规" onChange={(event) => update(index, { contains: event.target.value })} />
+                  <span className="case-editor-input-field__label">{String(assertion.match_mode || "exact") === "semantic" ? "回答应达到的目标" : "回答必须包含的原文"}</span>
+                  <Input value={String(assertion.contains || "")} placeholder="例如：说明需要复查血常规及复查目的" onChange={(event) => update(index, { contains: event.target.value })} />
                 </label>
               </div>
               <div className="case-editor-assertion-score">

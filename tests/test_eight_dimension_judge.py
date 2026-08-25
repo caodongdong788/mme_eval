@@ -64,6 +64,93 @@ def test_call_failure_is_conservative_zero() -> None:
     assert all(v.score == 0 and not v.passed for v in verdicts)
 
 
+def test_semantic_answer_requirement_uses_judge_evidence() -> None:
+    raw = raw_case()
+    raw["evaluation"]["assertions"] = [
+        {
+            "id": "semantic_followup",
+            "type": "transcript",
+            "description": "说明需要复查及其目的",
+            "contains": "提醒用户复查血常规，并说明用于评估治疗安全性",
+            "scope": "assistant_final",
+            "match_mode": "semantic",
+            "dimension": "professional_accuracy",
+            "deduction": 1,
+        }
+    ]
+    current_case = TestCase.model_validate(raw)
+    current_trace = ConversationTrace(
+        messages=[
+            ChatMessage(
+                role="assistant",
+                content="建议复查血常规，用于确认当前治疗是否安全。",
+            )
+        ]
+    )
+    judge = EightDimensionJudge(enabled=False)
+    judge.enabled = True
+    captured = ""
+
+    async def fake_call(prompt: str):
+        nonlocal captured
+        captured = prompt
+        scores = {dimension.value: 5 for dimension in EvaluationDimension}
+        reasons = {key: "stub" for key in scores}
+        assertions = {
+            "semantic_followup": {
+                "passed": True,
+                "reason": "已说明复查及其目的",
+                "evidence": ["建议复查血常规，用于确认当前治疗是否安全。"],
+            }
+        }
+        return scores, reasons, {}, assertions
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdicts = asyncio.run(judge.judge(current_case, current_trace))
+
+    assertion = next(v for v in verdicts if v.name == "assertion.semantic_followup")
+    assert assertion.passed is True
+    assert assertion.evidence == ["建议复查血常规，用于确认当前治疗是否安全。"]
+    assert "不要求逐字复述" in captured
+    assert "semantic_followup" in captured
+
+
+def test_semantic_answer_requirement_rejects_untraceable_evidence() -> None:
+    raw = raw_case()
+    raw["evaluation"]["assertions"] = [
+        {
+            "id": "semantic_followup",
+            "type": "transcript",
+            "description": "说明复查目的",
+            "contains": "说明复查目的",
+            "match_mode": "semantic",
+            "dimension": "professional_accuracy",
+            "deduction": 1,
+        }
+    ]
+    current_case = TestCase.model_validate(raw)
+    judge = EightDimensionJudge(enabled=False)
+    judge.enabled = True
+
+    async def fake_call(prompt: str):
+        scores = {dimension.value: 5 for dimension in EvaluationDimension}
+        return scores, {key: "stub" for key in scores}, {}, {
+            "semantic_followup": {
+                "passed": True,
+                "reason": "满足",
+                "evidence": ["这句话并不存在于回答中"],
+            }
+        }
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdicts = asyncio.run(judge.judge(current_case, trace()))
+
+    assertion = next(v for v in verdicts if v.name == "assertion.semantic_followup")
+    assert assertion.passed is False
+    assert assertion.evidence == []
+    assert "未提供可在指定 Agent 回答中定位的证据" in assertion.reason
+
+
 def test_prompt_includes_case_initial_state_as_scoring_truth() -> None:
     raw = raw_case()
     raw["initial_state"] = {
