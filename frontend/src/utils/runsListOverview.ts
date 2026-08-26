@@ -125,8 +125,14 @@ function sortByCreatedDesc(runs: RunSummary[]): RunSummary[] {
   });
 }
 
+/**
+ * 评测列表的日期范围按任务创建日筛选，因此概览中的趋势、日聚合与环比
+ * 也必须使用同一个时间口径。不能使用 finished_at：历史任务在恢复、
+ * 迁移或重新汇总时可能被补写完成时间，会把原本属于某一周期的记录
+ * 错落到补写当天，导致筛选结果和图表日期不一致。
+ */
 function evaluationTimestamp(run: RunSummary): number {
-  const value = run.finished_at || run.created_at;
+  const value = run.created_at || run.finished_at;
   const timestamp = value ? Date.parse(value) : Number.NaN;
   return Number.isNaN(timestamp) ? 0 : timestamp;
 }

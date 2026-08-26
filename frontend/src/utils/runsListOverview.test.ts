@@ -132,6 +132,25 @@ describe("runsListOverview", () => {
     }));
   });
 
+  it("uses the same created-at date as the list date filter when finished-at was backfilled", () => {
+    const trend = buildPassRateTrend([
+      run({
+        id: 1,
+        benchmark_id: 10,
+        total: 20,
+        passed: 16,
+        created_at: "2026-08-20T02:00:00Z",
+        // 历史恢复时补写完成时间，不能因此把趋势点展示到 08-25。
+        finished_at: "2026-08-25T04:06:56Z",
+      }),
+    ]);
+    expect(trend.points).toHaveLength(1);
+    expect(trend.points[0]).toEqual(expect.objectContaining({
+      label: "08-20",
+      passPct: 80,
+    }));
+  });
+
   it("computeRunsListKpis uses the same weighted daily latest benchmark pass rate", () => {
     const kpis = computeRunsListKpis([
       run({ id: 1, benchmark_id: 10, total: 100, passed: 80, created_at: "2026-06-10T09:00:00Z" }),
