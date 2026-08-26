@@ -32,6 +32,7 @@ export const palette = {
     teal: "#2DB88A",
     tealSoft: "#E8F8F1",
     red: "#F54A45",
+    redMuted: "#E87165",
     redSoft: "#FDEEED",
     shadow: "0 1px 2px rgba(31, 35, 41, 0.04), 0 4px 16px rgba(31, 35, 41, 0.06)",
   },

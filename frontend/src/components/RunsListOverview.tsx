@@ -557,7 +557,7 @@ export function RunsListOverview({
                       />
                       <Bar dataKey="failure_rate" name="失败率" fill={D.red} radius={[0, 4, 4, 0]} maxBarSize={20}>
                         {categoryFailureRates.map((_, i) => (
-                          <Cell key={i} fill={i === 0 ? D.red : "#e87165"} />
+                          <Cell key={i} fill={i === 0 ? D.red : D.redMuted} />
                         ))}
                       </Bar>
                     </BarChart>
