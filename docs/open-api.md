@@ -520,6 +520,43 @@ curl -sS "$MME_BASE_URL/api/open/v1/evaluations?trigger_type=scheduled&status=su
 | `other_cases` | 没有以上四种最终评级的用例数量，如历史数据缺少评级或执行异常 |
 | `failed_cases` | 所有最终未通过的用例数量；它可能包含 `unqualified_cases` 之外的异常未通过用例 |
 
+### 8.1 按版本周期获取测试报告汇总
+
+`GET /api/open/v1/version-report-summary`
+
+所需权限：`evaluations:read`
+
+用于 DeepTrace 等报告生成方按自然日周期一次取得可直接绘图的评测、趋势、问题和归因数据。接口返回结构化数据，不返回页面截图，因此调用方可以在网页和飞书文档中清晰重绘同一组图表。
+
+查询参数：
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `start_date` | date | 是 | — | 周期开始日，格式 `YYYY-MM-DD`，包含当天 |
+| `end_date` | date | 是 | — | 周期结束日，格式 `YYYY-MM-DD`，包含当天且不能早于开始日 |
+| `trigger_type` | string | 否 | `scheduled` | `manual`、`scheduled` 或 `open_api` |
+
+```bash
+curl -sS "$MME_BASE_URL/api/open/v1/version-report-summary?start_date=2026-08-18&end_date=2026-08-24&trigger_type=scheduled" \
+  -H "X-MME-API-Key: $MME_API_KEY"
+```
+
+核心响应字段：
+
+| 字段 | 说明 |
+| --- | --- |
+| `summary` | 本周期评测数、完成/失败数、Case、平均通过率、医学安全失败、平均分 |
+| `previous_summary` | 等长上一周期汇总，用于环比分析 |
+| `pass_rate_trend` | 按日期输出每个 Benchmark 当日最后一次成功评测的合并通过率 |
+| `attribution_trend` | 按日期输出归因优化点和 P0 优化点数量 |
+| `benchmark_results` | 按评测集汇总的执行次数、Case 和通过率 |
+| `evaluation_problems` | 从 Case 类型结果统计的评测发现问题及失败率 |
+| `dimension_scores` | 评测维度的加权平均分 |
+| `attribution_problems` | 每个 Benchmark 最新成功归因结果的一级、二级问题分类 |
+| `dashboard_url` | 可直接打开的 MME 评测列表链接 |
+
+日期口径以评测任务 `created_at` 所在的上海自然日（Asia/Shanghai）为准；趋势只取同一日期、同一 Benchmark 的最后一次成功结果，避免重跑任务重复放大趋势数据。总体汇总仍统计周期内符合类型的全部任务。
+
 ## 9. 查询归因任务的 CX-Agent 优化建议
 
 `GET /api/open/v1/attribution-tasks`

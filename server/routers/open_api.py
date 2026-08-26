@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -34,6 +36,7 @@ from ..services import judge_models as judge_models_svc
 from ..services import open_attribution_api as open_attribution_api_svc
 from ..services import runs as runs_svc
 from ..services import temporary_evaluation_tasks as temporary_evaluation_tasks_svc
+from ..services import version_report as version_report_svc
 from .runs import build_eval_job
 
 
@@ -345,6 +348,30 @@ def list_open_evaluations(
             )
             for run in runs
         ],
+    )
+
+
+@router.get(
+    "/version-report-summary",
+    summary="按版本周期汇总测试报告所需的评测与归因数据",
+)
+def get_open_version_report_summary(
+    start_date: date = Query(..., description="版本开始日期，格式 YYYY-MM-DD"),
+    end_date: date = Query(..., description="版本结束日期，格式 YYYY-MM-DD"),
+    trigger_type: str = Query(default="scheduled", description="默认仅汇总定时任务评测"),
+    session: Session = Depends(get_session),
+    access_key: OpenApiAccessKey = Depends(require_open_api_permission("evaluations:read")),
+) -> dict:
+    if end_date < start_date:
+        raise HTTPException(status_code=422, detail="end_date 不能早于 start_date")
+    if trigger_type not in {"manual", "scheduled", "open_api"}:
+        raise HTTPException(status_code=422, detail="trigger_type 必须是 manual、scheduled 或 open_api")
+    return version_report_svc.version_report_summary(
+        session,
+        start_date=start_date,
+        end_date=end_date,
+        trigger_type=trigger_type,
+        dashboard_url=f"{get_settings().frontend_url.rstrip('/')}/runs",
     )
 
 

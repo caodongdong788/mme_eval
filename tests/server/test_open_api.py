@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 import time
 from types import SimpleNamespace
 
@@ -819,6 +820,177 @@ def test_open_api_returns_run_overview_metrics_without_case_data(client, session
     assert body["reliability"] == {"k": 3, "pass_at_k": 0.396}
     assert body["by_scenario"]["报告解读"] == {"total": 11, "passed": 2}
     assert "cases" not in body
+
+
+def test_open_api_returns_version_report_summary_for_date_range(client, session, settings):
+    headers = _open_headers(client, ["evaluations:read"])
+    synthetic = Benchmark(name="合成对话回归验证", source="offline")
+    patient = Benchmark(name="线上真实患者对话回归验证", source="offline")
+    session.add_all([synthetic, patient])
+    session.flush()
+    session.add_all(
+        [
+            EvalRun(
+                run_slug="scheduled-synthetic",
+                name="合成对话回归",
+                status="success",
+                trigger_type="scheduled",
+                benchmark_id=synthetic.id,
+                total=10,
+                passed=8,
+                pass_rate=0.8,
+                medical_safety_failed=1,
+                grading={"avg_composite": 24.0, "avg_dimension": {"medical_safety": 3.2}},
+                by_case_type={"用药安全": {"total": 5, "passed": 3}},
+                attribution_summary={
+                    "available_results": 2,
+                    "clusters": [
+                        {
+                            "category": "cx_agent_issue",
+                            "priority": "P0",
+                            "sample_ids": ["s1", "s2"],
+                            "optimization_classification": {
+                                "category_primary": "提示词与回答生成策略",
+                                "category_secondary": "回答信息不完整",
+                            },
+                        }
+                    ],
+                },
+                created_at=datetime(2026, 8, 20, 2, 0, 0),
+            ),
+            EvalRun(
+                run_slug="scheduled-patient",
+                name="真实患者回归",
+                status="success",
+                trigger_type="scheduled",
+                benchmark_id=patient.id,
+                total=20,
+                passed=12,
+                pass_rate=0.6,
+                medical_safety_failed=4,
+                grading={"avg_composite": 18.0, "avg_dimension": {"medical_safety": 2.4}},
+                by_case_type={"医美安全": {"total": 10, "passed": 2}},
+                attribution_summary={
+                    "available_results": 3,
+                    "clusters": [
+                        {
+                            "category": "cx_agent_issue",
+                            "priority": "P1",
+                            "sample_ids": ["p1", "p2", "p3"],
+                            "optimization_classification": {
+                                "category_primary": "Agent 决策与推理策略",
+                                "category_secondary": "未优先追问关键问题",
+                            },
+                        }
+                    ],
+                },
+                created_at=datetime(2026, 8, 20, 3, 0, 0),
+            ),
+            EvalRun(
+                run_slug="outside-period",
+                name="周期外任务",
+                status="success",
+                trigger_type="scheduled",
+                benchmark_id=synthetic.id,
+                total=99,
+                passed=99,
+                pass_rate=1,
+                created_at=datetime(2026, 8, 25, 0, 0, 0),
+            ),
+            EvalRun(
+                run_slug="manual-in-period",
+                name="周期内人工任务",
+                status="success",
+                trigger_type="manual",
+                total=88,
+                passed=88,
+                pass_rate=1,
+                created_at=datetime(2026, 8, 20, 4, 0, 0),
+            ),
+        ]
+    )
+    session.commit()
+
+    response = client.get(
+        "/api/open/v1/version-report-summary?start_date=2026-08-18&end_date=2026-08-24&trigger_type=scheduled",
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["period"] == {"start_date": "2026-08-18", "end_date": "2026-08-24"}
+    assert body["dashboard_url"] == f"{settings.frontend_url}/runs"
+    assert body["summary"]["evaluation_count"] == 2
+    assert body["summary"]["completed_count"] == 2
+    assert body["summary"]["total_cases"] == 30
+    assert body["summary"]["passed_cases"] == 20
+    assert body["summary"]["average_pass_rate"] == 66.7
+    assert body["summary"]["medical_safety_failed"] == 5
+    assert body["pass_rate_trend"] == [
+        {"date": "2026-08-20", "pass_rate": 66.7, "passed_cases": 20, "total_cases": 30}
+    ]
+    assert {row["name"] for row in body["benchmark_results"]} == {
+        "合成对话回归验证",
+        "线上真实患者对话回归验证",
+    }
+    assert body["evaluation_problems"][0]["label"] == "医美安全"
+    assert body["evaluation_problems"][0]["failure_rate"] == 80.0
+    assert body["attribution_problems"]["first_level"] == [
+        {"label": "Agent 决策与推理策略", "case_count": 3},
+        {"label": "提示词与回答生成策略", "case_count": 2},
+    ]
+    assert body["attribution_trend"] == [
+        {"date": "2026-08-20", "optimization_count": 2, "p0_count": 1}
+    ]
+
+
+def test_open_api_version_report_summary_rejects_reversed_dates(client):
+    headers = _open_headers(client, ["evaluations:read"])
+    response = client.get(
+        "/api/open/v1/version-report-summary?start_date=2026-08-24&end_date=2026-08-18",
+        headers=headers,
+    )
+    assert response.status_code == 422
+    assert "end_date" in response.json()["detail"]
+
+
+def test_open_api_version_report_summary_uses_shanghai_natural_day(client, session):
+    headers = _open_headers(client, ["evaluations:read"])
+    session.add_all(
+        [
+            EvalRun(
+                run_slug=f"timezone-boundary-{index}",
+                name=f"上海自然日边界 {index}",
+                status="success",
+                trigger_type="scheduled",
+                total=1,
+                passed=1,
+                pass_rate=1,
+                created_at=created_at,
+            )
+            for index, created_at in enumerate(
+                [
+                    datetime(2026, 8, 17, 15, 59, 59),
+                    datetime(2026, 8, 17, 16, 0, 0),
+                    datetime(2026, 8, 18, 15, 59, 59),
+                    datetime(2026, 8, 18, 16, 0, 0),
+                ]
+            )
+        ]
+    )
+    session.commit()
+
+    response = client.get(
+        "/api/open/v1/version-report-summary?start_date=2026-08-18&end_date=2026-08-18",
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["summary"]["evaluation_count"] == 2
+    assert body["pass_rate_trend"] == [
+        {"date": "2026-08-18", "pass_rate": 100.0, "passed_cases": 2, "total_cases": 2}
+    ]
 
 
 def test_open_api_returns_only_cx_agent_attribution_optimizations(client, session, settings):
