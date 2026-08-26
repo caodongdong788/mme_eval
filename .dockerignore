@@ -17,6 +17,8 @@ __pycache__
 # 运行期产物（不打进镜像，由 volume 挂载）
 outputs
 uploads
+backups
+generated
 *.db
 .env
 .env.*

@@ -42,11 +42,16 @@ if [[ "$BEFORE_REV" != "$AFTER_REV" ]]; then
   fi
 fi
 WORKER_CHANGED=0
+DATABASE_CHANGED=0
 if [[ "$BEFORE_REV" != "$AFTER_REV" ]] && ! git diff --quiet "$BEFORE_REV" "$AFTER_REV" -- \
   Dockerfile pyproject.toml uv.lock migrations medeval server/worker.py server/durable_queue.py \
   server/durable_jobs.py server/job_specs.py server/jobs.py server/models_db.py \
   server/db.py server/settings.py server/services; then
   WORKER_CHANGED=1
+fi
+if [[ "$BEFORE_REV" != "$AFTER_REV" ]] && ! git diff --quiet "$BEFORE_REV" "$AFTER_REV" -- \
+  migrations server/models_db.py server/db.py scripts/docker-entrypoint.sh; then
+  DATABASE_CHANGED=1
 fi
 
 OLD_APP_IMAGE=""
@@ -88,8 +93,30 @@ rollback_worker() {
   return 0
 }
 
-# 所有启动迁移均为加法迁移，但仍在切换应用前保留可恢复的数据库快照。
-scripts/backup_postgres.sh
+# 数据结构变化时强制创建发布前快照；普通代码发布复用最近的有效快照，避免每次重复
+# 导出完整数据库。可用 always/skip 显式覆盖，普通发布默认至多每天备份一次。
+BACKUP_MODE="${MME_DEPLOY_BACKUP_MODE:-auto}"
+BACKUP_MAX_AGE_S="${MME_DEPLOY_BACKUP_MAX_AGE_S:-86400}"
+case "$BACKUP_MODE" in
+  always)
+    scripts/backup_postgres.sh
+    ;;
+  skip)
+    echo "Postgres pre-deploy backup skipped by MME_DEPLOY_BACKUP_MODE=skip"
+    ;;
+  auto)
+    if [[ "$DATABASE_CHANGED" == "1" ]]; then
+      echo "Database-sensitive changes detected; creating a fresh pre-deploy backup"
+      scripts/backup_postgres.sh
+    else
+      scripts/backup_postgres.sh --if-stale "$BACKUP_MAX_AGE_S"
+    fi
+    ;;
+  *)
+    echo "Invalid MME_DEPLOY_BACKUP_MODE: $BACKUP_MODE (expected auto, always, or skip)" >&2
+    exit 2
+    ;;
+esac
 
 export MME_IMAGE_TAG="$AFTER_REV"
 "${COMPOSE[@]}" build app
@@ -99,7 +126,9 @@ if ! "${COMPOSE[@]}" up -d --no-deps app; then
   exit 1
 fi
 
-for _ in $(seq 1 18); do
+HEALTH_INTERVAL_S="${MME_DEPLOY_HEALTH_INTERVAL_S:-2}"
+HEALTH_ATTEMPTS="${MME_DEPLOY_HEALTH_ATTEMPTS:-45}"
+for _ in $(seq 1 "$HEALTH_ATTEMPTS"); do
   if curl -fsS http://127.0.0.1:"${MME_PORT:-8000}"/api/health >/dev/null; then
     # 默认只保证 Worker 已存在，不重建正在工作的实例，因此普通 Web 发布完全不打断评测。
     # 仅 Worker 代码需要升级时显式传 DEPLOY_WORKER=1；它会优雅释放租约并断点续跑。
@@ -161,7 +190,7 @@ for _ in $(seq 1 18); do
     echo "MME deployment succeeded: $(git rev-parse --short HEAD)"
     exit 0
   fi
-  sleep 5
+  sleep "$HEALTH_INTERVAL_S"
 done
 
 "${COMPOSE[@]}" logs --tail=100 app >&2

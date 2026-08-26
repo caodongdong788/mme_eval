@@ -6,12 +6,20 @@ variables:
   DEPLOY_USER: root
   DEPLOY_PATH: /opt/mme_eval
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  UV_CACHE_DIR: "$CI_PROJECT_DIR/.cache/uv"
+  npm_config_cache: "$CI_PROJECT_DIR/.cache/npm"
 
 backend_verify:
   stage: verify
   tags:
     - build
   image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+  cache:
+    key:
+      files:
+        - uv.lock
+    paths:
+      - .cache/uv/
   script:
     - >-
       uv export --frozen
@@ -42,6 +50,12 @@ frontend_verify:
   tags:
     - build
   image: node:20-alpine
+  cache:
+    key:
+      files:
+        - frontend/package-lock.json
+    paths:
+      - .cache/npm/
   before_script:
     - npm install --global npm@11.16.0
   script:

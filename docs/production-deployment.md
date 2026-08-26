@@ -29,7 +29,7 @@
 
    1. 获取并校验 Pipeline 指定的不可变 `CI_COMMIT_SHA`，以 detached HEAD 检出该提交；
    2. 判断 Worker 相关代码是否发生变化；
-   3. 对 Postgres 执行自校验的 custom-format 发布前备份；
+   3. 数据结构变化时强制创建 Postgres custom-format 发布前备份；普通发布复用 24 小时内的有效备份；
    4. 构建以完整提交 SHA 标记的新 Web（`app`）镜像；
    5. 重建 `app` 容器，并等待数据库、Schema 与临时评测表均通过 `/api/health` 就绪检查；
    6. Worker 代码或锁文件/迁移有变化时才重建 Worker；否则保留正在执行的 Worker；
@@ -58,7 +58,13 @@ docker compose -f docker-compose.yml -f docker-compose.release.yml ps
 
 ## 数据库备份与恢复
 
-每次发布会自动调用 `scripts/backup_postgres.sh`，默认保存到 `backups/postgres/`，生成 `.dump` 与 `.sha256`，保留 14 天。可通过 `MME_BACKUP_DIR`、`MME_BACKUP_RETENTION_DAYS` 覆盖。
+发布会自动调用 `scripts/backup_postgres.sh`。涉及 `migrations`、数据库模型、连接层或启动迁移脚本的变更会强制创建新快照；其他发布若已有 24 小时内的有效快照则直接复用。快照默认保存到 `backups/postgres/`，生成 `.dump` 与 `.sha256`，保留 14 天。可通过 `MME_BACKUP_DIR`、`MME_BACKUP_RETENTION_DAYS`、`MME_DEPLOY_BACKUP_MAX_AGE_S` 覆盖。
+
+发布备份策略：
+
+- `MME_DEPLOY_BACKUP_MODE=auto`：默认策略，数据库敏感变更强制备份，普通发布复用近期备份。
+- `MME_DEPLOY_BACKUP_MODE=always`：无论改动内容都创建新备份。
+- `MME_DEPLOY_BACKUP_MODE=skip`：显式跳过，仅用于已确认存在可恢复快照的紧急发布。
 
 人工备份：
 
@@ -85,6 +91,10 @@ scripts/deploy_release.sh
 
 - `DEPLOY_WORKER=1`：强制重建 Worker。适用于 Worker、队列、任务处理或依赖发生变化后。
 - `DEPLOY_WORKER=0`：明确保留现有 Worker。适用于只更新页面/API，且不希望打断当前 Worker 进程的情况。
+- `MME_DEPLOY_BACKUP_MODE=always`：强制为本次发布创建全量数据库备份。
+- `MME_DEPLOY_BACKUP_MODE=skip`：显式跳过本次备份；仅限紧急发布且已有可恢复快照时使用。
+- `MME_DEPLOY_HEALTH_INTERVAL_S`：健康检查轮询间隔，默认 2 秒。
+- `MME_DEPLOY_HEALTH_ATTEMPTS`：健康检查最大次数，默认 45 次。
 
 不要手动删除数据库卷、任务表或正在运行的 Worker 容器来“修复”发布问题。
 
