@@ -24,8 +24,10 @@ from ..models_db import (
 )
 from .case_attribution import generate_case_attribution
 from .case_query import case_row_or_404
-from .attribution_summary import build_task_diagnostic_summary
-from .attribution_taxonomy import current_optimization_category
+from .attribution_summary import (
+    attribution_category_stats,
+    build_task_diagnostic_summary,
+)
 from .judge_models import (
     ensure_attribution_model_reachable,
     get_judge_model_or_404,
@@ -138,13 +140,15 @@ def list_attribution_tasks(session: Session, run_id: int) -> list[dict[str, Any]
     return [_task_out(session, task, include_items=False) for task in tasks]
 
 
-def get_run_attribution_category_stats(session: Session, run_id: int) -> dict[str, Any]:
-    """按 Case 的最新成功归因汇总一级、二级 cx-agent 问题分类。
+def refresh_run_attribution_summary(session: Session, run_id: int) -> dict[str, Any]:
+    """更新 Run 的归因轻量摘要。
 
-    同一 Case 可能在多次归因任务中出现，也可能有多个扣分项落入同一分类。
-    这里先选择该 Case 最新的成功快照，再用集合按分类去重，避免重试和重复扣分
-    放大图表数量。
+    完整归因含大段证据包，只在任务结束、重试或删除时扫描一次。列表页、趋势页
+    之后只读此摘要，不会随着历史 Case/归因任务增长而越来越慢。
     """
+    run = session.get(EvalRun, run_id)
+    if run is None:
+        return {}
     rows = session.execute(
         select(AttributionTaskItem, AttributionTask)
         .join(AttributionTask, AttributionTask.id == AttributionTaskItem.task_id)
@@ -159,7 +163,7 @@ def get_run_attribution_category_stats(session: Session, run_id: int) -> dict[st
             AttributionTaskItem.id.desc(),
         )
     ).all()
-    latest_by_case: dict[str, AttributionTaskItem] = {}
+    latest_by_case: dict[str, dict[str, Any]] = {}
     for item, _task in rows:
         snapshot = item.analysis_json if isinstance(item.analysis_json, dict) else {}
         if (
@@ -167,55 +171,29 @@ def get_run_attribution_category_stats(session: Session, run_id: int) -> dict[st
             and snapshot.get("available") is True
             and isinstance(snapshot.get("analysis"), dict)
         ):
-            latest_by_case[item.sample_id] = item
+            latest_by_case[item.sample_id] = snapshot
+    summary = build_task_diagnostic_summary(latest_by_case.items())
+    run.attribution_summary = summary
+    run.attribution_summary_updated_at = datetime.utcnow()
+    return summary
 
-    summary = build_task_diagnostic_summary(
-        (sample_id, item.analysis_json)
-        for sample_id, item in latest_by_case.items()
-    )
-    first_cases: dict[str, set[str]] = {}
-    second_cases: dict[tuple[str, str], set[str]] = {}
-    first_labels: dict[str, str] = {}
-    for cluster in summary.get("clusters") or []:
-        if cluster.get("category") != "cx_agent_issue":
-            continue
-        classification = cluster.get("optimization_classification") or {}
-        primary_key, primary_label, secondary_label = current_optimization_category(
-            classification
-        )
-        sample_ids = {str(value) for value in cluster.get("sample_ids") or [] if value}
-        if not sample_ids:
-            continue
-        first_labels[primary_key] = primary_label
-        first_cases.setdefault(primary_key, set()).update(sample_ids)
-        second_cases.setdefault((primary_key, secondary_label), set()).update(sample_ids)
 
-    first_level = [
-        {"key": key, "label": first_labels[key], "case_count": len(sample_ids)}
-        for key, sample_ids in first_cases.items()
-    ]
-    second_level = [
-        {
-            "key": f"{primary_key}:{secondary_label}",
-            "label": secondary_label,
-            "case_count": len(sample_ids),
-            "parent_key": primary_key,
-            "parent_label": first_labels[primary_key],
-        }
-        for (primary_key, secondary_label), sample_ids in second_cases.items()
-    ]
-    order = {key: index for index, key in enumerate((
-        "rag", "engineering", "reasoning", "prompt", "knowledge", "safety"
-    ))}
-    first_level.sort(key=lambda row: (-row["case_count"], order.get(row["key"], 99)))
-    second_level.sort(key=lambda row: (
-        -row["case_count"], order.get(str(row["parent_key"]), 99), str(row["label"])
-    ))
-    return {
-        "attributed_case_count": len(latest_by_case),
-        "first_level": first_level,
-        "second_level": second_level,
-    }
+def get_run_attribution_category_stats(session: Session, run_id: int) -> dict[str, Any]:
+    """按 Case 的最新成功归因汇总一级、二级 cx-agent 问题分类。
+
+    同一 Case 可能在多次归因任务中出现，也可能有多个扣分项落入同一分类。
+    这里先选择该 Case 最新的成功快照，再用集合按分类去重，避免重试和重复扣分
+    放大图表数量。
+    """
+    run = session.get(EvalRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"run {run_id} 不存在")
+    summary = run.attribution_summary
+    # 旧数据尚未拥有缓存时才做一次兼容性回填；后续所有读取均为轻量 JSON。
+    if not isinstance(summary, dict):
+        summary = refresh_run_attribution_summary(session, run_id)
+        session.flush()
+    return attribution_category_stats(summary)
 
 
 def get_attribution_task_or_404(session: Session, run_id: int, task_id: int) -> AttributionTask:
@@ -580,6 +558,9 @@ def _refresh_task_counts(session: Session, task: AttributionTask) -> None:
         task.status = "failed"
     else:
         task.status = "partial"
+    # 任务进入终态后才重建一次跨 Case 摘要。完整归因证据包可能很大，
+    # 不能在列表页或每一条 Case 完成时重复扫描。
+    refresh_run_attribution_summary(session, task.run_id)
 
 
 def _set_task_running(task_id: int) -> None:
@@ -825,7 +806,13 @@ async def _cancel_codex_gateway_task(session: Session, task: AttributionTask) ->
         log.warning("failed to cancel local Codex task=%s: %s", task.id, exc)
 
 
-async def delete_attribution_task(session: Session, run_id: int, task_id: int) -> None:
+async def delete_attribution_task(
+    session: Session,
+    run_id: int,
+    task_id: int,
+    *,
+    refresh_summary: bool = True,
+) -> None:
     task = get_attribution_task_or_404(session, run_id, task_id)
     await asyncio.gather(
         cancel_attribution_task(task.id),
@@ -837,6 +824,9 @@ async def delete_attribution_task(session: Session, run_id: int, task_id: int) -
     session.execute(delete(AttributionTaskItem).where(AttributionTaskItem.task_id == task.id))
     session.delete(task)
     session.flush()
+    # 删除或重建归因任务后立即失效并重算 Run 摘要，保证列表趋势不残留旧结果。
+    if refresh_summary:
+        refresh_run_attribution_summary(session, run_id)
 
 
 async def delete_attribution_tasks_for_run(session: Session, run_id: int) -> int:
@@ -847,7 +837,12 @@ async def delete_attribution_tasks_for_run(session: Session, run_id: int) -> int
         .order_by(AttributionTask.id)
     ))
     for task_id in task_ids:
-        await delete_attribution_task(session, run_id, task_id)
+        await delete_attribution_task(
+            session,
+            run_id,
+            task_id,
+            refresh_summary=False,
+        )
     return len(task_ids)
 
 

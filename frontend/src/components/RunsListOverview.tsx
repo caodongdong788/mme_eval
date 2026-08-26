@@ -17,8 +17,7 @@ import {
   YAxis,
 } from "recharts";
 import type { RunSummary } from "../api/types";
-import type { RunAttributionCategoryStats } from "../api/types";
-import { RunAttributionCategoryCharts } from "./RunAttributionCategoryCharts";
+import { DeferredRunAttributionCategoryCharts } from "./DeferredRunAttributionCategoryCharts";
 import { palette, dashboardPieColors, trendSeriesColors } from "../theme";
 import {
   formatPeriodLabel,
@@ -71,8 +70,6 @@ export function RunsListOverview({
   previousBounds,
   periodDeltas,
   cxAgentOptimizationPeriodDeltas,
-  attributionCategoryStats,
-  attributionCategoryStatsLoading,
 }: {
   runs: RunSummary[];
   filteredRuns: RunSummary[];
@@ -84,8 +81,6 @@ export function RunsListOverview({
   previousBounds: RunsPeriodBounds | null;
   periodDeltas: RunsPeriodDeltas | null;
   cxAgentOptimizationPeriodDeltas: CxAgentOptimizationPeriodDeltas | null;
-  attributionCategoryStats: RunAttributionCategoryStats | null;
-  attributionCategoryStatsLoading: boolean;
 }) {
   const filterCounts = countRunsByFilter(runs);
   const kpis = computeRunsListKpis(filteredRuns);
@@ -424,12 +419,7 @@ export function RunsListOverview({
         </div>
       </div>
 
-      <RunAttributionCategoryCharts
-        stats={attributionCategoryStats}
-        loading={attributionCategoryStatsLoading}
-        description="仅汇总两个 Benchmark 各自最新一次成功归因；同一 Benchmark 内同一 Case 在同一分类下只统计一次"
-        emptyText="两个 Benchmark 的最新归因结果暂无分类数据"
-      />
+      <DeferredRunAttributionCategoryCharts runs={runs} />
 
       <div className="runs-duo-charts">
         <div className="runs-chart-card">

@@ -6,7 +6,7 @@ import {
 } from "../utils/latestAttributionCategoryStats";
 
 /** 首页两个 Benchmark 最新归因结果的分类汇总。 */
-export function useLatestAttributionCategoryStats(runs: RunSummary[]) {
+export function useLatestAttributionCategoryStats(runs: RunSummary[], enabled = true) {
   const [stats, setStats] = useState<RunAttributionCategoryStats | null>(null);
   const [loading, setLoading] = useState(false);
   const latestRunIdsKey = useMemo(
@@ -16,6 +16,12 @@ export function useLatestAttributionCategoryStats(runs: RunSummary[]) {
 
   useEffect(() => {
     let cancelled = false;
+    if (!enabled) {
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
     const latestRunIds = latestRunIdsKey
       ? latestRunIdsKey.split(",").map((value) => Number(value))
       : [];
@@ -40,7 +46,7 @@ export function useLatestAttributionCategoryStats(runs: RunSummary[]) {
     return () => {
       cancelled = true;
     };
-  }, [latestRunIdsKey]);
+  }, [enabled, latestRunIdsKey]);
 
   return { stats, loading };
 }

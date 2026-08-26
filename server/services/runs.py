@@ -17,8 +17,6 @@ from medeval import retention
 from ..compare import compare_runs
 from ..constants import LIST_LIMIT_DEFAULT
 from ..models_db import (
-    AttributionTask,
-    AttributionTaskItem,
     Benchmark,
     CaseAnnotation,
     CaseResultRow,
@@ -29,8 +27,7 @@ from ..models_db import (
 from ..paths import safe_join
 from ..schemas import JudgeOverride, RunCreate, RunRenameRequest
 from ..settings import get_settings
-from .attribution_summary import build_task_diagnostic_summary
-from .attribution_taxonomy import current_optimization_category
+from .attribution_summary import cx_agent_optimization_counts
 from . import judge_models as judge_models_svc
 
 
@@ -323,63 +320,20 @@ def _attach_benchmark_names(session: Session, runs: list[EvalRun]) -> None:
 
 
 def _attach_cx_agent_optimization_counts(session: Session, runs: list[EvalRun]) -> None:
-    """为列表页批量补充最新归因快照中的通用 cx-agent 优化点数量。
+    """从 Run 的轻量归因摘要补充首页趋势计数。
 
-    一个 Case 可能被多次归因；与归因页的分类统计一致，只采用该 Case 最新的
-    可用成功快照。计数按“优先级 + 一级/二级优化分类”去重，和页面上的
-    “通用优化点”口径保持一致，而不是累计原始扣分条数。
+    归因明细中的完整证据包可能很大，列表页不能再为近 50 条 Run 扫描和解析它。
+    摘要会在归因任务终态时更新；历史数据按需访问归因页后也会补齐。
     """
-
-    run_ids = [run.id for run in runs]
-    if not run_ids:
-        return
-    rows = session.execute(
-        select(AttributionTaskItem, AttributionTask)
-        .join(AttributionTask, AttributionTask.id == AttributionTaskItem.task_id)
-        .where(
-            AttributionTask.run_id.in_(run_ids),
-            AttributionTaskItem.status == "success",
-            AttributionTaskItem.analysis_json.is_not(None),
-        )
-        .order_by(
-            AttributionTask.run_id,
-            AttributionTask.created_at.desc(),
-            AttributionTask.id.desc(),
-            AttributionTaskItem.id.desc(),
-        )
-    ).all()
-
-    latest_by_run_case: dict[int, dict[str, dict[str, Any]]] = {}
-    for item, task in rows:
-        snapshot = item.analysis_json if isinstance(item.analysis_json, dict) else {}
-        analysis = snapshot.get("analysis")
-        if snapshot.get("available") is not True or not isinstance(analysis, dict):
-            continue
-        by_case = latest_by_run_case.setdefault(task.run_id, {})
-        by_case.setdefault(item.sample_id, snapshot)
-
     for run in runs:
-        snapshots = latest_by_run_case.get(run.id)
-        if not snapshots:
+        counts = cx_agent_optimization_counts(run.attribution_summary)
+        if counts is None:
             setattr(run, "cx_agent_optimization_count", None)
             setattr(run, "cx_agent_p0_optimization_count", None)
             continue
-        summary = build_task_diagnostic_summary(snapshots.items())
-        points: set[tuple[str, str, str]] = set()
-        for cluster in summary.get("clusters") or []:
-            if cluster.get("category") != "cx_agent_issue":
-                continue
-            primary_key, _primary_label, secondary_label = current_optimization_category(
-                cluster.get("optimization_classification") or {}
-            )
-            priority = str(cluster.get("priority") or "P2").upper()
-            points.add((priority, primary_key, secondary_label))
-        setattr(run, "cx_agent_optimization_count", len(points))
-        setattr(
-            run,
-            "cx_agent_p0_optimization_count",
-            sum(1 for priority, _primary, _secondary in points if priority == "P0"),
-        )
+        total, p0_total = counts
+        setattr(run, "cx_agent_optimization_count", total)
+        setattr(run, "cx_agent_p0_optimization_count", p0_total)
 
 
 def delete_run(session: Session, run_id: int) -> None:

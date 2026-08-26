@@ -12,7 +12,6 @@ import { RunsListOverview } from "../components/RunsListOverview";
 import { CaseFilterBuilder } from "../components/CaseFilterBuilder";
 import { useRunsList } from "../hooks/useRunsList";
 import { useRunsTableColumns } from "../hooks/useRunsTableColumns";
-import { useLatestAttributionCategoryStats } from "../hooks/useLatestAttributionCategoryStats";
 import {
   filterRunsByPeriod,
   previousPeriodBounds,
@@ -83,8 +82,6 @@ export default function RunsPage() {
     () => Object.fromEntries(RUN_TRIGGER_TABS.map((tab) => [tab.key, filterRunsByTrigger(runs, tab.key).length])) as Record<RunTriggerTab, number>,
     [runs]
   );
-  const { stats: attributionCategoryStats, loading: attributionCategoryStatsLoading } =
-    useLatestAttributionCategoryStats(runs);
 
   const {
     displayRuns,
@@ -154,8 +151,6 @@ export default function RunsPage() {
         previousBounds={previousBounds}
         periodDeltas={periodDeltas}
         cxAgentOptimizationPeriodDeltas={cxAgentOptimizationPeriodDeltas}
-        attributionCategoryStats={attributionCategoryStats}
-        attributionCategoryStatsLoading={attributionCategoryStatsLoading}
       />
 
       <div className="runs-table-card runs-trigger-table-card">

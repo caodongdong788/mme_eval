@@ -12,7 +12,10 @@ import re
 from typing import Any, Iterable
 
 from .attribution_issue_categories import classify_evaluation_issue
-from .attribution_taxonomy import normalize_optimization_classification
+from .attribution_taxonomy import (
+    current_optimization_category,
+    normalize_optimization_classification,
+)
 
 
 _SEVERITY_WEIGHT = {"critical": 4, "high": 3, "medium": 2, "low": 1}
@@ -284,4 +287,77 @@ def build_task_diagnostic_summary(
         "score_health_counts": dict(health_counts),
         "validation_counts": dict(validation_counts),
         "clusters": output_clusters,
+    }
+
+
+def cx_agent_optimization_counts(summary: Any) -> tuple[int, int] | None:
+    """返回首页趋势所需的通用优化点与 P0 点数。
+
+    计数口径与归因汇总一致：同一优先级、一级分类和二级分类只算一个通用点。
+    空摘要返回 None，以便页面明确区分“尚未归因”和“归因后没有问题”。
+    """
+    if (
+        not isinstance(summary, dict)
+        or int(summary.get("available_results") or 0) <= 0
+    ):
+        return None
+    points: set[tuple[str, str, str]] = set()
+    for cluster in summary.get("clusters") or []:
+        if not isinstance(cluster, dict) or cluster.get("category") != "cx_agent_issue":
+            continue
+        primary_key, _primary_label, secondary_label = current_optimization_category(
+            cluster.get("optimization_classification") or {}
+        )
+        priority = str(cluster.get("priority") or "P2").upper()
+        points.add((priority, primary_key, secondary_label))
+    return len(points), sum(1 for priority, _primary, _secondary in points if priority == "P0")
+
+
+def attribution_category_stats(summary: Any) -> dict[str, Any]:
+    """从预聚合归因摘要生成归因分类图的数据。"""
+    if not isinstance(summary, dict):
+        return {"attributed_case_count": 0, "first_level": [], "second_level": []}
+    first_cases: dict[str, set[str]] = {}
+    second_cases: dict[tuple[str, str], set[str]] = {}
+    first_labels: dict[str, str] = {}
+    attributed_case_ids: set[str] = set()
+    for cluster in summary.get("clusters") or []:
+        if not isinstance(cluster, dict) or cluster.get("category") != "cx_agent_issue":
+            continue
+        primary_key, primary_label, secondary_label = current_optimization_category(
+            cluster.get("optimization_classification") or {}
+        )
+        sample_ids = {str(value) for value in cluster.get("sample_ids") or [] if value}
+        if not sample_ids:
+            continue
+        attributed_case_ids.update(sample_ids)
+        first_labels[primary_key] = primary_label
+        first_cases.setdefault(primary_key, set()).update(sample_ids)
+        second_cases.setdefault((primary_key, secondary_label), set()).update(sample_ids)
+
+    first_level = [
+        {"key": key, "label": first_labels[key], "case_count": len(sample_ids)}
+        for key, sample_ids in first_cases.items()
+    ]
+    second_level = [
+        {
+            "key": f"{primary_key}:{secondary_label}",
+            "label": secondary_label,
+            "case_count": len(sample_ids),
+            "parent_key": primary_key,
+            "parent_label": first_labels[primary_key],
+        }
+        for (primary_key, secondary_label), sample_ids in second_cases.items()
+    ]
+    order = {key: index for index, key in enumerate((
+        "rag", "engineering", "reasoning", "prompt", "knowledge", "safety"
+    ))}
+    first_level.sort(key=lambda row: (-row["case_count"], order.get(row["key"], 99)))
+    second_level.sort(key=lambda row: (
+        -row["case_count"], order.get(str(row["parent_key"]), 99), str(row["label"])
+    ))
+    return {
+        "attributed_case_count": len(attributed_case_ids),
+        "first_level": first_level,
+        "second_level": second_level,
     }

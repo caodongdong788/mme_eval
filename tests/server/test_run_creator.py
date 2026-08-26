@@ -5,6 +5,7 @@ import server.routers.runs as runs_router
 from server.routers.runs import crud
 from server.models_db import AttributionTask, AttributionTaskItem, Benchmark, EvalRun
 from server.schemas import RunCreate, RunSummaryOut
+from server.services.attribution_tasks import refresh_run_attribution_summary
 from server.services.runs import create_derived_run, list_runs, prepare_create_run
 
 
@@ -126,6 +127,7 @@ def test_run_list_exposes_deduplicated_cx_agent_optimization_count(session):
         AttributionTaskItem(task_id=task.id, sample_id="case_2", status="success", analysis_json=snapshot),
     ])
     session.flush()
+    refresh_run_attribution_summary(session, run.id)
 
     listed = {item.id: item for item in list_runs(session)}
 

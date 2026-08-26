@@ -215,6 +215,10 @@ class EvalRun(Base):
     by_scenario: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     by_case_type: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     config_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    # 归因完成时预聚合的轻量摘要。列表页和趋势页只读取它，避免每次进入
+    # 首页都扫描全部 AttributionTaskItem.analysis_json（其中包含完整证据包）。
+    attribution_summary: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    attribution_summary_updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     case_results: Mapped[list["CaseResultRow"]] = relationship(
         back_populates="run", cascade="all, delete-orphan"
