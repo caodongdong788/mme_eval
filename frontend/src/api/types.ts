@@ -754,6 +754,23 @@ export interface TrendPoint {
   by_case_type?: Record<string, { total: number; passed: number }>;
 }
 
+export interface RunsOverviewMetrics {
+  completed_run_count: number;
+  dimension_averages: Array<{
+    key: string;
+    label: string;
+    average: number | null;
+    case_count: number;
+  }>;
+  case_type_failure_rates: Array<{
+    case_type: string;
+    total: number;
+    passed: number;
+    failed: number;
+    failure_rate: number;
+  }>;
+}
+
 export interface PairwiseComparability {
   comparable: boolean;
   reasons: string[];

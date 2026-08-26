@@ -1,5 +1,5 @@
 import { http } from "./client";
-import type { TrendPoint } from "./types";
+import type { RunsOverviewMetrics, TrendPoint } from "./types";
 
 export const dashboardApi = {
   getTrends: (benchmarkId: number) =>
@@ -14,5 +14,9 @@ export const dashboardApi = {
         "/dashboard/regression-trends",
         { params: { scheduled_evaluation_id: scheduledEvaluationId } }
       )
+      .then((r) => r.data),
+  getRunsOverviewMetrics: (runIds: number[]) =>
+    http
+      .post<RunsOverviewMetrics>("/dashboard/runs/metrics", { run_ids: runIds })
       .then((r) => r.data),
 };

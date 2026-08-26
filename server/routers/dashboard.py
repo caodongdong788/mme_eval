@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Body, Depends, Query
 from sqlalchemy.orm import Session
 
 from ..db import get_session
@@ -28,3 +28,12 @@ def regression_trends(
 ) -> dict[str, Any]:
     """仅按指定定时任务串联历次成功 run，供回归趋势看板使用。"""
     return dash_svc.scheduled_regression_trends(session, scheduled_evaluation_id)
+
+
+@router.post("/runs/metrics")
+def runs_metrics(
+    run_ids: list[int] = Body(..., embed=True, description="当前列表筛选后的评测任务 ID"),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """按当前筛选结果聚合八维平均分和类别最终结论失败率。"""
+    return dash_svc.filtered_runs_metrics(session, run_ids)

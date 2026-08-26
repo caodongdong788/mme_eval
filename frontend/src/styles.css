@@ -1075,9 +1075,23 @@ a.ant-typography-secondary:hover {
 }
 
 .runs-overview {
+  display: flex;
+  flex-direction: column;
   margin-bottom: 16px;
   min-width: 0;
   max-width: 100%;
+}
+.runs-overview__pass-trend {
+  order: 10;
+}
+.runs-overview__metrics {
+  order: 20;
+}
+.runs-overview__cx-agent-trend {
+  order: 30;
+}
+.runs-overview__attribution-categories {
+  order: 40;
 }
 
 .runs-kpi-row {
@@ -2658,6 +2672,19 @@ a.ant-typography-secondary:hover {
 }
 .runs-chart-area--short {
   min-height: 160px;
+}
+.runs-chart-area--metrics {
+  min-height: 272px;
+}
+.runs-metric-chart-scroll {
+  max-height: 272px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
+.runs-metric-chart-canvas {
+  min-height: 220px;
+  width: 100%;
 }
 .runs-category-chart-scroll {
   width: 100%;

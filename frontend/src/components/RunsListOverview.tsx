@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import { CalendarOutlined } from "@ant-design/icons";
 import { DatePicker } from "antd";
 import {
@@ -9,16 +10,15 @@ import {
   ComposedChart,
   Legend,
   Line,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip as RTooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import type { RunSummary } from "../api/types";
+import { api } from "../api";
+import type { RunsOverviewMetrics, RunSummary } from "../api/types";
 import { DeferredRunAttributionCategoryCharts } from "./DeferredRunAttributionCategoryCharts";
-import { palette, dashboardPieColors, trendSeriesColors } from "../theme";
+import { palette, trendSeriesColors } from "../theme";
 import {
   formatPeriodLabel,
   getRunsDatePresetRange,
@@ -31,8 +31,6 @@ import {
 import {
   buildPassRateTrend,
   buildCxAgentOptimizationTrend,
-  buildRecentPassBars,
-  buildStatusDistribution,
   computeRunsListKpis,
   countRunsByFilter,
   type RunsListFilter,
@@ -87,8 +85,52 @@ export function RunsListOverview({
   const passRateTrend = buildPassRateTrend(filteredRuns);
   const trend = passRateTrend.points;
   const cxAgentOptimizationTrend = buildCxAgentOptimizationTrend(filteredRuns);
-  const bars = buildRecentPassBars(filteredRuns);
-  const statusPie = buildStatusDistribution(filteredRuns);
+  const completedRunIdsKey = useMemo(
+    () =>
+      filteredRuns
+        .filter((run) => run.status === "success")
+        .map((run) => run.id)
+        .sort((a, b) => a - b)
+        .join(","),
+    [filteredRuns]
+  );
+  const [overviewMetrics, setOverviewMetrics] = useState<RunsOverviewMetrics | null>(null);
+  const [overviewMetricsLoading, setOverviewMetricsLoading] = useState(false);
+
+  useEffect(() => {
+    const runIds = completedRunIdsKey
+      ? completedRunIdsKey.split(",").map((value) => Number(value))
+      : [];
+    let active = true;
+    if (runIds.length === 0) {
+      setOverviewMetrics(null);
+      setOverviewMetricsLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+    setOverviewMetricsLoading(true);
+    api
+      .getRunsOverviewMetrics(runIds)
+      .then((data) => {
+        if (active) setOverviewMetrics(data);
+      })
+      .catch(() => {
+        if (active) setOverviewMetrics(null);
+      })
+      .finally(() => {
+        if (active) setOverviewMetricsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [completedRunIdsKey]);
+
+  const dimensionAverages = overviewMetrics?.dimension_averages.filter((item) => item.average != null) ?? [];
+  // 类别过多时保留风险最高的前三项，图表用于快速定位优先处理的类别。
+  // 服务端已按失败率、失败数量和样本量降序排序。
+  const categoryFailureRates = (overviewMetrics?.case_type_failure_rates ?? []).slice(0, 3);
+  const categoryChartHeight = Math.max(220, categoryFailureRates.length * 34 + 16);
   const passRateDelta = periodDeltas?.passRatePct ?? null;
   const cxAgentOptimizationDelta = cxAgentOptimizationPeriodDeltas?.total ?? null;
   const cxAgentOptimizationP0Delta = cxAgentOptimizationPeriodDeltas?.p0Total ?? null;
@@ -209,7 +251,7 @@ export function RunsListOverview({
         />
       </div>
 
-      <div className="runs-chart-card runs-chart-card--main">
+      <div className="runs-chart-card runs-chart-card--main runs-overview__pass-trend">
         <div className="runs-chart-card__head">
           <div className="runs-chart-card__title">通过率趋势</div>
         </div>
@@ -310,7 +352,7 @@ export function RunsListOverview({
         </div>
       </div>
 
-      <div className="runs-chart-card runs-chart-card--main">
+      <div className="runs-chart-card runs-chart-card--main runs-overview__cx-agent-trend">
         <div className="runs-chart-card__head">
           <div className="runs-chart-card__title">cx-agent 归因优化点趋势</div>
         </div>
@@ -419,22 +461,51 @@ export function RunsListOverview({
         </div>
       </div>
 
-      <DeferredRunAttributionCategoryCharts runs={runs} />
+      <div className="runs-overview__attribution-categories">
+        <DeferredRunAttributionCategoryCharts runs={runs} />
+      </div>
 
-      <div className="runs-duo-charts">
+      <div className="runs-duo-charts runs-overview__metrics">
         <div className="runs-chart-card">
-          <div className="runs-chart-card__title runs-chart-card__title--solo">最近评测 · 通过率</div>
-          <div className="runs-chart-area runs-chart-area--short">
-            {bars.length === 0 ? (
-              <div className="runs-chart-empty">当前范围内暂无已完成评测</div>
+          <div className="runs-chart-card__title">八维度平均分</div>
+          <div className="runs-chart-card__subtitle">仅统计当前筛选中已完成的 Agent 评测八维结果</div>
+          <div className="runs-chart-area runs-chart-area--metrics">
+            {overviewMetricsLoading ? (
+              <div className="runs-chart-empty">正在汇总当前筛选的评测结果</div>
+            ) : dimensionAverages.length === 0 ? (
+              <div className="runs-chart-empty">当前筛选中暂无可展示的八维评分结果</div>
             ) : (
-              <ResponsiveContainer width="100%" height={160}>
-                <BarChart data={bars} margin={{ top: 12, right: 8, bottom: 0, left: -12 }}>
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: D.textMuted, fontSize: 10 }} />
-                  <YAxis domain={[0, 100]} unit="%" axisLine={false} tickLine={false} tick={{ fill: D.textMuted, fontSize: 10 }} />
-                  <RTooltip formatter={(value) => [`${Number(value)}%`, "通过率"]} />
-                  <Bar dataKey="passPct" radius={[4, 4, 0, 0]} maxBarSize={32}>
-                    {bars.map((_, i) => (
+              <ResponsiveContainer width="100%" height={272}>
+                <BarChart
+                  layout="vertical"
+                  data={dimensionAverages}
+                  margin={{ top: 6, right: 24, bottom: 0, left: 4 }}
+                >
+                  <CartesianGrid stroke={D.border} horizontal={false} />
+                  <XAxis
+                    type="number"
+                    domain={[0, 5]}
+                    ticks={[0, 1, 2, 3, 4, 5]}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: D.textMuted, fontSize: 11 }}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="label"
+                    width={132}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: D.textMuted, fontSize: 11 }}
+                  />
+                  <RTooltip
+                    formatter={(value, _name, item) => [
+                      `${Number(value).toFixed(2)} / 5`,
+                      `${String(item.payload?.label ?? "")}平均分`,
+                    ]}
+                  />
+                  <Bar dataKey="average" name="平均分" radius={[0, 4, 4, 0]} maxBarSize={20}>
+                    {dimensionAverages.map((_, i) => (
                       <Cell key={i} fill={i % 2 ? D.purpleLine : D.purple} />
                     ))}
                   </Bar>
@@ -444,30 +515,55 @@ export function RunsListOverview({
           </div>
         </div>
         <div className="runs-chart-card">
-          <div className="runs-chart-card__title runs-chart-card__title--solo">评测状态分布</div>
-          <div className="runs-chart-area runs-chart-area--short">
-            {statusPie.length === 0 ? (
-              <div className="runs-chart-empty">当前范围内暂无数据</div>
+          <div className="runs-chart-card__title">类别失败率</div>
+          <div className="runs-chart-card__subtitle">按最终结论失败率从高到低排序</div>
+          <div className="runs-chart-area runs-chart-area--metrics">
+            {overviewMetricsLoading ? (
+              <div className="runs-chart-empty">正在汇总当前筛选的类别结果</div>
+            ) : categoryFailureRates.length === 0 ? (
+              <div className="runs-chart-empty">当前筛选中暂无类别统计结果</div>
             ) : (
-              <ResponsiveContainer width="100%" height={160}>
-                <PieChart>
-                  <Pie
-                    data={statusPie}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={42}
-                    outerRadius={62}
-                    // 单一状态占满整张环图时不留扇区间隔，避免出现误导性的“未完成”缺口。
-                    paddingAngle={statusPie.length > 1 ? 2 : 0}
-                  >
-                    {statusPie.map((_, i) => (
-                      <Cell key={i} fill={dashboardPieColors[i % dashboardPieColors.length]} />
-                    ))}
-                  </Pie>
-                  <RTooltip />
-                  <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="runs-metric-chart-scroll">
+                <div className="runs-metric-chart-canvas" style={{ height: categoryChartHeight }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      layout="vertical"
+                      data={categoryFailureRates}
+                      margin={{ top: 6, right: 32, bottom: 0, left: 6 }}
+                    >
+                      <CartesianGrid stroke={D.border} horizontal={false} />
+                      <XAxis
+                        type="number"
+                        domain={[0, 100]}
+                        unit="%"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: D.textMuted, fontSize: 11 }}
+                      />
+                      <YAxis
+                        type="category"
+                        dataKey="case_type"
+                        width={148}
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: D.textMuted, fontSize: 11 }}
+                      />
+                      <RTooltip
+                        labelFormatter={(label) => `类别：${String(label)}`}
+                        formatter={(value, _name, item) => {
+                          const row = item.payload as (typeof categoryFailureRates)[number];
+                          return [`${Number(value).toFixed(1)}%（${row.failed}/${row.total}）`, "失败率"];
+                        }}
+                      />
+                      <Bar dataKey="failure_rate" name="失败率" fill={D.red} radius={[0, 4, 4, 0]} maxBarSize={20}>
+                        {categoryFailureRates.map((_, i) => (
+                          <Cell key={i} fill={i === 0 ? D.red : "#e87165"} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             )}
           </div>
         </div>

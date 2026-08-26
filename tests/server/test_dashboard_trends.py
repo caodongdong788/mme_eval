@@ -58,3 +58,48 @@ def test_regression_trends_are_scoped_to_one_scheduled_task(client, session):
     assert body["points"][0]["token_summary"]["total_tokens"] == 3000
     assert body["points"][0]["reliability"]["pass_at_k"] == 0.9
     assert body["points"][0]["by_case_type"]["检查报告"]["passed"] == 8
+
+
+def test_runs_metrics_only_aggregates_completed_runs_and_sorts_failure_rate(client, session):
+    benchmark = Benchmark(name="列表汇总测试集", source="offline")
+    session.add(benchmark)
+    session.flush()
+    first = _run(name="汇总运行 1", task_id=None, trigger_type="manual")
+    first.grading["avg_dimension"] = {
+        "medical_safety": 4.0,
+        "professional_accuracy": 3.0,
+    }
+    first.by_case_type = {
+        "检查报告": {"total": 10, "passed": 9},
+        "用药安全": {"total": 2, "passed": 0},
+    }
+    second = _run(name="汇总运行 2", task_id=None, trigger_type="manual")
+    second.total = 20
+    second.grading["avg_dimension"] = {
+        "medical_safety": 3.0,
+        "professional_accuracy": 4.0,
+    }
+    second.by_case_type = {
+        "检查报告": {"total": 20, "passed": 10},
+        "用药安全": {"total": 2, "passed": 1},
+    }
+    ignored = _run(name="失败运行", task_id=None, trigger_type="manual")
+    ignored.status = "failed"
+    ignored.grading["avg_dimension"] = {"medical_safety": 0.0}
+    session.add_all([first, second, ignored])
+    session.commit()
+
+    response = client.post("/api/dashboard/runs/metrics", json={"run_ids": [first.id, second.id, ignored.id]})
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["completed_run_count"] == 2
+    dimensions = {item["key"]: item for item in body["dimension_averages"]}
+    assert dimensions["medical_safety"]["label"] == "医学安全性"
+    assert dimensions["medical_safety"]["average"] == 3.333
+    assert dimensions["professional_accuracy"]["average"] == 3.667
+    assert dimensions["clinical_inquiry"]["average"] is None
+    assert body["case_type_failure_rates"] == [
+        {"case_type": "用药安全", "total": 4, "passed": 1, "failed": 3, "failure_rate": 75.0},
+        {"case_type": "检查报告", "total": 30, "passed": 19, "failed": 11, "failure_rate": 36.7},
+    ]
