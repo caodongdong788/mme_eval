@@ -625,7 +625,12 @@ def feishu_base_records_to_yaml_bytes(records: list[dict[str, Any]]) -> bytes:
             "level": "L2",
             "source": "online",
             "turns": turns,
-            "evaluation": {"dimension_criteria": {}, "guidelines": []},
+            "evaluation": {
+                "dimension_criteria": {},
+                "guidelines": [],
+                "model_comparison_dimension_criteria": {},
+                "model_comparison_guidelines": [],
+            },
         }
         image_notes = _attachment_notes(fields.get("第一轮用户输入(图片)"))
         notes = _case_notes(
@@ -671,7 +676,12 @@ def _sheet_to_cases(sheet: dict[str, Any], seen: set[str]) -> list[dict[str, Any
             "level": "L2",
             "source": "online",
             "turns": turns,
-            "evaluation": {"dimension_criteria": {}, "guidelines": []},
+            "evaluation": {
+                "dimension_criteria": {},
+                "guidelines": [],
+                "model_comparison_dimension_criteria": {},
+                "model_comparison_guidelines": [],
+            },
         }
         notes = _case_notes(user_profile=_user_profile_text(fields))
         if notes:

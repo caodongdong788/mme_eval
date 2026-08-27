@@ -281,6 +281,12 @@ def _temporary_case(
         evaluation = CaseEvaluation(
             dimension_criteria=selected.evaluation.dimension_criteria,
             guidelines=selected.evaluation.guidelines,
+            model_comparison_dimension_criteria=(
+                selected.evaluation.model_comparison_dimension_criteria
+            ),
+            model_comparison_guidelines=(
+                selected.evaluation.model_comparison_guidelines
+            ),
         ).model_copy(deep=True)
         scenario = selected.scenario
         level = selected.level

@@ -278,8 +278,13 @@ def test_model_comparison_prompt_includes_shared_context_and_runtime_evidence():
         turns=[{"role": "user", "content": "请帮我看看", "images": ["images/report.png"]}],
         evaluation={
             "dimension_criteria": {
-                "professional_accuracy": {"criteria": ["准确解释异常指标"]}
-            }
+                "professional_accuracy": {"criteria": ["Agent 标准：准确解释异常指标"]}
+            },
+            "model_comparison_dimension_criteria": {
+                "medical_knowledge_reasoning": {
+                    "criteria": ["模型对比标准：准确解释异常指标"]
+                }
+            },
         },
     )
     trace_a = ConversationTrace(
@@ -319,7 +324,8 @@ def test_model_comparison_prompt_includes_shared_context_and_runtime_evidence():
     assert "年龄" in prompt and "血常规" in prompt
     assert "附件1" in prompt
     assert "images/report.png" not in prompt
-    assert "准确解释异常指标" in prompt
+    assert "模型对比标准：准确解释异常指标" in prompt
+    assert "Agent 标准：准确解释异常指标" not in prompt
     assert "read_medical_metrics" in prompt and "白细胞" in prompt
     assert "血常规解读" in prompt and "需结合症状复核" in prompt
     assert "654321" not in prompt and "98765" not in prompt

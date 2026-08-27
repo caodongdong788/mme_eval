@@ -1,5 +1,5 @@
-import { fireEvent, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "../test/renderWithProviders";
 import { BenchmarkCaseEditorDrawer } from "./BenchmarkCaseEditorDrawer";
 
@@ -23,7 +23,53 @@ const testCase = {
   },
 };
 
+afterEach(() => cleanup());
+
 describe("BenchmarkCaseEditorDrawer criteria variant", () => {
+  it("keeps Agent and model-comparison requirements in separate scoring-standard tabs", () => {
+    const value = {
+      ...testCase,
+      evaluation: {
+        ...testCase.evaluation,
+        model_comparison_dimension_criteria: {
+          medical_knowledge_reasoning: {
+            criteria: ["模型对比专用要求"],
+            reference_answers: ["模型对比专用好答案"],
+          },
+        },
+        model_comparison_guidelines: [{
+          id: "mc_g01",
+          dimension: "medical_knowledge_reasoning",
+          max_score: 2,
+          criteria: ["模型对比专用扣分点"],
+        }],
+      },
+    };
+    renderWithProviders(
+      <BenchmarkCaseEditorDrawer
+        open
+        loading={false}
+        saving={false}
+        source="uploaded"
+        caseFile="cases.yaml"
+        value={value}
+        onChange={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByText("八维评测要求"));
+    fireEvent.click(screen.getByRole("tab", { name: "模型对比八维" }));
+    fireEvent.click(screen.getByText("医学知识与临床推理"));
+    expect(screen.getByDisplayValue("模型对比专用要求")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("模型对比专用好答案")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("不得遗漏危险信号")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("指南扣分点（1）"));
+    fireEvent.click(screen.getByRole("tab", { name: "模型对比八维（1）" }));
+    expect(screen.getByDisplayValue("模型对比专用扣分点")).toBeInTheDocument();
+  });
+
   it("uses the benchmark structured editor without exposing YAML", () => {
     const onChange = vi.fn();
     renderWithProviders(

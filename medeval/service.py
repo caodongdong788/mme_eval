@@ -100,7 +100,8 @@ def build_judges(
 ) -> list:
     """构造本次 Run 的判分器。
 
-    两套八维均为单次评测的绝对评分标准；模型对比八维不加载 Agent 指南扣分器。
+    两套八维均为单次评测的绝对评分标准；指南判分器会严格读取当前评分标准
+    对应的 Case 指南，绝不混用另一套配置。
     """
     judges: list = []
     from .scoring_standards import ScoringStandard, normalize_scoring_standard
@@ -114,8 +115,7 @@ def build_judges(
             else EightDimensionJudge,
         )
     ]
-    if standard != ScoringStandard.MODEL_COMPARISON.value:
-        judge_specs.append((jcfg.guideline, GuidelineJudge))
+    judge_specs.append((jcfg.guideline, GuidelineJudge))
     for cfg, judge_type in judge_specs:
         if cfg.enabled:
             options = {
@@ -132,6 +132,7 @@ def build_judges(
             }
             if judge_type is GuidelineJudge:
                 options["trigger_aware"] = trigger_aware
+                options["scoring_standard"] = standard
             judges.append(judge_type(**options))
     return judges
 

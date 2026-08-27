@@ -182,6 +182,7 @@ def score_model_comparison_case(result: CaseResult) -> dict[str, Any]:
     raw: dict[str, float] = {}
     final: dict[str, float] = {}
     deductions: list[str] = []
+    guideline_scores: list[dict[str, Any]] = []
     assertion_scores: list[dict[str, Any]] = []
 
     for dimension in MODEL_COMPARISON_DIMENSIONS:
@@ -191,6 +192,49 @@ def score_model_comparison_case(result: CaseResult) -> dict[str, Any]:
         final[dimension.key] = raw[dimension.key]
         if verdict is None:
             deductions.append(f"{dimension.label} -5分：缺少维度判分结果")
+
+    dimension_labels = {item.key: item.label for item in MODEL_COMPARISON_DIMENSIONS}
+    for guideline in result.case.evaluation.model_comparison_guidelines:
+        verdict = by_name.get(f"guideline.{guideline.id}")
+        score = float(verdict.score) if verdict is not None else 0.0
+        score = max(0.0, min(float(guideline.max_score), score))
+        details = verdict.details if verdict is not None else {}
+        applicable = bool(details.get("applicable", True))
+        missing = float(guideline.max_score) - score if applicable else 0.0
+        dimension = str(guideline.dimension)
+        final[dimension] = max(0.0, final[dimension] - missing)
+        row = {
+            "id": guideline.id,
+            "standard": "model_comparison",
+            "dimension": dimension,
+            "criterion": guideline.criterion,
+            "criteria": guideline.criteria,
+            "checkpoints": guideline.checkpoints,
+            "reference_answers": guideline.reference_answers,
+            "deduction_rule": guideline.deduction_rule,
+            "trigger": guideline.trigger,
+            "applicability_source": str(details.get("applicability_source", "")),
+            "applicable": applicable,
+            "score": score,
+            "max_score": float(guideline.max_score),
+            "deduction": missing,
+            "model_deduction": details.get("model_deduction"),
+            "missed_points": list(details.get("missed_points", [])),
+            "reason": verdict.reason if verdict is not None else "缺少指南判分结果",
+            "evidence": list(verdict.evidence) if verdict is not None else [],
+            "checkpoint_audits": list(details.get("checkpoint_audits", [])),
+            "rejected_checkpoint_audits": list(details.get("rejected_checkpoint_audits", [])),
+            "evidence_audit_passed": bool(details.get("evidence_audit_passed", False)),
+            "deduction_rejected": bool(details.get("deduction_rejected", False)),
+            "judge_error": bool(details.get("judge_error", False)),
+            "judge_error_message": str(details.get("judge_error_message", "")),
+        }
+        guideline_scores.append(row)
+        if missing > 0:
+            deductions.append(
+                f"{dimension_labels.get(dimension, dimension)} 指南 {guideline.id} "
+                f"-{missing:g}分：{row['reason'] or '未完整覆盖指南要求'}"
+            )
 
     for assertion in result.case.evaluation.assertions:
         if (
@@ -238,7 +282,7 @@ def score_model_comparison_case(result: CaseResult) -> dict[str, Any]:
         grade, passed = "不合格", False
     return {
         "raw_dimensions": raw,
-        "guideline_scores": [],
+        "guideline_scores": guideline_scores,
         "assertion_scores": assertion_scores,
         "dimensions": final,
         "dimension_max": {item.key: 5.0 for item in MODEL_COMPARISON_DIMENSIONS},

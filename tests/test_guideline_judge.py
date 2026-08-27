@@ -300,6 +300,41 @@ def test_prompt_includes_guideline_reference_answers() -> None:
     assert "建议尽快到乳腺专科完成评估。" in captured
 
 
+def test_guideline_judge_uses_only_selected_scoring_standard() -> None:
+    raw = raw_case()
+    raw["evaluation"]["model_comparison_guidelines"] = [{
+        "id": "model_rule",
+        "dimension": "instruction_following",
+        "criterion": ["必须遵循用户指定格式。"],
+        "max_score": 1,
+    }]
+    current_case = TestCase.model_validate(raw)
+
+    async def fake_call(prompt: str):
+        guideline_id = "model_rule" if "必须遵循用户指定格式" in prompt else "risk"
+        return {
+            guideline_id: {
+                "deduction": 0,
+                "missed_points": [],
+                "reason": "满足",
+                "evidence": ["建议就医"],
+            }
+        }
+
+    agent_judge = GuidelineJudge(enabled=False, scoring_standard="cx_eight_dimension")
+    agent_judge.enabled = True
+    agent_judge._call = fake_call  # type: ignore[method-assign]
+    model_judge = GuidelineJudge(enabled=False, scoring_standard="model_comparison")
+    model_judge.enabled = True
+    model_judge._call = fake_call  # type: ignore[method-assign]
+
+    agent_verdicts = asyncio.run(agent_judge.judge(current_case, trace()))
+    model_verdicts = asyncio.run(model_judge.judge(current_case, trace()))
+
+    assert [item.name for item in agent_verdicts] == ["guideline.risk"]
+    assert [item.name for item in model_verdicts] == ["guideline.model_rule"]
+
+
 def test_list_guideline_returns_missed_points_and_deduction() -> None:
     raw = raw_case()
     raw["evaluation"]["guidelines"][0]["criterion"] = [

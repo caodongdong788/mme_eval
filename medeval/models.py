@@ -632,6 +632,22 @@ class DimensionCriteria(BaseModel):
         return normalized
 
 
+class ModelComparisonGuidelineItem(GuidelineItem):
+    """模型对比八维的一条指南扣分项。"""
+
+    dimension: str = Field(min_length=1)
+
+    @field_validator("dimension")
+    @classmethod
+    def _validate_model_comparison_dimension(cls, value: str) -> str:
+        from .scoring_standards import scoring_dimension_keys
+
+        normalized = value.strip()
+        if normalized not in scoring_dimension_keys("model_comparison"):
+            raise ValueError(f"未知的模型对比评分维度：{normalized}")
+        return normalized
+
+
 class CaseEvaluation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -639,6 +655,12 @@ class CaseEvaluation(BaseModel):
         default_factory=dict
     )
     guidelines: list[GuidelineItem] = Field(default_factory=list)
+    model_comparison_dimension_criteria: dict[str, DimensionCriteria] = Field(
+        default_factory=dict
+    )
+    model_comparison_guidelines: list[ModelComparisonGuidelineItem] = Field(
+        default_factory=list
+    )
     assertions: list["EvaluationAssertion"] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -649,6 +671,19 @@ class CaseEvaluation(BaseModel):
         ids = [item.id for item in self.guidelines]
         if len(ids) != len(set(ids)):
             raise ValueError("evaluation.guidelines 的 id 必须在 Case 内唯一")
+        from .scoring_standards import scoring_dimension_keys
+
+        model_dimensions = set(scoring_dimension_keys("model_comparison"))
+        for dimension, details in self.model_comparison_dimension_criteria.items():
+            if dimension not in model_dimensions:
+                raise ValueError(f"未知的模型对比评分维度：{dimension}")
+            if not details.criteria:
+                raise ValueError(
+                    f"model_comparison_dimension_criteria.{dimension}.criteria 不能为空"
+                )
+        model_guideline_ids = [item.id for item in self.model_comparison_guidelines]
+        if len(model_guideline_ids) != len(set(model_guideline_ids)):
+            raise ValueError("evaluation.model_comparison_guidelines 的 id 必须在 Case 内唯一")
         assertion_ids = [item.id for item in self.assertions]
         if len(assertion_ids) != len(set(assertion_ids)):
             raise ValueError("evaluation.assertions 的 id 必须在 Case 内唯一")

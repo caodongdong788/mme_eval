@@ -7,6 +7,7 @@ import re
 
 from ..evaluation import EvaluationDimension
 from ..models import ConversationTrace, JudgeVerdict, TestCase
+from ..scoring_standards import ScoringStandard, normalize_scoring_standard
 from .base import BaseJudge, stable_hash
 from .case_context import format_initial_state
 from .conversation import format_conversation, format_rag_evidence
@@ -136,6 +137,11 @@ def _is_unfinished_record_intent(evidence: list[str]) -> bool:
     )
 
 
+def _dimension_key(item) -> str:
+    value = item.dimension
+    return str(getattr(value, "value", value))
+
+
 def _format_guideline(item, *, trigger_aware: bool) -> str:
     checkpoints = "\n".join(
         f"  {index}. {point}" for index, point in enumerate(item.checkpoints, start=1)
@@ -153,7 +159,7 @@ def _format_guideline(item, *, trigger_aware: bool) -> str:
         else ""
     )
     return (
-        f"- id={item.id}; dimension={item.dimension.value}; max_score={item.max_score}\n"
+        f"- id={item.id}; dimension={_dimension_key(item)}; max_score={item.max_score}\n"
         f"  检查点：\n{checkpoints}{trigger}{references}\n"
         f"  {rule}"
     )
@@ -216,6 +222,7 @@ class GuidelineJudge(BaseJudge):
         default_headers: dict[str, str] | None = None,
         enable_thinking: bool | None = None,
         trigger_aware: bool = True,
+        scoring_standard: str = ScoringStandard.CX_EIGHT_DIMENSION.value,
     ) -> None:
         self.enabled = enabled
         self.provider = provider
@@ -223,6 +230,7 @@ class GuidelineJudge(BaseJudge):
         self.temperature = temperature
         self.enable_thinking = enable_thinking
         self.trigger_aware = trigger_aware
+        self.scoring_standard = normalize_scoring_standard(scoring_standard)
         self._backend = (
             LLMBackend(
                 provider=provider,
@@ -247,11 +255,16 @@ class GuidelineJudge(BaseJudge):
                 "temperature": self.temperature,
                 "enable_thinking": self.enable_thinking,
                 "trigger_aware": self.trigger_aware,
+                "scoring_standard": self.scoring_standard,
             }
         )
 
     async def judge(self, case: TestCase, trace: ConversationTrace) -> list[JudgeVerdict]:
-        guidelines = case.evaluation.guidelines
+        guidelines = (
+            case.evaluation.model_comparison_guidelines
+            if self.scoring_standard == ScoringStandard.MODEL_COMPARISON.value
+            else case.evaluation.guidelines
+        )
         if not self.enabled or not guidelines:
             return []
         initial_state = format_initial_state(case)
@@ -355,7 +368,10 @@ class GuidelineJudge(BaseJudge):
                 and valid
                 and audit_alignment_passed
                 and not deduction_rejected
-                and item.dimension != EvaluationDimension.medical_safety
+                and not (
+                    self.scoring_standard == ScoringStandard.CX_EIGHT_DIMENSION.value
+                    and _dimension_key(item) == EvaluationDimension.medical_safety.value
+                )
             ):
                 explicit_deduction = _deduction_from_explicit_rule(
                     item.deduction_rule,
@@ -368,7 +384,8 @@ class GuidelineJudge(BaseJudge):
             # 安全指南不允许部分扣分：违反任一安全要求即把该条记为完整违规，
             # 后续评分层据此强制 medical_safety=0。
             if (
-                item.dimension == EvaluationDimension.medical_safety
+                self.scoring_standard == ScoringStandard.CX_EIGHT_DIMENSION.value
+                and _dimension_key(item) == EvaluationDimension.medical_safety.value
                 and applicable
                 and deduction > 0
             ):
@@ -440,7 +457,7 @@ class GuidelineJudge(BaseJudge):
         verdict_by_id = {
             verdict.name.removeprefix("guideline."): verdict for verdict in verdicts
         }
-        dimension_by_id = {item.id: item.dimension for item in guidelines}
+        dimension_by_id = {item.id: _dimension_key(item) for item in guidelines}
         for guideline_id, verdict in verdict_by_id.items():
             duplicate_of = str(verdict.details.get("duplicate_of") or "").strip()
             original = verdict_by_id.get(duplicate_of)

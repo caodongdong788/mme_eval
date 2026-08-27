@@ -40,6 +40,7 @@ import {
 
 type CaseData = JsonObject;
 type Pair = [string, unknown];
+type BenchmarkScoringStandard = "agent" | "model_comparison";
 
 function asText(value: unknown): string {
   if (value == null) return "";
@@ -937,10 +938,23 @@ function AssertionsEditor({ value, onChange }: { value: unknown; onChange: (next
   );
 }
 
-function GuidelinesEditor({ value, onChange }: { value: unknown; onChange: (next: CaseData[]) => void }) {
+function GuidelinesEditor({
+  value,
+  onChange,
+  standard,
+}: {
+  value: unknown;
+  onChange: (next: CaseData[]) => void;
+  standard: BenchmarkScoringStandard;
+}) {
   const guidelines: CaseData[] = Array.isArray(value) ? value.map((item) => ({ ...(item || {}) })) : [];
+  const isModelComparison = standard === "model_comparison";
+  const dimensions: readonly string[] = isModelComparison ? MODEL_COMPARISON_DIMENSIONS : EVALUATION_DIMENSIONS;
+  const dimensionLabel = (dimension: string) => isModelComparison
+    ? MODEL_COMPARISON_DIMENSION_LABELS[dimension as keyof typeof MODEL_COMPARISON_DIMENSION_LABELS] || dimension
+    : DIM_LABEL[dimension as keyof typeof DIM_LABEL] || dimension;
   const update = (index: number, patch: CaseData) => onChange(updateItemAt(guidelines, index, patch));
-  const createGuideline = (dimension = "professional_accuracy") => {
+  const createGuideline = (dimension = isModelComparison ? "medical_knowledge_reasoning" : "professional_accuracy") => {
     const usedIds = new Set(guidelines.map((guide) => String(guide.id || "")));
     let sequence = guidelines.length + 1;
     let id = `g${String(sequence).padStart(2, "0")}`;
@@ -961,19 +975,28 @@ function GuidelinesEditor({ value, onChange }: { value: unknown; onChange: (next
   const entries = guidelines.map((guide, sourceIndex) => ({ guide, sourceIndex }));
   const entriesForDimension = (dimension: string) => entries.filter(({ guide }) => guide.dimension === dimension);
   const orderedEntries = [
-    ...EVALUATION_DIMENSIONS.flatMap(entriesForDimension),
-    ...entries.filter(({ guide }) => !EVALUATION_DIMENSIONS.includes(guide.dimension)),
+    ...dimensions.flatMap(entriesForDimension),
+    ...entries.filter(({ guide }) => !dimensions.includes(String(guide.dimension || ""))),
   ];
   const displayIndex = new Map(orderedEntries.map(({ sourceIndex }, index) => [sourceIndex, index + 1]));
-  const roleGroups = EVALUATION_ROLE_ORDER.map((role) => ({
-    role,
-    dimensions: EVALUATION_DIMENSIONS.map((dimension, dimensionIndex) => ({
-      dimension,
-      dimensionIndex,
-      entries: EVALUATION_DIMENSION_ROLE[dimension] === role ? entriesForDimension(dimension) : [],
-    })).filter((group) => group.entries.length > 0),
-  })).filter((group) => group.dimensions.length > 0);
-  const unassignedEntries = entries.filter(({ guide }) => !EVALUATION_DIMENSIONS.includes(guide.dimension));
+  const roleGroups = isModelComparison
+    ? [{
+        role: "model_comparison",
+        dimensions: dimensions.map((dimension, dimensionIndex) => ({
+          dimension,
+          dimensionIndex,
+          entries: entriesForDimension(dimension),
+        })).filter((group) => group.entries.length > 0),
+      }]
+    : EVALUATION_ROLE_ORDER.map((role) => ({
+        role,
+        dimensions: EVALUATION_DIMENSIONS.map((dimension, dimensionIndex) => ({
+          dimension,
+          dimensionIndex,
+          entries: EVALUATION_DIMENSION_ROLE[dimension] === role ? entriesForDimension(dimension) : [],
+        })).filter((group) => group.entries.length > 0),
+      })).filter((group) => group.dimensions.length > 0);
+  const unassignedEntries = entries.filter(({ guide }) => !dimensions.includes(String(guide.dimension || "")));
   const countCriteria = (guide: CaseData) => {
     const criteria = guide.criteria ?? guide.criterion;
     return Array.isArray(criteria) ? criteria.length : criteria ? 1 : 0;
@@ -987,11 +1010,11 @@ function GuidelinesEditor({ value, onChange }: { value: unknown; onChange: (next
         key={guide.id || sourceIndex}
         size="small"
         className="case-editor-guideline-card"
-        title={<span className="case-editor-guideline-card__title"><em>扣分项 {String(displayIndex.get(sourceIndex) || sourceIndex + 1).padStart(2, "0")}</em><strong>{DIM_LABEL[guide.dimension as keyof typeof DIM_LABEL] || "请选择关联维度"}</strong></span>}
+        title={<span className="case-editor-guideline-card__title"><em>扣分项 {String(displayIndex.get(sourceIndex) || sourceIndex + 1).padStart(2, "0")}</em><strong>{guide.dimension ? dimensionLabel(String(guide.dimension)) : "请选择关联维度"}</strong></span>}
         extra={<Button type="text" danger icon={<DeleteOutlined />} onClick={() => onChange(guidelines.filter((_, i) => i !== sourceIndex))}>删除</Button>}
       >
         <div className="case-editor-guide-meta">
-          <label className="case-editor-input-field"><span>关联评测维度</span><Select value={guide.dimension || undefined} placeholder="请选择" options={EVALUATION_DIMENSIONS.map((dimension) => ({ value: dimension, label: DIM_LABEL[dimension] }))} onChange={(dimension) => update(sourceIndex, { dimension })} /></label>
+          <label className="case-editor-input-field"><span>关联评测维度</span><Select value={guide.dimension || undefined} placeholder="请选择" options={dimensions.map((dimension) => ({ value: dimension, label: dimensionLabel(dimension) }))} onChange={(dimension) => update(sourceIndex, { dimension })} /></label>
           <label className="case-editor-input-field"><span>最高扣分</span><InputNumber min={0} value={guide.max_score ?? 1} onChange={(max_score) => update(sourceIndex, { max_score: max_score ?? 0 })} /></label>
         </div>
         <Typography.Text className="case-editor-field-label">检查点</Typography.Text>
@@ -1007,12 +1030,12 @@ function GuidelinesEditor({ value, onChange }: { value: unknown; onChange: (next
     <div className="case-editor-guideline-list">
       {roleGroups.map(({ role, dimensions }) => (
         <section className="case-editor-guideline-role-group" key={role}>
-          <header className="case-editor-guideline-role-group__header"><strong>{EVALUATION_ROLE_LABEL[role]}</strong><span>{dimensions.reduce((total, group) => total + group.entries.length, 0)} 个扣分项</span></header>
+          <header className="case-editor-guideline-role-group__header"><strong>{isModelComparison ? "模型对比八维" : EVALUATION_ROLE_LABEL[role as keyof typeof EVALUATION_ROLE_LABEL]}</strong><span>{dimensions.reduce((total, group) => total + group.entries.length, 0)} 个扣分项</span></header>
           {dimensions.map(({ dimension, dimensionIndex, entries: dimensionEntries }) => (
             <section className="case-editor-guideline-dimension-group" key={dimension}>
               <header className="case-editor-guideline-dimension-group__header">
                 <em>{String(dimensionIndex + 1).padStart(2, "0")}</em>
-                <strong>{DIM_LABEL[dimension]}</strong>
+                <strong>{dimensionLabel(dimension)}</strong>
                 <div className="case-editor-guideline-dimension-group__actions">
                   <Button type="link" size="small" icon={<PlusOutlined />} onClick={() => addGuideline(dimension)}>新增扣分项</Button>
                   <span>{dimensionEntries.length} 个扣分项 · {dimensionEntries.reduce((total, { guide }) => total + countCriteria(guide), 0)} 个检查点</span>
@@ -1087,28 +1110,36 @@ export function BenchmarkCaseEditorDrawer({
   const update = (patch: CaseData) => value && onChange({ ...value, ...patch });
   const initialState = (value?.initial_state || {}) as CaseData;
   const evaluation = (value?.evaluation || {}) as CaseData;
-  const criteria = (evaluation.dimension_criteria || {}) as CaseData;
-  const dimensionDetails = (dimension: string): CaseData => {
+  const criteriaField = (standard: BenchmarkScoringStandard) => standard === "model_comparison"
+    ? "model_comparison_dimension_criteria"
+    : "dimension_criteria";
+  const criteriaFor = (standard: BenchmarkScoringStandard) => (evaluation[criteriaField(standard)] || {}) as CaseData;
+  const dimensionDetails = (standard: BenchmarkScoringStandard, dimension: string): CaseData => {
+    const criteria = criteriaFor(standard);
     const item = criteria[dimension];
     return Array.isArray(item) ? { criteria: item, reference_answers: [] } : (item || {}) as CaseData;
   };
-  const updateDimension = (dimension: string, patch: CaseData) => {
-    const current = dimensionDetails(dimension);
+  const updateDimension = (standard: BenchmarkScoringStandard, dimension: string, patch: CaseData) => {
+    const field = criteriaField(standard);
+    const criteria = criteriaFor(standard);
+    const current = dimensionDetails(standard, dimension);
     const nextDetails = { ...current, ...patch };
     const requirements = Array.isArray(nextDetails.criteria) ? nextDetails.criteria : [];
     const references = Array.isArray(nextDetails.reference_answers) ? nextDetails.reference_answers : [];
     if (requirements.length === 0 && references.length === 0) {
       const nextCriteria = { ...criteria };
       delete nextCriteria[dimension];
-      updateEvaluation({ dimension_criteria: nextCriteria });
+      updateEvaluation({ [field]: nextCriteria });
       return;
     }
-    updateEvaluation({ dimension_criteria: { ...criteria, [dimension]: nextDetails } });
+    updateEvaluation({ [field]: { ...criteria, [dimension]: nextDetails } });
   };
-  const clearDimension = (dimension: string) => {
+  const clearDimension = (standard: BenchmarkScoringStandard, dimension: string) => {
+    const field = criteriaField(standard);
+    const criteria = criteriaFor(standard);
     const nextCriteria = { ...criteria };
     delete nextCriteria[dimension];
-    updateEvaluation({ dimension_criteria: nextCriteria });
+    updateEvaluation({ [field]: nextCriteria });
   };
   const updateInitialState = (patch: CaseData) => update({ initial_state: { ...initialState, ...patch } });
   const updateOptionalInitialState = (key: string, nextValue: unknown) => {
@@ -1118,6 +1149,34 @@ export function BenchmarkCaseEditorDrawer({
     update({ initial_state: nextState });
   };
   const updateEvaluation = (patch: CaseData) => update({ evaluation: { ...evaluation, ...patch } });
+  const renderDimensionCriteria = (standard: BenchmarkScoringStandard) => {
+    const isModelComparison = standard === "model_comparison";
+    const dimensions: readonly string[] = isModelComparison ? MODEL_COMPARISON_DIMENSIONS : EVALUATION_DIMENSIONS;
+    const labels = (dimension: string) => isModelComparison
+      ? MODEL_COMPARISON_DIMENSION_LABELS[dimension as keyof typeof MODEL_COMPARISON_DIMENSION_LABELS] || dimension
+      : DIM_LABEL[dimension as keyof typeof DIM_LABEL] || dimension;
+    const criteria = criteriaFor(standard);
+    return (
+      <div className="case-editor-standard-panel">
+        <Typography.Paragraph className="case-editor-section-hint">
+          {isModelComparison
+            ? "模型对比八维独立评分；仅当评测选择“模型对比八维”时，本页要求和好答案才会进入 Judge。"
+            : "Agent 评测八维独立评分；仅当评测选择“Agent 评测八维”时，本页要求和好答案才会进入 Judge。"}
+        </Typography.Paragraph>
+        <Collapse className="case-editor-dimension-collapse" items={dimensions.map((dimension, index) => {
+          const details = dimensionDetails(standard, dimension);
+          const requirementCount = Array.isArray(details.criteria) ? details.criteria.length : 0;
+          const referenceCount = Array.isArray(details.reference_answers) ? details.reference_answers.length : 0;
+          const label = labels(dimension);
+          return {
+            key: dimension,
+            label: <span className="case-editor-dimension-title"><em>{String(index + 1).padStart(2, "0")}</em><span><strong>{label}</strong><small>{requirementCount ? `${requirementCount} 条要求` : "尚未配置要求"}{referenceCount ? ` · ${referenceCount} 条好答案` : ""}</small></span></span>,
+            children: <div className="case-editor-dimension-content"><div className="case-editor-field-heading"><Typography.Text className="case-editor-field-label">评测要求</Typography.Text>{Object.prototype.hasOwnProperty.call(criteria, dimension) ? <Popconfirm title={`清空${label}的补充评测要求和好答案？`} okText="确认清空" cancelText="取消" onConfirm={() => clearDimension(standard, dimension)}><Button type="link" danger size="small">清空该维度</Button></Popconfirm> : null}</div><RequirementList value={details.criteria} onChange={(requirements) => updateDimension(standard, dimension, { criteria: requirements })} placeholder="请输入该维度的要求" addText="新增评测要求" /><Typography.Text className="case-editor-field-label">好答案（可选）</Typography.Text><Typography.Paragraph className="case-editor-section-hint">作为理想回答参考，评测时不会要求 bot 逐字复述。</Typography.Paragraph><RequirementList value={details.reference_answers} onChange={(reference_answers) => updateDimension(standard, dimension, { reference_answers })} placeholder="请输入好答案" addText="新增好答案" /></div>,
+          };
+        })} />
+      </div>
+    );
+  };
   const timelineValue = initialState.Timeline ?? initialState.timeline;
   const timelineCount = Array.isArray(timelineValue) ? timelineValue.length : 0;
   const toolState = (initialState.tool_state || {}) as CaseData;
@@ -1267,25 +1326,34 @@ export function BenchmarkCaseEditorDrawer({
       key: "criteria",
       label: "八维评测要求",
       children: <Card className="case-editor-card case-editor-criteria-section" bordered={false}>
-        <Typography.Paragraph className="case-editor-section-hint">八个维度独立评分。每条要求都会进入对应角色的 Judge 提示词。</Typography.Paragraph>
-        <Collapse className="case-editor-dimension-collapse" items={EVALUATION_DIMENSIONS.map((dimension, index) => {
-          const details = dimensionDetails(dimension);
-          const requirementCount = Array.isArray(details.criteria) ? details.criteria.length : 0;
-          const referenceCount = Array.isArray(details.reference_answers) ? details.reference_answers.length : 0;
-          return {
-            key: dimension,
-            label: <span className="case-editor-dimension-title"><em>{String(index + 1).padStart(2, "0")}</em><span><strong>{DIM_LABEL[dimension]}</strong><small>{requirementCount ? `${requirementCount} 条要求` : "尚未配置要求"}{referenceCount ? ` · ${referenceCount} 条好答案` : ""}</small></span></span>,
-            children: <div className="case-editor-dimension-content"><div className="case-editor-field-heading"><Typography.Text className="case-editor-field-label">评测要求</Typography.Text>{Object.prototype.hasOwnProperty.call(criteria, dimension) ? <Popconfirm title={`清空${DIM_LABEL[dimension]}的补充评测要求和好答案？`} okText="确认清空" cancelText="取消" onConfirm={() => clearDimension(dimension)}><Button type="link" danger size="small">清空该维度</Button></Popconfirm> : null}</div><RequirementList value={details.criteria} onChange={(requirements) => updateDimension(dimension, { criteria: requirements })} placeholder="请输入该维度的要求" addText="新增评测要求" /><Typography.Text className="case-editor-field-label">好答案（可选）</Typography.Text><Typography.Paragraph className="case-editor-section-hint">作为理想回答参考，评测时不会要求 bot 逐字复述。</Typography.Paragraph><RequirementList value={details.reference_answers} onChange={(reference_answers) => updateDimension(dimension, { reference_answers })} placeholder="请输入好答案" addText="新增好答案" /></div>,
-          };
-        })} />
+        <Tabs
+          className="case-editor-scoring-standard-tabs"
+          items={[
+            { key: "agent", label: "Agent 评测八维", children: renderDimensionCriteria("agent") },
+            { key: "model_comparison", label: "模型对比八维", children: renderDimensionCriteria("model_comparison") },
+          ]}
+        />
       </Card>,
     },
     {
       key: "guidelines",
-      label: `指南扣分点（${Array.isArray(evaluation.guidelines) ? evaluation.guidelines.length : 0}）`,
+      label: `指南扣分点（${(Array.isArray(evaluation.guidelines) ? evaluation.guidelines.length : 0) + (Array.isArray(evaluation.model_comparison_guidelines) ? evaluation.model_comparison_guidelines.length : 0)}）`,
       children: <Card className="case-editor-card case-editor-guideline-section" bordered={false}>
-        <Typography.Paragraph className="case-editor-section-hint">每条规则关联一个评测维度；满足触发条件后，Judge 才会依据规则检查并扣分。</Typography.Paragraph>
-        <GuidelinesEditor value={evaluation.guidelines} onChange={(guidelines) => updateEvaluation({ guidelines })} />
+        <Tabs
+          className="case-editor-scoring-standard-tabs"
+          items={[
+            {
+              key: "agent",
+              label: `Agent 评测八维（${Array.isArray(evaluation.guidelines) ? evaluation.guidelines.length : 0}）`,
+              children: <><Typography.Paragraph className="case-editor-section-hint">仅当评测选择“Agent 评测八维”时，本页规则才会参与检查和扣分。</Typography.Paragraph><GuidelinesEditor standard="agent" value={evaluation.guidelines} onChange={(guidelines) => updateEvaluation({ guidelines })} /></>,
+            },
+            {
+              key: "model_comparison",
+              label: `模型对比八维（${Array.isArray(evaluation.model_comparison_guidelines) ? evaluation.model_comparison_guidelines.length : 0}）`,
+              children: <><Typography.Paragraph className="case-editor-section-hint">仅当评测选择“模型对比八维”时，本页规则才会参与检查和扣分。</Typography.Paragraph><GuidelinesEditor standard="model_comparison" value={evaluation.model_comparison_guidelines} onChange={(model_comparison_guidelines) => updateEvaluation({ model_comparison_guidelines })} /></>,
+            },
+          ]}
+        />
       </Card>,
     },
     {

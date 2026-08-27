@@ -73,6 +73,42 @@ def test_v21_schema_preserves_dimension_and_guideline_reference_answers() -> Non
     assert saved["evaluation"]["guidelines"][0]["criteria"] == ["指出硬块需要重视"]
 
 
+def test_schema_preserves_both_scoring_standard_requirements() -> None:
+    raw = raw_case()
+    raw["evaluation"]["model_comparison_dimension_criteria"] = {
+        "instruction_following": {
+            "criteria": ["严格遵循用户要求的输出格式"],
+            "reference_answers": ["先给结论，再列出两条依据。"],
+        }
+    }
+    raw["evaluation"]["model_comparison_guidelines"] = [{
+        "id": "model_format",
+        "dimension": "instruction_following",
+        "criteria": ["不得遗漏用户明确要求的结论。"],
+        "max_score": 2,
+    }]
+
+    case = TestCase.model_validate(raw)
+    saved = case.model_dump(mode="json")["evaluation"]
+
+    assert saved["dimension_criteria"]["professional_accuracy"]["criteria"]
+    assert saved["guidelines"][0]["id"] == "risk"
+    assert saved["model_comparison_dimension_criteria"]["instruction_following"]["criteria"] == [
+        "严格遵循用户要求的输出格式"
+    ]
+    assert saved["model_comparison_guidelines"][0]["id"] == "model_format"
+
+
+def test_schema_rejects_unknown_model_comparison_dimension() -> None:
+    raw = raw_case()
+    raw["evaluation"]["model_comparison_dimension_criteria"] = {
+        "unknown_dimension": ["不得被接受"]
+    }
+
+    with pytest.raises(ValidationError, match="未知的模型对比评分维度"):
+        TestCase.model_validate(raw)
+
+
 def test_v21_schema_accepts_null_reference_answers_and_old_shapes() -> None:
     case = TestCase.model_validate(raw_case())
     dimension = case.evaluation.dimension_criteria[EvaluationDimension.professional_accuracy]

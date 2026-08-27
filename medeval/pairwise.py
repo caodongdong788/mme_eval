@@ -33,6 +33,7 @@ from .scoring_standards import (
     normalize_scoring_standard,
     scoring_dimension_criteria,
     scoring_dimension_keys,
+    scoring_dimension_labels,
     scoring_dimension_values,
     scoring_standard_label,
 )
@@ -197,25 +198,32 @@ def _case_image_paths(case: TestCase) -> list[str]:
     return paths
 
 
-def _case_requirements(case: TestCase) -> str:
-    from .evaluation import DIMENSION_LABELS
-
+def _case_requirements(case: TestCase, scoring_standard: str) -> str:
+    standard = normalize_scoring_standard(scoring_standard)
+    labels = scoring_dimension_labels(standard)
+    if standard == ScoringStandard.MODEL_COMPARISON.value:
+        dimension_criteria = case.evaluation.model_comparison_dimension_criteria
+        guidelines = case.evaluation.model_comparison_guidelines
+    else:
+        dimension_criteria = case.evaluation.dimension_criteria
+        guidelines = case.evaluation.guidelines
     lines: list[str] = []
-    for dimension, details in case.evaluation.dimension_criteria.items():
+    for dimension, details in dimension_criteria.items():
         for criterion in details.criteria:
-            lines.append(f"- {DIMENSION_LABELS[dimension]}：{criterion}")
-    for guideline in case.evaluation.guidelines:
+            lines.append(f"- {labels.get(str(dimension), str(dimension))}：{criterion}")
+    for guideline in guidelines:
+        dimension = str(getattr(guideline.dimension, "value", guideline.dimension))
         for checkpoint in guideline.checkpoints:
-            lines.append(f"- {DIMENSION_LABELS[guideline.dimension]}：{checkpoint}")
+            lines.append(f"- {labels.get(dimension, dimension)}：{checkpoint}")
     return "\n".join(lines) or "未配置额外验收要求；只按本评分标准和可观察证据比较。"
 
 
-def _case_context(case: TestCase) -> str:
+def _case_context(case: TestCase, scoring_standard: str) -> str:
     images = _case_image_paths(case)
     parts = [
         f"用户档案与 Timeline：\n{format_initial_state(case)}",
         "用例验收要求（用于确认任务目标，不要求复述固定答案）：\n"
-        f"{_case_requirements(case)}",
+        f"{_case_requirements(case, scoring_standard)}",
         (
             "图像/附件：用例包含附件（已匿名标记为 "
             + "、".join(f"附件{index}" for index, _ in enumerate(images, start=1))
@@ -554,7 +562,7 @@ class PairwiseComparator:
     ) -> dict:
         prompt = _PROMPT_TEMPLATE.format(
             scenario=case.scenario or "（未提供场景描述）",
-            case_context=_case_context(case),
+            case_context=_case_context(case, self.scoring_standard),
             conversation_blocks=_conversation_blocks(top_trace, bottom_trace),
             runtime_evidence_blocks=_runtime_evidence_blocks(
                 self.scoring_standard, top_trace, bottom_trace

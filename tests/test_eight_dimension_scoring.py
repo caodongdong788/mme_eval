@@ -315,6 +315,49 @@ def test_answer_requirement_deducts_model_comparison_absolute_score() -> None:
     assert breakdown["assertion_scores"][0]["applied_deduction"] == 2
 
 
+def test_each_scorer_applies_only_its_own_guidelines() -> None:
+    raw = raw_case()
+    raw["evaluation"]["model_comparison_guidelines"] = [{
+        "id": "model_format",
+        "dimension": "instruction_following",
+        "criterion": ["必须遵循用户指定格式。"],
+        "max_score": 2,
+    }]
+    item = result()
+    item.case = TestCase.model_validate(raw)
+    item.verdicts = [
+        JudgeVerdict(
+            name=f"dimension.{dimension.key}", passed=True, score=5, max_score=5,
+            reason="stub",
+        )
+        for dimension in MODEL_COMPARISON_DIMENSIONS
+    ] + [
+        JudgeVerdict(
+            name="guideline.risk", passed=False, score=0, max_score=3,
+            reason="Agent 指南失败", details={"applicable": True},
+        ),
+        JudgeVerdict(
+            name="guideline.model_format", passed=False, score=0, max_score=2,
+            reason="模型对比指南失败", details={"applicable": True},
+        ),
+    ]
+
+    model_breakdown = score_model_comparison_case(item)
+    assert model_breakdown["dimensions"]["instruction_following"] == 3
+    assert [row["id"] for row in model_breakdown["guideline_scores"]] == ["model_format"]
+
+    item.verdicts = [
+        JudgeVerdict(
+            name=f"dimension.{dimension.value}", passed=True, score=5, max_score=5,
+            reason="stub",
+        )
+        for dimension in EvaluationDimension
+    ] + item.verdicts[-2:]
+    agent_breakdown = score_eight_dimension_case(item)
+    assert agent_breakdown["dimensions"]["professional_accuracy"] == 2
+    assert [row["id"] for row in agent_breakdown["guideline_scores"]] == ["risk"]
+
+
 def test_failed_case_gets_actionable_quality_tags() -> None:
     item = result(guideline_score=0)
     for verdict in item.verdicts:

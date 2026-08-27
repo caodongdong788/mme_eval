@@ -9,7 +9,11 @@ from __future__ import annotations
 import logging
 
 from ..models import ConversationTrace, JudgeVerdict, TestCase
-from ..scoring_standards import MODEL_COMPARISON_DIMENSIONS, scoring_dimension_criteria
+from ..scoring_standards import (
+    MODEL_COMPARISON_DIMENSIONS,
+    scoring_dimension_criteria,
+    scoring_dimension_labels,
+)
 from .base import BaseJudge, stable_hash
 from .case_context import format_initial_state
 from .conversation import format_conversation, format_rag_evidence
@@ -32,6 +36,10 @@ _PROMPT = """你是医疗 Agent 质量评测员。请只评估当前 Agent 的�
 【评分标准】
 {dimensions}
 
+【本 Case 的模型对比八维补充要求】
+{case_dimension_criteria}
+这些要求只补充对应维度的评分边界；未配置的维度仍按通用评分标准评估。好答案仅用于理解期望方向，不要求逐字一致。
+
 【回答语义要求】
 {semantic_assertions}
 这些要求不要求逐字复述。请在 assertions 中逐条给出是否满足；passed=true 时 evidence 必须逐字引用指定范围内的 Agent 原文。
@@ -44,6 +52,19 @@ _PROMPT = """你是医疗 Agent 质量评测员。请只评估当前 Agent 的�
 仅输出 JSON：
 {{"scores": {{"dimension_key": 0}}, "reasons": {{"dimension_key": "可读的评分理由"}}, "assertions": {{"assertion_id": {{"passed": true, "reason": "语义满足说明", "evidence": ["Agent原文"]}}}}}}
 """
+
+
+def _format_case_dimension_criteria(case: TestCase) -> str:
+    labels = scoring_dimension_labels("model_comparison")
+    rows: list[str] = []
+    for dimension, details in case.evaluation.model_comparison_dimension_criteria.items():
+        criteria = "；".join(details.criteria)
+        references = "；".join(details.reference_answers)
+        row = f"- {labels.get(dimension, dimension)}（{dimension}）：{criteria}"
+        if references:
+            row += f"\n  好答案参考：{references}"
+        rows.append(row)
+    return "\n".join(rows) if rows else "无 Case 级补充要求"
 
 
 class ModelComparisonDimensionJudge(BaseJudge):
@@ -99,6 +120,7 @@ class ModelComparisonDimensionJudge(BaseJudge):
             initial_state=format_initial_state(case),
             rag_evidence=format_rag_evidence(trace),
             dimensions=scoring_dimension_criteria("model_comparison"),
+            case_dimension_criteria=_format_case_dimension_criteria(case),
             semantic_assertions=format_semantic_assertions(case),
         )
         try:

@@ -29,6 +29,12 @@ class _Backend:
 
 def test_model_comparison_verifies_semantic_answer_requirement() -> None:
     data = raw_case()
+    data["evaluation"]["dimension_criteria"] = {
+        "professional_accuracy": {"criteria": ["Agent 标准要求"]}
+    }
+    data["evaluation"]["model_comparison_dimension_criteria"] = {
+        "medical_knowledge_reasoning": {"criteria": ["模型对比标准要求"]}
+    }
     data["evaluation"]["assertions"] = [
         {
             "id": "semantic_followup",
@@ -62,3 +68,5 @@ def test_model_comparison_verifies_semantic_answer_requirement() -> None:
     assert assertion.evidence == ["建议复查血常规，用于确认当前治疗是否安全。"]
     assert "semantic_followup" in backend.prompt
     assert "不要求逐字复述" in backend.prompt
+    assert "模型对比标准要求" in backend.prompt
+    assert "Agent 标准要求" not in backend.prompt
