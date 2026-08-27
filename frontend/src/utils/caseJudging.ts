@@ -13,6 +13,10 @@ export interface CaseVerdict {
       requirement?: string;
       reason?: string;
       evidence?: string[];
+      evidence_refs?: Array<{
+        quote?: string;
+        turn_index?: number;
+      }>;
     }>;
     [key: string]: unknown;
   };

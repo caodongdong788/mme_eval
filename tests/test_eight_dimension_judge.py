@@ -941,3 +941,52 @@ def test_conditional_user_requirement_accepts_verified_user_trigger() -> None:
     assert verdict.details["issue_audits"][0]["context_evidence"] == [
         "我很担心副作用，身体会不会承受不住？"
     ]
+
+
+def test_audit_evidence_records_the_source_answer_turn() -> None:
+    raw = raw_case()
+    requirement = "应说明复查安排。"
+    raw["evaluation"]["dimension_criteria"]["professional_accuracy"] = {
+        "criteria": [requirement],
+    }
+    current_case = TestCase.model_validate(raw)
+    current_trace = ConversationTrace(messages=[
+        ChatMessage(role="user", content="第一次提问"),
+        ChatMessage(role="assistant", content="第一条回答证据。"),
+        ChatMessage(role="user", content="第二次提问"),
+        ChatMessage(role="assistant", content="第二条回答证据。"),
+    ])
+    judge = EightDimensionJudge(enabled=False)
+    judge.enabled = True
+    scores = {dimension.value: 5 for dimension in EvaluationDimension}
+    scores["professional_accuracy"] = 3
+
+    async def fake_call(prompt: str):
+        return (
+            scores,
+            {key: "stub" for key in scores},
+            {
+                "professional_accuracy": {
+                    "issues": [{
+                        "type": "partial",
+                        "requirement": requirement,
+                        "reason": "提到了复查，但没有完整说明复查安排。",
+                        "evidence": ["第一条回答证据。", "第二条回答证据。"],
+                        "context_evidence": [],
+                        "searched_terms": [],
+                    }]
+                }
+            },
+        )
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdicts = asyncio.run(judge.judge(current_case, current_trace))
+    verdict = next(
+        v for v in verdicts if v.name == "dimension.professional_accuracy"
+    )
+
+    assert verdict.score == 3
+    assert verdict.details["issue_audits"][0]["evidence_refs"] == [
+        {"quote": "第一条回答证据。", "turn_index": 1},
+        {"quote": "第二条回答证据。", "turn_index": 2},
+    ]

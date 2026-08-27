@@ -19,6 +19,7 @@ from .base import BaseJudge, stable_hash
 from .case_context import format_initial_state
 from .conversation import format_conversation, format_rag_evidence
 from .evidence import (
+    assistant_evidence_turn_refs,
     assistant_texts,
     normalize_terms,
     provided_context_texts,
@@ -108,6 +109,7 @@ passed=true 时 evidence 必须逐字引用能够证明满足要求的 Agent 原
 - reasons 只作为模型原始总评留痕；平台会根据 audits 中通过证据核验的内容重新生成面向用户的判定理由。因此 reasons 不得增加 audits 中不存在的扣分点。
 - 每个 issue.reason 必须使用业务人员能直接理解的完整句子，明确写出“回答具体做了什么或没做什么”。不得使用“行动颗粒度不足”“沟通入口缺失”“表达较为泛化”“边界不充分”等脱离具体内容的内部评测术语。
 - requirement 负责记录“回答应做到什么”，issue.reason 只描述当前回答的实际表现，避免重复判据。missing 的 reason 使用“没有……”结构；partial 使用“提到了……，但没有完整说明……”结构；contradicted 使用“说……，与要求相反”结构；hallucination 使用“把……说成……，但用户对话和 Case 已知事实均没有提供该信息”结构。
+- 条件式追问或建议（如“有没有影响吃饭喝水”“要不要提前联系医生”“如果影响生活再反馈”）不等于明确要求患者等待、忽略或拖延处理。若回答没有直接给出应尽快联系医生的行动建议，只能如实写“未明确建议尽快联系”，不得改写为“让患者等到症状加重后再处理”；只有 bot 原文明确要求等待、延后或不处理时，才能判为 contradicted。
 - 如果一项要求同时包含准备资料、询问医生、复诊时机等多个动作，reason 必须逐项写明缺少的具体动作，不能笼统概括为“资料准备不足”或“继续交流不足”。
 - 0～4 分：必须在 audits 中同时写明已做到的部分（若确实没有则写“未做到”）和所有经过核验的具体未满足点；不得只写表扬或不可定位的套话。
 - 5 分：必须写明完全达标的具体点与对话证据，不能只写“很好/不错”。
@@ -519,6 +521,7 @@ class EightDimensionJudge(BaseJudge):
                 "root_cause_key": root_cause_key,
                 "independent_effect": independent_effect,
                 "evidence": quotes,
+                "evidence_refs": assistant_evidence_turn_refs(quotes, trace),
                 "context_evidence": context_evidence,
                 "rejected_context_evidence": rejected_context_evidence,
                 "searched_terms": terms,

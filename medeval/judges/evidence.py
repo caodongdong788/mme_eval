@@ -63,6 +63,32 @@ def sanitize_assistant_evidence(raw: Any, trace: ConversationTrace) -> tuple[lis
     return valid, rejected
 
 
+def assistant_evidence_turn_refs(
+    quotes: list[str], trace: ConversationTrace
+) -> list[dict[str, str | int]]:
+    """为已核验的 bot 引文保留可展示的对话轮次。
+
+    Judge 的引文可能来自不同轮次；只返回裸字符串会让 Case 详情页把多条证据
+    拼成一段，人工复核时无法知道应回看哪一轮。轮次口径与
+    ``format_conversation`` 保持一致：每出现一条用户消息即进入下一轮。
+    """
+
+    refs: list[dict[str, str | int]] = []
+    turn_index = 0
+    for message in trace.messages:
+        if message.role == "user":
+            turn_index += 1
+            continue
+        if message.role != "assistant":
+            continue
+        for quote in quotes:
+            if text_occurs(quote, [message.content]):
+                ref = {"quote": quote, "turn_index": max(turn_index, 1)}
+                if ref not in refs:
+                    refs.append(ref)
+    return refs
+
+
 def normalize_terms(raw: Any) -> list[str]:
     if not isinstance(raw, list):
         return []

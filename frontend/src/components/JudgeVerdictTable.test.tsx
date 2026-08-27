@@ -161,6 +161,10 @@ describe("JudgeVerdictTable", () => {
               requirement: "应建议用户复诊时携带或提前获取完整病理报告和免疫组化结果，并提示不明白之处可直接向医生询问。",
               reason: "未提示准备完整报告、免疫组化结果或向医生询问",
               evidence: ["我可以帮你整理一张沟通卡片。"],
+              evidence_refs: [{
+                quote: "我可以帮你整理一张沟通卡片。",
+                turn_index: 2,
+              }],
             }],
           },
         }]}
@@ -175,7 +179,9 @@ describe("JudgeVerdictTable", () => {
       "judge-audit-reason__issues",
     );
     expect(screen.getByText(/回答里应建议用户复诊时携带或提前获取完整病理报告和免疫组化结果/)).toBeInTheDocument();
-    expect(screen.getByText(/对应原文：/).parentElement).toHaveTextContent("我可以帮你整理一张沟通卡片");
+    expect(screen.getByText(/对应原文：/).parentElement).toHaveTextContent(
+      "第 2 轮回答：我可以帮你整理一张沟通卡片",
+    );
     expect(screen.queryByText("旧版模型总评")).not.toBeInTheDocument();
   });
 

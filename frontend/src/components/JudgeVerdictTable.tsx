@@ -53,6 +53,10 @@ type DimensionAuditIssue = {
   requirement?: string;
   reason?: string;
   evidence?: string[];
+  evidence_refs?: Array<{
+    quote?: string;
+    turn_index?: number;
+  }>;
 };
 
 function readableAuditIssue(issue: DimensionAuditIssue): string {
@@ -81,6 +85,23 @@ function readableAuditIssue(issue: DimensionAuditIssue): string {
   return sentence(observed || requirement);
 }
 
+function readableEvidence(issue: DimensionAuditIssue): string {
+  const refs = (issue.evidence_refs || [])
+    .map((ref) => ({
+      quote: String(ref?.quote || "").trim(),
+      turnIndex: Number(ref?.turn_index),
+    }))
+    .filter((ref) => ref.quote);
+  if (refs.length) {
+    return refs.map((ref) => (
+      Number.isInteger(ref.turnIndex) && ref.turnIndex > 0
+        ? `第 ${ref.turnIndex} 轮回答：${ref.quote}`
+        : ref.quote
+    )).join("；");
+  }
+  return (issue.evidence || []).join("；");
+}
+
 function StructuredDimensionReason({ verdict }: { verdict: CaseVerdict }) {
   const satisfied = (verdict.details?.satisfied_points || []).filter(Boolean);
   const issues = (verdict.details?.issue_audits || []).filter(
@@ -101,9 +122,9 @@ function StructuredDimensionReason({ verdict }: { verdict: CaseVerdict }) {
           {issues.map((issue, index) => (
             <li key={`${issue.requirement || "issue"}-${index}`}>
               <div>{readableAuditIssue(issue)}</div>
-              {issue.evidence?.length ? (
+              {issue.evidence?.length || issue.evidence_refs?.length ? (
                 <div className="judge-audit-reason__evidence">
-                  <span>对应原文：</span>{issue.evidence.join("；")}
+                  <span>对应原文：</span>{readableEvidence(issue)}
                 </div>
               ) : null}
             </li>
