@@ -385,6 +385,10 @@ class CxAgentAdapter(BaseAdapter):
                 evaluation_share = data
             elif event == "text_delta":
                 reply_parts.append(_extract_delta(data))
+            elif event == "assistant_output_retracted":
+                # CX 前端收到此事件会撤回当前草稿后再展示重试后的终答。评测侧若
+                # 继续拼接撤回前的 text_delta，会把用户从未看到的候选回复拿去判分。
+                reply_parts.clear()
             elif event == "message_end":
                 saw_message_end = True
                 usage = _usage_from_message_end(data)

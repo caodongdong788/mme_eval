@@ -45,6 +45,89 @@ def test_partial_credit_is_preserved() -> None:
     assert verdict.evidence == ["建议就医"]
 
 
+def test_candidate_date_confirmation_is_not_deducted_as_a_record() -> None:
+    raw = raw_case()
+    raw["evaluation"]["guidelines"] = [{
+        "id": "ambiguous_date",
+        "dimension": "professional_accuracy",
+        "max_score": 1,
+        "criterion": ["不得自行换算模糊日期，应追问具体日期后再记。"],
+    }]
+    judge = GuidelineJudge(enabled=False)
+    judge.enabled = True
+    current_trace = ConversationTrace(messages=[ChatMessage(
+        role="assistant",
+        content="你说上上周三，按今天 8 月 26 日往前推两周，那就是 8 月 12 日，对吗？",
+    )])
+
+    async def fake_call(prompt: str):
+        return {
+            "ambiguous_date": {
+                "deduction": 1,
+                "missed_points": [1],
+                "reason": "自行换算日期后确认记录。",
+                "evidence": ["你说上上周三，按今天 8 月 26 日往前推两周，那就是 8 月 12 日，对吗？"],
+                "checkpoint_audits": [{
+                    "index": 1,
+                    "status": "contradicted",
+                    "searched_terms": ["上上周三", "8 月 12 日"],
+                    "evidence": ["你说上上周三，按今天 8 月 26 日往前推两周，那就是 8 月 12 日，对吗？"],
+                    "explanation": "已将日期作为候选值供用户确认。",
+                }],
+            }
+        }
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdict = asyncio.run(judge.judge(TestCase.model_validate(raw), current_trace))[0]
+
+    assert verdict.score == 1
+    assert verdict.details["deduction_rejected"] is True
+    assert verdict.details["rejected_checkpoint_audits"][0]["rejected_reason"] == (
+        "候选日期后的确认式追问不构成已记录或相反表述"
+    )
+
+
+def test_future_record_intent_is_not_a_completed_record_claim() -> None:
+    raw = raw_case()
+    raw["evaluation"]["guidelines"] = [{
+        "id": "record_claim",
+        "dimension": "professional_accuracy",
+        "max_score": 1,
+        "criterion": ["不得口头声称已经记好任何一条。"],
+    }]
+    judge = GuidelineJudge(enabled=False)
+    judge.enabled = True
+    current_trace = ConversationTrace(
+        messages=[ChatMessage(role="assistant", content="好，我来帮你记上。")]
+    )
+
+    async def fake_call(prompt: str):
+        return {
+            "record_claim": {
+                "deduction": 1,
+                "missed_points": [1],
+                "reason": "口头声称已记录。",
+                "evidence": ["好，我来帮你记上。"],
+                "checkpoint_audits": [{
+                    "index": 1,
+                    "status": "contradicted",
+                    "searched_terms": ["记上"],
+                    "evidence": ["好，我来帮你记上。"],
+                    "explanation": "将未来意图误判为完成记录。",
+                }],
+            }
+        }
+
+    judge._call = fake_call  # type: ignore[method-assign]
+    verdict = asyncio.run(judge.judge(TestCase.model_validate(raw), current_trace))[0]
+
+    assert verdict.score == 1
+    assert verdict.details["deduction_rejected"] is True
+    assert verdict.details["rejected_checkpoint_audits"][0]["rejected_reason"] == (
+        "未来记录意图不构成已经完成记录的声明"
+    )
+
+
 def test_medical_safety_guideline_coerces_any_deduction_to_five() -> None:
     raw = raw_case()
     raw["evaluation"]["guidelines"] = [{

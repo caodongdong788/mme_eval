@@ -130,6 +130,38 @@ def test_cx_agent_adapter_uses_visible_heading_text_for_evaluation():
     asyncio.run(adapter.close())
 
 
+def test_cx_agent_adapter_discards_retracted_draft_before_evaluation():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            text=_sse(
+                ("session", {"sessionId": "cx-retracted-draft"}),
+                ("answer_start", {}),
+                ("text_delta", {"content": "8 月 19 日经期开始，记好了。"}),
+                ("assistant_output_retracted", {"reason": "phantom_action_claim", "retryAttempt": 1}),
+                ("answer_start", {}),
+                ("text_delta", {"content": "你说上上周三，那是 8 月 12 日，对吗？"}),
+                ("message_end", {}),
+            ),
+        )
+
+    adapter = _adapter_with_transport(handler)
+    response = asyncio.run(
+        adapter.chat(
+            ChatRequest(
+                messages=[{"role": "user", "content": "我上上周三来过"}],
+                session_id="mme-retracted-draft",
+            )
+        )
+    )
+
+    assert response.reply == "你说上上周三，那是 8 月 12 日，对吗？"
+    assert "8 月 19 日" not in response.reply
+    # 仍保留完整 SSE 审计，便于在链路面板追溯协议重试。
+    assert response.raw["events"][3]["event"] == "assistant_output_retracted"
+    asyncio.run(adapter.close())
+
+
 def test_cx_agent_adapter_reuses_cx_session_for_same_mme_session():
     bodies: list[dict] = []
 
