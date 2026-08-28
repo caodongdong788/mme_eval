@@ -284,7 +284,7 @@ describe("runsListOverview", () => {
     expect(computeCxAgentOptimizationPeriodDeltas(current, previous)).toBeNull();
   });
 
-  it("does not compare pass rates when one period lacks a benchmark", () => {
+  it("compares pass rates from each period even when a benchmark is newly added", () => {
     const current = [
       run({ id: 1, benchmark_id: 10, created_at: "2026-06-11T10:00:00Z" }),
       run({ id: 2, benchmark_id: 20, created_at: "2026-06-11T11:00:00Z" }),
@@ -292,6 +292,8 @@ describe("runsListOverview", () => {
     const previous = [
       run({ id: 3, benchmark_id: 10, created_at: "2026-06-10T10:00:00Z" }),
     ];
-    expect(computeRunsPeriodDeltas(current, previous)?.passRatePct).toBeNull();
+    // 当前周期：(80 + 80) / (92 + 92) = 87.0%；上周期：80 / 92 = 87.0%。
+    // Benchmark #20 为本周期新增，也应按各自周期的实际结果计算环比。
+    expect(computeRunsPeriodDeltas(current, previous)?.passRatePct).toBe(0);
   });
 });

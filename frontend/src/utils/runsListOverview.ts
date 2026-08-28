@@ -153,24 +153,13 @@ function isCompletedBenchmarkRun(run: RunSummary): run is CompletedBenchmarkRun 
   );
 }
 
-function passRateBenchmarkIds(runs: RunSummary[]): number[] {
-  return [...new Set(
-    runs
-      .filter(isCompletedBenchmarkRun)
-      .map((run) => run.benchmark_id)
-  )].sort((a, b) => a - b);
-}
-
 function aggregateDailyPassRatePct(points: RunsTrendPoint[]): number | null {
   const total = points.reduce((sum, point) => sum + point.total, 0);
   const passed = points.reduce((sum, point) => sum + point.passed, 0);
   return total > 0 ? Math.round((passed / total) * 1000) / 10 : null;
 }
 
-function buildDailyPassRatePoints(
-  runs: RunSummary[],
-  requiredBenchmarkIds?: number[]
-): RunsTrendPoint[] {
+function buildDailyPassRatePoints(runs: RunSummary[]): RunsTrendPoint[] {
   const completed = runs.filter(isCompletedBenchmarkRun);
   if (completed.length === 0) return [];
 
@@ -191,13 +180,6 @@ function buildDailyPassRatePoints(
   }
 
   return [...latestByDay.entries()]
-    // 看趋势时不传 requiredBenchmarkIds：保留当天实际完成的结果，避免长周期
-    // 只有一个数据点。计算“较上周期”时传入：仅比较覆盖相同 Benchmark 的日期，
-    // 防止样本集合变化被误判为通过率变化。
-    .filter(([, benchmarkRuns]) =>
-      requiredBenchmarkIds == null
-        || requiredBenchmarkIds.every((benchmarkId) => benchmarkRuns.has(benchmarkId))
-    )
     .sort(([dayA], [dayB]) => dayA - dayB)
     .flatMap(([timestamp, benchmarkRuns]) => {
       // 每天只聚合当天实际完成的 Benchmark。此前要求当天覆盖当前范围内的
@@ -495,15 +477,10 @@ export function computeRunsPeriodDeltas(
   const prev = computeRunsListKpis(previous);
   let passRatePct: number | null = null;
   let avgComposite: number | null = null;
-  const comparableBenchmarkIds = passRateBenchmarkIds([...current, ...previous]);
-  const currentPassPct = aggregateDailyPassRatePct(
-    buildDailyPassRatePoints(current, comparableBenchmarkIds)
-  );
-  const previousPassPct = aggregateDailyPassRatePct(
-    buildDailyPassRatePoints(previous, comparableBenchmarkIds)
-  );
-  if (currentPassPct != null && previousPassPct != null) {
-    passRatePct = Math.round((currentPassPct - previousPassPct) * 10) / 10;
+  // 环比遵循页面日期与状态筛选：各周期分别聚合其实际完成的 Benchmark，
+  // 不因某个 Benchmark 在另一周期不存在而隐藏结果。
+  if (cur.avgPassPct != null && prev.avgPassPct != null) {
+    passRatePct = Math.round((cur.avgPassPct - prev.avgPassPct) * 10) / 10;
   }
   if (cur.avgComposite != null && prev.avgComposite != null) {
     avgComposite = Math.round((cur.avgComposite - prev.avgComposite) * 10) / 10;
